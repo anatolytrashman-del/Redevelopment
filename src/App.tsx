@@ -29,10 +29,13 @@ import { DistrictsAnalyticsPage } from './pages/DistrictsAnalyticsPage';
 import { AnalyticsMethodologyPage } from './pages/AnalyticsMethodologyPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { NotFound } from './pages/NotFound';
+import { CookieBanner } from './components/layout/CookieBanner';
 import { metrikaHit } from './lib/metrika';
 import { vkPixelHit, vkPixelGoal, vkPageGoalForPath } from './lib/vkPixel';
 import { useOnlinePresenceTracker } from './lib/onlinePresence';
+import { trackPageView } from './lib/pageViewTracker';
 import { FavoritesProvider } from './lib/favoritesContext';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
@@ -185,6 +188,19 @@ function useSpaPageviewHits() {
   }, [location.pathname, location.search]);
 }
 
+// Собственный счётчик посещаемости без cookie (владелец, 2026-09-28) —
+// src/lib/pageViewTracker.ts, таблица page_views_daily. Зависимость только
+// от pathname (не search/hash), как и просит ТЗ трекера: смена query-строки
+// или якоря внутри той же страницы — не новый просмотр. isFirstRender не
+// нужен (в отличие от useSpaPageviewHits выше) — первую страницу загрузки
+// документа тоже нужно посчитать, сам трекер и определяет по ней visit-entry.
+function useOwnPageViewCounter() {
+  const location = useLocation();
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
+}
+
 // VK-аудитории по конкретным страницам (см. lib/vkPixel.ts) — в отличие
 // от общего pageview выше, здесь ПЕРВЫЙ рендер не пропускается: обычный
 // init пикселя сам такое именованное событие не шлёт, только generic
@@ -258,6 +274,7 @@ export default function App() {
   useSpaPageviewHits();
   useVkPageGoals();
   useOnlineVisitorPresence();
+  useOwnPageViewCounter();
   return (
     <FavoritesProvider>
     <Routes>
@@ -354,6 +371,11 @@ export default function App() {
         }
       />
       <Route path="/minsk/:slug" element={<ObjectLandingPage />} />
+      {/* Политика конфиденциальности (владелец, 2026-09-25) — статический
+          односегментный путь, регистрируется ДО "/:legacySlug" ниже: иначе
+          общий catch-all принял бы /privacy за старый слаг объекта и увёл
+          бы на /minsk/privacy. */}
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
       {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
       <Route path="/:legacySlug" element={<LegacySlugRedirect />} />
@@ -522,6 +544,7 @@ export default function App() {
           проваливаться в CRM — раньше он попадал на Home внутри AppLayout. */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    <CookieBanner />
     </FavoritesProvider>
   );
 }

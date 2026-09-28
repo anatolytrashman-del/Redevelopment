@@ -29,7 +29,7 @@ import { next } from '@vercel/functions';
 // общий клиентский `<Route path="/:legacySlug">` в App.tsx это лишь
 // backward-compat подстраховка на случай появления новых слагов ТАКОГО ЖЕ
 // старого паттерна, а не признак того, что такой путь существует сегодня.
-const EXACT_PATHS = new Set<string>(['/', '/one', '/redstorage', '/rayon-minsk-mir', '/business-upload']);
+const EXACT_PATHS = new Set<string>(['/', '/one', '/redstorage', '/rayon-minsk-mir', '/business-upload', '/privacy']);
 
 // Префиксы реальных разделов (без хвостового "/" — сравниваем через
 // `=== prefix` или `startsWith(prefix + '/')`, см. isKnownPath).
@@ -43,6 +43,7 @@ const KNOWN_PREFIXES = [
   '/favorites', // /favorites/:id — публичная ссылка на избранное без регистрации
   '/bc', // /bc/:slug — карточка БЦ для ссылки с сайта самого здания (vercel.json → пререндер /minsk/bc/:slug)
   '/api', // serverless-функции
+  '/_vercel', // Vercel Web Analytics: скрипт и отправка визитов (/_vercel/insights/*)
   '/.well-known', // верификация доменов и т.п. — сейчас не используется, но не должно 404-иться, если появится
 ];
 
