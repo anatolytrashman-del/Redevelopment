@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Users, Clock, AlertTriangle, Bot, ArrowLeft } from 'lucide-react';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Clock, AlertTriangle, Bot, ArrowLeft } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -1511,7 +1511,9 @@ export function EmailThread({
               <div
                 key={e.id}
                 className={cn(
-                  'flex flex-col gap-1 rounded-control p-3 text-sm',
+                  // Длинная ссылка или имя файла без пробелов не должны
+                  // растягивать ленту вбок (владелец, 2026-09-28).
+                  'flex min-w-0 flex-col gap-1 rounded-control p-3 text-sm [overflow-wrap:anywhere]',
                   // Владелец, 2026-09-03: "слишком много красного цвета...
                   // остальное делай нейтральным" — направление письма теперь
                   // различимо только отступом (ml/mr) и подписью
@@ -2673,19 +2675,22 @@ function MergedFeed({
   pendingAutoReplies: EmailAutoReplyLogEntry[];
   onOpenTopic: (key: string) => void;
 }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const titleByKey = useMemo(() => new Map(conv.topics.map((t) => [t.key, t.title])), [conv.topics]);
   const draftEmailIds = useMemo(() => new Set(pendingAutoReplies.map((d) => d.emailId)), [pendingAutoReplies]);
   const lastId = conv.lastEmail?.id;
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'nearest' });
+    // Прокручиваем к свежему письму только саму ленту, не страницу:
+    // scrollIntoView дёргал всю страницу вниз (владелец, 2026-09-28).
+    const el = listRef.current;
+    if (el && el.scrollHeight > el.clientHeight) el.scrollTop = el.scrollHeight;
   }, [conv.key, lastId]);
 
   if (conv.emails.length === 0) return <p className="text-sm text-ink-faint">Писем пока нет — напишите первое ниже.</p>;
 
   let lastDay = '';
   return (
-    <div className="flex flex-col gap-3 roomy:min-h-60 roomy:flex-1 roomy:overflow-y-auto">
+    <div ref={listRef} className="flex min-w-0 flex-col gap-3 roomy:min-h-60 roomy:flex-1 roomy:overflow-y-auto">
       {conv.emails.map((e) => {
         const day = dayLabel(e.createdAt);
         const showDay = day !== lastDay;
@@ -2719,8 +2724,8 @@ function MergedFeed({
                   {titleByKey.get(key) ?? 'Тема'}
                 </button>
               </div>
-              {e.subject && <span className="font-semibold text-ink">{e.subject}</span>}
-              {visible && <p className="whitespace-pre-wrap break-words text-ink">{visible}</p>}
+              {e.subject && <span className="font-semibold text-ink [overflow-wrap:anywhere]">{e.subject}</span>}
+              {visible && <p className="whitespace-pre-wrap text-ink [overflow-wrap:anywhere]">{visible}</p>}
               {e.files.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {e.files.map((f, i) => (
@@ -2729,10 +2734,11 @@ function MergedFeed({
                       href={f.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-1 rounded-control bg-ink/[0.05] px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                      className="flex min-w-0 max-w-full items-center gap-1 rounded-control bg-ink/[0.05] px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                      title={f.fileName}
                     >
-                      <Paperclip className="h-3 w-3" />
-                      {f.fileName}
+                      <Paperclip className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{f.fileName}</span>
                     </a>
                   ))}
                 </div>
@@ -2750,7 +2756,6 @@ function MergedFeed({
           </div>
         );
       })}
-      <div ref={bottomRef} />
     </div>
   );
 }
@@ -2785,7 +2790,6 @@ export function SupplierCorrespondenceTab({
   legalEntities,
   templatesModalOpen,
   onCloseTemplatesModal,
-  onOpenBulkSend,
   onEmailSent,
   onMarkRead,
   onTemplatesChange,
@@ -2798,7 +2802,6 @@ export function SupplierCorrespondenceTab({
   onQuotesChange,
   pendingAutoReplies,
   onAutoReplyReviewed,
-  onRequestSaved,
 }: {
   requests: SupplierRequest[];
   offers: SupplierOffer[];
@@ -2817,13 +2820,6 @@ export function SupplierCorrespondenceTab({
   // снаружи.
   templatesModalOpen: boolean;
   onCloseTemplatesModal: () => void;
-  // Владелец, 2026-09-04: "давай реализуем массовую отправку... Альмира
-  // сформировала универсальную ведомость и хочет разослать её нескольким
-  // поставщикам" — сам мастер (выбор ведомости → получатели → отправка)
-  // живёт в Suppliers.tsx (не размонтируется при переключении вкладок,
-  // рассылка переживает уход с "Письма" на другую вкладку страницы), тут
-  // только кнопка-триггер на уровне выбранной категории.
-  onOpenBulkSend: (request: SupplierRequest) => void;
   onEmailSent: (email: SupplierOfferEmail) => void;
   onMarkRead: (offerId: string, orderId: string | null) => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
@@ -2838,9 +2834,6 @@ export function SupplierCorrespondenceTab({
   // (Suppliers.tsx), тут только проброс в открытый тред.
   pendingAutoReplies: EmailAutoReplyLogEntry[];
   onAutoReplyReviewed: (id: string) => void;
-  // Срок ответа категории правится прямо в панели дожима (шаг 8) — обновлённый
-  // запрос надо вернуть наверх, иначе панель откатится на старое значение.
-  onRequestSaved: (r: SupplierRequest) => void;
 }) {
   // Владелец, 2026-09-04: "сидишь на странице конкретной переписки,
   // обновляешь — и всё слетело... кастомный урл даже на переписки с
@@ -2849,7 +2842,6 @@ export function SupplierCorrespondenceTab({
   // не сбрасывает открытый тред. order отсутствует в URL — открыта
   // "основная" переписка офера (null), не отдельная заявка.
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedRequestId = searchParams.get('category');
   const selectedOfferId = searchParams.get('offer');
   const selectedOrderId = searchParams.get('order');
 
@@ -2892,7 +2884,6 @@ export function SupplierCorrespondenceTab({
   const filter: InboxFilter = INBOX_FILTERS.some((f) => f.id === searchParams.get('filter'))
     ? (searchParams.get('filter') as InboxFilter)
     : 'all';
-  const categoryFilter = selectedRequestId && requests.some((r) => r.id === selectedRequestId) ? selectedRequestId : '';
   const [query, setQuery] = useState('');
 
   // Старые ссылки (?offer=&order=, например из карточки поставщика) по-прежнему
@@ -2908,31 +2899,26 @@ export function SupplierCorrespondenceTab({
     selectedConv?.topics.find((t) => t.key === replyTopicKey) ?? (selectedConv ? defaultReplyTopic(selectedConv) : null);
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
-  const inCategory = (c: Conversation) => !categoryFilter || c.requestIds.includes(categoryFilter);
   const filterCounts: Record<InboxFilter, number> = {
-    all: conversations.filter((c) => c.emails.length > 0 && inCategory(c)).length,
-    unread: conversations.filter((c) => c.unreadCount > 0 && inCategory(c)).length,
-    waiting: conversations.filter((c) => c.waitingReply && inCategory(c)).length,
+    all: conversations.filter((c) => c.emails.length > 0).length,
+    unread: conversations.filter((c) => c.unreadCount > 0).length,
+    waiting: conversations.filter((c) => c.waitingReply).length,
     unmatched: unmatched.length,
   };
 
   const visibleConversations = useMemo(
     () =>
       conversations.filter((c) => {
-        if (categoryFilter && !c.requestIds.includes(categoryFilter)) return false;
-        // Без выбранной категории — только те, с кем уже переписывались: это
-        // история. В категории видны и её верифицированные поставщики, кому
-        // ещё не писали, — чтобы было кому написать первое письмо.
-        if (!categoryFilter && c.emails.length === 0) return false;
+        // Список — история: только те, с кем уже переписывались. Первое
+        // письмо новому поставщику пишется из его карточки на «Поставщиках».
+        if (c.emails.length === 0) return false;
         if (filter === 'unread' && c.unreadCount === 0) return false;
         if (filter === 'waiting' && !c.waitingReply) return false;
         return conversationMatches(c, query);
       }),
-    [conversations, categoryFilter, filter, query],
+    [conversations, filter, query],
   );
 
-  const selectedRequest = categoryFilter ? requests.find((r) => r.id === categoryFilter) ?? null : null;
-  const categoryOffers = selectedRequest ? offers.filter((o) => o.requestId === selectedRequest.id && o.email && o.verified) : [];
 
   function updateParams(mutate: (params: URLSearchParams) => void) {
     setSearchParams(
@@ -2985,12 +2971,6 @@ export function SupplierCorrespondenceTab({
     });
   }
 
-  function setCategoryFilter(requestId: string) {
-    updateParams((p) => {
-      if (requestId) p.set('category', requestId);
-      else p.delete('category');
-    });
-  }
 
   // Для создания доп. заявки (handleCreateOrder ниже): заявка заводится у
   // предложения открытой темы и сразу открывается.
@@ -3082,7 +3062,7 @@ export function SupplierCorrespondenceTab({
             <span className={cn('mt-0.5 block truncate text-xs', conv.unreadCount > 0 ? 'text-ink' : 'text-ink-muted')}>{snippet}</span>
             <span className="mt-1.5 flex flex-wrap gap-1">
               {conv.categoryTitles.slice(0, 2).map((t) => (
-                <span key={t} className="rounded-md bg-surface-muted px-1.5 py-0.5 text-[11px] text-ink-muted">
+                <span key={t} className="max-w-full truncate rounded-md bg-surface-muted px-1.5 py-0.5 text-[11px] text-ink-muted">
                   {t}
                 </span>
               ))}
@@ -3133,41 +3113,6 @@ export function SupplierCorrespondenceTab({
                 </button>
               ))}
             </div>
-            {!isUnmatchedView && (
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full rounded-control border border-transparent bg-surface-muted px-3 py-2 text-sm text-ink outline-none focus:border-primary"
-              >
-                <option value="">Все категории</option>
-                {requests.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.title}
-                  </option>
-                ))}
-              </select>
-            )}
-            {/* Массовая отправка и дожим — у категории, поэтому только когда
-                она выбрана фильтром (владелец, 2026-09-04 и шаг 8 плана). */}
-            {!isUnmatchedView && selectedRequest && categoryOffers.length > 0 && (
-              <Button
-                type="button"
-                variant="secondary"
-                icon={<Users className="h-4 w-4" />}
-                className="w-fit"
-                onClick={() => onOpenBulkSend(selectedRequest)}
-              >
-                Массовая отправка
-              </Button>
-            )}
-            {!isUnmatchedView && selectedRequest && (
-              <FollowupPanel
-                request={selectedRequest}
-                offers={offers.filter((o) => o.requestId === selectedRequest.id && o.email && o.verified)}
-                emails={emails}
-                onRequestSaved={onRequestSaved}
-              />
-            )}
           </div>
 
           <div className="flex flex-col roomy:min-h-0 roomy:flex-1 roomy:overflow-y-auto">
@@ -3201,7 +3146,7 @@ export function SupplierCorrespondenceTab({
           </div>
         </Card>
 
-        <Card className={cn('flex-1 flex-col p-5 roomy:min-h-0 roomy:overflow-y-auto', detailOpen ? 'flex' : 'hidden lg:flex')}>
+        <Card className={cn('min-w-0 flex-1 flex-col p-5 roomy:min-h-0 roomy:overflow-y-auto', detailOpen ? 'flex' : 'hidden lg:flex')}>
           {detailOpen && (
             <button
               type="button"
