@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Users, Clock, AlertTriangle, Bot } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Users, Clock, AlertTriangle, Bot, ArrowLeft } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
-import { Select } from '../ui/Select';
 import { cn } from '../../lib/cn';
 import type { SupplierRequest, SupplierOffer } from '../../data/supplierResearch';
 import { RiskBadge } from './RiskBadge';
 import type { SupplierReliability } from '../../data/supplierReliability';
 import { checkSupplierReliability } from '../../lib/supplierReliabilityApi';
-import { supplierOfferEmailAddress, countryFlag, SUPPLIER_COUNTRIES } from '../../data/supplierResearch';
+import { supplierOfferEmailAddress, countryFlag } from '../../data/supplierResearch';
 import { updateSupplierOffer, setSupplierOfferOutcome, updateSupplierRequestReplyDue } from '../../lib/supplierResearchApi';
 import { offerFollowupState, followupCounts, OFFER_OUTCOME_LABEL } from '../../data/supplierResearch';
 import type { SupplierOrder } from '../../data/supplierOrders';
@@ -55,6 +54,17 @@ import {
 } from '../../lib/unmatchedIncomingEmailsApi';
 import { AUTO_REPLY_SENDER_NAME } from '../../data/emailAutoReply';
 import { markAutoReplyReviewed } from '../../lib/emailAutoReplyApi';
+import {
+  buildConversations,
+  conversationKeyOf,
+  conversationMatches,
+  dayLabel,
+  defaultReplyTopic,
+  shortTime,
+  topicKey,
+  type Conversation,
+  type CorrespondenceTopic,
+} from './correspondenceInbox';
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -695,6 +705,7 @@ export function EmailThread({
   onQuotesChange,
   pendingAutoReplies,
   onAutoReplyReviewed,
+  composerOnly = false,
 }: {
   offer: SupplierOffer;
   // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — null здесь
@@ -728,6 +739,11 @@ export function EmailThread({
   // вовсе — тогда ничего и не рисуется.
   pendingAutoReplies: EmailAutoReplyLogEntry[];
   onAutoReplyReviewed: (id: string) => void;
+  // Владелец, 2026-09-28: во вкладке «Письма» переписка с поставщиком
+  // показывается одной лентой по всем его темам (SupplierMergedFeed), а
+  // отсюда нужен только ответ в выбранную тему: без реквизитов и без своей
+  // ленты, вместо формы — кнопка «Ответить» на последнее письмо темы.
+  composerOnly?: boolean;
 }) {
   // Письма именно текущего треда — основной переписки (order=null) или
   // конкретной заявки. e.orderId null и undefined тут не разводим, в базе
@@ -1403,6 +1419,7 @@ export function EmailThread({
           SupplierCorrespondenceTab) переехала сюда же, к остальным
           реквизитам — и слово "Страна:" убрано, флага самого по себе
           достаточно. */}
+      {!composerOnly && (
       <div className="flex flex-col gap-1 text-sm text-ink-muted">
         <span>Email: {offer.email || 'не указан'}</span>
         <span>Адрес для переписки: {supplierOfferEmailAddress(order?.shortCode ?? offer.shortCode)}</span>
@@ -1410,7 +1427,9 @@ export function EmailThread({
         {order && <span>Заявка: {order.title || 'без названия'}</span>}
         {offer.country && <span title={offer.country}>{countryFlag(offer.country)}</span>}
       </div>
+      )}
 
+      {!composerOnly && (
       <div className="flex flex-col gap-2 roomy:min-h-60 roomy:flex-1">
         <span className="text-sm font-semibold text-ink">Переписка</span>
         {extractionError && <p className="text-sm text-danger">{extractionError}</p>}
@@ -1832,10 +1851,26 @@ export function EmailThread({
           </div>
         )}
       </div>
+      )}
 
       {!offer.email ? (
         <p className="text-sm text-ink-faint">У предложения не указан email — добавьте его через «Редактировать», чтобы писать отсюда.</p>
-      ) : !composerOpen ? null : (
+      ) : !composerOpen ? (
+        composerOnly && (
+          <Button
+            type="button"
+            icon={<Reply className="h-4 w-4" />}
+            className="w-fit"
+            onClick={() => {
+              const latest = threadEmails[threadEmails.length - 1];
+              if (latest) handleReplyTo(latest);
+              else setComposerOpen(true);
+            }}
+          >
+            {threadEmails.length > 0 ? 'Ответить' : 'Написать'}
+          </Button>
+        )
+      ) : (
         <div ref={composerRef} className="flex flex-col gap-2 border-t border-border pt-3">
           {orderedTemplates.length > 0 && (
             <div className="flex flex-col gap-1.5">
@@ -2625,86 +2660,120 @@ function threadStatus(emails: SupplierOfferEmail[]): { status: ThreadStatus; unr
   return { status: last.direction === 'in' ? 'replied' : 'sent', unreadCount: 0 };
 }
 
-const STATUS_LABEL: Record<ThreadStatus, string> = {
-  none: 'Не писали',
-  sent: 'Отправлено',
-  replied: 'Ответили',
-  unread: 'Ответили',
-};
+// Единая лента переписки с поставщиком по всем темам (владелец, 2026-09-28),
+// от старых писем к новым, как в мессенджере. Только чтение: у каждого
+// письма метка темы, по клику открывается сама тема — там распознавание
+// счетов, черновики автоответов и остальные инструменты треда.
+function MergedFeed({
+  conv,
+  pendingAutoReplies,
+  onOpenTopic,
+}: {
+  conv: Conversation;
+  pendingAutoReplies: EmailAutoReplyLogEntry[];
+  onOpenTopic: (key: string) => void;
+}) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const titleByKey = useMemo(() => new Map(conv.topics.map((t) => [t.key, t.title])), [conv.topics]);
+  const draftEmailIds = useMemo(() => new Set(pendingAutoReplies.map((d) => d.emailId)), [pendingAutoReplies]);
+  const lastId = conv.lastEmail?.id;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [conv.key, lastId]);
 
-const STATUS_CLASS: Record<ThreadStatus, string> = {
-  none: 'text-ink-faint',
-  sent: 'text-ink-muted',
-  replied: 'text-success',
-  unread: 'text-success',
-};
+  if (conv.emails.length === 0) return <p className="text-sm text-ink-faint">Писем пока нет — напишите первое ниже.</p>;
 
-interface RequestGroup {
-  request: SupplierRequest;
-  offers: { offer: SupplierOffer; emails: SupplierOfferEmail[] }[];
+  let lastDay = '';
+  return (
+    <div className="flex flex-col gap-3 roomy:min-h-60 roomy:flex-1 roomy:overflow-y-auto">
+      {conv.emails.map((e) => {
+        const day = dayLabel(e.createdAt);
+        const showDay = day !== lastDay;
+        lastDay = day;
+        const key = topicKey(e.offerId, e.orderId ?? null);
+        const { visible } = splitQuotedReply(e.body);
+        const out = e.direction === 'out';
+        return (
+          <div key={e.id} className="flex flex-col gap-3">
+            {showDay && <div className="self-center text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{day}</div>}
+            <div
+              className={cn(
+                'flex max-w-[85%] flex-col gap-1 rounded-2xl p-3 text-sm lg:max-w-[75%]',
+                out ? 'self-end rounded-br-md bg-ink/[0.06]' : 'self-start rounded-bl-md border border-border bg-surface',
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
+                <span className={cn(out && e.sendStatus === 'failed' && 'text-danger')}>
+                  {out ? (e.sentByName === AUTO_REPLY_SENDER_NAME ? 'ИИ-закупщик' : 'Вы') : conv.name}
+                  {' · '}
+                  {new Date(e.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                  {out && e.sendStatus !== 'sent' && ` · ${emailSendStatusLabel[e.sendStatus].toLowerCase()}`}
+                  {out && e.bouncedAt && ' · вернулось'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onOpenTopic(key)}
+                  className="rounded-md bg-ink/5 px-1.5 py-0.5 text-[11px] text-ink-muted hover:bg-ink/10 hover:text-ink"
+                  title="Открыть тему"
+                >
+                  {titleByKey.get(key) ?? 'Тема'}
+                </button>
+              </div>
+              {e.subject && <span className="font-semibold text-ink">{e.subject}</span>}
+              {visible && <p className="whitespace-pre-wrap break-words text-ink">{visible}</p>}
+              {e.files.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {e.files.map((f, i) => (
+                    <a
+                      key={i}
+                      href={f.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 rounded-control bg-ink/[0.05] px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                    >
+                      <Paperclip className="h-3 w-3" />
+                      {f.fileName}
+                    </a>
+                  ))}
+                </div>
+              )}
+              {draftEmailIds.has(e.id) && (
+                <button
+                  type="button"
+                  onClick={() => onOpenTopic(key)}
+                  className="w-fit rounded-md bg-warning-bg px-2 py-1 text-xs font-medium text-warning"
+                >
+                  Черновик автоответа ждёт решения — открыть тему
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <div ref={bottomRef} />
+    </div>
+  );
 }
 
-// includeUnverified — только для псевдо-категории "Непрочитанные"
-// (владелец, 2026-09-14: "нужно вывести все непрочитанные сообщения на
-// 1 страницу, даже если поставщики ещё не верифицированы, это мои прежние
-// запросы и на них нужно ответить"). Обычные категории по-прежнему
-// показывают только верифицированных с email.
-function buildGroups(
-  requests: SupplierRequest[],
-  offers: SupplierOffer[],
-  emails: SupplierOfferEmail[],
-  includeUnverified: boolean,
-): RequestGroup[] {
-  const byRequest = new Map<string, RequestGroup>();
-  for (const request of requests) {
-    byRequest.set(request.id, { request, offers: [] });
-  }
-  for (const offer of offers) {
-    // Владелец, 2026-09-04: "поставщик добавлен из поиска — статус
-    // Требуется верификация... заполнил поля, сохранил — доступен для
-    // переписки" — до тех пор скрыт так же, как и предложения без email
-    // (некому/нельзя писать).
-    if (!includeUnverified && (!offer.email || !offer.verified)) continue;
-    const group = byRequest.get(offer.requestId);
-    if (!group) continue;
-    const offerEmails = emails.filter((e) => e.offerId === offer.id);
-    group.offers.push({ offer, emails: offerEmails });
-  }
-  const withSortedOffers = [...byRequest.values()]
-    .filter((g) => g.offers.length > 0)
-    .map((g) => ({
-      ...g,
-      offers: g.offers.sort((a, b) => {
-        const sa = threadStatus(a.emails);
-        const sb = threadStatus(b.emails);
-        if (sa.unreadCount !== sb.unreadCount) return sb.unreadCount - sa.unreadCount;
-        const lastA = a.emails[a.emails.length - 1]?.createdAt ?? '';
-        const lastB = b.emails[b.emails.length - 1]?.createdAt ?? '';
-        if (lastA !== lastB) return lastB.localeCompare(lastA);
-        return a.offer.name.localeCompare(b.offer.name, 'ru');
-      }),
-    }));
-  // Владелец, 2026-09-03: "поднимай непрочитанные письма и поставщиков с
-  // ними в левом боковом меню в верх списка" — сортировка offers внутри
-  // группы (выше) уже поднимала поставщика наверх ВНУТРИ своего запроса,
-  // но сами запросы (категории) шли в исходном порядке. Теперь категория
-  // с хотя бы одним непрочитанным письмом целиком поднимается над
-  // категориями без непрочитанных — .sort() в JS стабилен, поэтому
-  // порядок внутри одинакового unread-счёта не меняется.
-  return withSortedOffers.sort((a, b) => {
-    const unreadA = a.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
-    const unreadB = b.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
-    return unreadB - unreadA;
-  });
+type InboxFilter = 'all' | 'unread' | 'waiting' | 'unmatched';
+const INBOX_FILTERS: { id: InboxFilter; label: string }[] = [
+  { id: 'all', label: 'Все' },
+  { id: 'unread', label: 'Непрочитанные' },
+  { id: 'waiting', label: 'Ждём ответа' },
+  { id: 'unmatched', label: 'Разобрать вручную' },
+];
+
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  const word = m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
+  return `${n} ${word}`;
 }
 
-
-// Слева — дерево Запрос → Поставщик (только те, у кого есть email — писать
-// больше некому), справа — тред выбранного. Владелец, 2026-09-03: "точно
-// нужна группировка по подрядчику, метка с категорией... ну и сама
-// группировка по этому тегу" — категория тут это сам запрос Ресерча
-// (согласовано отдельно, см. EMAIL_CORRESPONDENCE_PLAN.md п.0), второго
-// поля-тега не заводили.
+// Вкладка «Письма»: слева история переписок (строка на поставщика, свежие
+// сверху, фильтры и поиск), справа — единая лента выбранного поставщика или
+// одна его тема (владелец, 2026-09-28; до того было дерево категория →
+// поставщик, см. EMAIL_CORRESPONDENCE_PLAN.md п.0).
 export function SupplierCorrespondenceTab({
   requests,
   offers,
@@ -2788,11 +2857,6 @@ export function SupplierCorrespondenceTab({
   const [newOrderTitle, setNewOrderTitle] = useState('');
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
-  // Владелец, 2026-09-03: "добавляй ещё один селектор после категории с
-  // выбором страны, не такой же выпадающий, а просто два варианта, указывай
-  // флагами" — фильтрует список поставщиков категории ниже, не глобальный
-  // выбор (тред уже выбранного поставщика остаётся открытым при переключении).
-  const [countryFilter, setCountryFilter] = useState<string>(SUPPLIER_COUNTRIES[0]);
 
   // Неразобранные входящие (шаг 9): письма на закупочный ящик, которые
   // вебхук не смог привязать ни к одной карточке. Живут в своей таблице и
@@ -2817,129 +2881,64 @@ export function SupplierCorrespondenceTab({
     onTemplatesChange(templates.some((t) => t.id === saved.id) ? templates.map((t) => (t.id === saved.id ? saved : t)) : [...templates, saved]);
   }
 
-  const groups = useMemo<RequestGroup[]>(() => buildGroups(requests, offers, emails, false), [requests, offers, emails]);
-  // Надмножество groups: то же самое плюс неверифицированные (и без email).
-  // Используется ТОЛЬКО в псевдо-категории "Непрочитанные" и при поиске
-  // открытого треда — чтобы на старое письмо можно было ответить, не
-  // дожидаясь верификации поставщика.
-  const allGroups = useMemo<RequestGroup[]>(() => buildGroups(requests, offers, emails, true), [requests, offers, emails]);
-
-  // Владелец, 2026-09-04: "ответы будут приходить неравномерно, в разные
-  // категории... непрочитанные письма должны быть сразу видны" —
-  // псевдо-категория "Непрочитанные" первым пунктом селектора: плоский
-  // список ВСЕХ тредов (основных и заявок) с непрочитанными письмами по
-  // всем категориям разом, с подписью категории/заявки на каждой строке,
-  // отсортирован по свежести последнего письма.
-  interface UnreadEntry {
-    requestId: string;
-    requestTitle: string;
-    offer: SupplierOffer;
-    orderId: string | null;
-    orderTitle: string | null;
-    unreadCount: number;
-    lastAt: string;
-  }
-
-  const unreadEntries = useMemo<UnreadEntry[]>(() => {
-    const list: UnreadEntry[] = [];
-    for (const group of allGroups) {
-      for (const { offer, emails: offerEmails } of group.offers) {
-        const threads: { id: string | null; title: string | null }[] = [
-          { id: null, title: null },
-          ...orders.filter((o) => o.offerId === offer.id).map((o) => ({ id: o.id, title: o.title || 'Без названия' })),
-        ];
-        for (const t of threads) {
-          const threadEmails = offerEmails.filter((e) => (e.orderId ?? null) === t.id);
-          const { unreadCount } = threadStatus(threadEmails);
-          if (unreadCount === 0) continue;
-          list.push({
-            requestId: group.request.id,
-            requestTitle: group.request.title,
-            offer,
-            orderId: t.id,
-            orderTitle: t.title,
-            unreadCount,
-            lastAt: threadEmails[threadEmails.length - 1]?.createdAt ?? '',
-          });
-        }
-      }
-    }
-    return list.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
-  }, [allGroups, orders]);
-
-  const totalUnread = unreadEntries.reduce((sum, e) => sum + e.unreadCount, 0);
-
-  // Текущая выбранная категория — если ещё ничего не выбрано (или ссылка
-  // осиротела, например запрос удалили), по умолчанию открываем
-  // "Непрочитанные", если там есть что показать, иначе первую категорию
-  // списка (уже отсортирована по непрочитанным — см. groups выше).
-  const categoryExists = (id: string) =>
-    id === 'unread'
-      ? totalUnread > 0
-      : id === 'unmatched'
-        ? unmatched.length > 0
-        : groups.some((g) => g.request.id === id);
-  const effectiveRequestId =
-    selectedRequestId && categoryExists(selectedRequestId)
-      ? selectedRequestId
-      : totalUnread > 0
-        ? 'unread'
-        : (groups[0]?.request.id ?? null);
-  const isUnreadView = effectiveRequestId === 'unread';
-  const isUnmatchedView = effectiveRequestId === 'unmatched';
-  const selectedUnmatched = unmatched.find((u) => u.id === selectedUnmatchedId) ?? null;
-  const selectedGroup = groups.find((g) => g.request.id === effectiveRequestId) ?? null;
-
-  const categoryOptions = useMemo(() => {
-    const base = groups.map((g) => {
-      const unread = g.offers.reduce((sum, x) => sum + threadStatus(x.emails).unreadCount, 0);
-      return { id: g.request.id, label: unread > 0 ? `${g.request.title} (${unread})` : g.request.title };
-    });
-    const head = [];
-    if (totalUnread > 0) head.push({ id: 'unread', label: `Непрочитанные (${totalUnread})` });
-    // Псевдо-категория «Разобрать вручную» — только когда есть что
-    // разбирать: пустой пункт в селекторе каждый день мозолил бы глаза.
-    if (unmatched.length > 0) head.push({ id: 'unmatched', label: `Разобрать вручную (${unmatched.length})` });
-    return [...head, ...base];
-  }, [groups, totalUnread, unmatched.length]);
-
-  const selected = useMemo(() => {
-    if (!selectedOfferId) return null;
-    for (const group of allGroups) {
-      const found = group.offers.find((x) => x.offer.id === selectedOfferId);
-      if (found) return { ...found, request: group.request };
-    }
-    return null;
-  }, [allGroups, selectedOfferId]);
-
-  // Заявки выбранного поставщика — "Основная" (null) всегда в списке
-  // неявно (см. чипы ниже), тут только дополнительные (SupplierOrder).
-  const offerOrders = useMemo(
-    () => (selected ? orders.filter((o) => o.offerId === selected.offer.id) : []),
-    [orders, selected],
+  // Владелец, 2026-09-28: вместо дерева «категория → поставщик» — одна
+  // история переписок: строка на поставщика (все его категории и заявки
+  // вместе), свежие сверху. См. correspondenceInbox.ts.
+  const conversations = useMemo(
+    () => buildConversations(requests, offers, orders, emails, (threadEmails) => threadStatus(threadEmails).unreadCount),
+    [requests, offers, orders, emails],
   );
-  const selectedOrder = selectedOrderId ? offerOrders.find((o) => o.id === selectedOrderId) ?? null : null;
 
-  function selectOffer(offerId: string) {
+  const filter: InboxFilter = INBOX_FILTERS.some((f) => f.id === searchParams.get('filter'))
+    ? (searchParams.get('filter') as InboxFilter)
+    : 'all';
+  const categoryFilter = selectedRequestId && requests.some((r) => r.id === selectedRequestId) ? selectedRequestId : '';
+  const [query, setQuery] = useState('');
+
+  // Старые ссылки (?offer=&order=, например из карточки поставщика) по-прежнему
+  // открывают нужную переписку — сразу на своей теме.
+  const legacyOffer = selectedOfferId ? offers.find((o) => o.id === selectedOfferId) ?? null : null;
+  const selectedConvKey = searchParams.get('supplier') ?? (legacyOffer ? conversationKeyOf(legacyOffer) : null);
+  const selectedTopicKey = searchParams.get('topic') ?? (legacyOffer ? topicKey(legacyOffer.id, selectedOrderId) : null);
+
+  const selectedConv = conversations.find((c) => c.key === selectedConvKey) ?? null;
+  const selectedTopic = selectedConv?.topics.find((t) => t.key === selectedTopicKey) ?? null;
+  const [replyTopicKey, setReplyTopicKey] = useState<string | null>(null);
+  const replyTopic =
+    selectedConv?.topics.find((t) => t.key === replyTopicKey) ?? (selectedConv ? defaultReplyTopic(selectedConv) : null);
+
+  const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+  const inCategory = (c: Conversation) => !categoryFilter || c.requestIds.includes(categoryFilter);
+  const filterCounts: Record<InboxFilter, number> = {
+    all: conversations.filter((c) => c.emails.length > 0 && inCategory(c)).length,
+    unread: conversations.filter((c) => c.unreadCount > 0 && inCategory(c)).length,
+    waiting: conversations.filter((c) => c.waitingReply && inCategory(c)).length,
+    unmatched: unmatched.length,
+  };
+
+  const visibleConversations = useMemo(
+    () =>
+      conversations.filter((c) => {
+        if (categoryFilter && !c.requestIds.includes(categoryFilter)) return false;
+        // Без выбранной категории — только те, с кем уже переписывались: это
+        // история. В категории видны и её верифицированные поставщики, кому
+        // ещё не писали, — чтобы было кому написать первое письмо.
+        if (!categoryFilter && c.emails.length === 0) return false;
+        if (filter === 'unread' && c.unreadCount === 0) return false;
+        if (filter === 'waiting' && !c.waitingReply) return false;
+        return conversationMatches(c, query);
+      }),
+    [conversations, categoryFilter, filter, query],
+  );
+
+  const selectedRequest = categoryFilter ? requests.find((r) => r.id === categoryFilter) ?? null : null;
+  const categoryOffers = selectedRequest ? offers.filter((o) => o.requestId === selectedRequest.id && o.email && o.verified) : [];
+
+  function updateParams(mutate: (params: URLSearchParams) => void) {
     setSearchParams(
       (prev) => {
         const params = new URLSearchParams(prev);
-        params.set('offer', offerId);
-        params.delete('order');
-        return params;
-      },
-      { replace: true },
-    );
-    onMarkRead(offerId, null);
-  }
-
-  // Смена категории сбрасывает выбранного поставщика — иначе справа
-  // остался бы висеть тред поставщика из уже скрытой категории.
-  function selectCategory(requestId: string) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        params.set('category', requestId);
+        mutate(params);
         params.delete('offer');
         params.delete('order');
         return params;
@@ -2948,40 +2947,57 @@ export function SupplierCorrespondenceTab({
     );
   }
 
-  // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — переключение
-  // между "Основная"/заявками того же поставщика, отметка прочитанным идёт
-  // именно за этот тред, не за всю переписку с поставщиком разом (иначе
-  // непрочитанные в других заявках гасли бы, даже не будучи открытыми).
+  function markTopicRead(t: CorrespondenceTopic) {
+    if (t.unreadCount > 0) onMarkRead(t.offer.id, t.order?.id ?? null);
+  }
+
+  function selectConversation(conv: Conversation) {
+    updateParams((p) => {
+      p.set('supplier', conv.key);
+      p.delete('topic');
+    });
+    setReplyTopicKey(null);
+    // Открыта вся лента поставщика — прочитаны все его темы.
+    conv.topics.forEach(markTopicRead);
+  }
+
+  function selectTopic(key: string | null) {
+    updateParams((p) => {
+      if (selectedConv) p.set('supplier', selectedConv.key);
+      if (key) p.set('topic', key);
+      else p.delete('topic');
+    });
+    const t = selectedConv?.topics.find((x) => x.key === key);
+    if (t) markTopicRead(t);
+  }
+
+  function closeConversation() {
+    updateParams((p) => {
+      p.delete('supplier');
+      p.delete('topic');
+    });
+  }
+
+  function setFilter(next: InboxFilter) {
+    updateParams((p) => {
+      if (next === 'all') p.delete('filter');
+      else p.set('filter', next);
+    });
+  }
+
+  function setCategoryFilter(requestId: string) {
+    updateParams((p) => {
+      if (requestId) p.set('category', requestId);
+      else p.delete('category');
+    });
+  }
+
+  // Для создания доп. заявки (handleCreateOrder ниже): заявка заводится у
+  // предложения открытой темы и сразу открывается.
+  const topicOfferId = selectedTopic?.offer.id ?? null;
   function selectOrder(orderId: string | null) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        if (orderId) params.set('order', orderId);
-        else params.delete('order');
-        return params;
-      },
-      { replace: true },
-    );
-    if (selectedOfferId) onMarkRead(selectedOfferId, orderId);
+    if (topicOfferId) selectTopic(topicKey(topicOfferId, orderId));
   }
-
-  // Клик по строке в псевдо-категории "Непрочитанные" — сразу открывает
-  // нужный тред нужного поставщика, category в URL уже 'unread'.
-  function selectUnreadEntry(entry: UnreadEntry) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        params.set('category', 'unread');
-        params.set('offer', entry.offer.id);
-        if (entry.orderId) params.set('order', entry.orderId);
-        else params.delete('order');
-        return params;
-      },
-      { replace: true },
-    );
-    onMarkRead(entry.offer.id, entry.orderId);
-  }
-
   function openNewOrderModal() {
     setNewOrderTitle('');
     setOrderError(null);
@@ -2990,12 +3006,12 @@ export function SupplierCorrespondenceTab({
 
   async function handleCreateOrder(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedOfferId || !newOrderTitle.trim() || creatingOrder) return;
+    if (!topicOfferId || !newOrderTitle.trim() || creatingOrder) return;
     setCreatingOrder(true);
     setOrderError(null);
     try {
       const created = await insertSupplierOrder({
-        offerId: selectedOfferId,
+        offerId: topicOfferId,
         title: newOrderTitle.trim(),
         communicationStatus: '',
         price: 0,
@@ -3029,192 +3045,173 @@ export function SupplierCorrespondenceTab({
     />
   );
 
-  if (groups.length === 0) {
+  const isUnmatchedView = filter === 'unmatched';
+  const selectedUnmatched = unmatched.find((u) => u.id === selectedUnmatchedId) ?? null;
+  // На узком экране список и переписка — два экрана: открыта переписка —
+  // список прячется, сверху кнопка «Все переписки».
+  const detailOpen = isUnmatchedView ? !!selectedUnmatched : !!selectedConv;
+
+  let lastDay = '';
+  const listItems = visibleConversations.map((conv) => {
+    const day = conv.lastEmail ? dayLabel(conv.lastEmail.createdAt) : 'Не писали';
+    const showDay = day !== lastDay;
+    lastDay = day;
+    const last = conv.lastEmail;
+    const snippet = last ? `${last.direction === 'out' ? 'Вы: ' : ''}${splitQuotedReply(last.body).visible.split('\n').find((l) => l.trim()) || last.subject}` : 'Писем пока нет';
+    const isSelected = selectedConv?.key === conv.key;
+    const firstOffer = conv.offers[0];
     return (
-      <div className="flex flex-col gap-4">
-        <Card className="py-10 text-center text-sm text-ink-muted">
-          Пока не с кем переписываться — у предложений в Ресерче ещё нет email, или запросов вовсе нет.
-        </Card>
-        {templatesModal}
+      <div key={conv.key}>
+        {showDay && <div className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{day}</div>}
+        <button
+          type="button"
+          onClick={() => selectConversation(conv)}
+          className={cn(
+            'relative flex w-full items-start gap-3 border-t border-border px-4 py-3 text-left transition-colors',
+            isSelected ? 'bg-surface' : 'hover:bg-surface/60',
+          )}
+        >
+          {isSelected && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-primary" />}
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span className={cn('min-w-0 truncate text-sm text-ink', conv.unreadCount > 0 ? 'font-bold' : 'font-semibold')}>{conv.name}</span>
+              {!conv.verified && (
+                <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">не верифицирован</span>
+              )}
+            </span>
+            <span className={cn('mt-0.5 block truncate text-xs', conv.unreadCount > 0 ? 'text-ink' : 'text-ink-muted')}>{snippet}</span>
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {conv.categoryTitles.slice(0, 2).map((t) => (
+                <span key={t} className="rounded-md bg-surface-muted px-1.5 py-0.5 text-[11px] text-ink-muted">
+                  {t}
+                </span>
+              ))}
+              {conv.categoryTitles.length > 2 && (
+                <span className="rounded-md bg-surface-muted px-1.5 py-0.5 text-[11px] text-ink-muted" title={conv.categoryTitles.slice(2).join(', ')}>
+                  +{conv.categoryTitles.length - 2}
+                </span>
+              )}
+            </span>
+          </span>
+          <span className="flex shrink-0 flex-col items-end gap-1.5">
+            {last && <span className="text-xs text-ink-faint">{shortTime(last.createdAt)}</span>}
+            <span className="flex items-center gap-1.5">
+              {firstOffer && <RiskBadge inn={firstOffer.inn} reliabilityByInn={reliabilityByInn} />}
+              {conv.unreadCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
+                  {conv.unreadCount}
+                </span>
+              )}
+            </span>
+          </span>
+        </button>
       </div>
     );
-  }
+  });
 
   return (
-    // Владелец, 2026-09-10: "весь блок письма должен быть виден на экране,
-    // вне зависимости от экрана... даже если список поставщиков как-то
-    // скроется" — цепочка roomy:flex-1 вниз до EmailThread не растягивает
-    // список поставщиков поверх экрана, а даёт ему свою прокрутку (см. ниже),
-    // композер письма остаётся всегда видимым целиком.
-    // Вне roomy (узкое ИЛИ невысокое окно — правка 2026-09-11) — как было до
-    // 2026-09-10: обычная прокрутка страницы, ничего не ужимается.
+    // Владелец, 2026-09-10: весь блок письма виден на экране — список слева
+    // и лента справа прокручиваются сами (roomy, см. src/index.css), форма
+    // ответа не уезжает за нижний край.
     <div className="flex flex-col gap-4 roomy:min-h-0 roomy:flex-1">
       <div className="flex flex-col gap-4 lg:flex-row roomy:min-h-0 roomy:flex-1">
-        <div className="flex flex-col gap-3 lg:w-80 lg:shrink-0 roomy:min-h-60">
-          <Select
-            label="Категория"
-            options={categoryOptions.map((o) => o.label)}
-            value={categoryOptions.find((o) => o.id === effectiveRequestId)?.label ?? ''}
-            onChange={(label) => {
-              const o = categoryOptions.find((x) => x.label === label);
-              if (o) selectCategory(o.id);
-            }}
-          />
-
-          {/* Владелец, 2026-09-03: "не такой же выпадающий [как Категория],
-              а просто два варианта, указывай флагами" — компактный тумблер
-              из двух кнопок-флагов, не Select. Фильтрует список поставщиков
-              ниже по стране (та же логика fallback на первую страну списка
-              для записей без country, что и в RequestCard на Suppliers.tsx).
-              Владелец, 2026-09-04: в псевдо-категории "Непрочитанные" список
-              и так уже смешивает все категории/страны — тумблер тут ни при
-              чём, скрыт. */}
-          {!isUnreadView && !isUnmatchedView && (
-            <div className="flex w-fit gap-1 rounded-full border border-border bg-surface-muted p-1">
-              {SUPPLIER_COUNTRIES.map((c) => (
+        <Card className={cn('flex-col overflow-hidden p-0 lg:w-[380px] lg:shrink-0 roomy:min-h-60', detailOpen ? 'hidden lg:flex' : 'flex')}>
+          <div className="flex flex-col gap-2.5 p-4 pb-3">
+            <Input placeholder="Поиск по письмам" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <div className="flex flex-wrap gap-1.5">
+              {INBOX_FILTERS.filter((f) => f.id !== 'unmatched' || unmatched.length > 0).map((f) => (
                 <button
-                  key={c}
+                  key={f.id}
                   type="button"
-                  title={c}
-                  onClick={() => setCountryFilter(c)}
+                  onClick={() => setFilter(f.id)}
                   className={cn(
-                    'flex h-8 w-11 items-center justify-center rounded-full text-base transition-colors',
-                    countryFilter === c ? 'bg-surface shadow-card' : 'opacity-50 hover:opacity-100',
+                    'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                    filter === f.id ? 'border-ink bg-ink text-white' : 'border-border bg-surface text-ink-muted hover:border-border-strong',
                   )}
                 >
-                  {countryFlag(c)}
+                  {f.label} <span className="font-bold">{filterCounts[f.id]}</span>
                 </button>
               ))}
             </div>
-          )}
-
-          {/* Владелец, 2026-09-04: "давай реализуем массовую отправку" —
-              рассылка одной и той же ведомости нескольким поставщикам
-              выбранной категории разом. Не показываем в псевдо-категории
-              "Непрочитанные" (это не настоящая категория, там смешаны
-              поставщики из разных запросов) и когда рассылать некому
-              (нет ни одного верифицированного предложения с email). */}
-          {!isUnreadView && selectedGroup && selectedGroup.offers.some((x) => x.offer.email && x.offer.verified) && (
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<Users className="h-4 w-4" />}
-              className="w-fit"
-              onClick={() => onOpenBulkSend(selectedGroup.request)}
-            >
-              Массовая отправка
-            </Button>
-          )}
-
-          {/* Дожим (шаг 8 плана закупок): срок ответа категории и счётчики
-              воронки — сколько поставщиков ещё дожимаем, сколько отказалось и
-              сколько так и не ответило. В псевдо-категории «Непрочитанные»
-              не показываем: там смешаны разные категории, а срок ответа — у
-              категории. */}
-          {!isUnreadView && selectedGroup && (
-            <FollowupPanel
-              request={selectedGroup.request}
-              offers={selectedGroup.offers.map((x) => x.offer)}
-              emails={emails}
-              onRequestSaved={onRequestSaved}
-            />
-          )}
-
-          {/* Владелец, 2026-09-10: "боковой список поставщиков будет как-то
-              скрываться за кнопку" — сюда список не влезал бы полностью,
-              поэтому вместо скрытия за кнопкой (список нужен сразу) он
-              просто получил свою прокрутку — Select/тумблер страны/кнопка
-              рассылки сверху всегда на виду. */}
-          <div className="flex flex-col gap-1 roomy:min-h-0 roomy:flex-1 roomy:overflow-y-auto">
-            {isUnmatchedView
-              ? unmatched.map((u) => {
-                  const isSelected = selectedUnmatchedId === u.id;
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => setSelectedUnmatchedId(u.id)}
-                      className={cn(
-                        'flex flex-col items-start gap-0.5 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                        isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
-                      )}
-                    >
-                      <span className="w-full truncate font-medium text-ink">{u.subject || 'Без темы'}</span>
-                      <span className="w-full truncate text-xs text-ink-faint">{u.fromAddress}</span>
-                      <span className="text-xs text-ink-faint">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</span>
-                    </button>
-                  );
-                })
-              : isUnreadView
-              ? unreadEntries.map((entry) => {
-                  const key = `${entry.offer.id}:${entry.orderId ?? 'main'}`;
-                  const isSelected = selectedOfferId === entry.offer.id && (selectedOrderId ?? null) === entry.orderId;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => selectUnreadEntry(entry)}
-                      className={cn(
-                        'flex flex-col items-start gap-0.5 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                        isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
-                      )}
-                    >
-                      <span className="flex w-full items-center justify-between gap-2">
-                        <span className="min-w-0 flex-1 truncate font-medium text-ink">{entry.offer.name}</span>
-                        <RiskBadge inn={entry.offer.inn} reliabilityByInn={reliabilityByInn} />
-                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
-                          {entry.unreadCount}
-                        </span>
-                      </span>
-                      <span className="flex w-full min-w-0 items-center gap-1.5 text-xs text-ink-faint">
-                        <span className="min-w-0 flex-1 truncate">
-                          {entry.requestTitle}
-                          {entry.orderTitle ? ` · ${entry.orderTitle}` : ''}
-                        </span>
-                        {/* Такой поставщик не виден в своей категории (нужна
-                            верификация) — без пометки было бы непонятно,
-                            почему письмо есть только здесь. */}
-                        {!entry.offer.verified && (
-                          <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">
-                            не верифицирован
-                          </span>
-                        )}
-                      </span>
-                    </button>
-                  );
-                })
-              : selectedGroup?.offers
-                  .filter(({ offer }) => (offer.country || SUPPLIER_COUNTRIES[0]) === countryFilter)
-                  .map(({ offer, emails: offerEmails }) => {
-                    const { status, unreadCount } = threadStatus(offerEmails);
-                    const isSelected = selectedOfferId === offer.id;
-                    return (
-                      <button
-                        key={offer.id}
-                        type="button"
-                        onClick={() => selectOffer(offer.id)}
-                        className={cn(
-                          'flex items-center justify-between gap-2 rounded-control border px-3 py-2 text-left text-sm transition-colors',
-                          isSelected ? 'border-ink bg-surface-muted' : 'border-border bg-surface hover:border-border-strong',
-                        )}
-                      >
-                        <span className="min-w-0 flex-1 truncate font-medium text-ink">{offer.name}</span>
-                        <RiskBadge inn={offer.inn} reliabilityByInn={reliabilityByInn} />
-                        <span className="flex shrink-0 items-center gap-1.5">
-                          {unreadCount > 0 && (
-                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-bold text-white">
-                              {unreadCount}
-                            </span>
-                          )}
-                          <span className={cn('text-xs', STATUS_CLASS[status])}>{STATUS_LABEL[status]}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
+            {!isUnmatchedView && (
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full rounded-control border border-transparent bg-surface-muted px-3 py-2 text-sm text-ink outline-none focus:border-primary"
+              >
+                <option value="">Все категории</option>
+                {requests.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.title}
+                  </option>
+                ))}
+              </select>
+            )}
+            {/* Массовая отправка и дожим — у категории, поэтому только когда
+                она выбрана фильтром (владелец, 2026-09-04 и шаг 8 плана). */}
+            {!isUnmatchedView && selectedRequest && categoryOffers.length > 0 && (
+              <Button
+                type="button"
+                variant="secondary"
+                icon={<Users className="h-4 w-4" />}
+                className="w-fit"
+                onClick={() => onOpenBulkSend(selectedRequest)}
+              >
+                Массовая отправка
+              </Button>
+            )}
+            {!isUnmatchedView && selectedRequest && (
+              <FollowupPanel
+                request={selectedRequest}
+                offers={offers.filter((o) => o.requestId === selectedRequest.id && o.email && o.verified)}
+                emails={emails}
+                onRequestSaved={onRequestSaved}
+              />
+            )}
           </div>
-        </div>
 
-        <Card className="flex-1 p-5 roomy:flex roomy:min-h-0 roomy:flex-col roomy:overflow-y-auto">
+          <div className="flex flex-col roomy:min-h-0 roomy:flex-1 roomy:overflow-y-auto">
+            {isUnmatchedView ? (
+              unmatched.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => setSelectedUnmatchedId(u.id)}
+                  className={cn(
+                    'flex flex-col items-start gap-0.5 border-t border-border px-4 py-3 text-left text-sm transition-colors',
+                    selectedUnmatchedId === u.id ? 'bg-surface' : 'hover:bg-surface/60',
+                  )}
+                >
+                  <span className="w-full truncate font-medium text-ink">{u.subject || 'Без темы'}</span>
+                  <span className="w-full truncate text-xs text-ink-faint">{u.fromAddress}</span>
+                  <span className="text-xs text-ink-faint">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</span>
+                </button>
+              ))
+            ) : listItems.length > 0 ? (
+              listItems
+            ) : (
+              <p className="border-t border-border px-4 py-6 text-sm text-ink-faint">
+                {conversations.length === 0
+                  ? 'Пока не с кем переписываться — у предложений ещё нет email, или запросов вовсе нет.'
+                  : filter === 'unread'
+                    ? 'Непрочитанных писем нет.'
+                    : 'Ничего не нашлось.'}
+              </p>
+            )}
+          </div>
+        </Card>
+
+        <Card className={cn('flex-1 flex-col p-5 roomy:min-h-0 roomy:overflow-y-auto', detailOpen ? 'flex' : 'hidden lg:flex')}>
+          {detailOpen && (
+            <button
+              type="button"
+              onClick={() => (isUnmatchedView ? setSelectedUnmatchedId(null) : closeConversation())}
+              className="mb-3 flex w-fit items-center gap-1 text-sm text-ink-muted hover:text-ink lg:hidden"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Все переписки
+            </button>
+          )}
           {isUnmatchedView ? (
             selectedUnmatched ? (
               <UnmatchedEmailCard
@@ -3235,90 +3232,151 @@ export function SupplierCorrespondenceTab({
                 письмо слева и укажите, чьё оно.
               </p>
             )
-          ) : !selected ? (
-            <p className="text-sm text-ink-faint">Выберите поставщика слева, чтобы открыть переписку.</p>
+          ) : !selectedConv ? (
+            <p className="text-sm text-ink-faint">
+              {totalUnread > 0 ? `Непрочитанных: ${totalUnread}. ` : ''}Выберите переписку слева.
+            </p>
           ) : (
             <div className="flex flex-col gap-3 roomy:min-h-0 roomy:flex-1">
-              {/* Владелец, 2026-09-03: флаг и бейдж категории убраны отсюда —
-                  флаг был лишним (слишком много флагов на экране), категория
-                  переехала в блок реквизитов внутри EmailThread. */}
-              <span className="text-lg font-bold text-ink">{selected.offer.name}</span>
-              <RiskBadge inn={selected.offer.inn} reliabilityByInn={reliabilityByInn} />
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-ink">{selectedConv.name}</span>
+                    {selectedConv.offers[0] && <RiskBadge inn={selectedConv.offers[0].inn} reliabilityByInn={reliabilityByInn} />}
+                  </span>
+                  <span className="text-xs text-ink-muted">
+                    {[...new Set(selectedConv.offers.map((o) => o.email).filter(Boolean))].join(', ') || 'email не указан'}
+                    {' · '}
+                    {pluralRu(selectedConv.categoryTitles.length, 'категория', 'категории', 'категорий')}
+                    {' · '}
+                    {pluralRu(selectedConv.emails.length, 'письмо', 'письма', 'писем')}
+                  </span>
+                </div>
+                {selectedConv.supplierId && (
+                  <Link
+                    to={`/admin/suppliers/${selectedConv.supplierId}`}
+                    className="shrink-0 rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:border-border-strong"
+                  >
+                    Карточка поставщика
+                  </Link>
+                )}
+              </div>
 
-              {/* Дожим по этому поставщику (шаг 8): сколько молчит, сколько
-                  напоминаний ушло, и кнопки исхода — решение «он отказался»
-                  принимается ровно тогда, когда читаешь его письмо. */}
-              <FollowupControls
-                offer={selected.offer}
-                emails={selected.emails}
-                replyDueDays={requests.find((r) => r.id === selected.offer.requestId)?.replyDueDays ?? 3}
-                onOfferUpdated={onOfferUpdated}
-              />
-
-              {/* Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" —
-                  чипы переключают тред: "Основная" (та переписка, что была
-                  всегда) + по одной на каждую доп. заявку. Непрочитанные в
-                  каждой заявке считаются отдельно, чтобы было видно, где
-                  именно ответили, не открывая все подряд.
-
-                  Шаг 11b плана закупок: в подписях это "дополнительная
-                  заявка", а не просто "заявка" — с появлением заказов
-                  поставщику (data/purchaseOrders.ts) короткое слово стало
-                  двусмысленным. Таблица и типы как назывались
-                  supplier_orders/SupplierOrder, так и называются: переименование
-                  ради слова расползлось бы по всему модулю. */}
+              {/* Темы переписки: «Все письма» — единая лента; тема — одна
+                  категория (или доп. заявка) со всеми инструментами треда:
+                  распознавание счетов, черновики автоответов, дожим. */}
               <div className="flex flex-wrap items-center gap-1.5">
-                {[{ id: null as string | null, title: 'Основная' }, ...offerOrders.map((o) => ({ id: o.id, title: o.title || 'Без названия' }))].map(
+                <span className="text-xs text-ink-faint">Показать:</span>
+                {[{ key: null as string | null, title: 'Все письма', unread: 0 }, ...selectedConv.topics.map((t) => ({ key: t.key as string | null, title: t.title, unread: t.unreadCount }))].map(
                   (t) => {
-                    const threadUnread = threadStatus(selected.emails.filter((e) => (e.orderId ?? null) === t.id)).unreadCount;
-                    const isActive = (selectedOrderId ?? null) === t.id;
+                    const isActive = (selectedTopic?.key ?? null) === t.key;
                     return (
                       <button
-                        key={t.id ?? 'main'}
+                        key={t.key ?? 'all'}
                         type="button"
-                        onClick={() => selectOrder(t.id)}
+                        onClick={() => selectTopic(t.key)}
                         className={cn(
-                          'relative rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                          isActive ? 'border-ink bg-surface-muted text-ink' : 'border-border bg-surface text-ink-muted hover:border-border-strong',
+                          'relative rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                          isActive ? 'border-ink bg-ink text-white' : 'border-border bg-surface text-ink-muted hover:border-border-strong',
                         )}
                       >
                         {t.title}
-                        {threadUnread > 0 && (
+                        {t.unread > 0 && (
                           <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
-                            {threadUnread}
+                            {t.unread}
                           </span>
                         )}
                       </button>
                     );
                   },
                 )}
-                <Button type="button" variant="ghost" icon={<Plus className="h-3.5 w-3.5" />} onClick={openNewOrderModal}>
-                  Доп. заявка
-                </Button>
+                {selectedTopic && (
+                  <Button type="button" variant="ghost" icon={<Plus className="h-3.5 w-3.5" />} onClick={openNewOrderModal}>
+                    Доп. заявка
+                  </Button>
+                )}
               </div>
 
-              <EmailThread
-                offer={selected.offer}
-                order={selectedOrder}
-                request={selected.request}
-                requests={requests}
-                emails={selected.emails}
-                templates={templates}
-                ledgers={ledgers}
-                allMaterials={allMaterials}
-                legalEntities={legalEntities}
-                onEmailSent={onEmailSent}
-                onTemplateSaved={handleTemplateSaved}
-                onLedgersChange={onLedgersChange}
-                onOfferUpdated={onOfferUpdated}
-                onReliabilityChecked={onReliabilityChecked}
-                reliabilityByInn={reliabilityByInn}
-                onOrderUpdated={handleOrderUpdated}
-                onEmailUpdated={onEmailUpdated}
-                onQuotesChange={onQuotesChange}
-                pendingAutoReplies={pendingAutoReplies}
-                onAutoReplyReviewed={onAutoReplyReviewed}
-              />
+              {selectedTopic ? (
+                <>
+                  <FollowupControls
+                    offer={selectedTopic.offer}
+                    emails={emails.filter((e) => e.offerId === selectedTopic.offer.id)}
+                    replyDueDays={selectedTopic.request?.replyDueDays ?? 3}
+                    onOfferUpdated={onOfferUpdated}
+                  />
+                  <EmailThread
+                    key={selectedTopic.key}
+                    offer={selectedTopic.offer}
+                    order={selectedTopic.order}
+                    request={selectedTopic.request ?? requests[0]}
+                    requests={requests}
+                    emails={emails.filter((e) => e.offerId === selectedTopic.offer.id)}
+                    templates={templates}
+                    ledgers={ledgers}
+                    allMaterials={allMaterials}
+                    legalEntities={legalEntities}
+                    onEmailSent={onEmailSent}
+                    onTemplateSaved={handleTemplateSaved}
+                    onLedgersChange={onLedgersChange}
+                    onOfferUpdated={onOfferUpdated}
+                    onReliabilityChecked={onReliabilityChecked}
+                    reliabilityByInn={reliabilityByInn}
+                    onOrderUpdated={handleOrderUpdated}
+                    onEmailUpdated={onEmailUpdated}
+                    onQuotesChange={onQuotesChange}
+                    pendingAutoReplies={pendingAutoReplies}
+                    onAutoReplyReviewed={onAutoReplyReviewed}
+                  />
+                </>
+              ) : (
+                <>
+                  <MergedFeed conv={selectedConv} pendingAutoReplies={pendingAutoReplies} onOpenTopic={selectTopic} />
+                  {replyTopic && (
+                    <div className="flex shrink-0 flex-col gap-2 border-t border-border pt-3">
+                      <label className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+                        Ответ по теме
+                        <select
+                          value={replyTopic.key}
+                          onChange={(e) => setReplyTopicKey(e.target.value)}
+                          className="rounded-control border border-transparent bg-surface-muted px-3 py-1.5 text-sm font-medium text-ink outline-none focus:border-primary"
+                        >
+                          {selectedConv.topics.map((t) => (
+                            <option key={t.key} value={t.key}>
+                              {t.title}
+                            </option>
+                          ))}
+                        </select>
+                        {replyTopic.offer.email && <span className="text-xs text-ink-faint">на {replyTopic.offer.email}</span>}
+                      </label>
+                      <EmailThread
+                        key={`reply:${replyTopic.key}`}
+                        composerOnly
+                        offer={replyTopic.offer}
+                        order={replyTopic.order}
+                        request={replyTopic.request ?? requests[0]}
+                        requests={requests}
+                        emails={emails.filter((e) => e.offerId === replyTopic.offer.id)}
+                        templates={templates}
+                        ledgers={ledgers}
+                        allMaterials={allMaterials}
+                        legalEntities={legalEntities}
+                        onEmailSent={onEmailSent}
+                        onTemplateSaved={handleTemplateSaved}
+                        onLedgersChange={onLedgersChange}
+                        onOfferUpdated={onOfferUpdated}
+                        onReliabilityChecked={onReliabilityChecked}
+                        reliabilityByInn={reliabilityByInn}
+                        onOrderUpdated={handleOrderUpdated}
+                        onEmailUpdated={onEmailUpdated}
+                        onQuotesChange={onQuotesChange}
+                        pendingAutoReplies={pendingAutoReplies}
+                        onAutoReplyReviewed={onAutoReplyReviewed}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </Card>

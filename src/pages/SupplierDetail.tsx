@@ -528,7 +528,7 @@ export function SupplierDetail() {
         <PageHeader title="Поставщик" />
         <Card className="space-y-3">
           <p className="text-sm text-danger">{loadError ?? 'Такой компании нет — возможно, её удалили.'}</p>
-          <Link to="/admin/purchases" className="inline-flex items-center gap-1.5 text-sm text-primary-hover hover:underline">
+          <Link to="/admin/purchases?tab=suppliers" className="inline-flex items-center gap-1.5 text-sm text-primary-hover hover:underline">
             <ArrowLeft className="h-4 w-4" />
             К закупкам
           </Link>
@@ -868,7 +868,7 @@ export function SupplierDetailView({
     <div className="space-y-6">
       <PageHeader title={supplier.name} />
 
-      <Link to="/admin/purchases" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink">
+      <Link to="/admin/purchases?tab=suppliers" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink">
         <ArrowLeft className="h-4 w-4" />
         К закупкам
       </Link>
