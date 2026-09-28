@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
   ExternalLink,
-  Globe,
+  Factory,
+  MoreHorizontal,
   Loader2,
   Mail,
   MessageCircle,
@@ -19,6 +20,10 @@ import {
   Trash2,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
+import { SUPPLIER_KIND_LABELS } from '../data/suppliers';
+import { SearchInput } from '../components/ui/SearchInput';
+import { Select } from '../components/ui/Select';
+import { fetchPurchaseOrderCountBySupplier } from '../lib/purchaseOrdersApi';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { ContactValue } from '../components/ui/ContactValue';
@@ -27,7 +32,7 @@ import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { cn } from '../lib/cn';
 import { formatPhoneDisplay } from '../lib/formatPhone';
-import type { Supplier } from '../data/suppliers';
+import type { Supplier, SupplierSiteProfile } from '../data/suppliers';
 import type { SupplierOffer, SupplierRequest } from '../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import type { SupplierReliability } from '../data/supplierReliability';
@@ -37,19 +42,9 @@ import type { QuoteTerms, SupplierQuote } from '../data/supplierQuotes';
 import type { SupplierReliabilityCheck } from '../data/supplierReliability';
 import { currencySymbols } from '../data/transactions';
 import { purchaseItemTotal } from '../data/purchases';
-import {
-  countryFlag,
-  messengerLink,
-  supplierWebsiteFullUrl,
-  type SupplierMessengerContact,
-} from '../data/supplierResearch';
+import { messengerLink, supplierWebsiteFullUrl, type SupplierMessengerContact } from '../data/supplierResearch';
 import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '../data/supplierReliability';
-import {
-  fetchSupplier,
-  fetchSupplierMergeCandidates,
-  mergeSuppliers,
-  setSupplierBlocked,
-} from '../lib/suppliersApi';
+import { fetchSupplier, fetchSupplierMergeCandidates, mergeSuppliers, setSupplierBlocked } from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequests } from '../lib/supplierResearchApi';
 import { fetchSupplierSiteSnapshot, requestSiteSnapshotRefresh } from '../lib/supplierSiteSnapshotsApi';
 import {
@@ -81,25 +76,26 @@ import {
 // удобнее, не теряя таблицу. Перевод сравнения на страницу и удаление
 // модалки — шаг 4, где у страницы появятся разделы «Переписка» и «КП».
 
-type SupplierDetailTab = 'Обзор' | 'Контакты' | 'Переписка' | 'КП и цены' | 'Заказы' | 'Проверка' | 'Активность';
+type SupplierDetailTab = 'Обзор' | 'Каталог' | 'Переписка' | 'КП и цены' | 'Заказы' | 'Проверка' | 'Активность';
 
-const TABS: SupplierDetailTab[] = ['Обзор', 'Контакты', 'Переписка', 'КП и цены', 'Заказы', 'Проверка', 'Активность'];
+const TABS: SupplierDetailTab[] = ['Обзор', 'Каталог', 'Переписка', 'КП и цены', 'Заказы', 'Проверка', 'Активность'];
 
 // Вкладка живёт в ?tab=, а не в стейте — как на странице «Закупки»
 // (владелец, 2026-09-04: «обновляешь — и всё слетело»). Слаги, не русские
 // названия: переименование вкладки не должно ломать сохранённые ссылки.
 const TAB_SLUGS: Record<SupplierDetailTab, string> = {
-  'Обзор': 'overview',
-  Контакты: 'contacts',
+  Обзор: 'overview',
+  Каталог: 'catalog',
   Переписка: 'emails',
   'КП и цены': 'quotes',
   Заказы: 'orders',
   Проверка: 'reliability',
   Активность: 'activity',
 };
-const SLUG_TO_TAB: Record<string, SupplierDetailTab> = Object.fromEntries(
-  (Object.entries(TAB_SLUGS) as [SupplierDetailTab, string][]).map(([t, slug]) => [slug, t]),
-);
+const SLUG_TO_TAB: Record<string, SupplierDetailTab> = {
+  ...Object.fromEntries((Object.entries(TAB_SLUGS) as [SupplierDetailTab, string][]).map(([t, slug]) => [slug, t])),
+  contacts: 'Обзор',
+};
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -136,7 +132,11 @@ interface ProfileField {
   filled: boolean;
 }
 
-function profileFields(supplier: Supplier, snapshot: SupplierSiteSnapshot | null, termsNotes: string[]): ProfileField[] {
+function profileFields(
+  supplier: Supplier,
+  snapshot: SupplierSiteSnapshot | null,
+  termsNotes: string[],
+): ProfileField[] {
   return [
     { label: 'почта', filled: supplier.email.trim().length > 0 },
     { label: 'телефон', filled: supplier.phone.trim().length > 0 },
@@ -148,15 +148,6 @@ function profileFields(supplier: Supplier, snapshot: SupplierSiteSnapshot | null
     { label: 'что поставляет', filled: (snapshot?.categories.length ?? 0) > 0 },
     { label: 'условия работы', filled: termsNotes.length > 0 },
   ];
-}
-
-// «1 категория / 2 категории / 5 категорий» — обычное русское склонение;
-// без него бейдж читался как «2 категорий закупки».
-function pluralCategories(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  const word = mod10 === 1 && mod100 !== 11 ? 'категория' : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20) ? 'категории' : 'категорий';
-  return `${n} ${word} закупки`;
 }
 
 // Как назвать контакт в списке. Пустое имя — обычное дело: общий ящик
@@ -190,7 +181,13 @@ function ContactFormModal({
     if (!open) return;
     setForm(
       initial
-        ? { name: initial.name, role: initial.role, phone: initial.phone, email: initial.email, messengers: initial.messengers }
+        ? {
+            name: initial.name,
+            role: initial.role,
+            phone: initial.phone,
+            email: initial.email,
+            messengers: initial.messengers,
+          }
         : emptyContactForm,
     );
   }, [open, initial]);
@@ -204,10 +201,31 @@ function ContactFormModal({
           onSubmit(form);
         }}
       >
-        <Input label="Имя" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Например: Сергей Иванов" />
-        <Input label="Роль" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} placeholder="Например: менеджер по продажам" />
-        <Input label="Почта" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="ivanov@example.ru" />
-        <Input label="Телефон" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+7 495 123-45-67" />
+        <Input
+          label="Имя"
+          value={form.name}
+          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          placeholder="Например: Сергей Иванов"
+        />
+        <Input
+          label="Роль"
+          value={form.role}
+          onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
+          placeholder="Например: менеджер по продажам"
+        />
+        <Input
+          label="Почта"
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          placeholder="ivanov@example.ru"
+        />
+        <Input
+          label="Телефон"
+          value={form.phone}
+          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+          placeholder="+7 495 123-45-67"
+        />
         <div className="mt-2 flex justify-end gap-2 border-t border-border pt-3">
           <Button type="button" variant="secondary" onClick={onClose}>
             Отмена
@@ -236,7 +254,13 @@ function threadLink(requestId: string, offerId: string, orderId: string | null):
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function formatMoney(value: number, currency: string): string {
@@ -266,7 +290,9 @@ function termsSummary(terms: QuoteTerms | null): string[] {
     out.push(terms.prepaymentPercent === 0 ? 'оплата по факту' : `предоплата ${terms.prepaymentPercent}%`);
   }
   if (typeof terms.deliveryCost === 'number') {
-    out.push(terms.deliveryCost === 0 ? 'доставка бесплатно' : `доставка ${terms.deliveryCost.toLocaleString('ru-RU')}`);
+    out.push(
+      terms.deliveryCost === 0 ? 'доставка бесплатно' : `доставка ${terms.deliveryCost.toLocaleString('ru-RU')}`,
+    );
   }
   if (terms.deliveryTerms) out.push(terms.deliveryTerms);
   if (terms.vatIncluded === false) out.push('цены без НДС');
@@ -301,8 +327,15 @@ function TermsFormModal({
     vat: '' | 'included' | 'excluded';
     vatRate: string;
   }>({
-    leadTimeDays: '', prepaymentPercent: '', deliveryCost: '', deliveryTerms: '',
-    availability: '', minOrder: '', validUntil: '', vat: '', vatRate: '',
+    leadTimeDays: '',
+    prepaymentPercent: '',
+    deliveryCost: '',
+    deliveryTerms: '',
+    availability: '',
+    minOrder: '',
+    validUntil: '',
+    vat: '',
+    vatRate: '',
   });
 
   useEffect(() => {
@@ -350,23 +383,66 @@ function TermsFormModal({
           Эти значения видны в сравнении цен рядом с ценой. Пустое поле — «не указано», а не ноль.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="Срок поставки, дней" value={form.leadTimeDays} onChange={(e) => setForm((f) => ({ ...f, leadTimeDays: e.target.value }))} placeholder="7" />
-          <Input label="Предоплата, %" value={form.prepaymentPercent} onChange={(e) => setForm((f) => ({ ...f, prepaymentPercent: e.target.value }))} placeholder="100" />
-          <Input label="Доставка, сумма" value={form.deliveryCost} onChange={(e) => setForm((f) => ({ ...f, deliveryCost: e.target.value }))} placeholder="0 — если бесплатно" />
-          <Input label="Условие доставки" value={form.deliveryTerms} onChange={(e) => setForm((f) => ({ ...f, deliveryTerms: e.target.value }))} placeholder="бесплатно от 300 000" />
-          <Input label="Минимальный заказ" value={form.minOrder} onChange={(e) => setForm((f) => ({ ...f, minOrder: e.target.value }))} placeholder="паллета" />
-          <Input label="Цена действует до" value={form.validUntil} onChange={(e) => setForm((f) => ({ ...f, validUntil: e.target.value }))} placeholder="20.09.2026" />
-          <Input label="Ставка НДС, %" value={form.vatRate} onChange={(e) => setForm((f) => ({ ...f, vatRate: e.target.value }))} placeholder="20" />
+          <Input
+            label="Срок поставки, дней"
+            value={form.leadTimeDays}
+            onChange={(e) => setForm((f) => ({ ...f, leadTimeDays: e.target.value }))}
+            placeholder="7"
+          />
+          <Input
+            label="Предоплата, %"
+            value={form.prepaymentPercent}
+            onChange={(e) => setForm((f) => ({ ...f, prepaymentPercent: e.target.value }))}
+            placeholder="100"
+          />
+          <Input
+            label="Доставка, сумма"
+            value={form.deliveryCost}
+            onChange={(e) => setForm((f) => ({ ...f, deliveryCost: e.target.value }))}
+            placeholder="0 — если бесплатно"
+          />
+          <Input
+            label="Условие доставки"
+            value={form.deliveryTerms}
+            onChange={(e) => setForm((f) => ({ ...f, deliveryTerms: e.target.value }))}
+            placeholder="бесплатно от 300 000"
+          />
+          <Input
+            label="Минимальный заказ"
+            value={form.minOrder}
+            onChange={(e) => setForm((f) => ({ ...f, minOrder: e.target.value }))}
+            placeholder="паллета"
+          />
+          <Input
+            label="Цена действует до"
+            value={form.validUntil}
+            onChange={(e) => setForm((f) => ({ ...f, validUntil: e.target.value }))}
+            placeholder="20.09.2026"
+          />
+          <Input
+            label="Ставка НДС, %"
+            value={form.vatRate}
+            onChange={(e) => setForm((f) => ({ ...f, vatRate: e.target.value }))}
+            placeholder="20"
+          />
         </div>
         <div className="flex flex-wrap gap-2">
-          {([['', 'наличие не указано'], ['in_stock', 'в наличии'], ['on_order', 'под заказ']] as const).map(([value, label]) => (
+          {(
+            [
+              ['', 'наличие не указано'],
+              ['in_stock', 'в наличии'],
+              ['on_order', 'под заказ'],
+            ] as const
+          ).map(([value, label]) => (
             <button
               key={label}
               type="button"
               onClick={() => setForm((f) => ({ ...f, availability: value }))}
               className={cn(
                 'rounded-full border px-3 py-1 text-xs',
-                form.availability === value ? 'border-primary bg-primary-soft text-primary' : 'border-border text-ink-muted hover:text-ink',
+                form.availability === value
+                  ? 'border-border-strong bg-surface-muted text-ink'
+                  : 'border-border text-ink-muted hover:text-ink',
               )}
             >
               {label}
@@ -374,14 +450,22 @@ function TermsFormModal({
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          {([['', 'про НДС не сказано'], ['included', 'цены с НДС'], ['excluded', 'цены без НДС']] as const).map(([value, label]) => (
+          {(
+            [
+              ['', 'про НДС не сказано'],
+              ['included', 'цены с НДС'],
+              ['excluded', 'цены без НДС'],
+            ] as const
+          ).map(([value, label]) => (
             <button
               key={label}
               type="button"
               onClick={() => setForm((f) => ({ ...f, vat: value }))}
               className={cn(
                 'rounded-full border px-3 py-1 text-xs',
-                form.vat === value ? 'border-primary bg-primary-soft text-primary' : 'border-border text-ink-muted hover:text-ink',
+                form.vat === value
+                  ? 'border-border-strong bg-surface-muted text-ink'
+                  : 'border-border text-ink-muted hover:text-ink',
               )}
             >
               {label}
@@ -410,11 +494,21 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function MessengerChips({ messengers }: { messengers: SupplierMessengerContact[] }) {
+type DisplayMessenger = SupplierMessengerContact | { type: 'Viber'; number: string };
+
+function MessengerChips({ messengers }: { messengers: DisplayMessenger[] }) {
   return (
     <span className="flex flex-wrap gap-2">
       {messengers.map((m, i) => {
-        const { href, label } = messengerLink(m);
+        const { href, label } =
+          m.type === 'Viber'
+            ? {
+                href: /^\+?[\d\s()-]+$/.test(m.number)
+                  ? `viber://chat?number=${encodeURIComponent(m.number.replace(/[^+\d]/g, ''))}`
+                  : null,
+                label: m.number,
+              }
+            : messengerLink(m);
         const content = (
           <>
             <MessageCircle className="h-3.5 w-3.5" />
@@ -427,7 +521,7 @@ function MessengerChips({ messengers }: { messengers: SupplierMessengerContact[]
             href={href}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-primary-hover hover:underline"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-info-text hover:underline"
           >
             {content}
           </a>
@@ -444,6 +538,104 @@ function MessengerChips({ messengers }: { messengers: SupplierMessengerContact[]
   );
 }
 
+const ADDRESS_LABELS: Record<string, string> = {
+  office: 'Офис',
+  production: 'Производство',
+  warehouse: 'Склад',
+  showroom: 'Шоурум',
+  store: 'Магазин',
+  legal: 'Юридический',
+};
+const SITE_TERM_LABELS = [
+  ['wholesale', 'Опт'],
+  ['min_order', 'Минимальный заказ'],
+  ['delivery', 'Доставка'],
+  ['payment', 'Оплата'],
+  ['dealer_program', 'Дилерам'],
+] as const;
+
+function CopyLine({
+  value,
+  display = value,
+  label,
+  preferred,
+}: {
+  value: string;
+  display?: string;
+  label?: string | null;
+  preferred?: boolean;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-2 text-sm">
+      <div className="min-w-0 select-text break-words font-medium">
+        {display}
+        {preferred && <span className="ml-1 text-xs text-success">пишем сюда</span>}
+        {label && <p className="text-xs font-normal text-ink-faint">{label}</p>}
+      </div>
+      <button
+        type="button"
+        aria-label={`Копировать ${value}`}
+        className="shrink-0 rounded-lg border border-border px-2 py-1 text-[11px] text-ink-muted"
+        onClick={async () => {
+          try {
+            await navigator.clipboard?.writeText(value);
+          } catch {
+            /* Текст остаётся доступен для ручного копирования. */
+          }
+        }}
+      >
+        Копировать
+      </button>
+    </div>
+  );
+}
+
+function ProfileChips({
+  title,
+  values,
+  limit = values.length,
+  products,
+}: {
+  title: string;
+  values: string[];
+  limit?: number;
+  products?: NonNullable<SupplierSiteProfile['products']>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (!values.length) return null;
+  return (
+    <div className="space-y-2">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">{title}</h3>
+      <div className="flex flex-wrap gap-1.5">
+        {values.slice(0, expanded ? undefined : limit).map((value, index) => (
+          <span
+            key={`${value}-${index}`}
+            className={cn(
+              'rounded-lg px-2.5 py-1 text-sm',
+              products ? 'border border-border-strong bg-surface font-semibold' : 'bg-surface-muted',
+            )}
+          >
+            {value}
+            {products && (
+              <span className="ml-1 font-normal tabular-nums text-ink-faint">
+                {
+                  products.filter((product) => product.brand?.trim().toLowerCase() === value.trim().toLowerCase())
+                    .length
+                }
+              </span>
+            )}
+          </span>
+        ))}
+        {!expanded && values.length > limit && (
+          <button type="button" className="px-2 text-sm font-semibold text-ink-muted" onClick={() => setExpanded(true)}>
+            ещё {values.length - limit}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SupplierDetail() {
   const { id } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
@@ -455,6 +647,7 @@ export function SupplierDetail() {
   const [emails, setEmails] = useState<SupplierOfferEmail[]>([]);
   const [quotes, setQuotes] = useState<SupplierQuote[]>([]);
   const [checks, setChecks] = useState<SupplierReliabilityCheck[]>([]);
+  const [orderCount, setOrderCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -486,12 +679,13 @@ export function SupplierDetail() {
         // снимком сайта: первый экран (кто это и чем занимается) не должен
         // ждать писем.
         const offerIds = companyOffers.map((o) => o.id);
-        const [siteSnapshot, allChecks, companyEmails, companyQuotes, history] = await Promise.all([
+        const [siteSnapshot, allChecks, companyEmails, companyQuotes, history, companyOrderCount] = await Promise.all([
           host ? fetchSupplierSiteSnapshot(host) : Promise.resolve(null),
           inn ? fetchSupplierReliability() : Promise.resolve([]),
           fetchSupplierOfferEmailsByOffers(offerIds),
           fetchSupplierQuotesByOffers(offerIds),
           fetchSupplierReliabilityChecks(id),
+          fetchPurchaseOrderCountBySupplier(id).catch(() => null),
         ]);
         if (cancelled) return;
         setSnapshot(siteSnapshot);
@@ -499,6 +693,7 @@ export function SupplierDetail() {
         setEmails(companyEmails);
         setQuotes(companyQuotes);
         setChecks(history);
+        setOrderCount(companyOrderCount);
       } catch (err) {
         if (!cancelled) setLoadError(errorMessage(err, 'Не удалось загрузить поставщика'));
       } finally {
@@ -528,9 +723,11 @@ export function SupplierDetail() {
         <PageHeader title="Поставщик" />
         <Card className="space-y-3">
           <p className="text-sm text-danger">{loadError ?? 'Такой компании нет — возможно, её удалили.'}</p>
-          <Link to="/admin/purchases?tab=suppliers" className="inline-flex items-center gap-1.5 text-sm text-primary-hover hover:underline">
-            <ArrowLeft className="h-4 w-4" />
-            К закупкам
+          <Link
+            to="/admin/purchases?tab=suppliers"
+            className="inline-flex items-center gap-1.5 text-sm text-info-text hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" />К закупкам
           </Link>
         </Card>
       </div>
@@ -550,6 +747,7 @@ export function SupplierDetail() {
       emails={emails}
       quotes={quotes}
       checks={checks}
+      orderCount={orderCount}
     />
   );
 }
@@ -571,6 +769,7 @@ export function SupplierDetailView({
   emails,
   quotes,
   checks,
+  orderCount,
 }: {
   supplier: Supplier;
   // Стоп-лист и перепроверка меняют саму компанию, поэтому представление
@@ -588,6 +787,7 @@ export function SupplierDetailView({
   emails: SupplierOfferEmail[];
   quotes: SupplierQuote[];
   checks: SupplierReliabilityCheck[];
+  orderCount: number | null;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab: SupplierDetailTab = SLUG_TO_TAB[searchParams.get('tab') ?? ''] ?? 'Обзор';
@@ -627,7 +827,11 @@ export function SupplierDetailView({
       events.push({
         at: c.checkedAt,
         title: 'Проверка по реестру',
-        detail: c.error ? `не удалось: ${c.error}` : c.found ? RISK_LEVEL_LABEL[c.riskLevel] : 'юрлицо не найдено в ЕГРЮЛ/ЕГРИП',
+        detail: c.error
+          ? `не удалось: ${c.error}`
+          : c.found
+            ? RISK_LEVEL_LABEL[c.riskLevel]
+            : 'юрлицо не найдено в ЕГРЮЛ/ЕГРИП',
       });
     }
     return events.sort((a, b) => b.at.localeCompare(a.at));
@@ -654,12 +858,22 @@ export function SupplierDetailView({
   // даты «когда обновляли контакты» в данных нет, и ближайшее к ней — время
   // создания карточки: обогащение пишет результат в неё же.
   const contactsFreshness = useMemo(() => {
-    const dates = offers.map((o) => o.createdAt).filter(Boolean).sort();
+    const dates = offers
+      .map((o) => o.createdAt)
+      .filter(Boolean)
+      .sort();
     return dates.length > 0 ? dates[dates.length - 1] : null;
   }, [offers]);
 
   const fields = useMemo(
-    () => (supplier ? profileFields(supplier, snapshot, termsNotes.map((t) => t.note)) : []),
+    () =>
+      supplier
+        ? profileFields(
+            supplier,
+            snapshot,
+            termsNotes.map((t) => t.note),
+          )
+        : [],
     [supplier, snapshot, termsNotes],
   );
   const filledCount = fields.filter((f) => f.filled).length;
@@ -747,7 +961,9 @@ export function SupplierDetailView({
       const updated = await fetchSupplier(supplier.id);
       if (updated) onSupplierChange(updated);
       setMergeOpen(false);
-      setActionNote(`«${source.name}» объединён в эту компанию. Обновите страницу, чтобы увидеть переехавшие карточки.`);
+      setActionNote(
+        `«${source.name}» объединён в эту компанию. Обновите страницу, чтобы увидеть переехавшие карточки.`,
+      );
     } catch (err) {
       setActionError(errorMessage(err, 'Не удалось объединить компании'));
     } finally {
@@ -843,7 +1059,8 @@ export function SupplierDetailView({
   }
 
   async function removeContact(contact: SupplierContact) {
-    if (!window.confirm(`Убрать контакт «${contactTitle(contact)}»? Строка останется в базе, из списка пропадёт.`)) return;
+    if (!window.confirm(`Убрать контакт «${contactTitle(contact)}»? Строка останется в базе, из списка пропадёт.`))
+      return;
     setDeletingContactId(contact.id);
     setContactError(null);
     try {
@@ -862,35 +1079,256 @@ export function SupplierDetailView({
     setSearchParams(params, { replace: true });
   }
 
+  const profile = supplier.siteProfile;
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogBrand, setCatalogBrand] = useState('Все марки');
+  const catalogBrands = [...new Set((profile?.products ?? []).flatMap((p) => (p.brand ? [p.brand] : [])))].sort(
+    (a, b) => a.localeCompare(b, 'ru'),
+  );
+  const filteredProducts = (profile?.products ?? []).filter(
+    (product) =>
+      (catalogBrand === 'Все марки' || product.brand === catalogBrand) &&
+      `${product.name ?? ''} ${product.article ?? ''}`.toLowerCase().includes(catalogSearch.trim().toLowerCase()),
+  );
+  const lastQuoteAt = quotes
+    .map((q) => q.createdAt)
+    .sort()
+    .at(-1);
+  const tabCounts: Partial<Record<SupplierDetailTab, number>> = {
+    Каталог: profile?.products?.length ?? 0,
+    Переписка: emails.length,
+    'КП и цены': quotes.length,
+    ...(orderCount != null ? { Заказы: orderCount } : {}),
+  };
+  const companyContacts: { key: string; value: string; label?: string | null; preferred?: boolean; phone?: boolean }[] =
+    [];
+  const seenContacts = new Set<string>();
+  const addContact = (value: string | null | undefined, label?: string | null, phone = false, preferred = false) => {
+    if (!value?.trim()) return;
+    const key = phone
+      ? `phone:${value.replace(/\D/g, '').replace(/^8(?=\d{10}$)/, '7')}`
+      : `email:${value.trim().toLowerCase()}`;
+    if (seenContacts.has(key)) return;
+    seenContacts.add(key);
+    companyContacts.push({ key, value: value.trim(), label, phone, preferred });
+  };
+  addContact(
+    supplier.email,
+    profile?.contacts?.emails?.find((e) => e.email?.trim().toLowerCase() === supplier.email.trim().toLowerCase())
+      ?.label,
+    false,
+    true,
+  );
+  for (const email of profile?.contacts?.emails ?? []) addContact(email.email, email.label);
+  for (const phone of profile?.contacts?.phones ?? []) addContact(phone.number, phone.label, true);
+  addContact(supplier.phone, null, true);
+  const companyMessengers: DisplayMessenger[] = [...supplier.messengers];
+  for (const messenger of profile?.contacts?.messengers ?? []) {
+    const type = ({ telegram: 'Telegram', whatsapp: 'WhatsApp', max: 'Max', viber: 'Viber' } as const)[
+      messenger.type?.toLowerCase() as 'telegram' | 'whatsapp' | 'max' | 'viber'
+    ];
+    if (type && messenger.value && !companyMessengers.some((m) => m.type === type && m.number === messenger.value))
+      companyMessengers.push({ type, number: messenger.value });
+  }
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const outside = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [menuOpen]);
+
   const hasRisk = shouldFlag(reliability);
 
   return (
-    <div className="space-y-6">
-      <PageHeader title={supplier.name} />
-
-      <Link to="/admin/purchases?tab=suppliers" className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink">
-        <ArrowLeft className="h-4 w-4" />
-        К закупкам
+    <div className="min-w-0 space-y-4 [overflow-wrap:anywhere]">
+      <Link
+        to="/admin/purchases?tab=suppliers"
+        className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink"
+      >
+        <ArrowLeft className="h-4 w-4" />К закупкам
       </Link>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {supplier.country.trim() && (
-          <span className="text-base" title={supplier.country}>
-            {countryFlag(supplier.country)}
-          </span>
-        )}
-        <Badge tone={supplier.verified ? 'success' : 'neutral'}>
-          {supplier.verified ? 'Проверена человеком' : 'Не верифицирована'}
-        </Badge>
-        {hasRisk && reliability && (
-          <Badge tone={reliability.riskLevel === 'danger' ? 'danger' : 'warning'}>
-            <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-            {riskSummary(reliability)}
-          </Badge>
-        )}
-        <Badge tone="neutral">{pluralCategories(offers.length)}</Badge>
-        {supplier.blockedReason && <Badge tone="danger">в стоп-листе</Badge>}
-      </div>
+      <Card className="relative z-30 !p-0">
+        <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
+          <div className="min-w-0 flex-1 basis-72">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="break-words text-2xl font-bold text-ink">{supplier.name}</h1>
+              {supplier.supplierKind && (
+                <Badge tone={supplier.supplierKind === 'manufacturer' ? 'success' : 'neutral'}>
+                  <Factory className="mr-1 inline h-4 w-4" />
+                  {SUPPLIER_KIND_LABELS[supplier.supplierKind]}
+                </Badge>
+              )}
+              <Badge tone={supplier.verified ? 'success' : 'neutral'}>
+                {supplier.verified ? 'Проверена человеком' : 'Не верифицирована'}
+              </Badge>
+              {hasRisk && reliability && (
+                <Badge tone={reliability.riskLevel === 'danger' ? 'danger' : 'warning'}>
+                  <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+                  {riskSummary(reliability)}
+                </Badge>
+              )}
+              {supplier.blockedReason && <Badge tone="danger">в стоп-листе</Badge>}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
+              {supplier.websiteUrl && (
+                <a
+                  href={supplierWebsiteFullUrl(supplier.websiteUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all text-info-text hover:underline"
+                >
+                  {supplier.websiteHost || supplier.websiteUrl} ↗
+                </a>
+              )}
+              {(profile?.addresses?.[0]?.city || supplier.city) && (
+                <span>{profile?.addresses?.[0]?.city || supplier.city}</span>
+              )}
+              {profile?.founded_year != null && <span>Работает с {profile.founded_year} года</span>}
+              {!!profile?.regions?.length && <span>Возит: {profile.regions.slice(0, 3).join(', ')}</span>}
+            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            {primaryOffer && (
+              <Link to={threadLink(primaryOffer.requestId, primaryOffer.id, null)} className={buttonClasses('primary')}>
+                <Mail className="h-4 w-4" />
+                Написать
+              </Link>
+            )}
+            <div className="relative" ref={menuRef}>
+              <button
+                ref={menuButtonRef}
+                type="button"
+                aria-label="Действия с поставщиком"
+                aria-expanded={menuOpen}
+                aria-controls="supplier-actions"
+                onClick={() => setMenuOpen((open) => !open)}
+                className="rounded-full border border-border p-2.5 text-ink-muted"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </button>
+              {menuOpen && (
+                <div
+                  id="supplier-actions"
+                  className="absolute right-0 top-full z-20 mt-2 w-64 max-w-[calc(100vw-3rem)] space-y-1 rounded-control border border-border bg-surface p-2 shadow-lg"
+                >
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full justify-start border-0"
+                    disabled={busyAction !== null || !(supplier.inn ?? '').trim()}
+                    icon={
+                      busyAction === 'reliability' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4" />
+                      )
+                    }
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void recheckReliability();
+                    }}
+                    title={
+                      (supplier.inn ?? '').trim()
+                        ? undefined
+                        : 'ИНН появится из первого счёта — до этого проверять нечего'
+                    }
+                  >
+                    Перепроверить реестр
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full justify-start border-0"
+                    disabled={busyAction !== null || !supplier.websiteHost}
+                    icon={
+                      busyAction === 'snapshot' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )
+                    }
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void refreshSnapshot();
+                    }}
+                    title={supplier.websiteHost ? undefined : 'Сайта нет — перечитывать нечего'}
+                  >
+                    Обновить сайт
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full justify-start border-0"
+                    disabled={busyAction !== null}
+                    icon={<Merge className="h-4 w-4" />}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void openMerge();
+                    }}
+                  >
+                    Объединить с дублем
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full justify-start border-0"
+                    disabled={busyAction !== null}
+                    icon={
+                      busyAction === 'block' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Ban className="h-4 w-4" />
+                      )
+                    }
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void toggleBlocked();
+                    }}
+                  >
+                    {supplier.blockedReason ? 'Вернуть в работу' : 'В стоп-лист'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 border-t border-border sm:grid-cols-4">
+          {[
+            [profile ? (profile.own_brands?.length ?? 0) : '—', 'своих марок'],
+            [profile ? (profile.product_kinds?.length ?? 0) : '—', 'видов товара'],
+            [profile ? (profile.products?.length ?? 0) : '—', 'позиций в каталоге'],
+            [quotes.length, `КП${lastQuoteAt ? ` · последнее ${formatDate(lastQuoteAt)}` : ''}`],
+          ].map(([value, label], index) => (
+            <div
+              key={index}
+              className={cn(
+                'min-w-0 px-5 py-4 sm:px-6',
+                index % 2 === 0 && 'border-r border-border',
+                index < 2 && 'border-b border-border sm:border-b-0',
+                index === 1 && 'sm:border-r',
+              )}
+            >
+              <p className="text-xl font-bold tabular-nums">{value}</p>
+              <p className="text-xs text-ink-muted">{label}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {supplier.blockedReason && (
         <Card className="space-y-1 border-danger/40">
@@ -906,57 +1344,6 @@ export function SupplierDetailView({
           </p>
         </Card>
       )}
-
-      <div className="flex flex-wrap gap-2">
-        {primaryOffer && (
-          <Link
-            to={threadLink(primaryOffer.requestId, primaryOffer.id, null)}
-            className={buttonClasses('secondary')}
-            title={offers.length > 1 ? 'Откроется переписка по последней категории закупки' : undefined}
-          >
-            <Mail className="h-4 w-4" />
-            Написать
-          </Link>
-        )}
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={busyAction !== null || !(supplier.inn ?? '').trim()}
-          icon={busyAction === 'reliability' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-          onClick={recheckReliability}
-          title={(supplier.inn ?? '').trim() ? undefined : 'ИНН появится из первого счёта — до этого проверять нечего'}
-        >
-          Перепроверить реестр
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={busyAction !== null || !supplier.websiteHost}
-          icon={busyAction === 'snapshot' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          onClick={refreshSnapshot}
-          title={supplier.websiteHost ? undefined : 'Сайта нет — перечитывать нечего'}
-        >
-          Обновить сайт
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={busyAction !== null}
-          icon={<Merge className="h-4 w-4" />}
-          onClick={openMerge}
-        >
-          Объединить с дублем
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={busyAction !== null}
-          icon={busyAction === 'block' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-          onClick={toggleBlocked}
-        >
-          {supplier.blockedReason ? 'Вернуть в работу' : 'В стоп-лист'}
-        </Button>
-      </div>
 
       <Modal open={mergeOpen} onClose={() => setMergeOpen(false)} title="Объединить с дублем">
         <div className="flex flex-col gap-3">
@@ -974,7 +1361,10 @@ export function SupplierDetailView({
           ) : (
             <ul className="space-y-2">
               {mergeCandidates.map((c) => (
-                <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border p-3">
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border p-3"
+                >
                   <div className="min-w-0">
                     <p className="font-medium text-ink">{c.name}</p>
                     <p className="text-xs text-ink-faint">
@@ -994,187 +1384,418 @@ export function SupplierDetailView({
       {actionError && <p className="text-sm text-danger">{actionError}</p>}
       {actionNote && <p className="text-sm text-ink-muted">{actionNote}</p>}
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              'rounded-full border px-4 py-1.5 text-sm transition-colors',
-              t === tab ? 'border-primary bg-primary-soft text-primary' : 'border-border text-ink-muted hover:text-ink',
-            )}
-          >
-            {t}
-          </button>
-        ))}
+      <div className="max-w-full overflow-x-auto">
+        <div className="flex w-max min-w-0 gap-1 rounded-full bg-surface-muted p-1" aria-label="Разделы поставщика">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              aria-current={t === tab ? 'page' : undefined}
+              onClick={() => setTab(t)}
+              className={cn(
+                'shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold',
+                t === tab ? 'bg-surface text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
+              )}
+            >
+              {t}
+              {tabCounts[t] != null && <span className="ml-1.5 font-normal text-ink-faint">{tabCounts[t]}</span>}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === 'Обзор' && (
-        <div className="space-y-4">
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink">О компании</h2>
-            <Row label="Сайт">
-              {supplier.websiteUrl.trim() ? (
-                <a
-                  href={supplierWebsiteFullUrl(supplier.websiteUrl)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 text-primary-hover hover:underline"
-                >
-                  <Globe className="h-4 w-4" />
-                  {supplier.websiteHost || supplier.websiteUrl}
-                </a>
-              ) : (
-                '—'
-              )}
-            </Row>
-            <Row label="Страна и город">
-              {[supplier.country.trim(), supplier.city.trim()].filter(Boolean).join(', ') || '—'}
-            </Row>
-            <Row label="ИНН">{(supplier.inn ?? '').trim() || 'появится из первого счёта'}</Row>
-          </Card>
-
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink">Что поставляет</h2>
-            {snapshot && snapshot.categories.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {snapshot.categories.map((c) => (
-                  <span key={c} className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted">
-                    {c}
-                  </span>
-                ))}
-              </div>
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-w-0 space-y-4">
+            {profile ? (
+              <Card className="space-y-4">
+                <h2 className="text-base font-semibold text-ink">
+                  {supplier.supplierKind === 'manufacturer' || supplier.supplierKind === 'brand_owner'
+                    ? 'Что производит сам'
+                    : 'Что продаёт'}
+                </h2>
+                <ProfileChips
+                  title="Свои марки"
+                  values={profile.own_brands ?? []}
+                  limit={14}
+                  products={profile.products ?? []}
+                />
+                <ProfileChips title="Виды товара" values={profile.product_kinds ?? []} limit={12} />
+                {(supplier.supplierKind === 'dealer' || supplier.supplierKind === 'retail') && (
+                  <ProfileChips title="Чужие марки" values={profile.resold_brands ?? []} />
+                )}
+                {profile.about && <p className="text-sm text-ink-muted">{profile.about}</p>}
+              </Card>
             ) : (
-              <p className="text-sm text-ink-faint">
-                {!supplier.websiteHost
-                  ? 'Сайта нет — товарные группы брать неоткуда.'
-                  : !snapshot
-                    ? 'Сайт ещё не читали.'
-                    : snapshot.status === 'error'
-                      ? `Сайт не открылся автосбору${snapshot.error ? `: ${snapshot.error}` : ''}.`
-                      : snapshot.status === 'done'
-                        ? 'По сайту не удалось понять, что поставляет.'
-                        : 'Сайт в очереди на чтение.'}
-              </p>
+              <Card className="space-y-3">
+                <h2 className="text-sm font-semibold text-ink">Что поставляет</h2>
+                {snapshot && snapshot.categories.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {snapshot.categories.map((c) => (
+                      <span key={c} className="rounded-full border border-border px-2.5 py-1 text-xs text-ink-muted">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-ink-faint">
+                    {!supplier.websiteHost
+                      ? 'Сайта нет — товарные группы брать неоткуда.'
+                      : !snapshot
+                        ? 'Сайт ещё не читали.'
+                        : snapshot.status === 'error'
+                          ? `Сайт не открылся автосбору${snapshot.error ? `: ${snapshot.error}` : ''}.`
+                          : snapshot.status === 'done'
+                            ? 'По сайту не удалось понять, что поставляет.'
+                            : 'Сайт в очереди на чтение.'}
+                  </p>
+                )}
+                {snapshot?.categoriesNote && <p className="text-xs text-ink-faint">{snapshot.categoriesNote}</p>}
+              </Card>
             )}
-            {snapshot?.categoriesNote && <p className="text-xs text-ink-faint">{snapshot.categoriesNote}</p>}
-          </Card>
-
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink">Наличие и условия</h2>
-            {termsNotes.length > 0 ? (
-              <ul className="space-y-2">
-                {termsNotes.map((t) => (
-                  <li key={t.note}>
-                    <p className="text-sm text-ink">{t.note}</p>
-                    <p className="text-xs text-ink-faint">из закупки «{t.categoryTitle}»</p>
+            <Card className="space-y-3">
+              <h2 className="text-sm font-semibold text-ink">Участвует в закупках</h2>
+              {offers.length > 0 ? (
+                <ul className="space-y-2">
+                  {offers.map((o) => {
+                    const request = requestById.get(o.requestId);
+                    return (
+                      <li key={o.id} className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm text-ink">{request?.title ?? 'Категория удалена'}</span>
+                        <Link
+                          to="/admin/purchases?tab=suppliers"
+                          className="inline-flex items-center gap-1.5 text-xs text-info-text hover:underline"
+                        >
+                          Открыть в закупках
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-sm text-ink-faint">Компания не участвует ни в одной категории закупки.</p>
+              )}
+            </Card>
+            <Card className="space-y-3">
+              <h2 className="text-base font-semibold text-ink">Наша история</h2>
+              {activity.length === 0 && (
+                <p className="text-sm text-ink-faint">С этой компанией пока ничего не происходило.</p>
+              )}
+              <ul className="divide-y divide-border">
+                {activity.slice(0, 5).map((event, index) => (
+                  <li key={`${event.at}-${index}`} className="flex flex-wrap items-baseline gap-3 py-3">
+                    <span className="text-xs text-ink-faint">{formatDate(event.at)}</span>
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p className="font-medium">{event.title}</p>
+                      <p className="text-ink-muted">{event.detail}</p>
+                    </div>
+                    {event.href && (
+                      <Link to={event.href} className="text-xs text-info-text hover:underline">
+                        Открыть
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-sm text-ink-faint">
-                Условия не записаны. Их заполняют в карточке поставщика по тому, что менеджер написал в переписке.
-              </p>
-            )}
-          </Card>
-
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink">Участвует в закупках</h2>
-            {offers.length > 0 ? (
-              <ul className="space-y-2">
-                {offers.map((o) => {
-                  const request = requestById.get(o.requestId);
-                  return (
-                    <li key={o.id} className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm text-ink">{request?.title ?? 'Категория удалена'}</span>
-                      <Link
-                        to="/admin/purchases?tab=suppliers"
-                        className="inline-flex items-center gap-1.5 text-xs text-primary-hover hover:underline"
-                      >
-                        Открыть в закупках
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="text-sm text-ink-faint">Компания не участвует ни в одной категории закупки.</p>
-            )}
-          </Card>
-
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink">Благонадёжность</h2>
-            {!(supplier.inn ?? '').trim() ? (
-              <p className="text-sm text-ink-faint">
-                Проверим автоматически, когда поставщик пришлёт счёт — ИНН берётся из него.
-              </p>
-            ) : !reliability ? (
-              <p className="text-sm text-ink-faint">Ещё не проверяли.</p>
-            ) : reliability.error ? (
-              <p className="text-sm text-warning">Не удалось проверить: {reliability.error}</p>
-            ) : !reliability.found ? (
-              <p className="text-sm font-medium text-danger">Организация с таким ИНН не найдена в ЕГРЮЛ/ЕГРИП</p>
-            ) : (
-              <div className="space-y-2">
-                <p className={cn('text-sm', reliability.riskLevel === 'ok' ? 'text-success' : 'text-warning')}>
-                  {RISK_LEVEL_LABEL[reliability.riskLevel]}
-                </p>
-                {reliability.risks.length > 0 && (
-                  <ul className="space-y-1">
-                    {reliability.risks.map((r, i) => (
-                      <li
-                        key={`${r.title}-${i}`}
-                        className={cn('flex gap-1.5 text-sm', r.level === 'danger' ? 'text-danger' : 'text-warning')}
-                      >
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span>
-                          {r.title}
-                          {r.detail && <span className="text-ink-faint"> — {r.detail}</span>}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+              <Link to="?tab=activity" className="text-sm text-info-text hover:underline">
+                Вся активность
+              </Link>
+            </Card>
+          </div>
+          <aside className="min-w-0 space-y-4 [&>div]:p-5">
+            <Card className="space-y-4">
+              <h2 className="text-base font-semibold text-ink">Контакты</h2>
+              {companyContacts.map((contact) => (
+                <CopyLine
+                  key={contact.key}
+                  value={contact.value}
+                  display={contact.phone ? formatPhoneDisplay(contact.value) : contact.value}
+                  label={contact.label}
+                  preferred={contact.preferred}
+                />
+              ))}
+              {companyMessengers.length > 0 && <MessengerChips messengers={companyMessengers} />}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-ink">
+                  Контактные лица{contacts.length > 0 ? ` (${contacts.length})` : ''}
+                </h2>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon={<Plus className="h-4 w-4" />}
+                  onClick={() => {
+                    setEditingContact(null);
+                    setContactModalOpen(true);
+                  }}
+                >
+                  Добавить
+                </Button>
               </div>
-            )}
-          </Card>
 
-          <Card className="space-y-3">
-            <h2 className="text-sm font-semibold text-ink">Насколько свежие данные</h2>
-            <Row label="Контакты">
-              {formatDate(contactsFreshness)}
-              {isStale(contactsFreshness) && <span className="ml-2 text-xs text-warning">устарело</span>}
-            </Row>
-            <Row label="Чтение сайта">
-              {formatDate(snapshot?.fetchedAt ?? null)}
-              {isStale(snapshot?.fetchedAt ?? null) && <span className="ml-2 text-xs text-warning">устарело</span>}
-            </Row>
-            <Row label="Проверка по реестру">
-              {formatDate(reliability?.checkedAt ?? null)}
-              {/* Порог «устарело» у реестра свой — 30 дней в
+              {contactError && <p className="text-sm text-danger">{contactError}</p>}
+
+              {contacts.length === 0 ? (
+                <p className="text-sm text-ink-faint">
+                  Людей пока нет. Контакт появится сам, как только с этой компании ответят на письмо, — или добавьте
+                  вручную.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {contacts.map((c) => (
+                    <li key={c.id} className="rounded-control border border-border p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-ink">{contactTitle(c)}</span>
+                            {c.role.trim() && <span className="text-xs text-ink-muted">{c.role}</span>}
+                            <Badge tone="neutral">
+                              {CONTACT_SOURCE_LABEL[c.source] ?? c.source ?? 'источник неизвестен'}
+                            </Badge>
+                          </div>
+                          {/* У безымянного контакта заголовком уже служит его
+                            адрес (см. contactTitle) — второй раз ту же строку
+                            под иконкой не показываем. */}
+                          {c.email.trim() && contactTitle(c) !== c.email.trim() && (
+                            <p className="flex items-center gap-1.5 text-sm text-ink">
+                              <Mail className="h-4 w-4 text-ink-faint" />
+                              {c.email}
+                            </p>
+                          )}
+                          {c.phone.trim() && (
+                            <p className="flex items-center gap-1.5 text-sm text-ink">
+                              <Phone className="h-4 w-4 text-ink-faint" />
+                              <ContactValue contact={formatPhoneDisplay(c.phone)} contactMethod="Телефон" />
+                            </p>
+                          )}
+                          {c.messengers.length > 0 && <MessengerChips messengers={c.messengers} />}
+                          <p className="text-xs text-ink-faint">
+                            {c.lastReplyAt ? `Последний ответ: ${formatDate(c.lastReplyAt)}` : 'Ни разу не отвечал'}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            aria-label={`Изменить контакт «${contactTitle(c)}»`}
+                            className="rounded-full border border-border p-2 text-ink-muted transition-colors hover:text-ink"
+                            onClick={() => {
+                              setEditingContact(c);
+                              setContactModalOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Убрать контакт «${contactTitle(c)}»`}
+                            disabled={deletingContactId === c.id}
+                            className="rounded-full border border-border p-2 text-ink-muted transition-colors hover:border-danger hover:text-danger disabled:opacity-50"
+                            onClick={() => removeContact(c)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <p className="border-t border-border pt-3 text-xs text-ink-faint">
+                Список пополняется сам: когда с нового адреса приходит ответ, человек появляется здесь с датой письма.
+                Общий ящик компании — тоже строка в списке, просто без имени.
+              </p>
+            </Card>
+            <Card className="space-y-3">
+              <h2 className="text-base font-semibold text-ink">Адреса</h2>
+              {(profile?.addresses ?? []).map((address, index) => (
+                <div key={index} className="rounded-control bg-surface-muted p-3 text-sm">
+                  <p className="text-xs font-semibold uppercase text-ink-faint">
+                    {ADDRESS_LABELS[address.type ?? ''] ?? address.type ?? 'Адрес'}
+                  </p>
+                  <p>{[address.city, address.address].filter(Boolean).join(', ') || 'Адрес не указан'}</p>
+                  {address.hours && <p className="mt-1 text-xs text-ink-faint">{address.hours}</p>}
+                </div>
+              ))}
+              {supplier.supplierKind === 'manufacturer' &&
+                !profile?.addresses?.some((a) => a.type === 'production' && a.address) && (
+                  <p className="rounded-control border border-dashed border-border-strong p-3 text-sm text-ink-faint">
+                    Производство: адрес на сайте не указан
+                  </p>
+                )}
+              {!profile?.addresses?.length && supplier.city && (
+                <p className="text-sm text-ink-muted">{supplier.city}</p>
+              )}
+            </Card>
+            <Card className="space-y-3">
+              <h2 className="text-base font-semibold text-ink">Условия</h2>
+              <dl className="space-y-3">
+                {SITE_TERM_LABELS.map(([key, label]) =>
+                  profile?.terms?.[key] ? (
+                    <div key={key}>
+                      <dt className="text-xs text-ink-faint">{label}</dt>
+                      <dd className="mt-1 text-sm">{profile.terms[key]}</dd>
+                    </div>
+                  ) : null,
+                )}
+              </dl>
+              {termsNotes.length > 0 ? (
+                <ul className="space-y-2">
+                  {termsNotes.map((t) => (
+                    <li key={t.note}>
+                      <p className="text-sm text-ink">{t.note}</p>
+                      <p className="text-xs text-ink-faint">из закупки «{t.categoryTitle}»</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-ink-faint">
+                  Условия из КП не записаны. Их заполняют в карточке поставщика по тому, что менеджер написал в
+                  переписке.
+                </p>
+              )}
+            </Card>
+            <Card className="space-y-3">
+              <h2 className="text-base font-semibold text-ink">Реквизиты</h2>
+              {(profile?.legal_entities ?? []).map((entity, index) => (
+                <div key={index} className="space-y-2 border-b border-border pb-3 last:border-0 last:pb-0">
+                  {entity.name && <p className="text-sm font-semibold">{entity.name}</p>}
+                  {entity.inn && <CopyLine value={entity.inn} label="ИНН" />}
+                  {entity.ogrn && <CopyLine value={entity.ogrn} label="ОГРН" />}
+                </div>
+              ))}
+              {!profile &&
+                (supplier.inn ? (
+                  <CopyLine value={supplier.inn} label="ИНН" />
+                ) : (
+                  <p className="text-sm text-ink-faint">ИНН появится из первого счёта</p>
+                ))}
+            </Card>
+            <Card className="space-y-3">
+              <h2 className="text-sm font-semibold text-ink">Благонадёжность</h2>
+              {!(supplier.inn ?? '').trim() ? (
+                <p className="text-sm text-ink-faint">
+                  Проверим автоматически, когда поставщик пришлёт счёт — ИНН берётся из него.
+                </p>
+              ) : !reliability ? (
+                <p className="text-sm text-ink-faint">Ещё не проверяли.</p>
+              ) : reliability.error ? (
+                <p className="text-sm text-warning">Не удалось проверить: {reliability.error}</p>
+              ) : !reliability.found ? (
+                <p className="text-sm font-medium text-danger">Организация с таким ИНН не найдена в ЕГРЮЛ/ЕГРИП</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className={cn('text-sm', reliability.riskLevel === 'ok' ? 'text-success' : 'text-warning')}>
+                    {RISK_LEVEL_LABEL[reliability.riskLevel]}
+                  </p>
+                  {reliability.risks.length > 0 && (
+                    <ul className="space-y-1">
+                      {reliability.risks.map((r, i) => (
+                        <li
+                          key={`${r.title}-${i}`}
+                          className={cn('flex gap-1.5 text-sm', r.level === 'danger' ? 'text-danger' : 'text-warning')}
+                        >
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span>
+                            {r.title}
+                            {r.detail && <span className="text-ink-faint"> — {r.detail}</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </Card>
+            <Card className="space-y-3">
+              <h2 className="text-sm font-semibold text-ink">Насколько свежие данные</h2>
+              <Row label="Контакты">
+                {formatDate(contactsFreshness)}
+                {isStale(contactsFreshness) && <span className="ml-2 text-xs text-warning">устарело</span>}
+              </Row>
+              <Row label="Чтение сайта">
+                {formatDate(snapshot?.fetchedAt ?? null)}
+                {isStale(snapshot?.fetchedAt ?? null) && <span className="ml-2 text-xs text-warning">устарело</span>}
+              </Row>
+              <Row label="Проверка по реестру">
+                {formatDate(reliability?.checkedAt ?? null)}
+                {/* Порог «устарело» у реестра свой — 30 дней в
                   isReliabilityStale: реестры обновляются не чаще раза в
                   сутки, а суточный лимит запросов к Checko не резиновый. */}
-              {reliability && isReliabilityStale(reliability) && (
-                <span className="ml-2 text-xs text-warning">устарело, стоит перепроверить</span>
-              )}
-            </Row>
-            <div className="border-t border-border pt-3">
-              <Row label="Заполненность профиля">
-                <span className="tabular-nums">{profilePercent}%</span>
-                {missing.length > 0 && <span className="ml-2 text-xs text-ink-faint">не хватает: {missing.join(', ')}</span>}
+                {reliability && isReliabilityStale(reliability) && (
+                  <span className="ml-2 text-xs text-warning">устарело, стоит перепроверить</span>
+                )}
               </Row>
-            </div>
-          </Card>
+              <div className="border-t border-border pt-3">
+                <Row label="Заполненность профиля">
+                  <span className="tabular-nums">{profilePercent}%</span>
+                  {missing.length > 0 && (
+                    <span className="ml-2 text-xs text-ink-faint">не хватает: {missing.join(', ')}</span>
+                  )}
+                </Row>
+              </div>
+            </Card>
+          </aside>
         </div>
+      )}
+
+      {tab === 'Каталог' && (
+        <Card className="min-w-0 space-y-4">
+          <h2 className="text-base font-semibold">Каталог</h2>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <SearchInput
+              aria-label="Поиск по названию или артикулу"
+              placeholder="Название или артикул"
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              wrapperClassName="min-w-0 flex-1"
+            />
+            <Select
+              placeholder="Все марки"
+              options={['Все марки', ...catalogBrands]}
+              value={catalogBrand}
+              onChange={setCatalogBrand}
+            />
+          </div>
+          <p className="text-xs text-ink-faint">
+            Товары с сайта {supplier.websiteHost || 'поставщика'} на {formatDate(supplier.profiledAt)}. Цены с сайта не
+            показываем — они быстро устаревают.
+          </p>
+          {!profile?.products?.length ? (
+            <p className="text-sm text-ink-faint">Каталог с сайта ещё не собран</p>
+          ) : filteredProducts.length === 0 ? (
+            <p className="text-sm text-ink-faint">По вашему запросу ничего не найдено</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="border-b border-border text-xs uppercase text-ink-faint">
+                  <tr>
+                    {['Товар', 'Марка', 'Артикул', 'Ед.'].map((label) => (
+                      <th key={label} className="px-3 py-2 font-medium">
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.map((product, index) => (
+                    <tr key={index} className="border-b border-border last:border-0">
+                      <td className="min-w-48 px-3 py-3">{product.name || '—'}</td>
+                      <td className="px-3 py-3">{product.brand || '—'}</td>
+                      <td className="px-3 py-3">{product.article || '—'}</td>
+                      <td className="px-3 py-3">{product.unit || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       )}
 
       {tab === 'Переписка' && (
         <Card className="space-y-4">
-          <h2 className="text-sm font-semibold text-ink">
-            Переписка{emails.length > 0 ? ` (${emails.length})` : ''}
-          </h2>
+          <h2 className="text-sm font-semibold text-ink">Переписка{emails.length > 0 ? ` (${emails.length})` : ''}</h2>
           {emails.length === 0 ? (
             <p className="text-sm text-ink-faint">Писем с этой компанией ещё не было.</p>
           ) : (
@@ -1197,7 +1818,7 @@ export function SupplierDetailView({
                       {cat.requestId && (
                         <Link
                           to={threadLink(cat.requestId, e.offerId, e.orderId ?? null)}
-                          className="inline-flex items-center gap-1 text-primary-hover hover:underline"
+                          className="inline-flex items-center gap-1 text-info-text hover:underline"
                         >
                           Открыть переписку
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -1242,11 +1863,13 @@ export function SupplierDetailView({
                       <span>{cat.title}</span>
                       <span>·</span>
                       <span>{formatDate(q.createdAt)}</span>
-                      {q.isAlternative && <Badge tone="warning">аналог{q.alternativeNote ? `: ${q.alternativeNote}` : ''}</Badge>}
+                      {q.isAlternative && (
+                        <Badge tone="warning">аналог{q.alternativeNote ? `: ${q.alternativeNote}` : ''}</Badge>
+                      )}
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       {termsSummary(q.terms).map((t) => (
-                        <span key={t} className="rounded-full bg-primary-soft px-2 py-px text-[11px] text-primary">
+                        <span key={t} className="rounded-full bg-surface-muted px-2 py-px text-[11px] text-ink-muted">
                           {t}
                         </span>
                       ))}
@@ -1295,7 +1918,12 @@ export function SupplierDetailView({
               })}
             </ul>
           )}
-          <TermsFormModal quote={termsQuote} saving={savingTerms} onClose={() => setTermsQuote(null)} onSubmit={saveTerms} />
+          <TermsFormModal
+            quote={termsQuote}
+            saving={savingTerms}
+            onClose={() => setTermsQuote(null)}
+            onSubmit={saveTerms}
+          />
         </Card>
       )}
 
@@ -1400,7 +2028,7 @@ export function SupplierDetailView({
                     <span className="text-ink-faint"> — {e.detail}</span>
                   </span>
                   {e.href && (
-                    <Link to={e.href} className="text-xs text-primary-hover hover:underline">
+                    <Link to={e.href} className="text-xs text-info-text hover:underline">
                       открыть
                     </Link>
                   )}
@@ -1416,110 +2044,16 @@ export function SupplierDetailView({
         </Card>
       )}
 
-      {tab === 'Контакты' && (
-        <div className="space-y-4">
-          <Card className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-ink">
-                Контактные лица{contacts.length > 0 ? ` (${contacts.length})` : ''}
-              </h2>
-              <Button
-                type="button"
-                variant="secondary"
-                icon={<Plus className="h-4 w-4" />}
-                onClick={() => {
-                  setEditingContact(null);
-                  setContactModalOpen(true);
-                }}
-              >
-                Добавить
-              </Button>
-            </div>
-
-            {contactError && <p className="text-sm text-danger">{contactError}</p>}
-
-            {contacts.length === 0 ? (
-              <p className="text-sm text-ink-faint">
-                Людей пока нет. Контакт появится сам, как только с этой компании ответят на письмо, — или добавьте
-                вручную.
-              </p>
-            ) : (
-              <ul className="space-y-3">
-                {contacts.map((c) => (
-                  <li key={c.id} className="rounded-control border border-border p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-ink">{contactTitle(c)}</span>
-                          {c.role.trim() && <span className="text-xs text-ink-muted">{c.role}</span>}
-                          <Badge tone="neutral">{CONTACT_SOURCE_LABEL[c.source] ?? c.source ?? 'источник неизвестен'}</Badge>
-                        </div>
-                        {/* У безымянного контакта заголовком уже служит его
-                            адрес (см. contactTitle) — второй раз ту же строку
-                            под иконкой не показываем. */}
-                        {c.email.trim() && contactTitle(c) !== c.email.trim() && (
-                          <p className="flex items-center gap-1.5 text-sm text-ink">
-                            <Mail className="h-4 w-4 text-ink-faint" />
-                            {c.email}
-                          </p>
-                        )}
-                        {c.phone.trim() && (
-                          <p className="flex items-center gap-1.5 text-sm text-ink">
-                            <Phone className="h-4 w-4 text-ink-faint" />
-                            <ContactValue contact={formatPhoneDisplay(c.phone)} contactMethod="Телефон" />
-                          </p>
-                        )}
-                        {c.messengers.length > 0 && <MessengerChips messengers={c.messengers} />}
-                        <p className="text-xs text-ink-faint">
-                          {c.lastReplyAt ? `Последний ответ: ${formatDate(c.lastReplyAt)}` : 'Ни разу не отвечал'}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        <button
-                          type="button"
-                          aria-label={`Изменить контакт «${contactTitle(c)}»`}
-                          className="rounded-full border border-border p-2 text-ink-muted transition-colors hover:text-ink"
-                          onClick={() => {
-                            setEditingContact(c);
-                            setContactModalOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Убрать контакт «${contactTitle(c)}»`}
-                          disabled={deletingContactId === c.id}
-                          className="rounded-full border border-border p-2 text-ink-muted transition-colors hover:border-danger hover:text-danger disabled:opacity-50"
-                          onClick={() => removeContact(c)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <p className="border-t border-border pt-3 text-xs text-ink-faint">
-              Список пополняется сам: когда с нового адреса приходит ответ, человек появляется здесь с датой письма.
-              Общий ящик компании — тоже строка в списке, просто без имени.
-            </p>
-          </Card>
-
-          <ContactFormModal
-            open={contactModalOpen}
-            initial={editingContact}
-            saving={savingContact}
-            onClose={() => {
-              setContactModalOpen(false);
-              setEditingContact(null);
-            }}
-            onSubmit={saveContact}
-          />
-        </div>
-      )}
+      <ContactFormModal
+        open={contactModalOpen}
+        initial={editingContact}
+        saving={savingContact}
+        onClose={() => {
+          setContactModalOpen(false);
+          setEditingContact(null);
+        }}
+        onSubmit={saveContact}
+      />
     </div>
   );
 }

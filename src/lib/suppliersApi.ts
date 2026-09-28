@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { Supplier, SupplierRow } from '../data/suppliers';
+import type { Supplier, SupplierRow, SupplierSiteProfile } from '../data/suppliers';
 
 // Доступ к компаниям-поставщикам (шаг 2 плана docs/procurement-product-steps.md).
 // Шаблон тот же, что у leads.ts/leadsApi.ts: fromRow + fetch/insert/update/delete,
@@ -37,6 +37,10 @@ function fromRow(row: SupplierRow): Supplier {
     resoldBrands: row.resold_brands ?? [],
     profileNote: row.profile_note ?? '',
     profiledAt: row.profiled_at ?? null,
+    siteProfile:
+      row.site_profile && typeof row.site_profile === 'object' && !Array.isArray(row.site_profile)
+        ? (row.site_profile as SupplierSiteProfile)
+        : null,
   };
 }
 
@@ -56,6 +60,7 @@ export type SupplierInput = Omit<
   | 'resoldBrands'
   | 'profileNote'
   | 'profiledAt'
+  | 'siteProfile'
 >;
 
 function toRow(input: SupplierInput) {
@@ -198,10 +203,7 @@ export function updateSupplier(id: string, input: SupplierInput): Promise<Suppli
 // затем, чтобы переписка не зависела от судьбы записи о компании.
 export function deleteSupplier(id: string): Promise<void> {
   return withRetry(async () => {
-    const { error } = await supabase
-      .from('suppliers')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
+    const { error } = await supabase.from('suppliers').update({ deleted_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
   });
 }
