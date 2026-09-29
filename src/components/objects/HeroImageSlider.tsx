@@ -39,6 +39,11 @@ interface HeroImageSliderProps {
   // 1200-px фото до 381 КБ ради рамки шириной 330 px (2026-09-23).
   srcSets?: (string | undefined)[];
   sizes?: string;
+  // Картинка как есть: без скосов, тени и подложки, вписана целиком
+  // (object-contain). Hero каталога БЦ — обложки-макеты на светлом фоне
+  // или вырезанное здание, их нельзя ни обрезать, ни оформлять рамкой
+  // (владелец, 2026-09-29: «не обрезай по углам, убери эффект»).
+  plain?: boolean;
 }
 
 // Слайдер рендеров кабинетов на продающей странице объекта — пока нет
@@ -52,6 +57,7 @@ export function HeroImageSlider({
   imageHeight,
   srcSets,
   sizes,
+  plain = false,
 }: HeroImageSliderProps) {
   const [index, setIndex] = useState(0);
   // PAGESPEED_PLAN.md, Э4-6 — автоплей не должен стартовать таймер сразу
@@ -120,19 +126,23 @@ export function HeroImageSlider({
           box-shadow/ring) огибает реальный силуэт после clip-path, включая
           диагональные срезы, без отдельного слоя-рамки. */}
       <div
-        className="relative h-full w-full overflow-hidden bg-surface-muted"
-        style={{
-          clipPath: `polygon(0 0, calc(100% - ${cornerCut}px) 0, 100% ${cornerCut}px, 100% 100%, ${cornerCut}px 100%, 0 calc(100% - ${cornerCut}px))`,
-          filter:
-            'drop-shadow(0 16px 32px rgb(0 0 0 / 0.16)) drop-shadow(0 4px 10px rgb(0 0 0 / 0.10))',
-        }}
+        className={cn('relative h-full w-full overflow-hidden', !plain && 'bg-surface-muted')}
+        style={
+          plain
+            ? undefined
+            : {
+                clipPath: `polygon(0 0, calc(100% - ${cornerCut}px) 0, 100% ${cornerCut}px, 100% 100%, ${cornerCut}px 100%, 0 calc(100% - ${cornerCut}px))`,
+                filter:
+                  'drop-shadow(0 16px 32px rgb(0 0 0 / 0.16)) drop-shadow(0 4px 10px rgb(0 0 0 / 0.10))',
+              }
+        }
       >
         <img
           src={images[index]}
           srcSet={srcSets?.[index]}
           sizes={srcSets?.[index] ? sizes : undefined}
           alt={alt}
-          className="h-full w-full object-cover"
+          className={cn('h-full w-full', plain ? 'object-contain' : 'object-cover')}
           loading="eager"
           fetchPriority="high"
           width={imageWidth}

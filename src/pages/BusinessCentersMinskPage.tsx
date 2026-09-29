@@ -114,17 +114,15 @@ const PAGE_H1 = 'Бизнес-центры Минска: каталог и ан�
 const INTRO_TEXT =
   'Всё о бизнес-центрах Минска в одном месте — инфраструктура, помещения в аренду и на продажу, арендаторы, отзывы и фото.';
 
-// Тот же снимок «Футуриса» в исходном размере 1600×1067 (Domovita).
-// Источник: https://domovita.by/bc-bcfuturis — фото 4. Дефолт для голого
-// каталога (ни одной оси хаба) и для любого хаба, где ни у одного БЦ
-// подборки нет своего фото.
-const HERO_IMAGES: string[] = ['/images/business-centers-hero/futuris-1600.jpg'];
-const HERO_IMAGE_WIDTH = 1600;
-const HERO_IMAGE_HEIGHT = 1067;
-// Уменьшенные webp-копии того же снимка (sharp, q74, 2026-09-23): телефону
-// хватает 480–720 px, а оригинал — 155 КБ JPEG.
+// Дефолт hero для голого каталога (ни одной оси хаба) и для любого хаба,
+// где ни у одного БЦ подборки нет своего фото — «Титул», вырезанный с фона
+// обложки (прозрачный webp): на главной каталога владелец хочет только само
+// здание, без фона, рамки и обрезки (2026-09-29).
+const HERO_IMAGES: string[] = ['/images/business-centers-hero/titul-cutout.webp'];
+const HERO_IMAGE_WIDTH = 1200;
+const HERO_IMAGE_HEIGHT = 1149;
 const HERO_SRCSETS: string[] = [
-  '/images/business-centers-hero/futuris-1600-w480.webp 480w, /images/business-centers-hero/futuris-1600-w720.webp 720w, /images/business-centers-hero/futuris-1600-w1200.webp 1200w, /images/business-centers-hero/futuris-1600.jpg 1600w',
+  '/images/business-centers-hero/titul-cutout-w480.webp 480w, /images/business-centers-hero/titul-cutout-w720.webp 720w, /images/business-centers-hero/titul-cutout.webp 1200w',
 ];
 // Ширина рамки hero, снятая с живой страницы: до 640 px — вьюпорт минус 82
 // (412 → 330 px), шире — портретная рамка 194–271×243–339 с object-cover,
@@ -1146,8 +1144,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const heroImages = heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : HERO_IMAGES;
   const heroSrcSets = heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : HERO_SRCSETS;
   const heroImageWidth = heroCenter ? 1200 : HERO_IMAGE_WIDTH;
-  const heroImageHeight = heroCenter ? 675 : HERO_IMAGE_HEIGHT;
-  const heroImageAlt = heroCenter ? heroCenter.name : 'Бизнес-центры Минска';
+  const heroImageHeight = heroCenter ? 1200 : HERO_IMAGE_HEIGHT;
+  const heroImageAlt = heroCenter ? heroCenter.name : 'Бизнес-центр «Титул»';
 
   return (
     <div className="min-h-svh bg-bg">
@@ -1259,6 +1257,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       imageHeight={heroImageHeight}
                       srcSets={heroSrcSets}
                       sizes={HERO_IMAGE_SIZES}
+                      plain
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
