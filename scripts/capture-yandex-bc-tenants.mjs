@@ -53,7 +53,7 @@ import {
   resolveBuildingOrganization,
 } from './yandex-org-resolve.mjs';
 import { fillTenantFloors, floorFromText } from './yandex-tenant-floors.mjs';
-import { orgFromUrl, pickedOrgFor, savePickedOrg } from './yandex-picked-orgs.mjs';
+import { orgFromUrl, pickedOrgFor, savePickedOrg, searchUrlFor, withoutSeoname } from './yandex-picked-orgs.mjs';
 
 const execFileAsync = promisify(execFile);
 const args = process.argv.slice(2);
@@ -413,6 +413,7 @@ async function collectFromOrganization(page, entry, org) {
   // Вкладки «Внутри» у карточки может не быть — Яндекс отдаёт 404 (ALL,
   // 2026-09-29). Ждать карточки на такой странице незачем: сразу к дому.
   if (await isNotFoundPage(page)) {
+    if (org.seoname) return collectFromOrganization(page, entry, withoutSeoname(org));
     console.log('  у карточки нет вкладки «Внутри» (404) — сразу к странице дома');
     return null;
   }
@@ -525,26 +526,34 @@ async function collectAuto(page, entry, forcedOrg = null) {
 // открывает и листает сам скрипт; выбранная карточка запоминается и для шага
 // отзывов (scripts/yandex-picked-orgs.mjs).
 async function collectAssisted(page, entry) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = (await rl.question(
-    `  Яндекс не нашёл «${entry.name ?? entry.slug}» сам. Найдите это здание в окне Chrome и откройте его карточку ` +
-      '(любую вкладку, список организаций открывать не нужно) и нажмите Enter. Пропустить — "s" и Enter… ',
-  )).trim().toLowerCase();
-  rl.close();
-  if (['s', 'skip', 'п'].includes(answer)) return null;
-  const org = orgFromUrl(page.url());
-  if (org) {
-    savePickedOrg(entry.slug, org);
-    orgOwners.set(org.id, entry.slug);
-    return collectAuto(page, entry, org);
+  // Сначала сами открываем поиск этого здания: иначе в окне остаётся
+  // страница предыдущего ТЦ, и Enter отдаёт её (2026-09-29).
+  await gotoWithCaptcha(page, searchUrlFor(entry));
+  for (;;) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const answer = (await rl.question(
+      `  Яндекс не нашёл «${entry.name ?? entry.slug}» сам. В окне Chrome открыт поиск — нажмите на это здание, ` +
+        'чтобы открылась его карточка (список организаций открывать не нужно), и Enter. Пропустить — "s" и Enter… ',
+    )).trim().toLowerCase();
+    rl.close();
+    if (['s', 'skip', 'п'].includes(answer)) return null;
+    const org = orgFromUrl(page.url());
+    if (org) {
+      if (orgOwners.has(org.id) && orgOwners.get(org.id) !== entry.slug) {
+        console.log(`  это карточка ${orgOwners.get(org.id)}, а не этого здания — откройте нужную или наберите "s"`);
+        continue;
+      }
+      savePickedOrg(entry.slug, org);
+      orgOwners.set(org.id, entry.slug);
+      return collectAuto(page, entry, org);
+    }
+    if (/\/house\//.test(page.url())) {
+      const houseUrl = page.url().replace(/\/inside\/.*$/, '/');
+      const result = await collectFromHouse(page, entry, { address: entry.address, yandexUrl: houseUrl });
+      return result ? { ...result, via: 'дом, выбран вручную' } : null;
+    }
+    console.log('  в окне не карточка здания и не страница дома — откройте её или наберите "s"');
   }
-  if (/\/house\//.test(page.url())) {
-    const houseUrl = page.url().replace(/\/inside\/.*$/, '/');
-    const result = await collectFromHouse(page, entry, { address: entry.address, yandexUrl: houseUrl });
-    return result ? { ...result, via: 'дом, выбран вручную' } : null;
-  }
-  console.log(`  в окне не карточка организации и не страница дома (${page.url()}) — пропускаю`);
-  return null;
 }
 
 async function writeSnapshot(snapshot) {

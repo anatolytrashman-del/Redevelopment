@@ -90,7 +90,7 @@ import {
 } from './yandex-org-resolve.mjs';
 import { cardFromOrgHtml } from './yandex-org-card.mjs';
 import { isCaptchaHtml } from './yandex-tenant-floors.mjs';
-import { orgFromUrl, pickedOrgFor, savePickedOrg } from './yandex-picked-orgs.mjs';
+import { orgFromUrl, pickedOrgFor, savePickedOrg, searchUrlFor, withoutSeoname } from './yandex-picked-orgs.mjs';
 
 const args = process.argv.slice(2);
 const valueOf = (name) => {
@@ -637,18 +637,32 @@ async function collectReviewsByPages(page, org, collected) {
 // Автопоиск не нашёл карточку — человек открывает её в окне Chrome (любую
 // вкладку) и жмёт Enter; вкладку «Отзывы» и страницы скрипт листает сам.
 async function pickOrgByHand(page, center) {
-  const answer = await pauseForUser(
-    `  Яндекс не нашёл «${center.name ?? center.slug}» сам. Найдите это здание в окне Chrome и откройте его карточку (любую вкладку).`,
-  );
-  if (isSkip(answer)) return null;
-  const org = orgFromUrl(page.url());
-  if (!org) {
-    console.log(`  в окне не карточка организации (${page.url()}) — пропускаю`);
-    return null;
+  // Сначала сами открываем поиск этого здания: иначе в окне остаётся
+  // карточка предыдущего ТЦ, и Enter отдаёт её (2026-09-29).
+  await page.goto(searchUrlFor(center, CITY_PATH), { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+  await passCaptchaIfAny(page);
+  for (;;) {
+    const answer = await pauseForUser(
+      `  Яндекс не нашёл «${center.name ?? center.slug}» сам. В окне Chrome открыт поиск — нажмите на это здание, чтобы открылась его карточка.`,
+    );
+    if (isSkip(answer)) return null;
+    const org = orgFromUrl(page.url());
+    if (!org) {
+      console.log('  в окне не карточка организации — откройте карточку здания или наберите "s"');
+      continue;
+    }
+    if (orgOwners.has(org.id) && orgOwners.get(org.id) !== center.slug) {
+      console.log(`  это карточка ${orgOwners.get(org.id)}, а не этого здания — откройте нужную или наберите "s"`);
+      continue;
+    }
+    savePickedOrg(center.slug, org);
+    return org;
   }
-  savePickedOrg(center.slug, org);
-  return org;
 }
+
+// Одна карточка на два здания каталога («Европа» и «Новая Европа» по
+// соседним адресам) — неоднозначность: второму зданию её не отдаём.
+const orgOwners = new Map();
 
 async function runAuto(page, queue) {
   let done = 0;
@@ -657,12 +671,10 @@ async function runAuto(page, queue) {
   const unresolved = [];
   const failed = [];
   const noCard = [];
-  // Одна карточка на два здания каталога («Европа» и «Новая Европа» по
-  // соседним адресам) — неоднозначность: второму зданию её не отдаём.
-  const orgOwners = new Map();
   for (const [index, center] of queue.entries()) {
     console.log(`\n[${index + 1}/${queue.length}] ${center.name ?? center.slug} — ${center.address ?? ''}`);
     let org = pickedOrgFor(center.slug);
+    if (org && orgOwners.has(org.id) && orgOwners.get(org.id) !== center.slug) org = null;
     if (org) console.log(`  карточка выбрана вручную раньше: id ${org.id}`);
     else org = await resolveWithPage(page, center);
     if (!org && !headless) org = await pickOrgByHand(page, center);
@@ -681,7 +693,11 @@ async function runAuto(page, queue) {
     if (!org.picked) console.log(`  карточка: ${org.name} (${org.rubric}), id ${org.id}, ${org.distance} м, запрос «${org.query}»`);
     const capturedAt = new Date().toISOString();
     if (withCard) {
-      const card = await captureCard(page, org);
+      let card = await captureCard(page, org);
+      if (!card && org.seoname) {
+        card = await captureCard(page, withoutSeoname(org));
+        if (card) org = withoutSeoname(org);
+      }
       if (card) {
         if (writeDb) await writeCard({ slug: center.slug, card, capturedAt });
         cards += 1;
@@ -702,7 +718,12 @@ async function runAuto(page, queue) {
       await randomDelay();
     }
     await openReviewsTab(page, org);
-    const state = await reviewsTabState(page, org.id);
+    let state = await reviewsTabState(page, org.id);
+    if ((!state.urlOk || !state.tabPresent) && org.seoname) {
+      org = withoutSeoname(org);
+      await openReviewsTab(page, org);
+      state = await reviewsTabState(page, org.id);
+    }
     let reviews = state.urlOk ? await collectReviewsFromOpenTab(page) : [];
     if (
       reviews.length > 0 &&
