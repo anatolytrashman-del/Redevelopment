@@ -34,12 +34,9 @@ interface CuratedBusinessCenterPhoto {
 // Проверенное вручную фото для здания, у которого снимок из каталога не
 // подходит главной карточке. Карта живёт рядом с PhotoBlock, чтобы один и
 // тот же кадр использовался и в каталоге, и на отдельной странице БЦ.
-const CURATED_BUSINESS_CENTER_PHOTOS: Record<string, CuratedBusinessCenterPhoto> = {
-  port: {
-    src: '/images/business-centers/port-photo.jpg',
-    alt: 'Бизнес-центр «Порт» на проспекте Независимости, 177',
-  },
-};
+// 2026-09-29: у «Порта» ручное фото снято — обложка каталога перерисована
+// в общем фронтальном стиле и подходит главной карточке.
+const CURATED_BUSINESS_CENTER_PHOTOS: Record<string, CuratedBusinessCenterPhoto> = {};
 
 // sizes — сколько CSS-пикселей фото занимает на экране, по нему браузер
 // выбирает кандидата из srcset. По умолчанию — сетка каталога
