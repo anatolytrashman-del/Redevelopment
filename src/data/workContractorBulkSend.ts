@@ -16,6 +16,7 @@ export interface WorkContractorBulkSendJob {
   subject: string;
   body: string;
   attachment: EmailAttachment | null;
+  includeExtraEmails: boolean;
   status: 'queued' | 'done';
   createdByProfileId: string | null;
   createdByName: string | null;
@@ -28,6 +29,7 @@ export interface WorkContractorBulkSendJobRow {
   subject: string;
   body: string;
   attachment: EmailAttachment | null;
+  include_extra_emails: boolean | null;
   status: string;
   created_by_profile_id: string | null;
   created_by_name: string | null;
