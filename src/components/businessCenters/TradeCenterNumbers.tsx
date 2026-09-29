@@ -3,7 +3,7 @@ import { ArrowUpDown, Building2, Car, Flag, HardHat, Monitor, PanelsTopLeft, Spa
 import type { RetailFigureEntry } from '../../data/businessCenters';
 import { cn } from '../../lib/cn';
 import { glassCardShadow } from '../../lib/glass';
-import { groupNumbers, holidayDate, numberFormat, numberIcon, numberLabel } from '../../lib/tradeCenterNumbers';
+import { groupNumbers, holidayDate, numberFormat, numberIcon } from '../../lib/tradeCenterNumbers';
 import { RetailCardTitle } from './TradeCenterRetailParts';
 import { retailCardClass } from './tradeCenterRetailStyle';
 
@@ -18,7 +18,7 @@ function NumberTile({ entry }: { entry: RetailFigureEntry }) {
     className={cn('min-w-0 rounded-[18px] border bg-white p-4 text-left text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary', open ? 'border-primary' : 'border-border', entry.text && 'cursor-pointer hover:border-ink-faint')}>
     <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-icon-bg text-icon"><Icon className="h-[19px] w-[19px]" aria-hidden="true" /></span>
     <span className="block break-words text-2xl font-extrabold leading-none tabular-nums">{entry.value}</span>
-    <span title={entry.label} className="mt-1.5 block line-clamp-2 text-xs leading-snug text-ink-muted">{numberLabel(entry.label)}</span>
+    <span className="mt-1.5 block break-words text-xs leading-snug text-ink-muted">{entry.label}</span>
     {entry.text && <span id={id} hidden={!open} className={cn('mt-2.5 break-words border-t border-dashed border-border pt-2 text-xs leading-relaxed', open ? 'block' : 'hidden')}>{entry.text}</span>}
   </button>;
 }
@@ -27,7 +27,7 @@ function ScaleNumber({ entry }: { entry: RetailFigureEntry }) {
   const format = numberFormat(entry);
   return <div className="min-w-0 rounded-[22px] border border-border bg-white px-5 py-5 sm:px-[22px]">
     <p className="break-words text-4xl font-extrabold leading-none tracking-tight text-ink tabular-nums">{entry.value}</p>
-    <p title={entry.label} className="mt-1.5 truncate text-[15px] font-bold text-ink">{numberLabel(entry.label)}</p>
+    <p className="mt-1.5 break-words text-[15px] font-bold text-ink">{entry.label}</p>
     {format.kind === 'comparison' && <div className="mt-4 grid gap-2">
       {[{ label: entry.label, value: entry.value, ratio: 1 }, format].map((bar, index) => <div key={index} className="grid grid-cols-[minmax(0,1.4fr)_minmax(30px,1fr)_auto] items-center gap-2 text-xs text-ink-muted">
         <span className="break-words">{bar.label}</span>
@@ -57,7 +57,7 @@ export function TradeCenterNumbersCard({ numbers }: { numbers: RetailFigureEntry
         {group.entries.map((entry, index) => <div key={`${entry.label}-${index}`} className="min-w-0 border-white/10 px-5 py-[18px] max-md:border-t max-md:first:border-t-0 md:border-l md:[&:nth-child(3n+1)]:border-l-0">
           {holidayDate(entry) && <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">{holidayDate(entry)}</p>}
           <p className="break-words text-[28px] font-extrabold leading-none tabular-nums">{entry.value}</p>
-          <p title={entry.label} className="mt-1.5 line-clamp-2 text-xs leading-snug text-white/65">{numberLabel(entry.label)}</p>
+          <p className="mt-1.5 break-words text-xs leading-snug text-white/65">{entry.label}</p>
         </div>)}
       </div>}
     </div>)}

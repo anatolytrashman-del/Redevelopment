@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import data from '../../docs/codex-tasks/tc-numbers-galleria.json';
 import type { RetailFigureEntry } from '../data/businessCenters';
-import { groupNumbers, holidayDate, numberFormat, numberIcon, numberLabel } from './tradeCenterNumbers';
+import { groupNumbers, holidayDate, numberFormat, numberIcon } from './tradeCenterNumbers';
 
 const entries = data.numbers.filter((entry) => !entry.skip);
 const figure = (label: string, text = ''): RetailFigureEntry => ({ label, text, value: '10', date: null, note: null, source: null, sourceUrl: null });
@@ -59,10 +59,7 @@ describe('пограничные случаи', () => {
     expect(holidayDate({ ...figure('Декорация'), date: 'апрель 2025' })).toBe('Апрель 2025');
     expect(holidayDate(figure('Ёлка'))).toBeNull();
   });
-  it('обрезает подпись по слову и распознаёт оставшиеся иконки', () => {
-    const label = 'Длинная подпись '.repeat(6);
-    expect(numberLabel(label).length).toBeLessThanOrEqual(60);
-    expect(numberLabel(label)).toBe('Длинная подпись Длинная подпись Длинная подпись Длинная…');
+  it('распознаёт оставшиеся иконки', () => {
     expect(['Эскалаторы', 'Высота', 'Другое'].map((label) => numberIcon(figure(label)))).toEqual(['ArrowUpDown', 'Building2', 'Sparkles']);
   });
 });

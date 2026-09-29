@@ -1,4 +1,5 @@
-// Компактные плитки по макету — владелец, 2026-09-25.
+// Компактные плитки по макету — владелец, 2026-09-25. Текст не обрезаем:
+// «Крупнейший торговый центр Минска по…» не читается (владелец, 2026-09-29).
 import type { ReactNode } from 'react';
 import { Trophy } from 'lucide-react';
 import { glassCardShadow } from '../../lib/glass';
@@ -49,11 +50,11 @@ export function TradeCenterAwardsBlock({
               return (
                 <li key={`${entry.criterion}-${i}`} className={`${tileClass} flex items-center gap-3.5`}>
                   <span className={`flex size-[58px] shrink-0 flex-col items-center justify-center rounded-2xl text-center ${entry.place === 1 ? goldClass : 'bg-ink text-white'}`}>
-                    <span className="text-2xl font-extrabold leading-none tabular-nums">{badge.main}</span>
+                    <span className={`${badge.main.length > 3 ? 'text-lg' : 'text-2xl'} font-extrabold leading-none tabular-nums`}>{badge.main}</span>
                     {badge.sub && <span className="mt-1 text-[10px] leading-none opacity-70">{badge.sub}</span>}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <span className="line-clamp-2 break-words text-sm font-semibold leading-snug text-ink">{shortRankingTitle(entry)}</span>
+                    <span className="block break-words text-sm font-semibold leading-snug text-ink">{shortRankingTitle(entry)}</span>
                     {meta && <span className="mt-1 block text-xs text-ink-muted">{meta}</span>}
                   </div>
                 </li>
@@ -73,14 +74,14 @@ export function TradeCenterAwardsBlock({
                 <li key={`${award.title}-${i}`} className={`${tileClass} flex flex-col gap-2`}>
                   {award.year && <span className="text-[26px] font-extrabold leading-none tabular-nums text-ink">{award.year}</span>}
                   <span className={`self-start rounded-full px-2.5 py-1 text-[11px] font-bold ${neutral ? 'bg-icon-bg text-icon' : goldClass}`}>{awardPill(award)}</span>
-                  <span className="line-clamp-2 break-words text-sm font-semibold leading-snug text-ink">{shortAwardTitle(award)}</span>
-                  {category && <span className="line-clamp-2 break-words text-xs leading-snug text-ink-muted">{category}</span>}
+                  <span className="block break-words text-sm font-semibold leading-snug text-ink">{shortAwardTitle(award)}</span>
+                  {category && <span className="break-words text-xs leading-snug text-ink-muted">{category}</span>}
                 </li>
               );
             })}
             {legacy.map((line, i) => (
               <li key={i} className={tileClass}>
-                <span className="line-clamp-2 text-sm font-semibold leading-snug text-ink">{renderLine(line)}</span>
+                <span className="break-words text-sm font-semibold leading-snug text-ink">{renderLine(line)}</span>
               </li>
             ))}
           </ul>

@@ -24,12 +24,6 @@ export function groupNumbers(entries: RetailFigureEntry[]): NumberGroup[] {
   ].filter((group) => group.entries.length);
 }
 
-export function numberLabel(label: string): string {
-  if (label.length <= 60) return label;
-  const short = label.slice(0, 59);
-  const boundary = short.lastIndexOf(' ');
-  return `${short.slice(0, boundary > 0 ? boundary : 59).trimEnd()}…`;
-}
 
 export function numberIcon(entry: Figure) {
   const text = words(entry);

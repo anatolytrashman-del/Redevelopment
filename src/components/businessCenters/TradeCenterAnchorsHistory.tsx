@@ -132,7 +132,7 @@ export function TradeCenterHistoryCard({ timeline, title }: { timeline: RetailTi
             <li
               key={`${entry.date}-${entry.name}-${i}`}
               className={cn(
-                'grid grid-cols-[3.25rem_1rem_minmax(0,1fr)] gap-x-2 sm:grid-cols-[4.5rem_1.5rem_minmax(0,1fr)] sm:gap-x-3',
+                'grid grid-cols-[3.75rem_1rem_minmax(0,1fr)] gap-x-2 sm:grid-cols-[4.5rem_1.5rem_minmax(0,1fr)] sm:gap-x-3',
                 i >= visibleCount && 'hidden',
               )}
             >

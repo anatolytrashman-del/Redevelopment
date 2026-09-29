@@ -3791,14 +3791,16 @@ function MediaOutletMark({ url, outlet }: { url: string; outlet: string }) {
 
   if (!brand?.logo || failed) {
     return (
-      <span className={cn('flex shrink-0 items-center text-sm font-semibold text-ink-muted sm:pt-0.5', MEDIA_LOGO_WIDTH)}>
+      // Название издания текстом («Megapolis-real.by», «СБ. Беларусь сегодня»)
+      // в колонку логотипа не влезало — у текста своя, более широкая колонка.
+      <span className="shrink-0 break-words text-sm font-semibold text-ink-muted sm:w-[120px] sm:pt-0.5">
         {label}
       </span>
     );
   }
   return (
-    <span className={cn('flex shrink-0 items-center justify-center', MEDIA_LOGO_WIDTH)}>
-      <img src={brand.logo} alt={label} loading="lazy" onError={() => setFailed(true)} className="h-auto w-full" />
+    <span className="flex shrink-0 items-center sm:w-[120px]">
+      <img src={brand.logo} alt={label} loading="lazy" onError={() => setFailed(true)} className={cn('h-auto', MEDIA_LOGO_WIDTH)} />
     </span>
   );
 }

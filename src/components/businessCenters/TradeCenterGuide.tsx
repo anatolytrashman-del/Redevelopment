@@ -82,9 +82,14 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
           <ol className="divide-y divide-white/10">
             {floors.map((floor) => {
               const hit = active?.floor === floor.floor;
+              const badge = formatFloorBadge(floor.floor);
+              // Длинная подпись этажа («доп. здания (ул. Ленина, 4/6/8)», «цокольный»)
+              // в колонку цифры не влезает — выносим её строкой над темой.
+              const longBadge = badge.length > 3;
               return <li key={floor.floor} className={cn('grid grid-cols-[44px_minmax(0,1fr)] items-center gap-1 px-1.5 py-3 sm:grid-cols-[54px_minmax(0,1fr)]', hit && 'rounded-xl bg-[#2a1418]')}>
-                <span className={cn('text-center text-[22px] font-extrabold sm:text-[26px]', hit && 'text-primary')}>{formatFloorBadge(floor.floor)}</span>
-                <div>
+                <span className={cn('text-center text-[22px] font-extrabold sm:text-[26px]', hit && 'text-primary')}>{longBadge ? '·' : badge}</span>
+                <div className="min-w-0">
+                  {longBadge && <p className={cn('mb-0.5 break-words text-xs font-bold uppercase tracking-wide text-white/55', hit && 'text-primary')}>{badge}</p>}
                   <h3 className="text-base font-bold">{floor.theme}{hit && <span className="ml-2 inline-block rounded-md bg-primary px-1.5 py-px align-middle text-[11px] text-white">{active.name} здесь</span>}</h3>
                   {floor.brands.length > 0 && <p className="mt-0.5 text-[13px] text-white/65">{floor.brands.join(' · ')}</p>}
                 </div>

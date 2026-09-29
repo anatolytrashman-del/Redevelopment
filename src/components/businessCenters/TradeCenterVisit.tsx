@@ -47,7 +47,7 @@ export function TradeCenterGettingHere({ info }: { info: RetailInfo }) {
         {parking.tiles.length > 0 && <dl className="mb-4 grid grid-cols-3 gap-2">
           {parking.tiles.map((tile) => <div key={tile.label} className="min-w-0 rounded-2xl bg-surface-muted p-3">
             <dd className="break-words text-lg font-extrabold sm:text-xl">{tile.value}</dd>
-            <dt className="mt-0.5 text-[11px] leading-snug text-ink-muted">{tile.label}</dt>
+            <dt className="mt-0.5 break-words text-[11px] leading-snug text-ink-muted [hyphens:auto]">{tile.label}</dt>
           </div>)}
         </dl>}
         {parking.free.length > 0 && <>
@@ -72,7 +72,7 @@ export function TradeCenterOffersEvents({ info }: { info: RetailInfo }) {
       <div><h3 className="text-base font-bold">{program.name}</h3>{program.subtitle && <p className="mt-1 text-xs text-white/65">{program.subtitle}</p>}</div>
       {program.facts.length > 0 ? <dl className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
         {program.facts.map((fact) => <div key={fact.label} className="min-w-0 rounded-xl bg-white/[0.06] px-3 py-2.5">
-          <dd className="break-words text-base font-extrabold">{fact.value}</dd><dt className="mt-0.5 text-[11px] leading-snug text-white/65">{fact.label}</dt>
+          <dd className="break-words text-base font-extrabold">{fact.value}</dd><dt className="mt-0.5 break-words text-[11px] leading-snug text-white/65 [hyphens:auto]">{fact.label}</dt>
         </div>)}
       </dl> : <p className="text-sm leading-relaxed text-white/65">{program.fallback}</p>}
     </div>)}
