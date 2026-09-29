@@ -16,42 +16,23 @@
 // разовым локальным запуском scripts/get-google-search-console-refresh-token.mjs,
 // см. комментарий там же).
 //
-// "Проиндексировано" — НЕ из URL Inspection API (это заняло бы отдельный
-// запрос на каждую из 285+ страниц сайта, дорого и медленно), а из
-// Sitemaps.get: у каждого зарегистрированного в Search Console sitemap
-// Google отдаёт contents[].submitted/contents[].indexed по типу контента
-// (обычно один тип "web") — то же самое, что видно в интерфейсе Search
-// Console на вкладке "Файлы Sitemap". Это state-счётчик (не событие),
-// как и "Страниц в поиске" у Яндекса — берём последнее известное значение,
-// не суммируем по дням.
+// "Отправлено в sitemap" — из Sitemaps.get (contents[].submitted).
+// "Проиндексировано" — НЕ оттуда: contents[].indexed Google объявил
+// устаревшим, и он всегда 0 (2026-09-28). Число считается по URL Inspection
+// API — статус каждой страницы из sitemap.xml лежит в
+// google_search_console_page_index, см. syncPageIndex ниже.
 //
 // siteUrl (свойство Search Console) не хардкодится — вычисляется через
 // sites.list на лету, найденное свойство может быть либо URL-префиксом
 // ("https://redevelopment.pro/"), либо доменным свойством
 // ("sc-domain:redevelopment.pro") — сверяем оба формата по домену.
 //
-// 2026-09-10, доп. заход в ТОТ ЖЕ день — владелец спросил "написано, что в
-// поиске 0 страниц, это правда?" после первого живого прогона. Проверка
-// вживую через URL Inspection API (реальный, per-URL статус из индекса
-// Google, не агрегат из sitemap) на 5 страницах показала: 3 из 5 реально
-// "Submitted and indexed", а Sitemaps.get отдавал 0 — известная особенность
-// Google: отчёт по sitemap считается отдельным, гораздо более медленным
-// конвейером и может отставать от реального индекса на недели. Число
-// pages_submitted (просто "сколько URL Google распарсил из sitemap") этой
-// проблемы не имеет — оставлено как есть. pages_indexed из Sitemaps.get
-// тоже оставлен (дёшево, часть той же истории по дням), но теперь это
-// вспомогательная, не главная метрика — реальный, точный статус даёт
-// per-page трекер ниже (google_search_console_page_index).
-//
-// Трекер намеренно НЕ проверяет весь сайт (285+ URL — дорого, упёрлось бы
-// в квоту urlInspection и заняло бы минуты) — только куратированный список
-// самых важных страниц (KEY_PAGE_PATHS: городские/аналитические хабы,
-// гид района, каталог БЦ) + лендинги реальных объектов (objects.landing_slug,
-// читается напрямую из базы тем же сервисным ключом, что и весь скрипт —
-// не хардкодится, появится новый объект с лендингом — появится и в трекере
-// на следующий день). Одна инспекция — один HTTP-запрос, при провале одной
-// страницы (сеть/квота/что угодно) остальные не страдают — try/catch на
-// каждую отдельно, ошибка только логируется.
+// 2026-09-10 проверялись только ключевые хабы и лендинги объектов
+// (KEY_PAGE_PATHS + objects.landing_slug), потому что «0» из Sitemaps.get
+// сочли отставанием отчёта. С 2026-09-28 проверяется весь sitemap.xml:
+// уже проиндексированные страницы не перепроверяются вовсе, остальные — не
+// чаще раза в сутки (квота urlInspection — 2000 запросов в сутки). Одна
+// инспекция — один HTTP-запрос, провал одной страницы остальным не мешает.
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -170,9 +151,24 @@ async function fetchSitemapCoverage(accessToken, siteUrl) {
   const contents = sitemap.contents ?? [];
   // Суммируем по всем типам контента (обычно один — "web") — на случай,
   // если Google когда-нибудь разложит по нескольким типам сразу.
+  // contents[].indexed не берём: Google объявил поле устаревшим и отдаёт в
+  // нём 0 всегда, а не «с отставанием» (2026-09-28 владелец увидел в
+  // админке «Проиндексировано: 0» при 2,8 тыс. показов). Число
+  // проиндексированных считает syncPageIndex по каждой странице.
   const submitted = contents.reduce((acc, c) => acc + Number(c.submitted ?? 0), 0);
-  const indexed = contents.reduce((acc, c) => acc + Number(c.indexed ?? 0), 0);
-  return { submitted, indexed };
+  return { submitted };
+}
+
+// Все URL из живого sitemap.xml — в том же виде, что и KEY_PAGE_PATHS
+// (путь без домена и ведущего слэша).
+async function fetchSitemapPaths() {
+  const res = await fetch(SITEMAP_PATH);
+  if (!res.ok) throw new Error(`sitemap.xml вернул ${res.status}`);
+  const xml = await res.text();
+  return [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)]
+    .map((m) => m[1])
+    .filter((url) => url.startsWith(SITE_ORIGIN))
+    .map((url) => url.slice(SITE_ORIGIN.length).replace(/^\/+|\/+$/g, ''));
 }
 
 async function fetchQueryHistory(accessToken, siteUrl) {
@@ -262,6 +258,8 @@ async function inspectUrl(accessToken, siteUrl, path) {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ inspectionUrl, siteUrl }),
+    // Без таймаута один зависший ответ Google стопорит весь прогон.
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
     throw new Error(`urlInspection для ${path} вернул ${res.status}: ${await res.text()}`);
@@ -285,26 +283,49 @@ async function inspectUrl(accessToken, siteUrl, path) {
 // прогонах — экономим квоту urlInspection и время. Перепроверяем только те,
 // что ещё НЕ в индексе (могли появиться в поиске с прошлого прогона) и
 // новые (появившиеся в KEY_PAGE_PATHS/landingPaths после прошлого раза).
-async function fetchAlreadyIndexedPaths() {
-  const { data, error } = await supabase
-    .from('google_search_console_page_index')
-    .select('path')
-    .eq('coverage_state', 'Submitted and indexed');
+// Статусы URL Inspection, при которых страница в индексе.
+const INDEXED_STATES = ['Submitted and indexed', 'Indexed, not submitted in sitemap'];
+
+// Страницу не в индексе перепроверяем не чаще раза в сутки: синк дёргают
+// и крон, и плановая проверка каждые три часа, а квота urlInspection —
+// 2000 запросов в сутки на свойство, при 250+ страницах её легко выбрать.
+const RECHECK_AFTER_MS = 20 * 60 * 60 * 1000;
+
+async function fetchPageIndexState() {
+  const { data, error } = await supabase.from('google_search_console_page_index').select('path, coverage_state, checked_at');
   if (error) throw new Error(`Не удалось прочитать google_search_console_page_index: ${error.message}`);
-  return new Set((data ?? []).map((r) => r.path));
+  return new Map((data ?? []).map((r) => [r.path, r]));
 }
 
+// Возвращает число проиндексированных страниц из sitemap.xml (или null,
+// если sitemap прочитать не удалось) — это и есть «Проиндексировано
+// страниц» в админке.
 async function syncPageIndex(accessToken, siteUrl) {
-  const landingPaths = await fetchLandingPagePaths();
-  const allPaths = [...new Set([...KEY_PAGE_PATHS, ...landingPaths])];
-  const alreadyIndexed = await fetchAlreadyIndexedPaths();
-  const paths = allPaths.filter((p) => !alreadyIndexed.has(p));
+  const [landingPaths, sitemapPaths] = await Promise.all([
+    fetchLandingPagePaths(),
+    fetchSitemapPaths().catch((err) => {
+      console.error('Не удалось прочитать sitemap.xml:', err.message ?? err);
+      return null;
+    }),
+  ]);
+  const allPaths = [...new Set([...KEY_PAGE_PATHS, ...landingPaths, ...(sitemapPaths ?? [])])];
+  const known = await fetchPageIndexState();
+  const now = Date.now();
+  const paths = allPaths.filter((p) => {
+    const row = known.get(p);
+    if (!row) return true;
+    if (INDEXED_STATES.includes(row.coverage_state)) return false;
+    return now - new Date(row.checked_at).getTime() > RECHECK_AFTER_MS;
+  });
+
+  const countIndexed = () =>
+    sitemapPaths === null ? null : sitemapPaths.filter((p) => INDEXED_STATES.includes(known.get(p)?.coverage_state)).length;
 
   if (paths.length === 0) {
-    console.log(`Все ${allPaths.length} ключевых страниц уже подтверждённо в индексе — новых проверок не требуется.`);
-    return;
+    console.log(`Все ${allPaths.length} страниц проверены недавно или уже в индексе — новых проверок не требуется.`);
+    return countIndexed();
   }
-  console.log(`Проверяю ${paths.length} из ${allPaths.length} ключевых страниц (${allPaths.length - paths.length} уже в индексе — пропускаю).`);
+  console.log(`Проверяю ${paths.length} из ${allPaths.length} страниц.`);
 
   const rows = [];
   for (const path of paths) {
@@ -317,24 +338,25 @@ async function syncPageIndex(accessToken, siteUrl) {
   }
 
   if (rows.length === 0) {
-    console.log('Ни одну ключевую страницу не удалось проверить — пропускаю запись в google_search_console_page_index.');
-    return;
+    console.log('Ни одну страницу не удалось проверить — пропускаю запись в google_search_console_page_index.');
+    return countIndexed();
   }
+  for (const r of rows) known.set(r.path, r);
 
-  const newlyIndexed = rows.filter((r) => r.coverage_state === 'Submitted and indexed').length;
-  const totalIndexed = alreadyIndexed.size + newlyIndexed;
+  const newlyIndexed = rows.filter((r) => INDEXED_STATES.includes(r.coverage_state)).length;
   console.log(
-    `Проверено ${rows.length} страниц, из них ${newlyIndexed} впервые попали в индекс. Всего в индексе: ${totalIndexed} из ${allPaths.length}.`,
+    `Проверено ${rows.length} страниц, из них ${newlyIndexed} в индексе. Из sitemap в индексе: ${countIndexed() ?? '—'} из ${sitemapPaths?.length ?? '—'}.`,
   );
 
   if (DRY_RUN) {
     console.log('[dry-run] Записал бы в google_search_console_page_index:');
     console.log(JSON.stringify(rows, null, 2));
-    return;
+    return countIndexed();
   }
 
   const { error } = await supabase.from('google_search_console_page_index').upsert(rows, { onConflict: 'path' });
   if (error) throw error;
+  return countIndexed();
 }
 
 async function main() {
@@ -349,7 +371,7 @@ async function main() {
     fetchQueryBreakdown(accessToken, siteUrl),
   ]);
   console.log(
-    `Sitemap: submitted=${coverage.submitted}, indexed=${coverage.indexed}. ` +
+    `Sitemap: submitted=${coverage.submitted}. ` +
       `Запросы: ${queryByDate.size} дней с данными, ${queryBreakdown.length} запросов в разбивке.`,
   );
 
@@ -359,9 +381,10 @@ async function main() {
     // Покрытие sitemap — состояние на СЕГОДНЯ (Google не отдаёт его историю
     // по дням), пишем его только в сегодняшнюю строку, у остальных дат —
     // null (страница показывает "последнее известное значение", как и у
-    // аналогичного показателя Яндекса).
+    // аналогичного показателя Яндекса). pages_indexed здесь не пишется
+    // вовсе — его дописывает проверка страниц в конце, а upsert без этого
+    // поля не затирает прошлое значение.
     pages_submitted: date === today ? coverage.submitted : null,
-    pages_indexed: date === today ? coverage.indexed : null,
     impressions: q.impressions,
     clicks: q.clicks,
     avg_position: q.position,
@@ -375,7 +398,6 @@ async function main() {
     rows.push({
       date: today,
       pages_submitted: coverage.submitted,
-      pages_indexed: coverage.indexed,
       impressions: null,
       clicks: null,
       avg_position: null,
@@ -418,13 +440,23 @@ async function main() {
     console.log(`Сохранено ${queryBreakdown.length} запросов в google_search_console_queries.`);
   }
 
-  // Точная проверка ключевых страниц — отдельный шаг, не роняет сохранение
-  // агрегатной статистики выше, даже если сам этот блок целиком упадёт
-  // (квота урezана, сеть моргнула и т.п.).
+  // Проверка страниц — последним шагом: она самая долгая (до сотни-другой
+  // запросов), а показы и клики выше не должны её ждать. Её итог дописывается
+  // в сегодняшнюю строку как pages_indexed; упала — остаётся null («—» в
+  // админке), а не 0.
+  let pagesIndexed = null;
   try {
-    await syncPageIndex(accessToken, siteUrl);
+    pagesIndexed = await syncPageIndex(accessToken, siteUrl);
   } catch (err) {
-    console.error('Проверка ключевых страниц не удалась:', err.message ?? err);
+    console.error('Проверка страниц не удалась:', err.message ?? err);
+  }
+  if (pagesIndexed !== null && !DRY_RUN) {
+    const { error } = await supabase
+      .from('google_search_console_stats')
+      .update({ pages_indexed: pagesIndexed })
+      .eq('date', today);
+    if (error) throw error;
+    console.log(`Проиндексировано страниц из sitemap: ${pagesIndexed}.`);
   }
 }
 

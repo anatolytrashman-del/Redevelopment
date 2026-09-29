@@ -471,3 +471,139 @@ export function sectionCandidates(request: SupplierRequest, estimates: Estimate[
   }
   return out.sort((a, b) => Number(b.suggested) - Number(a.suggested));
 }
+
+// ── Новый вид сравнения (владелец, 2026-09-28) ────────────────────────────
+// «Не хватает разделения на позиции четко по запросу и на аналоги, их нужно
+// сравнивать отдельно». Запрет на «минимум» от 2026-09-15 был ровно про это:
+// лучшая цена считалась вперемешку с аналогами, которые могут не подойти.
+// Здесь лучшая цена считается ВНУТРИ группы: отдельно среди предложений
+// точно по запросу (kind 'exact') и отдельно среди аналогов ('alternative',
+// а «уточнить» — только если аналогов нет вовсе). Итог «с аналогами» —
+// отдельная цифра рядом со «строго по запросу», а не подмена одного другим.
+
+function priceKey(c: Cell): number {
+  return c.usdUnit ?? c.unitPrice;
+}
+
+export interface PositionOffers {
+  // По возрастанию цены; «не покупаем» — в конце и в лучшую цену не идут.
+  exact: Cell[];
+  analogs: Cell[];
+  bestExact: Cell | null;
+  bestAnalog: Cell | null;
+}
+
+// includeExcluded — «не покупаем» участвует наравне с остальными (вид «кому
+// что заказать»: владелец, 2026-09-28, не увидел лучшую цену «Радуги
+// красок» — её строки после «Сформировать поставку» стояли «не покупаем»).
+export function positionOffers(positionId: string, columns: Column[], opts: { includeExcluded?: boolean } = {}): PositionOffers {
+  const cells = columns.map((c) => c.cells.get(positionId)).filter((c): c is Cell => !!c);
+  const excluded = (c: Cell) => (opts.includeExcluded ? false : c.excludedFromSupply);
+  const order = (a: Cell, b: Cell) => Number(excluded(a)) - Number(excluded(b)) || priceKey(a) - priceKey(b);
+  const exact = cells.filter((c) => c.kind === 'exact').sort(order);
+  const analogs = cells.filter((c) => c.kind !== 'exact').sort(order);
+  const live = (list: Cell[]) => list.filter((c) => !excluded(c));
+  const alternatives = live(analogs).filter((c) => c.kind === 'alternative');
+  return {
+    exact,
+    analogs,
+    bestExact: live(exact)[0] ?? null,
+    bestAnalog: alternatives[0] ?? live(analogs)[0] ?? null,
+  };
+}
+
+export interface Recommendation {
+  proposal: SupplierProposal;
+  parts: MoneyPart[];
+  positions: number;
+  offerIds: Set<string>;
+}
+
+export interface Recommendations {
+  strict: Recommendation;
+  withAnalogs: Recommendation & {
+    // Позиции, где аналог дешевле точного предложения и взят вместо него.
+    replaced: number;
+    // Позиции, где точного предложения нет вовсе, а аналог есть.
+    analogOnly: number;
+    // Разница по заменённым позициям: сколько стоили бы точные и сколько
+    // стоят аналоги — чтобы экономию считать только там, где есть что сравнить.
+    replacedExactParts: MoneyPart[];
+    replacedAnalogParts: MoneyPart[];
+  };
+}
+
+function pickOf(cell: Cell) {
+  return { offerId: cell.offerId, itemId: cell.itemId };
+}
+
+export function buildRecommendations(positions: EstimateMaterial[], columns: Column[]): Recommendations {
+  const strict: Recommendation = { proposal: {}, parts: [], positions: 0, offerIds: new Set() };
+  const withAnalogs: Recommendations['withAnalogs'] = {
+    proposal: {},
+    parts: [],
+    positions: 0,
+    offerIds: new Set(),
+    replaced: 0,
+    analogOnly: 0,
+    replacedExactParts: [],
+    replacedAnalogParts: [],
+  };
+  const part = (c: Cell, p: EstimateMaterial): MoneyPart => ({ amount: c.unitPrice * (p.quantity ?? 0), currency: c.currency });
+  for (const p of positions) {
+    const { bestExact, bestAnalog } = positionOffers(p.id, columns);
+    // «Уточнить» в автоматический отбор не берём: там расхождение, на
+    // которое нужен ответ поставщика.
+    const analog = bestAnalog && bestAnalog.kind === 'alternative' ? bestAnalog : null;
+    if (bestExact) {
+      strict.proposal[p.id] = pickOf(bestExact);
+      strict.parts.push(part(bestExact, p));
+      strict.positions += 1;
+      strict.offerIds.add(bestExact.offerId);
+    }
+    let chosen = bestExact;
+    if (analog && (!bestExact || cheaper(analog, bestExact))) {
+      chosen = analog;
+      if (bestExact) {
+        withAnalogs.replaced += 1;
+        withAnalogs.replacedExactParts.push(part(bestExact, p));
+        withAnalogs.replacedAnalogParts.push(part(analog, p));
+      } else {
+        withAnalogs.analogOnly += 1;
+      }
+    }
+    if (chosen) {
+      withAnalogs.proposal[p.id] = pickOf(chosen);
+      withAnalogs.parts.push(part(chosen, p));
+      withAnalogs.positions += 1;
+      withAnalogs.offerIds.add(chosen.offerId);
+    }
+  }
+  return { strict, withAnalogs };
+}
+
+function cheaper(a: Cell, b: Cell): boolean {
+  const d = deltaToPicked(a, b);
+  return d != null && d < -0.005;
+}
+
+// Сумма набора числом в валюте большинства (null — нет курса).
+export function moneyTotal(parts: MoneyPart[], rate: ExchangeRate | undefined): MoneyPart | null {
+  if (parts.length === 0) return null;
+  const currency = dominantCurrency(parts)!;
+  let amount = 0;
+  for (const p of parts) {
+    const v = convertCurrency(p.amount, p.currency, currency, rate);
+    if (v == null) return null;
+    amount += v;
+  }
+  return { amount, currency };
+}
+
+// Совпадает ли текущий отбор с рекомендацией (кнопка «Выбрать всё» тогда
+// показывает «выбрано»).
+export function sameProposal(a: SupplierProposal, b: SupplierProposal): boolean {
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length || ka.length === 0) return false;
+  return ka.every((k) => b[k]?.offerId === a[k].offerId && b[k]?.itemId === a[k].itemId);
+}

@@ -29,6 +29,7 @@ function requestFromRow(row: SupplierRequestRow): SupplierRequest {
     proposal: row.proposal && typeof row.proposal === 'object' ? row.proposal : {},
     review: row.proposal_review && typeof row.proposal_review === 'object' && row.proposal_review.status ? row.proposal_review : null,
     replyDueDays: row.reply_due_days ?? 3,
+    ledgerId: row.ledger_id ?? null,
     createdAt: row.created_at,
   };
 }
@@ -88,6 +89,8 @@ export interface SupplierRequestInput {
   comparisonMode: SupplierComparisonMode;
   // Сколько дней ждём ответа, прежде чем ИИ-закупщик напомнит (шаг 8).
   replyDueDays: number;
+  // Ведомость закупки (см. SupplierRequest.ledgerId). Не передано — не трогаем.
+  ledgerId?: string | null;
 }
 
 export function insertSupplierRequest(input: SupplierRequestInput): Promise<SupplierRequest> {
@@ -103,6 +106,7 @@ export function insertSupplierRequest(input: SupplierRequestInput): Promise<Supp
         legal_entity_id: input.legalEntityId,
         comparison_mode: input.comparisonMode,
         reply_due_days: input.replyDueDays,
+        ...(input.ledgerId !== undefined ? { ledger_id: input.ledgerId } : {}),
       })
       .select()
       .single();

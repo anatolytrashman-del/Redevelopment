@@ -21,6 +21,13 @@ const emptyForm = {
   email: '',
 };
 
+// Текст согласия — финальная формулировка владельца (docs/legal), верстаем
+// 1:1. Чекбокс не отмечен по умолчанию, форма не отправляется без него
+// (см. canSubmitForm ниже).
+const SIGNING_CONSENT_TEXT_BEFORE =
+  'Я даю согласие на обработку указанных мной ФИО, гражданства, паспортных данных, адреса и email для подготовки соглашения о намерениях, в том числе на их передачу в сервисы в США (Google, Resend) и Францию (Supabase), на условиях ';
+const SIGNING_CONSENT_TEXT_AFTER = '.';
+
 // В соглашении гражданство пишется сокращением ("Гражданин РБ"), а в форме
 // показываем полное название страны — понятнее для клиента.
 const CITIZENSHIP_CODE: Record<typeof emptyForm.buyerCitizenship, 'РБ' | 'РФ'> = {
@@ -62,6 +69,9 @@ export function AgreementSigningFlow({
 }: AgreementSigningFlowProps) {
   const [step, setStep] = useState<'closed' | 'form' | 'code' | 'done'>('closed');
   const [form, setForm] = useState(emptyForm);
+  // Согласие на обработку персональных данных (владелец, 2026-09-25) — не
+  // отмечено заранее, блокирует отправку через canSubmitForm.
+  const [signingConsent, setSigningConsent] = useState(false);
   const [code, setCode] = useState('');
   const [signatureId, setSignatureId] = useState<string | null>(null);
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
@@ -69,7 +79,7 @@ export function AgreementSigningFlow({
   const [error, setError] = useState<string | null>(null);
 
   const canSubmitForm =
-    form.buyerName.trim() && form.buyerPassport.trim() && form.buyerAddress.trim() && form.email.trim();
+    form.buyerName.trim() && form.buyerPassport.trim() && form.buyerAddress.trim() && form.email.trim() && signingConsent;
 
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -201,6 +211,28 @@ export function AgreementSigningFlow({
         onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
         required
       />
+      <label className="flex items-start gap-2 text-sm text-ink">
+        <input
+          type="checkbox"
+          checked={signingConsent}
+          onChange={(e) => setSigningConsent(e.target.checked)}
+          required
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong text-primary focus:ring-primary"
+        />
+        <span>
+          {SIGNING_CONSENT_TEXT_BEFORE}
+          <a
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-hover underline hover:text-primary"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Политики обработки персональных данных
+          </a>
+          {SIGNING_CONSENT_TEXT_AFTER}
+        </span>
+      </label>
       {error && <p className="text-sm text-danger">{error}</p>}
       <Button type="submit" disabled={!canSubmitForm || submitting} className="w-fit">
         {submitting ? 'Отправляем код...' : 'Получить код на email'}

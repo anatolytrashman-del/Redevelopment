@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Bot, Check, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Bot, Check, ChevronDown, ExternalLink, FileText, Globe, ImageOff, Loader2, Mail, MessageCircle, Paperclip, Pencil, Phone, Plus, Send, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -51,6 +51,7 @@ import {
 import type { SupplierReliability } from '../data/supplierReliability';
 import { fetchSupplierReliability, checkSupplierReliability } from '../lib/supplierReliabilityApi';
 import { RiskBadge } from '../components/suppliers/RiskBadge';
+import { SupplierProfileBlock } from '../components/suppliers/SupplierProfileBlock';
 import { AiAgentStatusPill } from '../components/contractors/AiAgentStatusPill';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
@@ -61,6 +62,7 @@ import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails, type
 import { MaterialLedgerModal } from '../components/suppliers/MaterialLedgerModal';
 import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
 import { BulkSendModal } from '../components/suppliers/BulkSendModal';
+import { RequestPricesModal } from '../components/suppliers/RequestPricesModal';
 import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppliers/SupplierMergeModal';
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
 import { PriceComparisonCard } from '../components/suppliers/PriceComparisonCard';
@@ -87,7 +89,7 @@ import { AutoReplyRulesModal } from '../components/suppliers/AutoReplyRules';
 import type { MaterialLedger } from '../data/materialLedgers';
 import { fetchMaterialLedgers, deleteMaterialLedger } from '../lib/materialLedgersApi';
 import { buildMasterLedgers, isMasterLedgerId } from '../lib/masterLedger';
-import { syncLedgersWithEstimates } from '../lib/ledgerSync';
+import { estimateMaterialsById, syncLedgersWithEstimates } from '../lib/ledgerSync';
 import type { SupplierOrder } from '../data/supplierOrders';
 import { fetchSupplierOrders } from '../lib/supplierOrdersApi';
 import type { SupplierQuote } from '../data/supplierQuotes';
@@ -205,7 +207,10 @@ function siteLabel(url: string): string {
 // же днём убрал первую версию с редактируемым чек-листом категорий — "не
 // будем отмечать категории вручную". См.
 // components/suppliers/SupplierVerificationTab.tsx.
-const SUPPLIER_TABS = ['Поставщики', 'Верификация', 'Сравнение цен', 'Заказы', 'Ведомости материалов', 'Письма'] as const;
+// Владелец, 2026-09-28: порядок пунктов — Письма, Сравнение цен, Поставщики,
+// Ведомости материалов, Заказы. Первая вкладка — она же открывается по
+// голому /admin/purchases (см. fallback у `tab` ниже).
+const SUPPLIER_TABS = ['Письма', 'Сравнение цен', 'Поставщики', 'Верификация', 'Ведомости материалов', 'Заказы'] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-15: "вкладку Верификация убираем из верхнего меню и
@@ -814,6 +819,8 @@ function OfferDetailModal({
           </div>
         )}
 
+        <SupplierProfileBlock supplierId={offer.supplierId ?? null} />
+
         {offer.listingUrl && (
           <div className="flex flex-col gap-1 text-sm">
             <span className="text-ink-faint">Ссылка на позицию</span>
@@ -1150,7 +1157,20 @@ export function Suppliers() {
   // любых хуков ниже не спрячется — поэтому отдельной строкой здесь, а не
   // внутри useEffect: сама страница в этом случае не нужна вовсе.
   const movedToOwnPage = searchParams.get('tab') === 'contractors';
-  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Поставщики';
+  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Письма';
+  const comparisonCategoryId = searchParams.get('cat') ?? '';
+  function setComparisonParam(key: string, value: string | null) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (value) params.set(key, value);
+        else params.delete(key);
+        return params;
+      },
+      { replace: true },
+    );
+  }
+  const setComparisonCategoryId = (id: string) => setComparisonParam('cat', id);
   function setTab(next: SupplierTab) {
     setSearchParams(
       (prev) => {
@@ -1202,6 +1222,11 @@ export function Suppliers() {
   // компонент и оборвало бы уже идущую рассылку (там реальная пауза между
   // письмами, десятки секунд на каждое).
   const [bulkLedgerPickerRequest, setBulkLedgerPickerRequest] = useState<SupplierRequest | null>(null);
+  // Владелец, 2026-09-28: на «Письмах» больше нет выбора категории, поэтому
+  // «Массовая отправка» — кнопка в шапке вкладки, категория выбирается в
+  // маленьком окне перед пикером ведомости.
+  // «Запросить цены» — рассылка от ведомости (2026-09-28, RequestPricesModal).
+  const [requestPricesOpen, setRequestPricesOpen] = useState(false);
   const [bulkSendConfig, setBulkSendConfig] = useState<{ request: SupplierRequest; attachment: LedgerAttachment } | null>(null);
 
   const [requests, setRequests] = useState<SupplierRequest[]>([]);
@@ -1641,6 +1666,22 @@ export function Suppliers() {
     () => syncLedgersWithEstimates(materialLedgers, estimates),
     [materialLedgers, estimates],
   );
+
+  // Позиции сравнения цен. У закупки по ведомости (2026-09-28) — материалы
+  // сметы из её ведомости, они могут быть из разных разделов; у обычной
+  // категории — материалы привязанного раздела сметы, как раньше.
+  const materialsById = useMemo(() => estimateMaterialsById(estimates), [estimates]);
+  function requestPositions(r: SupplierRequest): EstimateMaterial[] {
+    if (r.ledgerId) {
+      const ledger = syncedMaterialLedgers.find((l) => l.id === r.ledgerId);
+      if (ledger) {
+        return ledger.items
+          .map((item) => (item.sourceMaterialId ? materialsById.get(item.sourceMaterialId) : undefined))
+          .filter((m): m is EstimateMaterial => !!m);
+      }
+    }
+    return estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? [];
+  }
 
   const scopedMaterialLedgers = useMemo(
     () => (ledgerEstimateId ? syncedMaterialLedgers.filter((l) => l.estimateId === ledgerEstimateId) : []),
@@ -2444,13 +2485,20 @@ export function Suppliers() {
               1 клик». Кнопка на уровне меню раздела, а не внутри поставки:
               закупщица приходит сюда с файлом на руках, не зная (и не обязана
               знать), в какой поставке он должен оказаться. */}
-          <Button type="button" variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setQuoteUploadOpen(true)}>
-            Загрузить КП
-          </Button>
+          {/* Владелец, 2026-09-28: на вкладке «Письма» кнопки нет — там КП
+              и так приходят письмами. */}
+          {tab !== 'Письма' && (
+            <Button type="button" variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setQuoteUploadOpen(true)}>
+              Загрузить КП
+            </Button>
+          )}
           {/* Владелец, 2026-09-04: "перенеси Шаблоны направо, на уровень меню
               Поставщики/Письма, но видна только когда открываешь Письма". */}
           {tab === 'Письма' && (
             <>
+              <Button type="button" icon={<Send className="h-4 w-4" />} onClick={() => setRequestPricesOpen(true)}>
+                Запросить цены
+              </Button>
               <Button type="button" variant="secondary" icon={<Bot className="h-4 w-4" />} onClick={() => setAutoRepliesModalOpen(true)}>
                 Автоответы
               </Button>
@@ -2579,63 +2627,95 @@ export function Suppliers() {
                 </Card>
               );
             }
-            return groups.map(({ group, requestsWithOffers }) => {
-              if (requestsWithOffers.length === 0) return null;
+            const renderCard = (r: SupplierRequest, layout: 'decide' | 'new' | 'old') =>
+                r.comparisonMode === 'lot' ? (
+                  <LotPriceComparisonCard
+                    key={r.id}
+                    request={r}
+                    offers={offers.filter((o) => o.requestId === r.id)}
+                    emails={supplierEmails}
+                    quotes={supplierQuotes}
+                    rate={rate}
+                    onOpenDetail={(o) => setDetailOfferId(o.id)}
+                    enrichmentState={enrichmentState}
+                    reliabilityByInn={reliabilityByInn}
+                  />
+                ) : (
+                  // Владелец, 2026-09-15: перестройка сравнения — позиции
+                  // ведомости × поставщики, ручной отбор на утверждение,
+                  // PDF руководителю (см. шапку PriceComparisonCard.tsx).
+                  // Позиции — материалы раздела сметы, к которому привязан
+                  // запрос: именно они уходят поставщикам ведомостью
+                  // (lib/ledgerSync.ts зеркалит ведомости из живой сметы).
+                  <PriceComparisonCard
+                    key={r.id}
+                    layout={layout}
+                    request={r}
+                    positions={requestPositions(r)}
+                    offers={offers.filter((o) => o.requestId === r.id)}
+                    emails={supplierEmails}
+                    quotes={supplierQuotes}
+                    rate={rate}
+                    estimates={estimates}
+                    // Страна юрлица категории — запасная ставка НДС для
+                    // счетов, где сказано «без НДС», но процент не назван
+                    // (шаг 7 плана закупок).
+                    legalEntityCountry={resolveRequestLegalEntity(r.legalEntityId, legalEntities)?.country ?? null}
+                    onOpenDetail={(o) => setDetailOfferId(o.id)}
+                    onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
+                    onQuotesChange={setSupplierQuotes}
+                    onRepeatSend={() => setBulkLedgerPickerRequest(r)}
+                    onOfferUpdated={handleSupplierOfferUpdated}
+                    renderBadges={(o, actions) => (
+                      <>
+                        <VerificationBadge offer={o} enrichmentState={enrichmentState} />
+                        <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} onClick={actions?.onRiskClick} />
+                      </>
+                    )}
+                    reliabilityByInn={reliabilityByInn}
+                  />
+                );
+            const all = groups.flatMap((g) => g.requestsWithOffers);
+            const current = all.find((r) => r.id === comparisonCategoryId) ?? all[0];
+            const statusOf = (r: SupplierRequest): { text: string; tone: 'muted' | 'warn' | 'ok' | 'bad' } => {
+              if (r.comparisonMode === 'lot') return { text: 'Сравнение лотом', tone: 'muted' };
+              // Статусы согласования не показываем: сам поток выключен
+              // (владелец, 2026-09-28, см. APPROVAL_FLOW_ENABLED в PriceComparisonCard).
+              const total = requestPositions(r).length;
+              const picked = Object.keys(r.proposal ?? {}).length;
+              if (picked > 0) return { text: `Выбор: ${picked} из ${total}`, tone: 'warn' };
+              const kp = offers.filter((o) => o.requestId === r.id && offerCommunicationStatus(o, supplierEmails) === 'confirmed').length;
+              return { text: `${kp} КП · выбор не начат`, tone: 'muted' };
+            };
+            {
               return (
-                <div key={group} className="flex flex-col gap-6">
-                  <div className="text-lg font-bold text-ink">{SUPPLIER_REQUEST_GROUP_LABELS[group]}</div>
-                  {requestsWithOffers.map((r) =>
-                    r.comparisonMode === 'lot' ? (
-                      <LotPriceComparisonCard
-                        key={r.id}
-                        request={r}
-                        offers={offers.filter((o) => o.requestId === r.id)}
-                        emails={supplierEmails}
-                        quotes={supplierQuotes}
-                        rate={rate}
-                        onOpenDetail={(o) => setDetailOfferId(o.id)}
-                        enrichmentState={enrichmentState}
-                        reliabilityByInn={reliabilityByInn}
-                      />
-                    ) : (
-                      // Владелец, 2026-09-15: перестройка сравнения — позиции
-                      // ведомости × поставщики, ручной отбор на утверждение,
-                      // PDF руководителю (см. шапку PriceComparisonCard.tsx).
-                      // Позиции — материалы раздела сметы, к которому привязан
-                      // запрос: именно они уходят поставщикам ведомостью
-                      // (lib/ledgerSync.ts зеркалит ведомости из живой сметы).
-                      <PriceComparisonCard
-                        key={r.id}
-                        request={r}
-                        positions={
-                          estimates.find((e) => e.id === r.estimateId)?.sections.find((sec) => sec.id === r.sectionId)?.materials ?? []
-                        }
-                        offers={offers.filter((o) => o.requestId === r.id)}
-                        emails={supplierEmails}
-                        quotes={supplierQuotes}
-                        rate={rate}
-                        estimates={estimates}
-                        // Страна юрлица категории — запасная ставка НДС для
-                        // счетов, где сказано «без НДС», но процент не назван
-                        // (шаг 7 плана закупок).
-                        legalEntityCountry={resolveRequestLegalEntity(r.legalEntityId, legalEntities)?.country ?? null}
-                        onOpenDetail={(o) => setDetailOfferId(o.id)}
-                        onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
-                        onQuotesChange={setSupplierQuotes}
-                        onOfferUpdated={handleSupplierOfferUpdated}
-                        renderBadges={(o, actions) => (
-                          <>
-                            <VerificationBadge offer={o} enrichmentState={enrichmentState} />
-                            <RiskBadge inn={o.inn} reliabilityByInn={reliabilityByInn} onClick={actions?.onRiskClick} />
-                          </>
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="relative inline-flex max-w-full items-center">
+                      <select
+                        value={current.id}
+                        onChange={(e) => setComparisonCategoryId(e.target.value)}
+                        className="max-w-full appearance-none truncate rounded-2xl border border-border bg-surface py-2.5 pl-4 pr-10 text-lg font-bold text-ink shadow-sm outline-none focus:border-primary sm:text-xl"
+                      >
+                        {groups.map(({ group, requestsWithOffers }) =>
+                          requestsWithOffers.length === 0 ? null : (
+                            <optgroup key={group} label={SUPPLIER_REQUEST_GROUP_LABELS[group]}>
+                              {requestsWithOffers.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.title} — {statusOf(r).text}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ),
                         )}
-                        reliabilityByInn={reliabilityByInn}
-                      />
-                    ),
-                  )}
-                </div>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 h-5 w-5 text-ink-muted" />
+                    </label>
+                  </div>
+                  {renderCard(current, 'decide')}
+                </>
               );
-            });
+            }
           })()}
         </div>
       )}
@@ -2856,7 +2936,6 @@ export function Suppliers() {
             legalEntities={legalEntities}
             templatesModalOpen={templatesModalOpen}
             onCloseTemplatesModal={() => setTemplatesModalOpen(false)}
-            onOpenBulkSend={setBulkLedgerPickerRequest}
             onEmailSent={handleSupplierEmailSent}
             onMarkRead={handleMarkSupplierEmailsRead}
             onTemplatesChange={setEmailTemplates}
@@ -2869,7 +2948,6 @@ export function Suppliers() {
             onEmailUpdated={handleSupplierEmailUpdated}
             pendingAutoReplies={pendingAutoReplies}
             onAutoReplyReviewed={handleAutoReplyReviewed}
-            onRequestSaved={(saved) => setRequests((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))}
           />
         </div>
       )}
@@ -3538,6 +3616,7 @@ export function Suppliers() {
         />
       )}
 
+
       {bulkLedgerPickerRequest && (
         <MaterialLedgerModal
           open
@@ -3577,6 +3656,22 @@ export function Suppliers() {
         onSettingsChange={setAutoReplySettings}
       />
 
+      {requestPricesOpen && (
+        <RequestPricesModal
+          ledgers={syncedMaterialLedgers}
+          offers={offers}
+          requests={requests}
+          emails={supplierEmails}
+          snapshotByHost={snapshotByHost}
+          legalEntities={legalEntities}
+          onClose={() => setRequestPricesOpen(false)}
+          onCreated={(request, added) => {
+            setRequests((prev) => [request, ...prev]);
+            setOffers((prev) => [...prev, ...added]);
+          }}
+        />
+      )}
+
       {bulkSendConfig && (
         <BulkSendModal
           request={bulkSendConfig.request}
@@ -3588,6 +3683,8 @@ export function Suppliers() {
           legalEntities={legalEntities}
           onClose={() => setBulkSendConfig(null)}
           onTemplatesChange={setEmailTemplates}
+          snapshotByHost={snapshotByHost}
+          onOffersAdded={(added) => setOffers((prev) => [...prev, ...added])}
         />
       )}
     </>

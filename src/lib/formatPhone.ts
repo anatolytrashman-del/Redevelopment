@@ -5,6 +5,11 @@ export function formatPhoneDisplay(phone: string): string {
   if (!phone) return phone;
   let digits = phone.replace(/\D/g, '');
 
+  // Российские номера (+7XXXXXXXXXX) — из профилей сайтов поставщиков.
+  if (digits.length === 11 && digits.startsWith('7')) {
+    return `+7 ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9)}`;
+  }
+
   if (digits.startsWith('80') && digits.length === 11) digits = digits.slice(2);
   else if (digits.startsWith('375') && digits.length === 12) digits = digits.slice(3);
 

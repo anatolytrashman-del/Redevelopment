@@ -13,6 +13,9 @@ import {
   type SupplierOffer,
 } from '../../data/supplierResearch';
 import type { SupplierOfferEmail } from '../../data/supplierOfferEmails';
+import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
+import { insertSupplierOffer } from '../../lib/supplierResearchApi';
+import { matchOfferProduct, normalizeSearch } from './productSearch';
 import type { LedgerAttachment } from '../../lib/materialLedgerXlsx';
 import type { LegalEntity } from '../../data/legalEntities';
 import { fetchBlockedSupplierIds } from '../../lib/suppliersApi';
@@ -177,7 +180,7 @@ function pastSendLabel(job: PastBulkSend): string {
   return parts.join(' · ');
 }
 
-function defaultBulkBody(): string {
+export function defaultBulkBody(): string {
   return `Добрый день.
 
 Планируем закупку материала согласно ведомости, прикрепленной к письму. Просьба прислать коммерческое предложение/счёт по позициям, которые можете поставить — на каждую позицию готовы рассмотреть альтернативы.
@@ -208,6 +211,8 @@ export function BulkSendModal({
   legalEntities,
   onClose,
   onTemplatesChange,
+  snapshotByHost,
+  onOffersAdded,
 }: {
   request: SupplierRequest;
   // Владелец, 2026-09-09: "нельзя добавить новый шаблон" — полный список
@@ -225,6 +230,10 @@ export function BulkSendModal({
   legalEntities: LegalEntity[];
   onClose: () => void;
   onTemplatesChange: (templates: EmailTemplate[]) => void;
+  // Снимки сайтов — для рассылки по товару (поиск по разделам сайта).
+  snapshotByHost: Map<string, SupplierSiteSnapshot>;
+  // Карточки, заведённые рассылкой по товару в выбранной категории.
+  onOffersAdded: (added: SupplierOffer[]) => void;
 }) {
   // Категория — стартует с той, по которой кликнули "Массовая отправка"
   // снаружи (это уже осознанный клик), но её можно сменить, не закрывая
@@ -313,10 +322,32 @@ export function BulkSendModal({
     [selectedCountry, blockedSupplierIds],
   );
 
-  const candidates = useMemo(
-    () => (countryChosen ? offers.filter((o) => o.requestId === selectedRequestId && matchesFilters(o)) : []),
-    [offers, countryChosen, selectedRequestId, matchesFilters],
-  );
+  // Рассылка по товару (владелец, 2026-09-28: «как отправить массовую
+  // рассылку конкретно по керамзиту»). Получатели — все верифицированные
+  // поставщики, у кого товар есть на сайте, из ЛЮБОЙ категории; ответы
+  // собираются в выбранной категории: тем, у кого там карточки нет, она
+  // заводится при постановке в очередь (решение владельца того же дня —
+  // «в одну категорию», чтобы цены легли в одно сравнение).
+  const [productQuery, setProductQuery] = useState('');
+  const productNeedle = normalizeSearch(productQuery.trim());
+  const productMode = productNeedle.length >= 3;
+
+  const candidates = useMemo(() => {
+    if (!countryChosen) return [];
+    if (!productMode) return offers.filter((o) => o.requestId === selectedRequestId && matchesFilters(o));
+    // Одна компания — одна строка: у неё бывает по карточке в нескольких
+    // категориях. Берём карточку выбранной категории, если она есть.
+    const byCompany = new Map<string, SupplierOffer>();
+    for (const o of offers) {
+      if (!matchesFilters(o) || !matchOfferProduct(o, snapshotByHost, productNeedle).matched) continue;
+      const key = o.supplierId ?? normalizeEmail(o.email);
+      const prev = byCompany.get(key);
+      if (!prev || (prev.requestId !== selectedRequestId && o.requestId === selectedRequestId)) byCompany.set(key, o);
+    }
+    return [...byCompany.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  }, [offers, countryChosen, selectedRequestId, matchesFilters, productMode, productNeedle, snapshotByHost]);
+
+  const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
 
   // Письма, уже стоящие в очереди рассылки (ещё не отправленные воркером) —
   // без них вторая рассылка по той же категории, поставленная пока идёт
@@ -379,7 +410,7 @@ export function BulkSendModal({
     return map;
   }, [offers, touched]);
 
-  const statusOf = useMemo(() => {
+  const baseStatusOf = useMemo(() => {
     const cache = new Map<string, ContactStatus>();
     return (offer: SupplierOffer): ContactStatus => {
       const cached = cache.get(offer.id);
@@ -399,6 +430,16 @@ export function BulkSendModal({
       return status;
     };
   }, [contactedByOffer, contactedByEmail, contactedByDomain, queuedOfferIds]);
+
+  // В рассылке по товару поставщик из другой категории — «новый» для этой
+  // закупки, даже если ему писали про другое: письмо про керамзит он ещё не
+  // получал.
+  const statusOf = useMemo(
+    () =>
+      (offer: SupplierOffer): ContactStatus =>
+        productMode && offer.requestId !== selectedRequestId ? { kind: 'none' } : baseStatusOf(offer),
+    [baseStatusOf, productMode, selectedRequestId],
+  );
 
   // Владелец, 2026-09-11: "у нас дохера поставщиков новых по Грильято, а оно
   // видит только два" — в той категории 56 поставщиков, но 40 из них не
@@ -512,7 +553,7 @@ export function BulkSendModal({
     }
     setSelected(new Set(visible.filter((o) => statusOf(o).kind === 'none').map((o) => o.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRequestId, selectedCountry, filter, queuedOfferIds, repeatJobId, cancelledOfferIds]);
+  }, [selectedRequestId, selectedCountry, filter, queuedOfferIds, repeatJobId, cancelledOfferIds, productNeedle]);
 
   // Тема по умолчанию — общая «Закупка материалов», НЕ название категории
   // (владелец, 2026-09-12: "Я рассылал ведомость не только по Alma"). Раньше
@@ -637,13 +678,40 @@ export function BulkSendModal({
     setQueuing(true);
     setQueueError(null);
     try {
+      // Рассылка по товару: поставщикам из других категорий сперва заводим
+      // карточку в выбранной — письмо, ответ и цены живут на ней.
+      const added: SupplierOffer[] = [];
+      const offerIds: string[] = [];
+      for (const o of recipients) {
+        if (o.requestId === selectedRequestId) {
+          offerIds.push(o.id);
+          continue;
+        }
+        // Контакты и сайт — как у исходной карточки; позиции, цены и файлы
+        // КП не переносим: они про другую закупку. Компанию (supplier_id)
+        // база привяжет сама — триггер supplier_offer_attach_company_trg.
+        const copy = await insertSupplierOffer({
+          ...o,
+          requestId: selectedRequestId,
+          catalogModelName: '',
+          catalogModelPhoto: null,
+          price: 0,
+          items: [],
+          files: [],
+          verified: true,
+          termsNote: undefined,
+        });
+        added.push(copy);
+        offerIds.push(copy.id);
+      }
+      if (added.length > 0) onOffersAdded(added);
       await insertBulkSendJob({
         legalEntityId: legalEntity?.id ?? null,
         subject,
         body,
         requestId: selectedRequestId,
         attachment,
-        offerIds: recipients.map((o) => o.id),
+        offerIds,
       });
       setQueuedCount(recipients.length);
     } catch (err) {
@@ -673,6 +741,20 @@ export function BulkSendModal({
                 if (r) setSelectedRequestId(r.id);
               }}
             />
+
+            {!repeatJob && (
+              <Input
+                label="Товар (необязательно)"
+                value={productQuery}
+                onChange={(e) => setProductQuery(e.target.value)}
+                placeholder="Например, керамзит"
+                helperText={
+                  productMode
+                    ? `Получатели — все поставщики, у кого «${productQuery.trim()}» есть на сайте, из любой категории. Тем, кого нет в «${selectedRequest.title}», карточка в ней заведётся сама — ответы и цены соберутся здесь.`
+                    : 'Пусто — пишем поставщикам выбранной категории.'
+                }
+              />
+            )}
 
             {/* Владелец, 2026-09-12: "я отправил неправильную ведомость по
                 керамограниту... хочу написать всем, кому я ошибно написал
@@ -738,6 +820,11 @@ export function BulkSendModal({
 
             {!legalEntityChosen || !countryChosen ? (
               <p className="text-sm text-ink-faint">Выберите юрлицо и страну получателей, чтобы увидеть список поставщиков.</p>
+            ) : candidates.length === 0 && !repeatJob && productMode ? (
+              <p className="text-sm text-ink-faint">
+                Ни на одном сайте верифицированных поставщиков с email не нашлось «{productQuery.trim()}»
+                {selectedCountry !== ALL_COUNTRIES ? ` (страна «${selectedCountry}»)` : ''}.
+              </p>
             ) : candidates.length === 0 && !repeatJob ? (
               <p className="text-sm text-ink-faint">
                 В категории «{selectedRequest.title}»
@@ -867,6 +954,9 @@ export function BulkSendModal({
                         />
                         <span className="min-w-0 flex-1 truncate text-ink">
                           <span title={o.country || SUPPLIER_COUNTRIES[0]}>{countryFlag(o.country || SUPPLIER_COUNTRIES[0])}</span> {o.name}
+                          {productMode && o.requestId !== selectedRequestId && (
+                            <span className="text-ink-faint"> · из «{requestTitleById.get(o.requestId) ?? 'другой категории'}»</span>
+                          )}
                           {repeatPending ? (
                             <span className="text-warning"> · письмо этой рассылки ещё в очереди</span>
                           ) : repeatCancelled ? (

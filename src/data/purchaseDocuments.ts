@@ -19,6 +19,9 @@ export const PURCHASE_DOCUMENT_KINDS = [
   'poa',
   'certificate',
   'claim',
+  // Лист согласования из «Сравнения цен» (2026-09-28): PDF, который
+  // кладётся на заказы при «Отправить на согласование».
+  'approval',
   'other',
 ] as const;
 
@@ -33,6 +36,7 @@ export const PURCHASE_DOCUMENT_KIND_LABELS: Record<PurchaseDocumentKind, string>
   poa: 'Доверенность',
   certificate: 'Сертификат / паспорт',
   claim: 'Рекламация',
+  approval: 'Лист согласования',
   other: 'Другое',
 };
 
