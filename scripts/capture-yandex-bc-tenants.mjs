@@ -53,6 +53,7 @@ import {
   resolveBuildingOrganization,
 } from './yandex-org-resolve.mjs';
 import { fillTenantFloors, floorFromText } from './yandex-tenant-floors.mjs';
+import { orgFromUrl, pickedOrgFor, savePickedOrg } from './yandex-picked-orgs.mjs';
 
 const execFileAsync = promisify(execFile);
 const args = process.argv.slice(2);
@@ -460,8 +461,10 @@ const orgOwners = new Map();
 // рынка во «Внутри» 66 организаций, а на странице дома — 143, у ЦУМ — 33
 // против 48 (прогоны 2026-09-23). Дом сверяется с координатами найденной
 // карточки, а без неё — с координатами здания из базы.
-async function collectAuto(page, entry) {
-  let org = await resolveWithPage(page, entry);
+async function collectAuto(page, entry, forcedOrg = null) {
+  let org = forcedOrg ?? pickedOrgFor(entry.slug);
+  if (org) console.log(`  карточка выбрана вручную раньше: id ${org.id}`);
+  else org = await resolveWithPage(page, entry);
   if (org && orgOwners.has(org.id) && orgOwners.get(org.id) !== entry.slug) {
     console.log(`  карточка ${org.name} (${org.id}) уже досталась ${orgOwners.get(org.id)} — её не беру`);
     org = null;
@@ -471,7 +474,7 @@ async function collectAuto(page, entry) {
   const via = [];
   let primary = null;
   if (org) {
-    console.log(`  карточка: ${org.name} (${org.rubric}), id ${org.id}, ${org.distance} м, запрос «${org.query}»`);
+    if (!org.picked) console.log(`  карточка: ${org.name} (${org.rubric}), id ${org.id}, ${org.distance} м, запрос «${org.query}»`);
     const result = await collectFromOrganization(page, entry, org);
     const count = result ? withDefaultCategory(result.organizations).length : 0;
     console.log(`  «Внутри» карточки: ${count}`);
@@ -488,7 +491,7 @@ async function collectAuto(page, entry) {
   const buildings = Array.isArray(entry.buildings) && entry.buildings.length > 0
     ? entry.buildings
     : [{ address: entry.address, yandexUrl: entry.yandexUrl }];
-  const reference = org ? { ...entry, lat: org.lat, lng: org.lng } : entry;
+  const reference = org && org.lat != null && org.lng != null ? { ...entry, lat: org.lat, lng: org.lng } : entry;
   for (const building of buildings) {
     const result = await collectFromHouse(page, reference, building);
     if (!result) continue;
@@ -504,6 +507,33 @@ async function collectAuto(page, entry) {
   }
   if (!primary || merged.size === 0) return null;
   return { ...primary, organizations: [...merged.values()], via: via.join(' + ') };
+}
+
+// Автопоиск не нашёл ТЦ — человек только открывает карточку здания (любую
+// вкладку) или страницу дома в окне Chrome и жмёт Enter. Вкладку «Внутри»
+// открывает и листает сам скрипт; выбранная карточка запоминается и для шага
+// отзывов (scripts/yandex-picked-orgs.mjs).
+async function collectAssisted(page, entry) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = (await rl.question(
+    `  Яндекс не нашёл «${entry.name ?? entry.slug}» сам. Найдите это здание в окне Chrome и откройте его карточку ` +
+      '(любую вкладку, список организаций открывать не нужно) и нажмите Enter. Пропустить — "s" и Enter… ',
+  )).trim().toLowerCase();
+  rl.close();
+  if (['s', 'skip', 'п'].includes(answer)) return null;
+  const org = orgFromUrl(page.url());
+  if (org) {
+    savePickedOrg(entry.slug, org);
+    orgOwners.set(org.id, entry.slug);
+    return collectAuto(page, entry, org);
+  }
+  if (/\/house\//.test(page.url())) {
+    const houseUrl = page.url().replace(/\/inside\/.*$/, '/');
+    const result = await collectFromHouse(page, entry, { address: entry.address, yandexUrl: houseUrl });
+    return result ? { ...result, via: 'дом, выбран вручную' } : null;
+  }
+  console.log(`  в окне не карточка организации и не страница дома (${page.url()}) — пропускаю`);
+  return null;
 }
 
 async function writeSnapshot(snapshot) {
@@ -749,7 +779,8 @@ if (autoMode && !archivePath) {
       if (!entry.slug) throw new Error('У записи нет slug');
       console.log(`\n[${index + 1}/${entries.length}] ${entry.name ?? entry.slug} — ${entry.address ?? ''}`);
       const capturedAt = new Date().toISOString();
-      const result = await collectAuto(page, entry);
+      let result = await collectAuto(page, entry);
+      if ((!result || result.organizations.length === 0) && !headless) result = await collectAssisted(page, entry);
       let organizations = result ? withDefaultCategory(result.organizations) : [];
       if (organizations.length > 0 && withFloors) {
         organizations = (await addFloors(organizations, pageFetcher(page))).organizations;

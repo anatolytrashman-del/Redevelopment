@@ -65,7 +65,7 @@
 // Всё разом (арендаторы, потом карточка и отзывы) — scripts/capture-yandex-all.mjs.
 //
 // --auto | --manual, --max-reviews N (стоп после N отзывов на здание; по
-// умолчанию 500 для ТЦ в автоматическом режиме, иначе без ограничения; 0 —
+// умолчанию 600 для ТЦ, для БЦ без ограничения; 0 —
 // без ограничения), --max-distance 400, --headless (без окна —
 // для проверки на сервере).
 //
@@ -90,6 +90,7 @@ import {
 } from './yandex-org-resolve.mjs';
 import { cardFromOrgHtml } from './yandex-org-card.mjs';
 import { isCaptchaHtml } from './yandex-tenant-floors.mjs';
+import { orgFromUrl, pickedOrgFor, savePickedOrg } from './yandex-picked-orgs.mjs';
 
 const args = process.argv.slice(2);
 const valueOf = (name) => {
@@ -128,11 +129,12 @@ const headless = has('--headless');
 // Потолок отзывов на здание. У крупных ТЦ их тысячи (Galleria Minsk —
 // 10 364, ЦУМ — 5 338 на 2026-09-23): прокрутка до конца — десятки минут на
 // одно здание и тысячи карточек в DOM. Для ТЦ в автоматическом режиме по
-// умолчанию 500 первых в порядке Яндекса; --max-reviews 0 — без
-// ограничения. Для БЦ ограничения по-прежнему нет.
+// умолчанию 600 первых в порядке Яндекса (владелец, 2026-09-29: больше
+// Яндекс в одной сортировке и не отдаёт), в любом режиме; --max-reviews 0 —
+// без ограничения. Для БЦ ограничения по-прежнему нет.
 const maxReviews = valueOf('--max-reviews') != null
   ? Number(valueOf('--max-reviews'))
-  : autoMode && catalogKind === 'tc' ? 500 : 0;
+  : catalogKind === 'tc' ? 600 : 0;
 const maxDistance = Number(valueOf('--max-distance') ?? DEFAULT_MAX_DISTANCE_M);
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-reviews');
 // Тот же профиль, что у сбора организаций и инфраструктуры — в нём уже
@@ -514,6 +516,14 @@ async function main() {
         console.log(`  пропущено: организации нет или отзывов нет`);
       } else {
         reviews = await collectReviewsFromOpenTab(page);
+        // Прокрутка в ручном режиме упирается в первые 50 (2026-09-29) —
+        // добираем по страницам ?page=N, как в автоматическом.
+        const org = orgFromUrl(page.url());
+        if (org && (maxReviews === 0 || reviews.length < maxReviews)) {
+          const before = reviews.length;
+          reviews = await collectReviewsByPages(page, org, reviews);
+          if (reviews.length > before) console.log(`  прокрутка дала ${before}, по страницам — ${reviews.length}`);
+        }
       }
       await saveCheckpoint(center.slug, reviews, page.url(), capturedAt);
       if (writeDb) await writeReviews({ supabase, slug: center.slug, reviews, capturedAt });
@@ -624,6 +634,22 @@ async function collectReviewsByPages(page, org, collected) {
   return maxReviews > 0 ? all.slice(0, maxReviews) : all;
 }
 
+// Автопоиск не нашёл карточку — человек открывает её в окне Chrome (любую
+// вкладку) и жмёт Enter; вкладку «Отзывы» и страницы скрипт листает сам.
+async function pickOrgByHand(page, center) {
+  const answer = await pauseForUser(
+    `  Яндекс не нашёл «${center.name ?? center.slug}» сам. Найдите это здание в окне Chrome и откройте его карточку (любую вкладку).`,
+  );
+  if (isSkip(answer)) return null;
+  const org = orgFromUrl(page.url());
+  if (!org) {
+    console.log(`  в окне не карточка организации (${page.url()}) — пропускаю`);
+    return null;
+  }
+  savePickedOrg(center.slug, org);
+  return org;
+}
+
 async function runAuto(page, queue) {
   let done = 0;
   let totalReviews = 0;
@@ -636,7 +662,10 @@ async function runAuto(page, queue) {
   const orgOwners = new Map();
   for (const [index, center] of queue.entries()) {
     console.log(`\n[${index + 1}/${queue.length}] ${center.name ?? center.slug} — ${center.address ?? ''}`);
-    const org = await resolveWithPage(page, center);
+    let org = pickedOrgFor(center.slug);
+    if (org) console.log(`  карточка выбрана вручную раньше: id ${org.id}`);
+    else org = await resolveWithPage(page, center);
+    if (!org && !headless) org = await pickOrgByHand(page, center);
     if (!org) {
       console.log(`  ${center.slug}: карточка организации не найдена — пропускаю, ничего не пишу`);
       unresolved.push(center.slug);
@@ -649,7 +678,7 @@ async function runAuto(page, queue) {
       continue;
     }
     orgOwners.set(org.id, center.slug);
-    console.log(`  карточка: ${org.name} (${org.rubric}), id ${org.id}, ${org.distance} м, запрос «${org.query}»`);
+    if (!org.picked) console.log(`  карточка: ${org.name} (${org.rubric}), id ${org.id}, ${org.distance} м, запрос «${org.query}»`);
     const capturedAt = new Date().toISOString();
     if (withCard) {
       const card = await captureCard(page, org);
