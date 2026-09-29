@@ -891,6 +891,10 @@ export function SiteMetrics() {
     return { views, entries };
   })();
   const fullVisits = (d: MetrikaDailyStat) => Math.max(d.visits, ownDaily.entries.get(d.date) ?? 0);
+  // Уникальных посетителей без cookie не различить — с начала учёта
+  // «посетители» берутся по заходам на сайт из своего счётчика (владелец,
+  // 2026-09-29: считать по своему счётчику, а не по Метрике).
+  const fullUsers = (d: MetrikaDailyStat) => Math.max(d.users, ownDaily.entries.get(d.date) ?? 0);
   const fullPageviews = (d: MetrikaDailyStat) => Math.max(d.pageviews, ownDaily.views.get(d.date) ?? 0);
 
   const maxTrafficVisits = Math.max(1, ...(trafficSources ?? []).map((s) => s.visits));
@@ -950,8 +954,8 @@ export function SiteMetrics() {
             />
             <KpiTile
               label="Посетители"
-              value={sum(currentPeriod.map((d) => d.users)).toLocaleString('ru-RU')}
-              change={{ current: sum(currentPeriod.map((d) => d.users)), previous: sum(previousPeriod.map((d) => d.users)) }}
+              value={sum(currentPeriod.map(fullUsers)).toLocaleString('ru-RU')}
+              change={{ current: sum(currentPeriod.map(fullUsers)), previous: sum(previousPeriod.map(fullUsers)) }}
             />
             <KpiTile
               label="Просмотры страниц"
@@ -1004,12 +1008,13 @@ export function SiteMetrics() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <TrendCard title="Визиты по дням" data={currentPeriod} valueOf={fullVisits} />
-            <TrendCard title="Посетители по дням" data={currentPeriod} valueOf={(d) => d.users} />
+            <TrendCard title="Посетители по дням" data={currentPeriod} valueOf={fullUsers} />
             <TrendCard title="Просмотры по дням" data={currentPeriod} valueOf={fullPageviews} />
           </div>
           <p className="text-xs text-ink-muted">
-            С 28.09.2026 визиты и просмотры включают всех посетителей, в том числе отказавшихся от cookie (свой
-            счётчик без cookie). Посетители, отказы, глубина и время — только по согласившимся, из Метрики.
+            С 28.09.2026 визиты, посетители и просмотры считает свой счётчик без cookie — это все посетители, в том
+            числе отказавшиеся от cookie; посетитель здесь равен заходу на сайт. Отказы, глубина и время — только по
+            согласившимся, из Метрики.
           </p>
 
           {currentGoals.length > 0 && (
