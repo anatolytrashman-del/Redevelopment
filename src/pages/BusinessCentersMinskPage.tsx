@@ -115,14 +115,15 @@ const INTRO_TEXT =
   'Всё о бизнес-центрах Минска в одном месте — инфраструктура, помещения в аренду и на продажу, арендаторы, отзывы и фото.';
 
 // Дефолт hero для голого каталога (ни одной оси хаба) и для любого хаба,
-// где ни у одного БЦ подборки нет своего фото — обложка «Футуриса» в общем
-// фронтальном стиле каталога (2026-09-29; раньше здесь был снимок Domovita
-// 1600×1067, и на главной каталога он остался единственным старым фото).
-const HERO_DEFAULT_PHOTO = '/images/business-centers/futuris.jpg';
-const HERO_IMAGES: string[] = [businessCenterPhotoSrc(HERO_DEFAULT_PHOTO, 'detail')];
+// где ни у одного БЦ подборки нет своего фото — «Титул», вырезанный с фона
+// обложки (прозрачный webp): на главной каталога владелец хочет только само
+// здание, без фона, рамки и обрезки (2026-09-29).
+const HERO_IMAGES: string[] = ['/images/business-centers-hero/titul-cutout.webp'];
 const HERO_IMAGE_WIDTH = 1200;
-const HERO_IMAGE_HEIGHT = 1200;
-const HERO_SRCSETS: string[] = [businessCenterDetailPhotoSrcSet(HERO_DEFAULT_PHOTO) ?? ''];
+const HERO_IMAGE_HEIGHT = 1149;
+const HERO_SRCSETS: string[] = [
+  '/images/business-centers-hero/titul-cutout-w480.webp 480w, /images/business-centers-hero/titul-cutout-w720.webp 720w, /images/business-centers-hero/titul-cutout.webp 1200w',
+];
 // Ширина рамки hero, снятая с живой страницы: до 640 px — вьюпорт минус 82
 // (412 → 330 px), шире — портретная рамка 194–271×243–339 с object-cover,
 // которой по высоте нужна картинка шириной ~510–600 px, а не 271.
@@ -1144,7 +1145,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const heroSrcSets = heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : HERO_SRCSETS;
   const heroImageWidth = heroCenter ? 1200 : HERO_IMAGE_WIDTH;
   const heroImageHeight = heroCenter ? 1200 : HERO_IMAGE_HEIGHT;
-  const heroImageAlt = heroCenter ? heroCenter.name : 'Бизнес-центры Минска';
+  const heroImageAlt = heroCenter ? heroCenter.name : 'Бизнес-центр «Титул»';
 
   return (
     <div className="min-h-svh bg-bg">
@@ -1256,6 +1257,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       imageHeight={heroImageHeight}
                       srcSets={heroSrcSets}
                       sizes={HERO_IMAGE_SIZES}
+                      plain
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-br from-surface-muted to-border">
