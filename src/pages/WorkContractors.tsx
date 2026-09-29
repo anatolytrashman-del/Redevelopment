@@ -152,6 +152,10 @@ export function WorkContractors() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Подрядчик, которого открыли с непрочитанными: письма у него сразу
+  // гасятся, но из верхней группы он уходит только когда откроют другого —
+  // иначе карточка уезжала бы вниз прямо из-под курсора.
+  const [openedUnread, setOpenedUnread] = useState<{ id: string; latestAt: string } | null>(null);
   const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -194,18 +198,43 @@ export function WorkContractors() {
     return [...new Set([...workContractorCategories, ...used])];
   }, [contractors]);
 
+  // Владелец, 2026-09-29: «показывай непрочитанные письма вверху списка».
+  // Подрядчики с непрочитанными входящими идут первыми, свежее письмо выше;
+  // остальные — в прежнем порядке (новые подрядчики сверху).
   const visibleContractors = useMemo(() => {
-    if (categoryFilter === ALL_CATEGORIES) return contractors;
-    return contractors.filter((c) => c.category === categoryFilter);
-  }, [contractors, categoryFilter]);
+    const filtered =
+      categoryFilter === ALL_CATEGORIES ? contractors : contractors.filter((c) => c.category === categoryFilter);
+    const latestUnread = new Map<string, string>();
+    for (const e of emails) {
+      if (e.direction !== 'in' || e.readAt) continue;
+      const prev = latestUnread.get(e.contractorId);
+      if (!prev || e.createdAt > prev) latestUnread.set(e.contractorId, e.createdAt);
+    }
+    const unreadKey = (id: string) => latestUnread.get(id) ?? (id === openedUnread?.id ? openedUnread.latestAt : null);
+    return filtered
+      .map((c, index) => ({ c, index, key: unreadKey(c.id) }))
+      .sort((a, b) => {
+        if (a.key && b.key) return a.key === b.key ? a.index - b.index : a.key > b.key ? -1 : 1;
+        if (a.key) return -1;
+        if (b.key) return 1;
+        return a.index - b.index;
+      })
+      .map(({ c }) => c);
+  }, [contractors, categoryFilter, emails, openedUnread]);
+
+  useEffect(() => {
+    setOpenedUnread((prev) => (prev && prev.id !== selectedId ? null : prev));
+  }, [selectedId]);
 
   // Открыли переписку — гасим непрочитанные этого подрядчика. Локальный
   // стейт правим сразу, не дожидаясь ответа: бейджик вкладки не должен
   // висеть до следующей загрузки страницы.
   useEffect(() => {
     if (!selectedId) return;
-    const hasUnread = emails.some((e) => e.contractorId === selectedId && e.direction === 'in' && !e.readAt);
-    if (!hasUnread) return;
+    const unreadOwn = emails.filter((e) => e.contractorId === selectedId && e.direction === 'in' && !e.readAt);
+    if (unreadOwn.length === 0) return;
+    const latestAt = unreadOwn.reduce((max, e) => (e.createdAt > max ? e.createdAt : max), unreadOwn[0].createdAt);
+    setOpenedUnread({ id: selectedId, latestAt });
     const readAt = new Date().toISOString();
     setEmails((prev) =>
       prev.map((e) => (e.contractorId === selectedId && e.direction === 'in' && !e.readAt ? { ...e, readAt } : e)),
