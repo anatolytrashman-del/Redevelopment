@@ -271,6 +271,7 @@ export async function fetchBusinessCenters(kind: CatalogKind = 'bc'): Promise<Bu
       .from('business_centers')
       .select(LIST_COLUMNS)
       .eq('kind', kind)
+      .eq('is_hidden', false)
       .order('sort_order', { ascending: true });
     if (error) throw error;
     return (data as unknown as BusinessCenterRow[]).map(fromRow);
@@ -306,7 +307,7 @@ export async function fetchBusinessCenter(slug: string, kind: CatalogKind = 'bc'
     return center.kind === kind ? center : null;
   }
   return withRetry(async () => {
-    const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).eq('kind', kind).maybeSingle();
+    const { data, error } = await supabase.from('business_centers').select('*').eq('slug', slug).eq('kind', kind).eq('is_hidden', false).maybeSingle();
     if (error) throw error;
     return data ? fromRow(data as BusinessCenterRow) : null;
   }).catch((err) => fallbackToSnapshot(snapshotBusinessCenter(slug, kind) ?? undefined, err));

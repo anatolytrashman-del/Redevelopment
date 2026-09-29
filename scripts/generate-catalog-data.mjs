@@ -74,7 +74,7 @@ async function main(columns) {
   const generatedAt = new Date().toISOString();
 
   const rows = await supabaseSelect(
-    `business_centers?select=${columns}&kind=eq.bc&order=sort_order.asc`,
+    `business_centers?select=${columns}&kind=eq.bc&is_hidden=eq.false&order=sort_order.asc`,
     'business_centers (список для каталога)',
   );
   mkdirSync(DIST_DATA, { recursive: true });
@@ -87,7 +87,7 @@ async function main(columns) {
   // общие (dist/data/bc/<slug>.json): слаг уникален на всю таблицу, а чужой
   // каталог карточка отсекает по kind (fetchBusinessCenter).
   const tcRows = await supabaseSelect(
-    `business_centers?select=${columns}&kind=eq.tc&order=sort_order.asc`,
+    `business_centers?select=${columns}&kind=eq.tc&is_hidden=eq.false&order=sort_order.asc`,
     'business_centers (список торговых центров)',
   );
   writeFileSync(join(DIST_DATA, 'trade-centers.json'), JSON.stringify({ generatedAt, rows: tcRows }));
@@ -96,7 +96,9 @@ async function main(columns) {
   // нужны колонки, выброшенные из списка (технические параметры,
   // арендаторы, СМИ). Имя файла = слаг, поэтому инлайн-скрипту не нужно
   // знать, где карточка, а где раздел: у раздела такого файла просто нет.
-  const full = await supabaseSelect('business_centers?select=*&order=sort_order.asc', 'business_centers (полные ряды БЦ и ТЦ)');
+  // Скрытые здания (is_hidden, 2026-09-29: ТЦ без обложки) — ни в список,
+  // ни файлом здания: иначе карточка открылась бы по прямой ссылке.
+  const full = await supabaseSelect('business_centers?select=*&is_hidden=eq.false&order=sort_order.asc', 'business_centers (полные ряды БЦ и ТЦ)');
   const bcDir = join(DIST_DATA, 'bc');
   mkdirSync(bcDir, { recursive: true });
   let written = 0;
