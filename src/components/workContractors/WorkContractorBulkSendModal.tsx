@@ -42,7 +42,7 @@ export function WorkContractorBulkSendModal({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [templateName, setTemplateName] = useState('');
-  const [attachment, setAttachment] = useState<EmailAttachment | null>(null);
+  const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
   const [attaching, setAttaching] = useState(false);
   const [includeExtraEmails, setIncludeExtraEmails] = useState(false);
   const [queuedIds, setQueuedIds] = useState<string[]>([]);
@@ -60,7 +60,7 @@ export function WorkContractorBulkSendModal({
     setSubject('');
     setBody('');
     setTemplateName('');
-    setAttachment(null);
+    setAttachments([]);
     setIncludeExtraEmails(false);
     setError(null);
     setDone(null);
@@ -91,11 +91,12 @@ export function WorkContractorBulkSendModal({
   }
 
   async function handleFilePicked(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
+    const picked = Array.from(files ?? []);
+    if (picked.length === 0) return;
     setAttaching(true);
     try {
-      setAttachment(await fileToAttachment(file));
+      const added = await Promise.all(picked.map((file) => fileToAttachment(file)));
+      setAttachments((prev) => [...prev, ...added]);
     } catch {
       setError('Не удалось прикрепить файл — попробуйте ещё раз');
     } finally {
@@ -112,7 +113,7 @@ export function WorkContractorBulkSendModal({
         category,
         subject: subject.trim(),
         body,
-        attachment,
+        attachments,
         includeExtraEmails,
         contractorIds: recipients.map((c) => c.id),
       });
@@ -182,36 +183,39 @@ export function WorkContractorBulkSendModal({
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               className="hidden"
               onChange={(e) => {
                 void handleFilePicked(e.target.files);
                 e.target.value = '';
               }}
             />
-            {attachment ? (
-              <div className="flex w-fit items-center gap-2 rounded-control border border-border bg-surface-muted px-3 py-1.5 text-sm text-ink">
+            {attachments.map((file, index) => (
+              <div
+                key={`${file.fileName}-${index}`}
+                className="flex w-fit items-center gap-2 rounded-control border border-border bg-surface-muted px-3 py-1.5 text-sm text-ink"
+              >
                 <Paperclip className="h-4 w-4 shrink-0 text-ink-faint" />
-                <span className="max-w-[260px] truncate">{attachment.fileName}</span>
+                <span className="max-w-[260px] truncate">{file.fileName}</span>
                 <button
                   type="button"
-                  onClick={() => setAttachment(null)}
+                  onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== index))}
                   aria-label="Убрать вложение"
                   className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-faint hover:text-danger"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
-            ) : (
-              <Button
-                variant="secondary"
-                icon={<Paperclip className="h-4 w-4" />}
-                className="w-fit"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={attaching}
-              >
-                {attaching ? 'Прикрепляем...' : 'Прикрепить файл'}
-              </Button>
-            )}
+            ))}
+            <Button
+              variant="secondary"
+              icon={<Paperclip className="h-4 w-4" />}
+              className="w-fit"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={attaching}
+            >
+              {attaching ? 'Прикрепляем...' : attachments.length > 0 ? 'Прикрепить ещё файл' : 'Прикрепить файл'}
+            </Button>
 
             {withExtraEmailsCount > 0 && (
               <label className="flex items-start gap-2 text-sm text-ink">
