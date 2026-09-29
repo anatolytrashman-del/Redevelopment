@@ -401,10 +401,21 @@ async function addFloors(organizations, fetcher) {
   return { organizations: withFloor, stopped: stats.stopped };
 }
 
+async function isNotFoundPage(page) {
+  return page.evaluate(() => /Ошибка 404|Нет такой страницы/.test(document.title + ' ' + (document.body?.innerText ?? '').slice(0, 2000)))
+    .catch(() => false);
+}
+
 // Вкладка «Внутри» собственной карточки организации здания.
 async function collectFromOrganization(page, entry, org) {
   const url = orgUrl(org, 'inside');
   await gotoWithCaptcha(page, url);
+  // Вкладки «Внутри» у карточки может не быть — Яндекс отдаёт 404 (ALL,
+  // 2026-09-29). Ждать карточки на такой странице незачем: сразу к дому.
+  if (await isNotFoundPage(page)) {
+    console.log('  у карточки нет вкладки «Внутри» (404) — сразу к странице дома');
+    return null;
+  }
   await page.waitForSelector(CARD_SELECTOR, { timeout: 12_000 }).catch(() => {});
   if (!isOrgTabUrl(page.url(), org.id, 'inside')) {
     console.log(`  вкладка «Внутри» не открылась (адрес ${page.url()})`);
