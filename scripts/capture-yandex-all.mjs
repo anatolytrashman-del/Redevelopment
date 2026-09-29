@@ -22,7 +22,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const onlyIndex = args.indexOf('--only');
 const only = onlyIndex >= 0 ? args[onlyIndex + 1] : null;
-const passArgs = onlyIndex >= 0 ? args.filter((_, i) => i !== onlyIndex && i !== onlyIndex + 1) : args;
+// --manual здесь больше не передаём (владелец, 2026-09-29: «не нравится
+// открывать руками список организаций»): автоматический режим сам спрашивает
+// человека только о карточке здания, которую не нашёл, а вкладки «Внутри» и
+// «Отзывы» открывает сам. Отдельные скрипты --manual по-прежнему понимают.
+const passArgs = (onlyIndex >= 0 ? args.filter((_, i) => i !== onlyIndex && i !== onlyIndex + 1) : args)
+  .filter((arg) => arg !== '--manual');
+if (args.includes('--manual')) console.log('--manual не нужен: здания, которые Яндекс не найдёт сам, скрипт попросит открыть в окне Chrome');
 
 const steps = [
   { key: 'tenants', title: 'Арендаторы и этажи', script: 'capture-yandex-bc-tenants.mjs' },
