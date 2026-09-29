@@ -35,6 +35,7 @@
 // инспекция — один HTTP-запрос, провал одной страницы остальным не мешает.
 
 import { createClient } from '@supabase/supabase-js';
+import { newCatalogPath } from './legacyCatalogUrls.mjs';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -243,6 +244,57 @@ async function fetchQueryBreakdown(accessToken, siteUrl) {
     .filter((row) => typeof row.query === 'string' && row.query.trim() !== '');
 }
 
+// Разбивка по СТРАНИЦАМ (2026-09-29). По запросам Google прячет редкие
+// формулировки, и владелец видел 6 кликов в таблице при 49 в плитке; по
+// страницам такой фильтрации нет. Старые адреса каталога (/minsk/bcminsk/…)
+// сводятся к новым, чтобы одна страница не делилась на две строки.
+async function fetchPageBreakdown(accessToken, siteUrl) {
+  const dateTo = new Date();
+  const dateFrom = new Date(dateTo);
+  dateFrom.setDate(dateFrom.getDate() - QUERY_BREAKDOWN_DAYS);
+
+  const path = `/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
+  const { rows } = await searchConsoleFetch(accessToken, path, {
+    method: 'POST',
+    body: JSON.stringify({
+      startDate: isoDate(dateFrom),
+      endDate: isoDate(dateTo),
+      dimensions: ['page'],
+      rowLimit: QUERY_BREAKDOWN_LIMIT,
+    }),
+  });
+
+  const merged = new Map();
+  for (const row of rows ?? []) {
+    let page;
+    try {
+      page = new URL(row.keys?.[0]).pathname.replace(/\/+$/, '') || '/';
+    } catch {
+      continue;
+    }
+    const legacy = page.match(/^\/minsk\/bcminsk(\/.*)?$/);
+    if (legacy) page = newCatalogPath((legacy[1] ?? '').split('/'));
+    const acc = merged.get(page) ?? { impressions: 0, clicks: 0, positionWeight: 0 };
+    acc.impressions += row.impressions ?? 0;
+    acc.clicks += row.clicks ?? 0;
+    // Средняя позиция при слиянии — взвешенная по показам.
+    acc.positionWeight += (row.position ?? 0) * (row.impressions ?? 0);
+    merged.set(page, acc);
+  }
+
+  const stamp = new Date().toISOString();
+  return [...merged.entries()].map(([page, acc]) => ({
+    page,
+    impressions: acc.impressions,
+    clicks: acc.clicks,
+    ctr: acc.impressions ? acc.clicks / acc.impressions : null,
+    avg_position: acc.impressions ? acc.positionWeight / acc.impressions : null,
+    date_from: isoDate(dateFrom),
+    date_to: isoDate(dateTo),
+    updated_at: stamp,
+  }));
+}
+
 async function fetchLandingPagePaths() {
   const { data, error } = await supabase.from('objects').select('landing_slug').not('landing_slug', 'is', null);
   if (error) throw new Error(`Не удалось прочитать objects.landing_slug: ${error.message}`);
@@ -365,10 +417,14 @@ async function main() {
   const siteUrl = await resolveSiteUrl(accessToken);
   console.log(`Свойство Search Console: ${siteUrl}`);
 
-  const [coverage, queryByDate, queryBreakdown] = await Promise.all([
+  const [coverage, queryByDate, queryBreakdown, pageBreakdown] = await Promise.all([
     fetchSitemapCoverage(accessToken, siteUrl),
     fetchQueryHistory(accessToken, siteUrl),
     fetchQueryBreakdown(accessToken, siteUrl),
+    fetchPageBreakdown(accessToken, siteUrl).catch((err) => {
+      console.error('Разбивка по страницам не удалась:', err.message ?? err);
+      return [];
+    }),
   ]);
   console.log(
     `Sitemap: submitted=${coverage.submitted}. ` +
@@ -438,6 +494,27 @@ async function main() {
       .lt('updated_at', stamp);
     if (deleteError) throw deleteError;
     console.log(`Сохранено ${queryBreakdown.length} запросов в google_search_console_queries.`);
+  }
+
+  // Снимок по страницам — так же, как по запросам: upsert, затем удаление
+  // того, чего этот прогон не принёс. Пустой ответ прошлый снимок не трогает.
+  if (pageBreakdown.length === 0) {
+    console.log('Разбивка по страницам пуста — прошлый снимок оставлен как есть.');
+  } else if (DRY_RUN) {
+    console.log('[dry-run] Записал бы в google_search_console_pages:');
+    console.log(JSON.stringify(pageBreakdown, null, 2));
+  } else {
+    const stamp = pageBreakdown[0].updated_at;
+    const { error: upsertError } = await supabase
+      .from('google_search_console_pages')
+      .upsert(pageBreakdown, { onConflict: 'page' });
+    if (upsertError) throw upsertError;
+    const { error: deleteError } = await supabase
+      .from('google_search_console_pages')
+      .delete()
+      .lt('updated_at', stamp);
+    if (deleteError) throw deleteError;
+    console.log(`Сохранено ${pageBreakdown.length} страниц в google_search_console_pages.`);
   }
 
   // Проверка страниц — последним шагом: она самая долгая (до сотни-другой

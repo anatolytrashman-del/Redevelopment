@@ -3,6 +3,8 @@ import { withRetry } from './withRetry';
 import type {
   GoogleSearchConsoleStat,
   GoogleSearchConsoleStatRow,
+  GoogleSearchConsolePage,
+  GoogleSearchConsolePageRow,
   GoogleSearchConsoleQuery,
   GoogleSearchConsoleQueryRow,
 } from '../data/googleSearchConsoleStats';
@@ -48,5 +50,24 @@ export function fetchGoogleSearchConsoleQueries(): Promise<GoogleSearchConsoleQu
       .limit(1000);
     if (error) throw error;
     return (data as GoogleSearchConsoleQueryRow[]).map(queryFromRow);
+  });
+}
+
+export function fetchGoogleSearchConsolePages(): Promise<GoogleSearchConsolePage[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('google_search_console_pages')
+      .select('*')
+      .order('impressions', { ascending: false, nullsFirst: false })
+      .limit(1000);
+    if (error) throw error;
+    return (data as GoogleSearchConsolePageRow[]).map((row) => ({
+      page: row.page,
+      impressions: row.impressions,
+      clicks: row.clicks,
+      avgPosition: row.avg_position,
+      dateFrom: row.date_from,
+      dateTo: row.date_to,
+    }));
   });
 }
