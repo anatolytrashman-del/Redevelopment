@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Plus, Search } from 'lucide-react';
+import { ChevronRight, Factory, Plus, Search } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button, buttonClasses } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -15,6 +15,8 @@ import {
   type SupplierCatalogHub,
 } from '../../data/supplierCatalog';
 import { fetchSupplyCategories, type SupplyCategoryDto } from '../../lib/supplyCategoriesApi';
+import { fetchSupplierKinds } from '../../lib/suppliersApi';
+import type { SupplierKind } from '../../data/suppliers';
 import {
   countryFlag,
   supplierWebsiteHost,
@@ -173,9 +175,41 @@ export function SupplierCatalog({
   // заведённые под конкретную закупку; в каталоге у компании уже есть своя
   // карточка, копия дала бы дубль.
   const purchaseRequestIds = useMemo(() => new Set(requests.filter((r) => r.ledgerId).map((r) => r.id)), [requests]);
-  const countryOffers = useMemo(
+  const baseOffers = useMemo(
     () => offers.filter((o) => !purchaseRequestIds.has(o.requestId) && (!o.country.trim() || o.country === country)),
     [offers, country, purchaseRequestIds],
+  );
+
+  // Заводы и остальные (владелец, 2026-09-29: «видеть общее количество
+  // заводов и обычных поставщиков и оставить в каталоге только заводы»).
+  // Тип — из разбора сайта (suppliers.supplier_kind); завод здесь только
+  // manufacturer: владелец марки сам не производит. Нет типа — «остальные».
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [kindById, setKindById] = useState<Map<string, SupplierKind>>(new Map());
+  useEffect(() => {
+    fetchSupplierKinds()
+      .then(setKindById)
+      .catch(() => {});
+  }, []);
+  const isFactory = (o: SupplierOffer) => !!o.supplierId && kindById.get(o.supplierId) === 'manufacturer';
+  const kindCounts = useMemo(() => {
+    const factories = new Set<string>();
+    const others = new Set<string>();
+    for (const o of baseOffers) {
+      if (!o.verified) continue;
+      const key = o.supplierId ?? o.id;
+      if (o.supplierId && kindById.get(o.supplierId) === 'manufacturer') factories.add(key);
+      else others.add(key);
+    }
+    for (const k of factories) others.delete(k);
+    return { factories: factories.size, others: others.size };
+  }, [baseOffers, kindById]);
+  const countryOffers = useMemo(
+    () =>
+      kindFilter === 'all'
+        ? baseOffers
+        : baseOffers.filter((o) => (kindFilter === 'factories') === (!!o.supplierId && kindById.get(o.supplierId) === 'manufacturer')),
+    [baseOffers, kindFilter, kindById],
   );
 
   const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
@@ -337,6 +371,29 @@ export function SupplierCatalog({
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-1 self-start rounded-full bg-surface-muted p-1 text-sm">
+        {(
+          [
+            ['all', 'Все', kindCounts.factories + kindCounts.others],
+            ['factories', 'Заводы', kindCounts.factories],
+            ['others', 'Остальные', kindCounts.others],
+          ] as [KindFilter, string, number][]
+        ).map(([key, label, n]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setKindFilter(key)}
+            aria-pressed={kindFilter === key}
+            className={cn(
+              'rounded-full px-3 py-1 transition-colors',
+              kindFilter === key ? 'bg-surface font-medium text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
+            )}
+          >
+            {label} <span className="tabular-nums text-ink-faint">{n}</span>
+          </button>
+        ))}
+      </div>
+
       {searchQuery ? (
         <div className="flex flex-col gap-2">
           <span className="text-sm text-ink-muted">
@@ -349,6 +406,7 @@ export function SupplierCatalog({
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="truncate font-medium text-ink">{offer.name}</span>
+                  {isFactory(offer) && <FactoryMark />}
                   <span className="text-xs text-ink-faint">{categoryLabel}</span>
                 </div>
                 {!byName && (
@@ -443,6 +501,7 @@ export function SupplierCatalog({
           onGroupFilter={setGroupFilter}
           snapshotByHost={snapshotByHost}
           onOpenDetail={onOpenDetail}
+          isFactory={isFactory}
         />
       )}
         </>
@@ -457,12 +516,14 @@ function CategoryView({
   onGroupFilter,
   snapshotByHost,
   onOpenDetail,
+  isFactory,
 }: {
   stats: CategoryStats;
   groupFilter: string | null;
   onGroupFilter: (g: string | null) => void;
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
   onOpenDetail: (o: SupplierOffer) => void;
+  isFactory: (o: SupplierOffer) => boolean;
 }) {
   const { category } = stats;
   const matchesFilter = (o: SupplierOffer) => !groupFilter || offerGroups(o, snapshotByHost).includes(groupFilter);
@@ -473,6 +534,7 @@ function CategoryView({
     <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-2">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="truncate font-medium text-ink">{o.name}</span>
+        {isFactory(o) && <FactoryMark />}
         {!o.country.trim() && <span className="text-xs text-ink-faint">страна не указана</span>}
       </div>
       <OpenDetailButton offer={o} onOpenDetail={onOpenDetail} />
@@ -522,6 +584,17 @@ function CategoryView({
         </Section>
       )}
     </div>
+  );
+}
+
+type KindFilter = 'all' | 'factories' | 'others';
+
+function FactoryMark() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-xs font-medium text-success">
+      <Factory className="h-3 w-3" />
+      завод
+    </span>
   );
 }
 

@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { Supplier, SupplierRow, SupplierSiteProfile } from '../data/suppliers';
+import type { Supplier, SupplierKind, SupplierRow, SupplierSiteProfile } from '../data/suppliers';
 
 // Доступ к компаниям-поставщикам (шаг 2 плана docs/procurement-product-steps.md).
 // Шаблон тот же, что у leads.ts/leadsApi.ts: fromRow + fetch/insert/update/delete,
@@ -112,6 +112,28 @@ export function fetchSuppliers(): Promise<Supplier[]> {
       }),
     );
     return pages.flat();
+  });
+}
+
+// Тип компании (завод, дилер…) для фильтра каталога: только id и тип, без
+// тяжёлого site_profile — каталог грузит это на каждом открытии закупок.
+// Постранично: компаний больше 1000, а PostgREST молча режет выборку.
+export function fetchSupplierKinds(): Promise<Map<string, SupplierKind>> {
+  return withRetry(async () => {
+    const map = new Map<string, SupplierKind>();
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, supplier_kind')
+        .is('deleted_at', null)
+        .not('supplier_kind', 'is', null)
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as { id: string; supplier_kind: SupplierKind }[];
+      for (const r of rows) map.set(r.id, r.supplier_kind);
+      if (rows.length < PAGE_SIZE) return map;
+    }
   });
 }
 
