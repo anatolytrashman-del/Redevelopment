@@ -14,8 +14,16 @@ import {
 import type { MetrikaDailyStat, MetrikaTrafficSource, MetrikaTopPage, MetrikaGoalCompletion } from '../data/metrikaStats';
 import { fetchYandexWebmasterStats, fetchYandexWebmasterQueries } from '../lib/yandexWebmasterStatsApi';
 import type { YandexWebmasterStat, YandexWebmasterQuery } from '../data/yandexWebmasterStats';
-import { fetchGoogleSearchConsoleStats, fetchGoogleSearchConsoleQueries } from '../lib/googleSearchConsoleStatsApi';
-import type { GoogleSearchConsoleStat, GoogleSearchConsoleQuery } from '../data/googleSearchConsoleStats';
+import {
+  fetchGoogleSearchConsoleStats,
+  fetchGoogleSearchConsoleQueries,
+  fetchGoogleSearchConsolePages,
+} from '../lib/googleSearchConsoleStatsApi';
+import type {
+  GoogleSearchConsoleStat,
+  GoogleSearchConsoleQuery,
+  GoogleSearchConsolePage,
+} from '../data/googleSearchConsoleStats';
 import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
 import { fetchPageViewsDaily } from '../lib/pageViewsApi';
@@ -419,6 +427,9 @@ interface SearchQueriesTableProps {
   // dimensions=['date'], из-за анонимизации редких запросов) видно и тогда,
   // когда часть запросов уже показывается — см. sync-google-search-console-stats.mjs.
   note?: string;
+  // Та же таблица служит и разбивкой по страницам — меняются только подписи.
+  columnTitle?: string;
+  plural?: (n: number) => string;
 }
 
 // Таблица «по каким запросам нас показывают и по каким кликают». Сортировка
@@ -426,7 +437,14 @@ interface SearchQueriesTableProps {
 // при сортировке по показам запросы С КЛИКАМИ (самое ценное, что тут есть)
 // оказываются в хвосте — по умолчанию открываем по показам, но переключить
 // на клики можно в один тык.
-function SearchQueriesTable({ title, queries, emptyText, note }: SearchQueriesTableProps) {
+function SearchQueriesTable({
+  title,
+  queries,
+  emptyText,
+  note,
+  columnTitle = 'Запрос',
+  plural = pluralQueries,
+}: SearchQueriesTableProps) {
   const [sort, setSort] = useState<QuerySort>('impressions');
   const [expanded, setExpanded] = useState(false);
 
@@ -459,8 +477,8 @@ function SearchQueriesTable({ title, queries, emptyText, note }: SearchQueriesTa
           <h4 className="text-sm font-semibold text-ink">{title}</h4>
           <p className="text-xs text-ink-muted">
             {dateFrom && dateTo
-              ? `${sorted.length} ${pluralQueries(sorted.length)} за ${formatDateShort(dateFrom)} — ${formatDateShort(dateTo)}`
-              : `${sorted.length} ${pluralQueries(sorted.length)}`}
+              ? `${sorted.length} ${plural(sorted.length)} за ${formatDateShort(dateFrom)} — ${formatDateShort(dateTo)}`
+              : `${sorted.length} ${plural(sorted.length)}`}
             {' · '}
             {totalImpressions.toLocaleString('ru-RU')} показов, {totalClicks.toLocaleString('ru-RU')} кликов
             {' · '}не зависит от выбранного периода выше
@@ -477,7 +495,7 @@ function SearchQueriesTable({ title, queries, emptyText, note }: SearchQueriesTa
 
       <div className="flex flex-col divide-y divide-border">
         <div className="flex items-center gap-3 pb-1 text-xs text-ink-muted">
-          <span className="flex-1">Запрос</span>
+          <span className="flex-1">{columnTitle}</span>
           <span className="w-16 shrink-0 text-right">Показы</span>
           <span className="w-14 shrink-0 text-right">Клики</span>
           <span className="w-16 shrink-0 text-right">Позиция</span>
@@ -512,7 +530,7 @@ function SearchQueriesTable({ title, queries, emptyText, note }: SearchQueriesTa
         >
           {expanded
             ? 'Свернуть'
-            : `Показать ещё ${sorted.length - VISIBLE_QUERIES} ${pluralQueries(sorted.length - VISIBLE_QUERIES)}`}
+            : `Показать ещё ${sorted.length - VISIBLE_QUERIES} ${plural(sorted.length - VISIBLE_QUERIES)}`}
         </button>
       )}
     </div>
@@ -727,6 +745,7 @@ export function SiteMetrics() {
   const [googleStats, setGoogleStats] = useState<GoogleSearchConsoleStat[] | null>(null);
   const [webmasterQueries, setWebmasterQueries] = useState<YandexWebmasterQuery[]>([]);
   const [googleQueries, setGoogleQueries] = useState<GoogleSearchConsoleQuery[]>([]);
+  const [googlePages, setGooglePages] = useState<GoogleSearchConsolePage[]>([]);
   const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
   const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [error, setError] = useState('');
@@ -747,7 +766,7 @@ export function SiteMetrics() {
     try {
       const pageViewsSince = new Date();
       pageViewsSince.setDate(pageViewsSince.getDate() - 91); // хватает на период «90 дней» с запасом
-      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows, ownPageViews] =
+      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, googleP, backlinkRows, ownPageViews] =
         await Promise.all([
           fetchMetrikaDailyStats(),
           fetchMetrikaTrafficSources(),
@@ -761,6 +780,7 @@ export function SiteMetrics() {
           fetchGoogleSearchConsoleStats().catch(() => []),
           fetchYandexWebmasterQueries().catch(() => []),
           fetchGoogleSearchConsoleQueries().catch(() => []),
+          fetchGoogleSearchConsolePages().catch(() => []),
           fetchSiteBacklinks().catch(() => []),
           fetchPageViewsDaily(pageViewsSince.toISOString().slice(0, 10)).catch(() => []),
         ]);
@@ -772,6 +792,7 @@ export function SiteMetrics() {
       setGoogleStats(google);
       setWebmasterQueries(webmasterQ);
       setGoogleQueries(googleQ);
+      setGooglePages(googleP);
       setBacklinks(backlinkRows);
       setPageViewRows(ownPageViews);
       setLastCheckedAt(new Date());
@@ -1143,12 +1164,15 @@ export function SiteMetrics() {
                     ? 'Google не раскрывает сами запросы, пока их задают единицы людей («анонимизированные запросы») — показы и клики выше он при этом считает. Список появится сам, когда запросов станет больше.'
                     : 'Показов из Google пока нет — как только они появятся, здесь будут сами запросы.'
                 }
-                note="Сумма показов/кликов здесь обычно МЕНЬШЕ плиток выше — Google скрывает сами формулировки редких («анонимизированных») запросов, но в общий счёт показов/кликов наверху их всё равно включает. Это не рассинхрон в данных."
+                note="Сумма показов/кликов здесь обычно МЕНЬШЕ плиток выше: Google скрывает формулировки редких («анонимизированных») запросов, но в общий счёт наверху их включает. Куда именно приходят из поиска, видно в разбивке по страницам ниже — её Google не скрывает."
               />
-              <p className="text-xs text-ink-muted">
-                «Проиндексировано страниц» считается по отдельному, медленному отчёту Google и может отставать от
-                реального индекса на недели — реальный статус страницы может быть точнее, чем показывает эта цифра.
-              </p>
+              <SearchQueriesTable
+                title="На какие страницы приходят из Google"
+                columnTitle="Страница"
+                plural={pluralPages}
+                queries={googlePages.map((p) => ({ ...p, query: readablePageLabel(p.page) }))}
+                emptyText="Разбивка по страницам появится после ближайшего синка Search Console."
+                note="Здесь Google не прячет редкие строки, поэтому сумма почти сходится с плитками выше. Старые адреса каталога (/minsk/bcminsk/…) сведены к новым."/>
             </Card>
           )}
           {webmasterStats !== null && googleStats !== null && currentWebmaster.length > 0 && currentGoogle.length === 0 && (

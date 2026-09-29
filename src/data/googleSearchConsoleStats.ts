@@ -63,3 +63,26 @@ export interface GoogleSearchConsoleQueryRow {
   date_to: string | null;
   updated_at: string;
 }
+
+// Разбивка тех же показов/кликов по СТРАНИЦАМ (2026-09-29). Google здесь не
+// прячет редкие строки, поэтому сумма почти сходится с плитками — в отличие
+// от разбивки по запросам. Старые адреса каталога синк уже свёл к новым.
+export interface GoogleSearchConsolePage {
+  page: string;
+  impressions: number | null;
+  clicks: number | null;
+  avgPosition: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+export interface GoogleSearchConsolePageRow {
+  page: string;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  avg_position: number | null;
+  date_from: string | null;
+  date_to: string | null;
+  updated_at: string;
+}
