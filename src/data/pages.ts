@@ -119,9 +119,15 @@ export const ADMIN_PAGES: AdminPage[] = [
   { key: 'backlog', to: '/admin/backlog', label: 'Предложить идею', icon: ListChecks },
 ];
 
+// Разделы, временно убранные из меню. Страницы, маршруты и данные на месте,
+// прямая ссылка работает; вернуть раздел в меню — убрать ключ отсюда.
+// «Дизайн-проекты» — владелец, 2026-09-29: «Скрой дизайн-проекты на время
+// из админки».
+const TEMPORARILY_HIDDEN_PAGE_KEYS: ReadonlySet<SidebarNavigationKey> = new Set<SidebarNavigationKey>(['designProjects']);
+
 // Порядок и состав пунктов в основном меню сайдбара (без "Предложить
 // идею" — у него свой пункт снизу, как и раньше).
-export const VISIBLE_PAGE_KEYS: PageKey[] = [
+export const VISIBLE_PAGE_KEYS: PageKey[] = ([
   'objects',
   'tasks',
   'mailbox',
@@ -141,7 +147,7 @@ export const VISIBLE_PAGE_KEYS: PageKey[] = [
   'transactions',
   'documents',
   'settings',
-];
+] satisfies PageKey[]).filter((key) => !TEMPORARILY_HIDDEN_PAGE_KEYS.has(key));
 
 // Раскладка сайдбара поверх VISIBLE_PAGE_KEYS: обычно пункт меню = страница,
 // но некоторые пункты хочется сгруппировать под общим подзаголовком (см.
@@ -157,7 +163,7 @@ export type SidebarEntry =
   | { type: 'page'; key: PageKey }
   | { type: 'group'; label: string; keys: SidebarNavigationKey[] };
 
-export const SIDEBAR_LAYOUT: SidebarEntry[] = [
+const FULL_SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'page', key: 'objects' },
   { type: 'page', key: 'tasks' },
   { type: 'page', key: 'mailbox' },
@@ -167,6 +173,12 @@ export const SIDEBAR_LAYOUT: SidebarEntry[] = [
   { type: 'group', label: 'Маркетинг', keys: ['landings', 'siteMetrics', 'marketOffers', 'leads'] },
   { type: 'page', key: 'settings' },
 ];
+
+export const SIDEBAR_LAYOUT: SidebarEntry[] = FULL_SIDEBAR_LAYOUT.flatMap((entry): SidebarEntry[] => {
+  if (entry.type === 'page') return TEMPORARILY_HIDDEN_PAGE_KEYS.has(entry.key) ? [] : [entry];
+  const keys = entry.keys.filter((key) => !TEMPORARILY_HIDDEN_PAGE_KEYS.has(key));
+  return keys.length > 0 ? [{ ...entry, keys }] : [];
+});
 
 export function findPage(key: PageKey): AdminPage {
   const page = ADMIN_PAGES.find((p) => p.key === key);
