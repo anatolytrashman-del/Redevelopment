@@ -33,7 +33,25 @@ export function savePickedOrg(slug, org) {
   fs.renameSync(`${FILE}.tmp`, FILE);
 }
 
+// Выбор, который совпал с карточкой другого здания (человек нажал Enter, пока
+// в окне ещё была открыта предыдущая карточка, 2026-09-29), не считается.
 export function pickedOrgFor(slug) {
-  const saved = loadPickedOrgs()[slug];
-  return saved ? { id: String(saved.id), seoname: saved.seoname ?? null, name: null, picked: true } : null;
+  const all = loadPickedOrgs();
+  const saved = all[slug];
+  if (!saved) return null;
+  const clash = Object.entries(all).some(([other, org]) => other !== slug && String(org.id) === String(saved.id));
+  if (clash) return null;
+  return { id: String(saved.id), seoname: saved.seoname ?? null, name: null, picked: true };
+}
+
+// Поиск здания в окне Chrome: человеку остаётся нажать на нужный результат.
+export function searchUrlFor(entry, cityPath = '157/minsk') {
+  const text = [entry.name, entry.address].filter(Boolean).join(' ').replace(/[«»"]/g, ' ');
+  return `https://yandex.by/maps/${cityPath}/search/${encodeURIComponent(text)}/`;
+}
+
+// Без seoname в адресе: у карточки ALL (seoname «all») Яндекс отдаёт 404 на
+// /maps/org/all/<id>/…, а /maps/org/<id>/… открывается.
+export function withoutSeoname(org) {
+  return { ...org, seoname: null };
 }
