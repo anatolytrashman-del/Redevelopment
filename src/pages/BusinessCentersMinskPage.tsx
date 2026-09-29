@@ -125,18 +125,15 @@ const TC_INTRO_TEXT = 'Торговые центры Минска в одном 
 // sitemap/пререндер, это вне этого файла).
 const TC_NOINDEX = true;
 
-// Тот же снимок «Футуриса» в исходном размере 1600×1067 (Domovita).
-// Источник: https://domovita.by/bc-bcfuturis — фото 4. Дефолт для голого
-// каталога (ни одной оси хаба) и для любого хаба, где ни у одного БЦ
-// подборки нет своего фото.
-const HERO_IMAGES: string[] = ['/images/business-centers-hero/futuris-1600.jpg'];
-const HERO_IMAGE_WIDTH = 1600;
-const HERO_IMAGE_HEIGHT = 1067;
-// Уменьшенные webp-копии того же снимка (sharp, q74, 2026-09-23): телефону
-// хватает 480–720 px, а оригинал — 155 КБ JPEG.
-const HERO_SRCSETS: string[] = [
-  '/images/business-centers-hero/futuris-1600-w480.webp 480w, /images/business-centers-hero/futuris-1600-w720.webp 720w, /images/business-centers-hero/futuris-1600-w1200.webp 1200w, /images/business-centers-hero/futuris-1600.jpg 1600w',
-];
+// Дефолт hero для голого каталога (ни одной оси хаба) и для любого хаба,
+// где ни у одного БЦ подборки нет своего фото — обложка «Футуриса» в общем
+// фронтальном стиле каталога (2026-09-29; раньше здесь был снимок Domovita
+// 1600×1067, и на главной каталога он остался единственным старым фото).
+const HERO_DEFAULT_PHOTO = '/images/business-centers/futuris.jpg';
+const HERO_IMAGES: string[] = [businessCenterPhotoSrc(HERO_DEFAULT_PHOTO, 'detail')];
+const HERO_IMAGE_WIDTH = 1200;
+const HERO_IMAGE_HEIGHT = 1200;
+const HERO_SRCSETS: string[] = [businessCenterDetailPhotoSrcSet(HERO_DEFAULT_PHOTO) ?? ''];
 // Ширина рамки hero, снятая с живой страницы: до 640 px — вьюпорт минус 82
 // (412 → 330 px), шире — портретная рамка 194–271×243–339 с object-cover,
 // которой по высоте нужна картинка шириной ~510–600 px, а не 271.
@@ -1255,7 +1252,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const heroImages = heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : isTc ? [] : HERO_IMAGES;
   const heroSrcSets = heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : isTc ? [] : HERO_SRCSETS;
   const heroImageWidth = heroCenter ? 1200 : HERO_IMAGE_WIDTH;
-  const heroImageHeight = heroCenter ? 675 : HERO_IMAGE_HEIGHT;
+  const heroImageHeight = heroCenter ? 1200 : HERO_IMAGE_HEIGHT;
   const heroImageAlt = heroCenter ? heroCenter.name : V.catalogTitle;
 
   return (
