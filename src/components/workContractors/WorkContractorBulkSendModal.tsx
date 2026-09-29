@@ -44,6 +44,7 @@ export function WorkContractorBulkSendModal({
   const [templateName, setTemplateName] = useState('');
   const [attachment, setAttachment] = useState<EmailAttachment | null>(null);
   const [attaching, setAttaching] = useState(false);
+  const [includeExtraEmails, setIncludeExtraEmails] = useState(false);
   const [queuedIds, setQueuedIds] = useState<string[]>([]);
   const [loadingQueued, setLoadingQueued] = useState(false);
   const [sending, setSending] = useState(false);
@@ -60,6 +61,7 @@ export function WorkContractorBulkSendModal({
     setBody('');
     setTemplateName('');
     setAttachment(null);
+    setIncludeExtraEmails(false);
     setError(null);
     setDone(null);
     setLoadingQueued(true);
@@ -73,6 +75,7 @@ export function WorkContractorBulkSendModal({
     () => contractors.filter((c) => c.category === category && c.email && !queuedIds.includes(c.id)),
     [contractors, category, queuedIds],
   );
+  const withExtraEmailsCount = useMemo(() => recipients.filter((c) => c.extraEmails.length > 0).length, [recipients]);
   const alreadyQueuedCount = useMemo(
     () => contractors.filter((c) => c.category === category && c.email && queuedIds.includes(c.id)).length,
     [contractors, category, queuedIds],
@@ -110,6 +113,7 @@ export function WorkContractorBulkSendModal({
         subject: subject.trim(),
         body,
         attachment,
+        includeExtraEmails,
         contractorIds: recipients.map((c) => c.id),
       });
       setDone(recipients.length);
@@ -207,6 +211,21 @@ export function WorkContractorBulkSendModal({
               >
                 {attaching ? 'Прикрепляем...' : 'Прикрепить файл'}
               </Button>
+            )}
+
+            {withExtraEmailsCount > 0 && (
+              <label className="flex items-start gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={includeExtraEmails}
+                  onChange={(e) => setIncludeExtraEmails(e.target.checked)}
+                />
+                <span>
+                  Слать и на дополнительные адреса — все адреса компании в поле «Кому» одного письма (
+                  {withExtraEmailsCount} {withExtraEmailsCount === 1 ? 'компания' : 'компаний'} с несколькими адресами)
+                </span>
+              </label>
             )}
 
             {recipients.length > WARN_THRESHOLD && (

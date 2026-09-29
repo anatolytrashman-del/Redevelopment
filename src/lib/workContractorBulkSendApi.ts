@@ -11,6 +11,7 @@ function fromRow(row: WorkContractorBulkSendJobRow): WorkContractorBulkSendJob {
     subject: row.subject,
     body: row.body,
     attachment: row.attachment,
+    includeExtraEmails: row.include_extra_emails ?? false,
     status: row.status === 'done' ? 'done' : 'queued',
     createdByProfileId: row.created_by_profile_id ?? null,
     createdByName: row.created_by_name ?? null,
@@ -28,6 +29,7 @@ export function insertWorkContractorBulkSendJob(input: {
   subject: string;
   body: string;
   attachment: EmailAttachment | null;
+  includeExtraEmails: boolean;
   contractorIds: string[];
 }): Promise<WorkContractorBulkSendJob> {
   return withRetry(async () => {
@@ -39,6 +41,7 @@ export function insertWorkContractorBulkSendJob(input: {
         subject: input.subject,
         body: input.body,
         attachment: input.attachment,
+        include_extra_emails: input.includeExtraEmails,
         created_by_profile_id: profile.id,
         created_by_name: profile.displayName,
       })

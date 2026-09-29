@@ -143,6 +143,11 @@ async function sendOneEmail(job: any, item: any, contractor: any) {
   }
 
   const fromAddress = emailAddress(contractor.short_code);
+  // По флажку задания — все адреса подрядчика одним письмом в поле «Кому»
+  // (include_extra_emails, миграция 20260929-work-contractor-bulk-extra-emails.sql).
+  const toAddresses = job.include_extra_emails
+    ? [...new Set([contractor.email, ...(contractor.extra_emails ?? [])].map((e: string) => String(e).trim()).filter(Boolean))]
+    : [contractor.email];
   // Idempotency-Key на строку задания — если связь оборвётся ПОСЛЕ того, как
   // Resend принял письмо, но ДО записи строки в work_contractor_emails,
   // следующий тик пойдёт по этой же строке заново; Resend по ключу вернёт
@@ -157,7 +162,7 @@ async function sendOneEmail(job: any, item: any, contractor: any) {
     },
     body: JSON.stringify({
       from: `${RESEND_FROM_NAME} <${fromAddress}>`,
-      to: [contractor.email],
+      to: toAddresses,
       subject: subject || 'Письмо',
       html: emailHtml(body),
       ...(resendAttachments.length > 0 ? { attachments: resendAttachments } : {}),
@@ -170,7 +175,7 @@ async function sendOneEmail(job: any, item: any, contractor: any) {
     contractor_id: contractor.id,
     direction: 'out',
     from_address: fromAddress,
-    to_address: contractor.email,
+    to_address: toAddresses.join(', '),
     subject,
     body,
     files: storedFiles,
