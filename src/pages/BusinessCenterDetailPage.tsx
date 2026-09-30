@@ -294,9 +294,10 @@ interface RecommendationBlockData {
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
-// Владелец, 2026-09-23: каталог ТЦ закрыт от индексации на время сбора
-// данных. Снять — отдельным решением вместе с полноценной SEO-разметкой ТЦ.
-const TC_NOINDEX = true;
+// Владелец, 2026-09-23: каталог ТЦ был закрыт от индексации на время сбора
+// данных; открыт 2026-09-30 с выкаткой в прод. Полноценная SEO-разметка ТЦ
+// (разметка здания, крошки) — следующим шагом, уже на проде.
+const TC_NOINDEX = false;
 
 // ownerMode — та же карточка для сайта самого БЦ, адрес /bc/<slug>
 // (владелец, 2026-09-24: «отдельный линк на страницу его БЦ без
@@ -2211,8 +2212,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   useEffect(() => {
     if (!center) return;
     if (isTc) {
-      // Каталог ТЦ пока закрыт от индексации (TC_NOINDEX): простые мета-теги
-      // для превью ссылки и noindex, без разметки здания и крошек.
+      // Страницы ТЦ: простые мета-теги для превью ссылки, без разметки
+      // здания и крошек (её добавим отдельно); noindex — только при TC_NOINDEX.
       setGenericPageMeta({
         title: `${fullName(center)} — ${V.one} в Минске`,
         description: [center.retailFormat, center.address].filter(Boolean).join(', '),

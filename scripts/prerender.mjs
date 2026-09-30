@@ -79,6 +79,7 @@ import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
+import { tradeCenterPaths } from './_tcPaths.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
 const DIST_DIR = join(ROOT_DIR, 'dist');
@@ -423,6 +424,23 @@ async function fetchMetroHubStations() {
     }
   }
   return [...slugs];
+}
+
+// Каталог ТЦ (открыт 2026-09-30) — из списка, который уже положил в dist
+// generate-catalog-data.mjs (там только видимые ТЦ), без отдельного похода
+// в базу. Нет файла — ТЦ просто не пререндерятся, сборка идёт дальше.
+function tradeCenterCatalogPaths() {
+  const listPath = join(DIST_DIR, 'data', 'trade-centers.json');
+  if (!existsSync(listPath)) {
+    console.warn('[prerender] нет dist/data/trade-centers.json — каталог ТЦ не пререндерится');
+    return [];
+  }
+  const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
+  return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
+    districtSlugs: DISTRICT_HUB_SLUG_BY_NAME,
+    metroSlugs: METRO_HUB_SLUG_BY_STATION,
+    metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
+  });
 }
 
 async function fetchMetroHubPaths() {
@@ -975,6 +993,7 @@ async function main() {
     ...(await fetchMicrodistrictHubPaths()),
     ...(await fetchMetroHubPaths()),
     ...(await fetchStreetHubPaths()),
+    ...tradeCenterCatalogPaths(),
     ...STATIC_PATHS,
   ];
   if (paths.length === 0) {
