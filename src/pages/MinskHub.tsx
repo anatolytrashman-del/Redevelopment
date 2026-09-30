@@ -41,15 +41,16 @@ import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 // сами каталоги объектов, без аналитики и Red One). Плюс три "скоро"-плашки
 // под будущие каталоги (ТЦ, коворкинги, склады) — страниц под них пока нет,
 // роутов в App.tsx для них соответственно тоже нет.
+// Владелец, 2026-09-30: каталог ТЦ открыт — плашка стала ссылкой на /minsk/tc.
 const CATALOGS = [
   { name: 'Бизнес-центры', icon: Building2, href: '/minsk/bc' },
-  { name: 'Торговые центры', icon: ShoppingBag, href: null },
+  { name: 'Торговые центры', icon: ShoppingBag, href: '/minsk/tc' },
   { name: 'Коворкинги', icon: Users, href: null },
   { name: 'Склады', icon: Warehouse, href: null },
 ] as const;
 
 const TITLE = 'Коммерческая недвижимость в Минске — Redevelopment';
-const DESCRIPTION = 'Каталог бизнес-центров и гиды по районам Минска для арендаторов и собственников коммерческой недвижимости.';
+const DESCRIPTION = 'Каталоги бизнес-центров и торговых центров, гиды по районам Минска для арендаторов и собственников коммерческой недвижимости.';
 const PAGE_URL = 'https://redevelopment.pro/minsk';
 
 export function MinskHub() {
