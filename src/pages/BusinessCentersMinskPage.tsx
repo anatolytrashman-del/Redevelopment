@@ -33,6 +33,7 @@ import {
 } from '../lib/pageMeta';
 import {
   businessCenterPhotoSrc,
+  tcCoverCutoutSrc,
   businessCenterDetailPhotoSrcSet,
   formatMetroDistance,
   shortAddress,
@@ -1292,10 +1293,18 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
   // Фолбэк «Футурис» — только у БЦ; у ТЦ пустой список, и hero рисует
   // нейтральную заглушку «Фото скоро» той же рамки (ветка ниже в рендере).
-  const heroImages = heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : isTc ? [] : HERO_IMAGES;
-  const heroSrcSets = heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : isTc ? [] : HERO_SRCSETS;
-  const heroImageWidth = heroCenter ? 1200 : HERO_IMAGE_WIDTH;
-  const heroImageHeight = heroCenter ? 1200 : HERO_IMAGE_HEIGHT;
+  // У ТЦ — обложка, вырезанная с фона и обрезанная по зданию (владелец,
+  // 2026-09-30: «без фона и крупнее»; варианты -cutout делает
+  // scripts/cutout-tc-covers.py). Касается корня каталога и всех подборок.
+  const tcCutout = isTc && heroCenter ? tcCoverCutoutSrc(heroCenter.photos[0]) : null;
+  const heroImages = tcCutout
+    ? [tcCutout.src]
+    : heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : isTc ? [] : HERO_IMAGES;
+  const heroSrcSets = tcCutout
+    ? [tcCutout.srcSet]
+    : heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : isTc ? [] : HERO_SRCSETS;
+  const heroImageWidth = tcCutout ? 1200 : heroCenter ? 1200 : HERO_IMAGE_WIDTH;
+  const heroImageHeight = tcCutout ? 800 : heroCenter ? 1200 : HERO_IMAGE_HEIGHT;
   const heroImageAlt = heroCenter ? heroCenter.name : isTc ? V.catalogTitle : 'Бизнес-центр «Титул»';
 
   return (
@@ -1400,10 +1409,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 {UPDATED_BADGE_LABEL}
               </span>
             </div>
-            <div className="order-2 w-full min-w-0 sm:order-none sm:flex-[2]">
+            <div className={cn('order-2 w-full min-w-0 sm:order-none', tcCutout ? 'sm:flex-[3]' : 'sm:flex-[2]')}>
               {/* Padding задаёт высоту по ширине независимо от Grid/Flex и
                   процентной высоты вложенной картинки в Safari. */}
-              <div className="relative w-full pt-[56.25%] sm:pt-[125%]">
+              <div className={cn('relative w-full', tcCutout ? 'pt-[66%] sm:pt-[80%]' : 'pt-[56.25%] sm:pt-[125%]')}>
                 <div className="absolute inset-0">
                   {heroImages.length > 0 ? (
                     <HeroImageSlider
