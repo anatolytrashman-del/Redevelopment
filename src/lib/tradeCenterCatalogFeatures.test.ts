@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brandSuggestions, buildTcFilterEntry, buildTcFilterIndex, isOpenAt, matchesTcFeatures, tcFormatGroups, type TcFilterSource } from './tradeCenterCatalogFeatures';
+import { brandSuggestions, buildTcFilterEntry, buildTcFilterIndex, isOpenAt, matchesTcFeatures, tcFormatChips, type TcFilterSource } from './tradeCenterCatalogFeatures';
 
 const base: TcFilterSource = { funKinds: [], foodZones: 0, foodcourtPlaces: 0, anchorCategories: [], parking: null, hours: [], brands: [] };
 
@@ -57,9 +57,11 @@ describe('brandSuggestions', () => {
   });
 });
 
-describe('tcFormatGroups', () => {
-  it('скрывает пустые чипы и склеивает стройку с авто', () => {
-    const groups = tcFormatGroups(['ТРЦ', 'автоцентр', 'новый формат']);
-    expect(groups.map((g) => g.chips.map((c) => c.label))).toEqual([['ТРЦ', 'новый формат'], ['стройка и авто']]);
+describe('tcFormatChips', () => {
+  it('обычные форматы — одним чипом, стройка с авто — вместе', () => {
+    expect(tcFormatChips(['ТРЦ', 'районный ТЦ', 'автоцентр', 'новый формат'])).toEqual([
+      { label: 'торговый центр', values: ['ТРЦ', 'районный ТЦ', 'новый формат'] },
+      { label: 'стройка и авто', values: ['строительный центр', 'автоцентр'] },
+    ]);
   });
 });

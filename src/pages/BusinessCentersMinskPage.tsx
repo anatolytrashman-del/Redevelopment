@@ -82,7 +82,7 @@ import {
   sortCatalogCenters,
   type CatalogFilterState,
 } from '../lib/businessCenterCatalogFilter';
-import { brandSuggestions, buildTcFilterIndex, tcFormatGroups, TC_FEATURE_GROUPS, type TcFilterIndex } from '../lib/tradeCenterCatalogFeatures';
+import { brandSuggestions, buildTcFilterIndex, tcFormatChips, TC_FEATURE_GROUPS, type TcFilterIndex } from '../lib/tradeCenterCatalogFeatures';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -914,16 +914,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableFormats, routeScoped, filter, offerIndex, tcIndex]);
-  // Формат у ТЦ — двумя группами; чип может нести два значения
-  // («стройка и авто»), и счётчик считается по обоим сразу.
-  const formatGroups = useMemo(
-    () =>
-      isTc
-        ? tcFormatGroups(availableFormats).map((g) => ({
-            label: g.label,
-            chips: g.chips.map((c) => ({ ...c, count: countWith({ formats: c.values }) })),
-          }))
-        : undefined,
+  // Формат у ТЦ — «торговый центр» плюс специализированные; чип несёт
+  // несколько значений, и счётчик считается по всем сразу.
+  const formatChips = useMemo(
+    () => (isTc ? tcFormatChips(availableFormats).map((c) => ({ ...c, count: countWith({ formats: c.values }) })) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isTc, availableFormats, routeScoped, filter, offerIndex, tcIndex],
   );
@@ -1372,7 +1366,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             availableClasses={availableClasses}
             availableFormats={availableFormats}
             formatCounts={formatCounts}
-            formatGroups={formatGroups}
+            formatChips={formatChips}
             tcFeatureCounts={tcFeatureCounts}
             storeSuggestions={isTc && tcIndex ? (q: string) => brandSuggestions(tcIndex, q) : undefined}
             underConstructionCount={underConstructionCount}
