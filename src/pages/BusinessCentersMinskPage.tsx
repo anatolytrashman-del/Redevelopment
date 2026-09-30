@@ -82,6 +82,7 @@ import {
   sortCatalogCenters,
   type CatalogFilterState,
 } from '../lib/businessCenterCatalogFilter';
+import { brandSuggestions, buildTcFilterIndex, tcFormatGroups, TC_FEATURE_GROUPS, type TcFilterIndex } from '../lib/tradeCenterCatalogFeatures';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -206,7 +207,7 @@ const CARDS_PAGE_SIZE = 48;
 
 // Параметры строки запроса, любое присутствие которых делает состояние
 // каталога неиндексируемым (см. filterIsIndexable ниже).
-const FILTER_QUERY_KEYS = ['class', 'format', 'status', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
+const FILTER_QUERY_KEYS = ['class', 'format', 'status', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'has', 'store', 'q', 'view', 'sort', 'compare'];
 
 // Карточка каталога — упрощённый вид (владелец, 2026-09-19: квадратные
 // фото под новую фотосъёмку БЦ, карточка сведена к минимуму — фото,
@@ -532,6 +533,23 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     () => (isTc ? buildOfferIndex(null, null) : buildOfferIndex(officeSnapshots, lotSizes)),
     [officeSnapshots, lotSizes, isTc],
   );
+  // Выжимка для фильтров каталога ТЦ (магазин, что внутри, парковка, часы) —
+  // отдельный файл сборки, качается только на страницах ТЦ. Нет файла —
+  // строки этих фильтров просто не показываются.
+  const [tcIndex, setTcIndex] = useState<TcFilterIndex | null>(null);
+  useEffect(() => {
+    if (!isTc || tcIndex) return;
+    let cancelled = false;
+    fetch('/data/tc-filters.json')
+      .then((res) => (res.ok && (res.headers.get('content-type') ?? '').includes('json') ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.rows) setTcIndex(buildTcFilterIndex(data.rows));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isTc, tcIndex]);
   // Любая смена фильтра, сортировки или маршрута начинает список заново:
   // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
   useEffect(() => {
@@ -557,8 +575,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   );
 
   const visibleCenters = useMemo(
-    () => routeScoped.filter((c) => matchesCatalogFilter(c, filter, offerIndex)),
-    [routeScoped, filter, offerIndex],
+    () => routeScoped.filter((c) => matchesCatalogFilter(c, filter, offerIndex, tcIndex)),
+    [routeScoped, filter, offerIndex, tcIndex],
   );
 
   // Смежные подборки (Ш2 плана docs/bc-catalog-seo-plan.md). Аудит
@@ -861,7 +879,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const availableStatuses = useMemo(() => {
     if (underConstruction) return [];
     const statuses = Array.from(new Set((centers ?? []).map((c) => c.status)));
-    return isTc && statuses.length < 2 ? [] : statuses;
+    // У ТЦ вместо строки «Статус» — переключатель «Показывать строящиеся».
+    return isTc ? [] : statuses;
   }, [centers, underConstruction, isTc]);
   const districts = useMemo(() => {
     const all = Array.from(new Set((centers ?? []).map((c) => c.district).filter((v): v is string => !!v)));
@@ -881,32 +900,61 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // всего в районе» — такая цифра врала бы при любом другом активном
   // фильтре. 143 записи в памяти, пересчёт на каждый клик ничего не стоит.
   function countWith(next: Partial<CatalogFilterState>): number {
-    return routeScoped.filter((c) => matchesCatalogFilter(c, { ...filter, ...next }, offerIndex)).length;
+    return routeScoped.filter((c) => matchesCatalogFilter(c, { ...filter, ...next }, offerIndex, tcIndex)).length;
   }
   const classCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const cls of availableClasses) m[cls] = countWith({ classes: [cls] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableClasses, routeScoped, filter, offerIndex]);
+  }, [availableClasses, routeScoped, filter, offerIndex, tcIndex]);
   const formatCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const format of availableFormats) m[format] = countWith({ formats: [format] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableFormats, routeScoped, filter, offerIndex]);
+  }, [availableFormats, routeScoped, filter, offerIndex, tcIndex]);
+  // Формат у ТЦ — двумя группами; чип может нести два значения
+  // («стройка и авто»), и счётчик считается по обоим сразу.
+  const formatGroups = useMemo(
+    () =>
+      isTc
+        ? tcFormatGroups(availableFormats).map((g) => ({
+            label: g.label,
+            chips: g.chips.map((c) => ({ ...c, count: countWith({ formats: c.values }) })),
+          }))
+        : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isTc, availableFormats, routeScoped, filter, offerIndex, tcIndex],
+  );
+  const tcFeatureCounts = useMemo(() => {
+    if (!isTc || !tcIndex) return null;
+    const m: Record<string, number> = {};
+    for (const group of TC_FEATURE_GROUPS) {
+      for (const o of group.options) {
+        m[o.id] = countWith({ tcFeatures: filter.tcFeatures.includes(o.id) ? filter.tcFeatures : [...filter.tcFeatures, o.id] });
+      }
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTc, routeScoped, filter, offerIndex, tcIndex]);
+  const underConstructionCount = useMemo(
+    () => (isTc ? countWith({ statuses: ['under_construction'] }) : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isTc, routeScoped, filter, offerIndex, tcIndex],
+  );
   const statusCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const status of availableStatuses) m[status] = countWith({ statuses: [status] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableStatuses, routeScoped, filter, offerIndex]);
+  }, [availableStatuses, routeScoped, filter, offerIndex, tcIndex]);
   const districtCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const d of districts) m[d] = countWith({ districts: [d] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [districts, routeScoped, filter, offerIndex]);
+  }, [districts, routeScoped, filter, offerIndex, tcIndex]);
   const microdistrictCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const microdistrict of filterMicrodistricts) {
@@ -914,13 +962,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMicrodistricts, routeScoped, filter, offerIndex]);
+  }, [filterMicrodistricts, routeScoped, filter, offerIndex, tcIndex]);
   const metroCounts = useMemo(() => {
     const m: Record<number, number> = {};
     for (const o of METRO_WITHIN_OPTIONS) m[o.value] = countWith({ metroWithin: o.value });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeScoped, filter, offerIndex]);
+  }, [routeScoped, filter, offerIndex, tcIndex]);
   // Список станций и счётчики по ним — фильтр «станция метро» с
   // множественным выбором (владелец, 2026-09-17).
   const metroStationList = useMemo(() => catalogMetroStations(routeScoped), [routeScoped]);
@@ -933,7 +981,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metroStationList, routeScoped, filter, offerIndex]);
+  }, [metroStationList, routeScoped, filter, offerIndex, tcIndex]);
   // Сколько зданий нельзя проверить по применённому фильтру метро: у них
   // не разобрана ни одна станция. «Не знаем» ≠ «не подходит».
   const unverifiableCount = useMemo(
@@ -1324,6 +1372,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             availableClasses={availableClasses}
             availableFormats={availableFormats}
             formatCounts={formatCounts}
+            formatGroups={formatGroups}
+            tcFeatureCounts={tcFeatureCounts}
+            storeSuggestions={isTc && tcIndex ? (q: string) => brandSuggestions(tcIndex, q) : undefined}
+            underConstructionCount={underConstructionCount}
             availableStatuses={availableStatuses}
             statusCounts={statusCounts}
             districts={districts}

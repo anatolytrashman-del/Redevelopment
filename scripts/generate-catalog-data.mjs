@@ -460,7 +460,44 @@ async function run() {
   if (dbStamps && !usedFallback) writeFileSync(join(DIST_DATA, STAMPS_FILE), JSON.stringify({ stamps: dbStamps }));
 }
 
-run().catch((err) => {
+// --- Фильтры каталога ТЦ (2026-09-30) --------------------------------------
+//
+// «Магазин в ТЦ», «Что внутри», «Парковка», «Когда» опираются на retail_info и
+// снимок арендаторов — тяжёлые поля, которых в списке нет. Сюда кладём их
+// выжимку одним файлом (~сотни КБ, в основном названия арендаторов); смысл
+// признаков считает src/lib/tradeCenterCatalogFeatures.ts. Собирается из уже
+// записанных файлов карточек, поэтому работает при любом источнике данных
+// (база, снимок, копия с прода); нет файлов ТЦ — нет и выжимки, а страница
+// тогда просто не показывает эти строки фильтра.
+function writeTcFilters() {
+  const listPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(listPath)) return;
+  const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null);
+  const rows = {};
+  for (const { slug } of JSON.parse(readFileSync(listPath, 'utf8')).rows) {
+    if (typeof slug !== 'string' || !/^[a-z0-9-]+$/.test(slug)) continue;
+    const r = readJson(join(DIST_DATA, 'bc', `${slug}.json`))?.row?.retail_info ?? {};
+    const tenants = readJson(join(DIST_DATA, 'bc', `${slug}.extra.json`))?.tenants;
+    const arr = (v) => (Array.isArray(v) ? v : []);
+    const str = (v) => (typeof v === 'string' ? v : '');
+    rows[slug] = {
+      funKinds: arr(r.fun).map((f) => str(f?.kind)).filter(Boolean),
+      foodZones: arr(r.food?.zones).length,
+      foodcourtPlaces: arr(r.food?.places).filter((p) => p?.inFoodcourt === true).length,
+      anchorCategories: arr(r.anchors).map((a) => str(a?.category)).filter(Boolean),
+      parking: r.parking && typeof r.parking === 'object'
+        ? { summary: str(r.parking.summary), items: arr(r.parking.items).map((i) => ({ label: str(i?.label), value: str(i?.value) })) }
+        : null,
+      hours: arr(r.hours).map((h) => ({ zone: str(h?.zone), value: str(h?.value) })),
+      brands: arr(tenants?.organizations).map((o) => str(o?.name)).filter(Boolean),
+    };
+  }
+  const json = JSON.stringify({ rows });
+  writeFileSync(join(DIST_DATA, 'tc-filters.json'), json);
+  console.log(`[catalog-data] фильтры ТЦ: ${Object.keys(rows).length} ТЦ, ${Math.round(Buffer.byteLength(json) / 1024)} КБ`);
+}
+
+run().then(writeTcFilters).catch((err) => {
   // Без догружаемых файлов страницы работают как раньше — через запросы в
   // базу из браузера, — поэтому сборку не валим.
   console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);
