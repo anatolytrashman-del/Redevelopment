@@ -267,7 +267,7 @@ export function BusinessCentersGuidePage() {
             какой цене они реально сдаются, сколько платит арендатор сверх ставки в объявлении и что проверить на
             осмотре и в договоре. Все цифры посчитаны по нашему каталогу
             {total > 0 ? ` из ${total} ${pluralRu(total, 'здания', 'зданий', 'зданий')}` : ''} и по
-            объявлениям с Kufar, Realt, Domovita и Megapolis
+            объявлениям с Kufar, Realt и Domovita
             {period ? `, ставки — на ${period}` : ''}. Сами здания с фильтрами, картой и ставками — в{' '}
             <Link to="/minsk/bc" className="font-semibold text-primary-hover hover:underline">
               каталоге бизнес-центров
@@ -607,7 +607,7 @@ export function BusinessCentersGuidePage() {
         <section id="obyavlenie" className={cn(card, 'scroll-mt-20')} style={glassCardShadow}>
           <h2 className="text-xl font-extrabold text-ink">Как читать объявление</h2>
           <p className="text-sm font-semibold text-ink">
-            Мы собираем объявления с Kufar, Realt, Domovita и Megapolis и видим их насквозь. Вот что в них регулярно
+            Мы собираем объявления с Kufar, Realt и Domovita и видим их насквозь. Вот что в них регулярно
             вводит в заблуждение.
           </p>
           <dl className="flex flex-col divide-y divide-border">
