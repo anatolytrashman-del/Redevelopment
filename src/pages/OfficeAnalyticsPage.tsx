@@ -378,8 +378,8 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
   const fullTitle = periodLabel ? `${title} — ${periodLabel}` : title;
   const description =
     deal === 'rent'
-      ? 'Медианная ставка аренды офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, плюс детальный разбор по бизнес-центрам.'
-      : 'Медианная цена продажи офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, плюс детальный разбор по бизнес-центрам.';
+      ? 'Медианная ставка аренды офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita, Garantiruem и Pro-N, плюс детальный разбор по бизнес-центрам.'
+      : 'Медианная цена продажи офисов в Минске по районам и типу здания — по объявлениям Kufar, Realt, Domovita, Garantiruem и Pro-N, плюс детальный разбор по бизнес-центрам.';
   const url = `https://redevelopment.pro/minsk/analytics/ofisy/${deal === 'rent' ? 'arenda' : 'prodazha'}`;
 
   // Вынесено из useEffect в useMemo — раньше собиралось только для JSON-LD,
@@ -394,7 +394,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           deal === 'rent'
             ? `Сколько стоит аренда офиса в Минске в ${periodInLabel}?`
             : `Сколько стоит офис в Минске в ${periodInLabel}?`,
-        answer: `По медиане объявлений Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N за ${periodLabel} — ${formatMoney(cwCity.median, deal)} (по ${cwCity.n} объявлениям по всему городу).`,
+        answer: `По медиане объявлений Kufar, Realt, Domovita, Garantiruem и Pro-N за ${periodLabel} — ${formatMoney(cwCity.median, deal)} (по ${cwCity.n} объявлениям по всему городу).`,
       });
     }
     const classA = bcByClass.find((s) => s.sliceKey === 'A');
@@ -417,7 +417,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
     faq.push({
       question: 'Откуда берутся данные?',
       answer:
-        'Из активных объявлений Kufar, Realt.by, Domovita, Megapolis-real, Garantiruem.by и Pro-N.by, категория «Офисы» по всему Минску. Отдельно — более глубокий разбор по 143 зданиям из нашего каталога бизнес-центров. Подробности — на странице методики.',
+        'Из активных объявлений Kufar, Realt.by, Domovita, Garantiruem.by и Pro-N.by, категория «Офисы» по всему Минску. Отдельно — более глубокий разбор по 143 зданиям из нашего каталога бизнес-центров. Подробности — на странице методики.',
     });
     return faq;
   }, [cwSnapshots, cwCity, bcByClass, deal, periodLabel, periodInLabel]);
@@ -450,7 +450,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
       url,
       datePublished: '2026-09-07',
       dateModified: modified,
-      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar, Realt, Domovita, Megapolis, Garantiruem и Pro-N, срез по месяцу',
+      measurementTechnique: 'Медиана и перцентили цены за м² по активным объявлениям Kufar, Realt, Domovita, Garantiruem и Pro-N, срез по месяцу',
     });
     setFaqJsonLd(faqItems);
   }, [cwSnapshots, cwCity, faqItems, fullTitle, description, url, title]);
@@ -1161,7 +1161,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           <p className="text-sm leading-relaxed text-ink-muted">
             Верхняя часть страницы — медиана и 25–75-й перцентили цены за м² по активным объявлениям аренды
             {deal === 'sale' ? ' и продажи' : ''} офисных помещений по всему Минску (категория «Офисы» на Kufar,
-            Realt.by, Domovita и Megapolis-real), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
+            Realt.by и Domovita), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
             нашего{' '}
             <Link to="/minsk/bc" className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
@@ -1184,7 +1184,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
             <Link to="/minsk/analytics/metodika" className="text-primary-hover hover:underline">
               отдельной странице
             </Link>
-            . Источники: Kufar (re.kufar.by), Realt.by, Domovita (domovita.by), Megapolis-real (megapolis-real.by), Garantiruem (garantiruem.by), Pro-N.by (pro-n.by)
+            . Источники: Kufar (re.kufar.by), Realt.by, Domovita (domovita.by), Garantiruem (garantiruem.by), Pro-N.by (pro-n.by)
             {externalMetrics.length > 0 && ', Твоя столица (t-s.by), Colliers International, Результативная недвижимость (belretail.by)'}.
           </p>
         </section>
