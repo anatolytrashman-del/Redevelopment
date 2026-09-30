@@ -611,6 +611,11 @@ async function openReviewsTab(page, org) {
 // страница ничего нового не даст — и цикл сразу закончится.
 async function collectReviewsByPages(page, org, collected) {
   const byKey = new Map(collected.map((r) => [`${r.author}__${r.publishedAt}`, r]));
+  // Одна пустая страница — ещё не конец: на Валерьяново (1 483 отзыва) Яндекс
+  // на ~250-м отдал пустую страницу, и сбор бросался (2026-09-30). Пустую
+  // страницу повторяем после паузы, заканчиваем только после трёх пустых подряд.
+  let emptyInRow = 0;
+  let retried = false;
   for (let n = 2; n <= 500; n += 1) {
     if (maxReviews > 0 && byKey.size >= maxReviews) break;
     await page.goto(`${orgUrl(org, 'reviews')}?page=${n}`, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
@@ -619,7 +624,10 @@ async function collectReviewsByPages(page, org, collected) {
       continue;
     }
     await page.waitForSelector('.business-review-view', { timeout: 10_000 }).catch(() => {});
-    if (!isOrgTabUrl(page.url(), org.id, 'reviews')) break;
+    if (!isOrgTabUrl(page.url(), org.id, 'reviews')) {
+      console.log(`  страница ${n}: Яндекс увёл с вкладки «Отзывы», сбор по страницам закончен`);
+      break;
+    }
     let added = 0;
     for (const review of dedupeReviews(await page.evaluate(extractReviewCardsInPage))) {
       const key = `${review.author}__${review.publishedAt}`;
@@ -627,7 +635,26 @@ async function collectReviewsByPages(page, org, collected) {
       byKey.set(key, review);
       added += 1;
     }
-    if (added === 0) break;
+    if (added === 0) {
+      if (!retried) {
+        retried = true;
+        console.log(`  страница ${n}: новых отзывов нет, пробую её ещё раз через 20 с`);
+        await page.waitForTimeout(20_000);
+        n -= 1;
+        continue;
+      }
+      emptyInRow += 1;
+      retried = false;
+      if (emptyInRow >= 3) {
+        console.log(`  три пустые страницы подряд, всего собрано ${byKey.size}`);
+        break;
+      }
+      await randomDelay();
+      continue;
+    }
+    emptyInRow = 0;
+    retried = false;
+    if (n % 5 === 0) console.log(`  страница ${n}: собрано ${byKey.size}`);
     await randomDelay();
   }
   const all = [...byKey.values()];
