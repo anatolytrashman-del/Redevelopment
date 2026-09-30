@@ -2,7 +2,8 @@
 // старый блок «Кино, еда, развлечения» (retail_info.leisure) на два:
 //
 // - «Где поесть» (id `food`) — retail_info.food: итог одной фразой, зоны
-//   (фудкорт и т.п.) плашками с метриками и ВЕСЬ список заведений по типам.
+//   (фудкорт и т.п.) строкой, цифры сверху и ВЕСЬ список заведений по типам
+//   в виде меню (вариант Б, 2026-09-30).
 //   Список бывает на 30–90 названий, поэтому свёрнут: в свёрнутом виде
 //   каждая группа показывает хотя бы пару строк (foodPlacesVisibleCounts),
 //   скрытые строки остаются в разметке — пререндер и поисковики видят
@@ -14,22 +15,16 @@
 import { useState } from 'react';
 import {
   Baby,
-  CakeSlice,
   Clapperboard,
   Clock,
-  Coffee,
   Dumbbell,
   ExternalLink,
   Gamepad2,
   HeartPulse,
   MicVocal,
   Puzzle,
-  Sandwich,
   Snowflake,
-  Soup,
   Sparkles,
-  UtensilsCrossed,
-  Wine,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -45,27 +40,18 @@ import type {
 import { pluralRu } from '../../lib/pluralRu';
 import {
   FUN_KIND_LABELS,
-  foodPlacesCollapsible,
-  foodPlacesVisibleCounts,
-  foodZoneMetrics,
   formatFloorLabel,
   formatFoodFloor,
   funMetaParts,
   groupFoodPlaces,
   sortFun,
 } from '../../lib/tradeCenterRetail';
+import { fitGridClass } from '../../lib/fitGrid';
+import { foodMenuStats, foodMenuVisibleCounts, placeHoursShort } from '../../lib/tradeCenterFood';
 import { Badge } from '../ui/Badge';
 import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
 
-const PLACE_ICONS: Record<RetailFoodPlaceType, LucideIcon> = {
-  restaurant: UtensilsCrossed,
-  cafe: Soup,
-  fastfood: Sandwich,
-  coffee: Coffee,
-  dessert: CakeSlice,
-  bar: Wine,
-};
 
 const FUN_ICONS: Record<RetailFunKind, LucideIcon> = {
   cinema: Clapperboard,
@@ -79,76 +65,43 @@ const FUN_ICONS: Record<RetailFunKind, LucideIcon> = {
   other: Sparkles,
 };
 
-const externalLinkClass =
-  'underline decoration-ink-faint/40 underline-offset-2 hover:text-primary-hover hover:decoration-primary-hover/60';
 
-function FoodZoneTile({ zone }: { zone: RetailFoodZone }) {
-  const metrics = foodZoneMetrics(zone);
+// Цвет точки у типа заведения — различить группы в меню с одного взгляда.
+const PLACE_DOT: Record<RetailFoodPlaceType, string> = {
+  restaurant: 'bg-[#e4152b]',
+  fastfood: 'bg-[#e8912d]',
+  cafe: 'bg-[#3f8a57]',
+  coffee: 'bg-[#7a5230]',
+  dessert: 'bg-[#c9679f]',
+  bar: 'bg-[#5a5fd0]',
+};
+
+function FoodZoneLine({ zone }: { zone: RetailFoodZone }) {
+  const meta = [zone.floor ? formatFloorLabel(zone.floor) : null, zone.hours].filter(Boolean);
   return (
-    <li className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-white/65 p-4">
-      <div className="flex items-start gap-3">
-        <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon"
-          aria-hidden="true"
-        >
-          <UtensilsCrossed className="h-5 w-5" />
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="break-words text-base font-bold leading-snug text-ink">{zone.name}</span>
-          {(zone.floor || zone.hours) && (
-            <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
-              {zone.floor && <span>{formatFloorLabel(zone.floor)}</span>}
-              {zone.hours && (
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  {zone.hours}
-                </span>
-              )}
-            </span>
-          )}
-        </div>
-      </div>
-      {metrics.length > 0 && (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-2">
-          {metrics.map((m) => (
-            <div key={m.label} className="flex min-w-0 flex-col rounded-xl bg-surface-muted/70 px-2.5 py-2 sm:px-3">
-              <span className="break-words text-sm font-extrabold leading-tight tabular-nums text-ink sm:text-base">
-                {m.value}
-              </span>
-              <span className="text-[11px] leading-snug text-ink-muted sm:text-xs">{m.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {zone.text && <p className="break-words text-sm leading-relaxed text-ink-muted">{zone.text}</p>}
+    <li className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+      <span className="font-bold text-ink">{zone.name}</span>
+      {meta.length > 0 && <span className="text-ink-muted">{meta.join(' · ')}</span>}
     </li>
   );
 }
 
-function FoodPlaceRow({ place, hidden }: { place: RetailFoodPlace; hidden: boolean }) {
-  const meta = [place.cuisine, place.floor ? formatFoodFloor(place.floor) : null, place.note].filter(Boolean);
+function FoodMenuRow({ place, hidden }: { place: RetailFoodPlace; hidden: boolean }) {
+  const hours = placeHoursShort(place.note);
+  const meta = [place.floor ? formatFoodFloor(place.floor) : null, hours].filter(Boolean).join(' · ');
+  const nameClass = 'min-w-0 break-words text-[15px] font-semibold leading-snug text-ink';
   return (
-    <li className={cn('flex min-w-0 flex-col gap-0.5', hidden && 'hidden')}>
-      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-        {place.yandexUrl ? (
-          <a
-            href={place.yandexUrl}
-            target="_blank"
-            rel="nofollow noopener noreferrer"
-            className={cn('break-words text-sm font-semibold leading-snug text-ink', externalLinkClass)}
-          >
-            {place.name}
-          </a>
-        ) : (
-          <span className="break-words text-sm font-semibold leading-snug text-ink">{place.name}</span>
-        )}
-        {place.inFoodcourt && (
-          <span className="rounded-full bg-surface-muted px-2 py-px text-[11px] font-semibold leading-4 text-ink-muted">
-            фудкорт
-          </span>
-        )}
-      </span>
-      {meta.length > 0 && <span className="break-words text-xs leading-snug text-ink-muted">{meta.join(' · ')}</span>}
+    <li className={cn('flex min-w-0 items-baseline gap-2 py-1', hidden && 'hidden')} title={place.cuisine ?? undefined}>
+      {place.yandexUrl ? (
+        <a href={place.yandexUrl} target="_blank" rel="nofollow noopener noreferrer" className={cn(nameClass, 'hover:text-primary-hover')}>
+          {place.name}
+        </a>
+      ) : (
+        <span className={nameClass}>{place.name}</span>
+      )}
+      {place.inFoodcourt && <span className="sr-only">, фудкорт</span>}
+      <span className="min-w-3 flex-1 translate-y-[-4px] border-b-[1.5px] border-dotted border-ink-faint/60" aria-hidden="true" />
+      {meta && <span className="shrink-0 whitespace-nowrap text-[13px] text-ink-muted tabular-nums">{meta}</span>}
     </li>
   );
 }
@@ -157,44 +110,47 @@ export function TradeCenterFoodCard({ food, title }: { food: RetailFoodInfo; tit
   const [expanded, setExpanded] = useState(false);
   const groups = groupFoodPlaces(food.places);
   const total = food.places.length;
-  const collapsible = foodPlacesCollapsible(groups);
-  const visible = foodPlacesVisibleCounts(groups);
+  const visible = foodMenuVisibleCounts(groups);
+  const collapsible = visible.reduce((sum, n) => sum + n, 0) < total;
+  const stats = foodMenuStats(food);
   return (
     <div id="food" className={cardClass} style={glassCardShadow}>
       <CardTitle id="food" label={title} />
       {food.summary && <p className="break-words text-sm leading-relaxed text-ink-muted">{food.summary}</p>}
+      {stats.length > 1 && (
+        <dl className={cn('grid gap-2.5', fitGridClass(stats.length, 4, 'tiles'))}>
+          {stats.map((stat) => (
+            <div key={stat.label} className="min-w-0 rounded-[18px] border border-border bg-white px-4 py-3">
+              <dd className="break-words text-2xl font-extrabold leading-tight tabular-nums text-ink">{stat.value}</dd>
+              <dt className="mt-0.5 text-xs text-ink-muted">{stat.label}</dt>
+            </div>
+          ))}
+        </dl>
+      )}
       {food.zones.length > 0 && (
-        <ul className={cn('grid grid-cols-1 gap-3', food.zones.length > 1 && 'md:grid-cols-2')}>
+        <ul className="flex flex-col gap-1">
           {food.zones.map((zone, i) => (
-            <FoodZoneTile key={`${zone.name}-${i}`} zone={zone} />
+            <FoodZoneLine key={`${zone.name}-${i}`} zone={zone} />
           ))}
         </ul>
       )}
       {groups.length > 0 && (
-        <div className="flex flex-col gap-5">
-          {groups.map((group, gi) => {
-            const Icon = PLACE_ICONS[group.type];
-            return (
-              <section key={group.type} className="flex flex-col gap-2.5">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
-                  <Icon className="h-4 w-4 shrink-0 text-icon" aria-hidden="true" />
-                  {group.label}
-                  <span className="rounded-full bg-surface-muted px-2 py-px text-xs font-semibold tabular-nums text-ink-muted">
-                    {group.places.length}
-                  </span>
-                </h3>
-                <ul className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                  {group.places.map((place, i) => (
-                    <FoodPlaceRow
-                      key={`${place.name}-${i}`}
-                      place={place}
-                      hidden={collapsible && !expanded && i >= visible[gi]}
-                    />
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
+        // Колонки как в меню: группа не рвётся между колонками.
+        <div className={cn('gap-x-11', groups.length > 1 && 'sm:columns-2', groups.length > 2 && 'lg:columns-3')}>
+          {groups.map((group, gi) => (
+            <section key={group.type} className="mb-5 break-inside-avoid">
+              <h3 className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                <span className={cn('h-2 w-2 shrink-0 rounded-full', PLACE_DOT[group.type])} aria-hidden="true" />
+                {group.label}
+                <span className="tabular-nums">· {group.places.length}</span>
+              </h3>
+              <ul>
+                {group.places.map((place, i) => (
+                  <FoodMenuRow key={`${place.name}-${i}`} place={place} hidden={collapsible && !expanded && i >= visible[gi]} />
+                ))}
+              </ul>
+            </section>
+          ))}
         </div>
       )}
       {collapsible && (
