@@ -9,7 +9,6 @@ import type {
   DeveloperCompany,
   DeveloperFact,
   DeveloperInfo,
-  DeveloperPerson,
   DeveloperPortfolioEntry,
   DeveloperProfile,
   DeveloperScaleEntry,
@@ -84,13 +83,6 @@ function scale(value: unknown): DeveloperScaleEntry[] {
   });
 }
 
-function people(value: unknown): DeveloperPerson[] {
-  return records(value).flatMap((r) => {
-    const name = str(r.name);
-    const role = str(r.role);
-    return name && role ? [{ name, role, ...sourceOf(r) }] : [];
-  });
-}
 
 function profile(value: unknown): DeveloperProfile | null {
   const r = record(value);
@@ -103,7 +95,6 @@ function profile(value: unknown): DeveloperProfile | null {
     hq: str(r.hq),
     business: str(r.business),
     scale: scale(r.scale),
-    people: people(r.people),
   };
 }
 
@@ -271,7 +262,6 @@ export const PORTFOLIO_PREVIEW = 8;
 export function collectDeveloperSources(info: DeveloperInfo): RetailSource[] {
   return [
     ...(info.profile?.scale ?? []),
-    ...(info.profile?.people ?? []),
     ...(info.companies ?? []),
     ...(info.portfolio ?? []),
     ...(info.facts ?? []),
@@ -299,7 +289,6 @@ export function developerSectionSize(info: DeveloperInfo | null | undefined): nu
   if (p) {
     px += 70 + (p.business ? 24 : 0) + (p.founded || p.hq ? 30 : 0);
     if (p.scale.length) px += 110 * Math.ceil(Math.min(p.scale.length, 4) / 4);
-    if (p.people.length) px += 24;
   }
   const c = info.companies ?? [];
   if (c.length) {
@@ -392,7 +381,6 @@ export function developerAboutFaqAnswer(info: DeveloperInfo | null | undefined):
       ),
     );
   }
-  if (p?.people.length) lines.push(p.people.map((x) => sentence(`${capitalizeRole(x.role)} — ${x.name}`)).join(' '));
   for (const f of info.facts ?? []) lines.push(f.label ? `${sentence(f.label)} ${sentence(f.text)}` : sentence(f.text));
   return lines.length ? lines.join('\n') : null;
 }

@@ -79,7 +79,8 @@ describe('normalizeDeveloperInfo', () => {
     expect(info?.profile?.scale).toEqual([
       { label: 'торговых центров', value: '25', date: '2024', source: null, sourceUrl: null },
     ]);
-    expect(info?.profile?.people).toHaveLength(1);
+    // Людей не показываем (владелец, 2026-09-30): поле из базы отбрасывается.
+    expect(info?.profile).not.toHaveProperty('people');
     expect(info?.portfolio).toEqual([
       entry({ kind: null, city: null, area: '12 300 м²' }),
     ]);
@@ -214,9 +215,9 @@ describe('источники и высота', () => {
 describe('FAQ', () => {
   it('developerProfileSentence', () => {
     expect(
-      developerProfileSentence({ name: 'Корона', founded: '1996', hq: 'Минск', business: 'Сеть ТЦ', scale: [], people: [] }),
+      developerProfileSentence({ name: 'Корона', founded: '1996', hq: 'Минск', business: 'Сеть ТЦ', scale: [] }),
     ).toBe('Корона: основана в 1996 году, штаб-квартира — Минск. Сеть ТЦ.');
-    expect(developerProfileSentence({ name: 'К', founded: null, hq: null, business: null, scale: [], people: [] })).toBeNull();
+    expect(developerProfileSentence({ name: 'К', founded: null, hq: null, business: null, scale: [] })).toBeNull();
     expect(developerProfileSentence(null)).toBeNull();
   });
 
@@ -244,7 +245,7 @@ describe('FAQ', () => {
     expect(developerPortfolioFaqAnswer([])).toBeNull();
   });
 
-  it('developerAboutFaqAnswer — цифры, люди, факты без повтора профиля', () => {
+  it('developerAboutFaqAnswer — цифры и факты без повтора профиля, без людей', () => {
     const info = normalizeDeveloperInfo({
       ...base,
       profile: {
@@ -256,7 +257,7 @@ describe('FAQ', () => {
       facts: [{ label: 'Первый ТЦ', text: 'Открыт в 1999 году' }, { text: 'Без подписи' }],
     });
     expect(developerAboutFaqAnswer(info)).toBe(
-      'В цифрах: торговых центров — 25 (май 2024).\nОснователь — И. Иванов.\nПервый ТЦ. Открыт в 1999 году.\nБез подписи.',
+      'В цифрах: торговых центров — 25 (май 2024).\nПервый ТЦ. Открыт в 1999 году.\nБез подписи.',
     );
     expect(developerAboutFaqAnswer(normalizeDeveloperInfo(base))).toBeNull();
   });

@@ -8,14 +8,13 @@
 // без модалки (вложенных модалок у нас нет, см. CLAUDE.md).
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Building2, CalendarDays, ExternalLink, HardHat, Landmark, Lightbulb, UserRound, Users } from 'lucide-react';
+import { Building2, CalendarDays, ExternalLink, HardHat, Landmark, Lightbulb, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DeveloperInfo } from '../../data/businessCenters';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import {
   PORTFOLIO_PREVIEW,
-  capitalizeRole,
   collectDeveloperSources,
   companyMeta,
   groupPortfolio,
@@ -113,19 +112,6 @@ export function DeveloperDeepCard({
               );
             })}
           </div>
-        )}
-        {profile && profile.people.length > 0 && (
-          <p className="flex items-start gap-1.5 text-sm text-ink-muted">
-            <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-icon" />
-            <span className="min-w-0 break-words">
-              {profile.people.map((p, i) => (
-                <span key={`${p.name}-${i}`}>
-                  {i > 0 && ' · '}
-                  {capitalizeRole(p.role)} — <span className="text-ink">{p.name}</span>
-                </span>
-              ))}
-            </span>
-          </p>
         )}
       </div>
 
