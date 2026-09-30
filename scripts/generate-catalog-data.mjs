@@ -139,7 +139,16 @@ async function copyFromProd() {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('на проде пустой /data/business-centers.json');
   mkdirSync(join(DIST_DATA, 'bc'), { recursive: true });
   writeFileSync(join(DIST_DATA, 'business-centers.json'), listJson);
-  const slugs = rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
+  // Список ТЦ (каталог /minsk/tc в проде с 2026-09-30) и файлы карточек ТЦ —
+  // тем же проходом: без них каталог ТЦ собрался бы без данных, а sitemap и
+  // пререндер — без единого ТЦ (так и вышло в первой прод-сборке). Нет
+  // списка на проде — Vercel отдаёт страницу SPA вместо JSON — тогда ТЦ нет.
+  const tc = await fetch(`${SITE_ORIGIN}/data/trade-centers.json`, { signal: AbortSignal.timeout(20_000) });
+  const tcRows = tc.ok && (tc.headers.get('content-type') ?? '').includes('json') ? JSON.parse(await tc.text()) : null;
+  if (tcRows) writeFileSync(join(DIST_DATA, 'trade-centers.json'), JSON.stringify(tcRows));
+  const slugs = [...rows, ...(tcRows?.rows ?? [])]
+    .map((r) => r.slug)
+    .filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
   let written = 0;
   for (let i = 0; i < slugs.length; i += 8) {
     await Promise.all(
@@ -373,14 +382,14 @@ async function copyExtrasFromProd() {
   for (const name of ['bc-market.json', 'bc-analytics.json', 'bc-sources.json']) {
     writeFileSync(join(DIST_DATA, name), await get(`/data/${name}`));
   }
-  // Список ТЦ появится на проде вместе с каталогом ТЦ. Пока его там нет,
-  // Vercel на этот путь отдаёт страницу SPA (200, text/html) — такое не пишем.
-  const tc = await fetch(`${SITE_ORIGIN}/data/trade-centers.json`, { signal: AbortSignal.timeout(20_000) });
-  if (tc.ok && (tc.headers.get('content-type') ?? '').includes('json')) {
-    writeFileSync(join(DIST_DATA, 'trade-centers.json'), await tc.text());
-  }
-  const { rows } = JSON.parse(readFileSync(join(DIST_DATA, 'business-centers.json'), 'utf8'));
-  const slugs = rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
+  // Список ТЦ кладёт copyFromProd. Нет его — на проде ещё нет каталога ТЦ
+  // (первая сборка после выкатки): копия не годится, собираем из базы.
+  const tcPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(tcPath)) throw new Error('на проде нет /data/trade-centers.json');
+  const slugs = ['business-centers.json', 'trade-centers.json']
+    .flatMap((name) => JSON.parse(readFileSync(join(DIST_DATA, name), 'utf8')).rows)
+    .map((r) => r.slug)
+    .filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
   for (let i = 0; i < slugs.length; i += 8) {
     await Promise.all(
       slugs.slice(i, i + 8).map(async (slug) => {
