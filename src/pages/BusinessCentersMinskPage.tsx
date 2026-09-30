@@ -33,6 +33,7 @@ import {
 } from '../lib/pageMeta';
 import {
   businessCenterPhotoSrc,
+  tcCoverCutoutSrc,
   businessCenterDetailPhotoSrcSet,
   formatMetroDistance,
   shortAddress,
@@ -57,7 +58,8 @@ import {
   STREET_SLUG_TO_NAME,
   streetHubUrl,
 } from '../lib/businessCenterHubs';
-import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
+import { BUSINESS_CENTER_CLASSES, RETAIL_FORMATS, type BusinessCenter } from '../data/businessCenters';
+import { CATALOG_VOCABULARY, kindOf, useCatalogKind, type CatalogKind } from '../lib/catalogKind';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -81,6 +83,7 @@ import {
   sortCatalogCenters,
   type CatalogFilterState,
 } from '../lib/businessCenterCatalogFilter';
+import { brandSuggestions, buildTcFilterIndex, tcFormatChips, TC_FEATURE_GROUPS, type TcFilterIndex } from '../lib/tradeCenterCatalogFeatures';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -98,9 +101,10 @@ import {
 // подборкам (см. hubBaseTitle в эффекте ниже). Отдельной константы
 // DESCRIPTION с 2026-09-22 нет — описание у всех состояний каталога,
 // включая корень, строит businessCenterHubDescription.
-const TITLE = 'Бизнес-центры Минска';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bc';
-const UNDER_CONSTRUCTION_HUB_URL = 'https://redevelopment.pro/minsk/bc/new';
+// С 2026-09-23 тот же компонент обслуживает и каталог торговых центров
+// (/minsk/tc): название раздела и адреса берутся из словаря каталога
+// (useCatalogKind, src/lib/catalogKind.tsx) — V.catalogTitle вместо
+// прежнего TITLE, V.siteUrl вместо PAGE_URL. Для БЦ строки те же, что были.
 const OG_IMAGE = 'https://redevelopment.pro/og-image.png';
 
 // Заголовок и подзаголовок hero — первая версия составлена Gemini (через
@@ -113,6 +117,15 @@ const OG_IMAGE = 'https://redevelopment.pro/og-image.png';
 const PAGE_H1 = 'Бизнес-центры Минска: каталог и аналитика рынка';
 const INTRO_TEXT =
   'Всё о бизнес-центрах Минска в одном месте — инфраструктура, помещения в аренду и на продажу, арендаторы, отзывы и фото.';
+// Шапка корня каталога торговых центров (/minsk/tc, 2026-09-23).
+const TC_PAGE_H1 = 'Торговые центры Минска: каталог';
+const TC_INTRO_TEXT = 'Торговые центры Минска в одном месте — адреса, форматы, площадь, парковка, арендаторы, отзывы и фото.';
+
+// Каталог ТЦ целиком вне индекса: noindex на каждом состоянии, никакой
+// JSON-LD разметки (Article, крошки, ItemList, FAQ). Владелец, 2026-09-23:
+// закрыто на время сбора данных. Открывать — снять флаг здесь (и проверить
+// sitemap/пререндер, это вне этого файла).
+const TC_NOINDEX = true;
 
 // Дефолт hero для голого каталога (ни одной оси хаба) и для любого хаба,
 // где ни у одного БЦ подборки нет своего фото — «Титул», вырезанный с фона
@@ -195,7 +208,7 @@ const CARDS_PAGE_SIZE = 48;
 
 // Параметры строки запроса, любое присутствие которых делает состояние
 // каталога неиндексируемым (см. filterIsIndexable ниже).
-const FILTER_QUERY_KEYS = ['class', 'status', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'q', 'view', 'sort', 'compare'];
+const FILTER_QUERY_KEYS = ['class', 'format', 'status', 'district', 'microdistrict', 'metro', 'station', 'lot', 'facts', 'has', 'store', 'q', 'view', 'sort', 'compare'];
 
 // Карточка каталога — упрощённый вид (владелец, 2026-09-19: квадратные
 // фото под новую фотосъёмку БЦ, карточка сведена к минимуму — фото,
@@ -218,9 +231,14 @@ const FILTER_QUERY_KEYS = ['class', 'status', 'district', 'microdistrict', 'metr
 // всё возвращается к прежнему виду — это правка одного только мобильного.
 export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   const nearestMetro = nearestMetroStation(center.nearestMetroStations);
+  // Каталог — по самой записи, а не по странице: карточку рисует и
+  // «Избранное», где рядом могут лежать и БЦ, и ТЦ.
+  const kind = kindOf(center);
+  // У ТЦ вместо делового класса — формат (ТРЦ, универмаг, рынок…).
+  const badge = kind === 'tc' ? center.retailFormat : center.businessClass ? `Класс ${center.businessClass}` : null;
   return (
     <Link
-      to={`/minsk/bc/${center.slug}`}
+      to={`${CATALOG_VOCABULARY[kind].basePath}/${center.slug}`}
       className={cn(
         'group flex h-full min-w-0 flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
         glassCardClass,
@@ -239,9 +257,9 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
             под сердечко в узкой колонке: не влезло в строку — переносится
             под первым бейджем (flex-wrap), а не под кнопку избранного. */}
         <div className="absolute left-1.5 top-1.5 flex max-w-[calc(100%-2.75rem)] flex-wrap items-start gap-1 sm:left-2 sm:top-2 sm:max-w-none sm:gap-1.5">
-          {center.businessClass && (
+          {badge && (
             <span className="rounded-full bg-ink-muted/90 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm backdrop-blur-sm sm:px-2.5 sm:py-1 sm:text-xs">
-              {`Класс ${center.businessClass}`}
+              {badge}
             </span>
           )}
           {center.status === 'under_construction' && (
@@ -319,12 +337,16 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
 // stroyashchiesya, аудит поиска 2026-09-07: срез «строящиеся БЦ 2026–2027»).
 // Не комбинируется с классом/районом (та же логика, что у микрорайона):
 // объектов в стройке единицы, пересечения дали бы пустые страницы.
-function pluralBusinessCenters(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'бизнес-центр';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'бизнес-центра';
-  return 'бизнес-центров';
+// Число с существительным каталога — V.plural (src/lib/catalogKind.tsx);
+// своя pluralBusinessCenters здесь была до 2026-09-23.
+
+// Форматы ТЦ в чипах — в порядке пресета RETAIL_FORMATS (от крупного к
+// специализированному), свои значения из админки — после, по алфавиту.
+function orderRetailFormats(values: string[]): string[] {
+  const preset = RETAIL_FORMATS as readonly string[];
+  const known = preset.filter((f) => values.includes(f));
+  const custom = values.filter((f) => !preset.includes(f)).sort((a, b) => a.localeCompare(b, 'ru'));
+  return [...known, ...custom];
 }
 
 export function BusinessCentersMinskPage({ underConstruction = false }: { underConstruction?: boolean } = {}) {
@@ -336,12 +358,25 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     streetSlug?: string;
   }>();
   const { id: favoritesId, slugs: favoriteSlugs } = useFavorites();
+  // Каталог страницы: бизнес-центры (/minsk/bc) или торговые центры
+  // (/minsk/tc, 2026-09-23) — тексты, адреса и набор блоков берутся отсюда.
+  const V = useCatalogKind();
+  const isTc = V.kind === 'tc';
   // Стартуем с данных, положенных в сборку (Ш3-b плана
   // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
   // поэтому первый же рендер получается полным — без «Загрузка…» поверх
   // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
   // переход, страница вне раздела) — как раньше, null и запрос ниже.
-  const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
+  //
+  // Список хранится вместе с каталогом, к которому он относится: при SPA-
+  // переходе /minsk/bc → /minsk/tc React может переиспользовать тот же
+  // экземпляр компонента, и без этой метки на странице ТЦ на кадр остался
+  // бы список БЦ.
+  const [loaded, setLoaded] = useState<{ kind: CatalogKind; list: BusinessCenter[] | null }>(() => ({
+    kind: V.kind,
+    list: snapshotBusinessCenters(V.kind),
+  }));
+  const centers = loaded.kind === V.kind ? loaded.list : snapshotBusinessCenters(V.kind);
   // Первый кадр — с уже пришедшими данными сборки, как в пререндер-снапшоте
   // (peekBuildData в src/lib/buildData.ts), иначе блок прыгает при монтировании.
   const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots('ofisy_bc'));
@@ -392,22 +427,34 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const notFound = badClassSlug || badDistrictSlug || badMicrodistrictSlug || badMetroSlug || metroEmpty || badStreetSlug || comboEmpty;
 
   useEffect(() => {
-    fetchBusinessCenters()
-      .then(setCenters)
+    const kind = V.kind;
+    let cancelled = false;
+    fetchBusinessCenters(kind)
+      .then((list) => {
+        if (!cancelled) setLoaded({ kind, list });
+      })
       // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
       // каталог на месте готового — хуже, чем данные часовой давности.
-      .catch(() => setCenters((prev) => prev ?? []));
-    // ANALYTICSPLAN.md §4.2 — сводка ставок на фильтровых страницах, из
-    // уже собранного сегмента 'ofisy_bc' (market_snapshots). Дёшево (~20
-    // строк за один запрос) — грузим всегда, не только на хаб-страницах
-    // класса/района, показываем только там, где для этого есть срез.
-    fetchLatestMarketSnapshots('ofisy_bc')
-      .then(setOfficeSnapshots)
-      .catch(() => setOfficeSnapshots([]));
-    fetchBusinessCenterLotSizes()
-      .then(setLotSizes)
-      .catch(() => setLotSizes([]));
-  }, []);
+      .catch(() => {
+        if (!cancelled) setLoaded((prev) => (prev.kind === kind && prev.list ? prev : { kind, list: snapshotBusinessCenters(kind) ?? [] }));
+      });
+    // Ставки и лоты — про офисы в бизнес-центрах; каталогу ТЦ их не грузим.
+    if (kind !== 'tc') {
+      // ANALYTICSPLAN.md §4.2 — сводка ставок на фильтровых страницах, из
+      // уже собранного сегмента 'ofisy_bc' (market_snapshots). Дёшево (~20
+      // строк за один запрос) — грузим всегда, не только на хаб-страницах
+      // класса/района, показываем только там, где для этого есть срез.
+      fetchLatestMarketSnapshots('ofisy_bc')
+        .then(setOfficeSnapshots)
+        .catch(() => setOfficeSnapshots([]));
+      fetchBusinessCenterLotSizes()
+        .then(setLotSizes)
+        .catch(() => setLotSizes([]));
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [V.kind]);
 
   // Единственная ось — класс ИЛИ район (не комбо, не микрорайон/метро/
   // улица/стройка): market_snapshots не хранит срез по пересечению класс×
@@ -420,7 +467,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const rateSliceKey = classFilter && !districtFilter ? classFilter : !classFilter && districtFilter ? districtFilter : null;
   const rateSliceType: MarketSnapshot['sliceType'] | null = classFilter && !districtFilter ? 'class' : !classFilter && districtFilter ? 'district' : null;
   const showRatesBlock =
-    !underConstruction && !metroFilter && !streetFilter && !microdistrictFilter && rateSliceKey !== null && rateSliceType !== null;
+    !isTc && !underConstruction && !metroFilter && !streetFilter && !microdistrictFilter && rateSliceKey !== null && rateSliceType !== null;
   const rateRent = useMemo(
     () =>
       showRatesBlock
@@ -466,18 +513,44 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const filter: CatalogFilterState = useMemo(
     () => ({
       ...queryFilter,
-      classes: classFilter ? [classFilter] : queryFilter.classes,
+      // У ТЦ нет делового класса: ?class=… из чужой ссылки не должен
+      // молча обнулять выдачу без видимого чипа, который можно снять.
+      classes: isTc ? [] : classFilter ? [classFilter] : queryFilter.classes,
+      // И наоборот — формата нет у БЦ.
+      formats: isTc ? queryFilter.formats : [],
       districts: districtFilter ? [districtFilter] : queryFilter.districts,
       microdistricts: microdistrictFilter ? [microdistrictFilter] : queryFilter.microdistricts,
     }),
-    [queryFilter, classFilter, districtFilter, microdistrictFilter],
+    [queryFilter, classFilter, districtFilter, microdistrictFilter, isTc],
   );
 
 
 
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
-  const offerIndex = useMemo(() => buildOfferIndex(officeSnapshots, lotSizes), [officeSnapshots, lotSizes]);
+  // У ТЦ офисных объявлений нет — индекс пустой (стейт мог остаться от
+  // каталога БЦ при SPA-переходе, поэтому отсекаем по isTc, а не по null).
+  const offerIndex = useMemo(
+    () => (isTc ? buildOfferIndex(null, null) : buildOfferIndex(officeSnapshots, lotSizes)),
+    [officeSnapshots, lotSizes, isTc],
+  );
+  // Выжимка для фильтров каталога ТЦ (магазин, что внутри, парковка, часы) —
+  // отдельный файл сборки, качается только на страницах ТЦ. Нет файла —
+  // строки этих фильтров просто не показываются.
+  const [tcIndex, setTcIndex] = useState<TcFilterIndex | null>(null);
+  useEffect(() => {
+    if (!isTc || tcIndex) return;
+    let cancelled = false;
+    fetch('/data/tc-filters.json')
+      .then((res) => (res.ok && (res.headers.get('content-type') ?? '').includes('json') ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.rows) setTcIndex(buildTcFilterIndex(data.rows));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isTc, tcIndex]);
   // Любая смена фильтра, сортировки или маршрута начинает список заново:
   // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
   useEffect(() => {
@@ -503,8 +576,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   );
 
   const visibleCenters = useMemo(
-    () => routeScoped.filter((c) => matchesCatalogFilter(c, filter, offerIndex)),
-    [routeScoped, filter, offerIndex],
+    () => routeScoped.filter((c) => matchesCatalogFilter(c, filter, offerIndex, tcIndex)),
+    [routeScoped, filter, offerIndex, tcIndex],
   );
 
   // Смежные подборки (Ш2 плана docs/bc-catalog-seo-plan.md). Аудит
@@ -531,9 +604,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const groups: { title: string; links: { label: string; url: string }[] }[] = [];
     const big = (n: number) => n >= MIN_INDEXABLE_HUB_CENTERS;
 
+    // У каталога ТЦ хабов «класс + район», микрорайонов и улиц нет
+    // (построители ниже отдают для его корня null) — строка пустеет сама.
     if (isDistrictHub && districtFilter) {
       const inDistrict = all.filter((c) => c.district === districtFilter);
-      const classLinks = BUSINESS_CENTER_CLASSES.flatMap((cls) => {
+      const classLinks = isTc ? [] : BUSINESS_CENTER_CLASSES.flatMap((cls) => {
         const n = inDistrict.filter((c) => c.businessClass === cls).length;
         const url = big(n) ? classDistrictHubUrl(cls, districtFilter) : null;
         return url ? [{ label: `Класс ${cls} (${n})`, url }] : [];
@@ -544,7 +619,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         .sort((a, b) => a.localeCompare(b, 'ru'))
         .flatMap((name) => {
           const n = all.filter((c) => c.microdistrict === name).length;
-          const url = big(n) ? microdistrictHubUrl(name) : null;
+          const url = big(n) ? microdistrictHubUrl(name, V.basePath) : null;
           return url ? [{ label: `${name} (${n})`, url }] : [];
         });
       if (microLinks.length) groups.push({ title: 'Микрорайоны', links: microLinks });
@@ -553,13 +628,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         .sort((a, b) => a.localeCompare(b, 'ru'))
         .flatMap((name) => {
           const n = all.filter((c) => streetOfAddress(c.address) === name).length;
-          const url = big(n) ? streetHubUrl(name) : null;
+          const url = big(n) ? streetHubUrl(name, V.basePath) : null;
           return url ? [{ label: `${name} (${n})`, url }] : [];
         });
       if (streetLinks.length) groups.push({ title: 'Улицы', links: streetLinks });
     }
 
-    if (isClassHub && classFilter) {
+    if (isClassHub && classFilter && !isTc) {
       const districtLinks = Array.from(new Set(all.filter((c) => c.businessClass === classFilter).map((c) => c.district).filter((v): v is string => !!v)))
         .sort((a, b) => a.localeCompare(b, 'ru'))
         .flatMap((name) => {
@@ -571,7 +646,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
 
     return groups;
-  }, [centers, districtFilter, classFilter, microdistrictFilter, metroFilter, streetFilter, underConstruction]);
+  }, [centers, districtFilter, classFilter, microdistrictFilter, metroFilter, streetFilter, underConstruction, isTc, V.basePath]);
 
   // Число зданий в разделе и порог индексации производных срезов (Ш2 плана
   // docs/bc-catalog-seo-plan.md). Считается при рендере, а не внутри
@@ -592,7 +667,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     Boolean(streetFilter || microdistrictFilter || (classFilter && districtFilter));
   // Единственный ответ на вопрос «эту страницу индексируем?»: и мета, и FAQ,
   // и ItemList смотрят сюда.
-  const pageIsIndexable = !notFound && filterIsIndexable && !thinDerivedHub;
+  // Каталог ТЦ — вне индекса целиком (TC_NOINDEX): отсюда же пропадает и
+  // вся разметка — мета-эффект, FAQ и ItemList смотрят на этот флаг.
+  const pageIsIndexable = !notFound && filterIsIndexable && !thinDerivedHub && !(isTc && TC_NOINDEX);
 
   // Мета-теги каталога. Эффект стоит ПОСЛЕ visibleCenters сознательно: с
   // 2026-09-22 в заголовок и описание подставляется число зданий в
@@ -613,26 +690,26 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     // делает каждую подборку своей и заодно отвечает на вопрос,
     // ради которого на такую страницу и заходят.
     const hubBaseTitle = underConstruction
-      ? 'Строящиеся бизнес-центры Минска'
+      ? `Строящиеся ${V.many} Минска`
       : metroFilter
-        ? `Бизнес-центры у метро ${metroFilter}`
+        ? `${V.Many} у метро ${metroFilter}`
         : streetFilter
-          ? `Бизнес-центры Минска: ${streetFilter}`
+          ? `${V.Many} Минска: ${streetFilter}`
           : classFilter && districtFilter
-        ? `Бизнес-центры класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
+        ? `${V.Many} класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
         : classFilter
-          ? `Бизнес-центры класса ${classFilter} в Минске`
+          ? `${V.Many} класса ${classFilter} в Минске`
           : districtFilter
-            ? `Бизнес-центры Минска: ${districtFilter} район`
+            ? `${V.Many} Минска: ${districtFilter} район`
             : microdistrictFilter
-              ? `Бизнес-центры ${microdistrictFilter}`
-              : TITLE;
+              ? `${V.Many} ${microdistrictFilter}`
+              : V.catalogTitle;
     // Родительный падеж — под «Актуальная аналитика N ...», и падеж зависит
     // от самого N: «аналитика 5 бизнес-центров», но «аналитика 141
     // бизнес-центра». Без этого на корне каталога стояло бы «аналитика 141
     // бизнес-центров» — ошибка в первой же строке сниппета.
     const one = hubCount !== null && hubCount % 10 === 1 && hubCount % 100 !== 11;
-    const bc = one ? 'бизнес-центра' : 'бизнес-центров';
+    const bc = one ? V.oneGen : V.manyGen;
     const hubSubject = underConstruction
       ? `${one ? 'строящегося' : 'строящихся'} ${bc} Минска`
       : metroFilter
@@ -662,22 +739,22 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             `${hubBaseTitle} — ${hubCount} ${pluralRu(hubCount, 'здание', 'здания', 'зданий')}`,
             hubBaseTitle,
           ].find(fitsSerpTitle) ?? hubBaseTitle);
-    const hubDescription = businessCenterHubDescription(hubSubject, hubCount);
+    const hubDescription = businessCenterHubDescription(hubSubject, hubCount, V.kind);
     const hubUrl = underConstruction
-      ? UNDER_CONSTRUCTION_HUB_URL
+      ? `${V.siteUrl}/new`
       : metroFilter
-        ? `https://redevelopment.pro${metroHubUrl(metroFilter) ?? ''}`
+        ? `https://redevelopment.pro${metroHubUrl(metroFilter, V.basePath) ?? ''}`
         : streetFilter
-          ? `https://redevelopment.pro${streetHubUrl(streetFilter) ?? ''}`
+          ? `https://redevelopment.pro${streetHubUrl(streetFilter, V.basePath) ?? ''}`
           : classFilter && districtFilter
         ? `https://redevelopment.pro${classDistrictHubUrl(classFilter, districtFilter) ?? ''}`
         : classFilter
           ? `https://redevelopment.pro${classHubUrl(classFilter)}`
           : districtFilter
-            ? `https://redevelopment.pro${districtHubUrl(districtFilter) ?? ''}`
+            ? `https://redevelopment.pro${districtHubUrl(districtFilter, V.basePath) ?? ''}`
             : microdistrictFilter
-              ? `https://redevelopment.pro${microdistrictHubUrl(microdistrictFilter) ?? ''}`
-              : PAGE_URL;
+              ? `https://redevelopment.pro${microdistrictHubUrl(microdistrictFilter, V.basePath) ?? ''}`
+              : V.siteUrl;
 
     setGenericPageMeta({ title: hubTitle, description: hubDescription, url: hubUrl, image: OG_IMAGE, ogType: 'article' });
 
@@ -711,14 +788,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       classFilter && districtFilter
         ? [
             { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-            { name: 'Бизнес-центры Минска', url: PAGE_URL },
+            { name: V.catalogTitle, url: V.siteUrl },
             { name: `Класс ${classFilter}`, url: `https://redevelopment.pro${classHubUrl(classFilter)}` },
             { name: `${districtFilter} район` },
           ]
         : classFilter || districtFilter || microdistrictFilter || underConstruction || metroFilter || streetFilter
           ? [
               { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-              { name: 'Бизнес-центры Минска', url: PAGE_URL },
+              { name: V.catalogTitle, url: V.siteUrl },
               {
                 name: underConstruction
                   ? 'Строящиеся'
@@ -733,10 +810,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             ]
           : [
               { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-              { name: 'Бизнес-центры Минска' },
+              { name: V.catalogTitle },
             ],
     );
-  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, pageIsIndexable, centers, hubCount]);
+  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, notFound, pageIsIndexable, centers, hubCount, V]);
 
   // На хабе станции порядок по умолчанию — расстояние до неё (ближайшие
   // первыми): это и есть ответ на вопрос такой страницы. Явно выбранная в
@@ -767,7 +844,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const hasHubAxis = Boolean(
     classFilter || districtFilter || microdistrictFilter || metroFilter || streetFilter || underConstruction,
   );
-  const heroCenter = useMemo(() => (hasHubAxis ? pickHeroCenter(hubCenters) : null), [hasHubAxis, hubCenters]);
+  // У ТЦ «Футуриса» по умолчанию нет (бизнес-центр в шапке каталога ТЦ был
+  // бы неправдой), поэтому лучший объект подборки ищется и на корне; нет
+  // фото ни у кого — нейтральная заглушка «Фото скоро» (см. рендер hero).
+  const heroCenter = useMemo(
+    () => (hasHubAxis || isTc ? pickHeroCenter(hubCenters) : null),
+    [hasHubAxis, isTc, hubCenters],
+  );
 
   // Классы и районы для чипов — весь набор, встречающийся в данных (не
   // урезанный по другой оси, как было у старого сайдбара): вместо того
@@ -775,16 +858,31 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // Порядок — как на рынке (A, B+, B, C), а не алфавитный: .sort() ставил
   // «B» перед «B+», потому что для строк «B» < «B+».
   const availableClasses = useMemo(() => {
+    // Делового класса у ТЦ нет — строки «Класс» в фильтре тоже.
+    if (isTc) return [];
     const present = new Set((centers ?? []).map((c) => c.businessClass).filter((v): v is NonNullable<typeof v> => !!v));
     return BUSINESS_CENTER_CLASSES.filter((cls) => present.has(cls));
-  }, [centers]);
+  }, [centers, isTc]);
+  // Формат — ось каталога ТЦ вместо класса (ТРЦ, универмаг, рынок…).
+  const availableFormats = useMemo(
+    () =>
+      isTc
+        ? orderRetailFormats(Array.from(new Set((centers ?? []).map((c) => c.retailFormat).filter((v): v is string => !!v))))
+        : [],
+    [centers, isTc],
+  );
   // Статус — построено/строится — не показываем на хабе «Строящиеся»
   // (/minsk/bc/new): там ось уже задана маршрутом, чип
   // «Построенные» показал бы только нули.
-  const availableStatuses = useMemo(
-    () => (underConstruction ? [] : Array.from(new Set((centers ?? []).map((c) => c.status)))),
-    [centers, underConstruction],
-  );
+  // У ТЦ оси «строящиеся» нет; строку «Статус» показываем, только если в
+  // данных правда есть и построенные, и строящиеся — иначе один чип на
+  // весь каталог ничего не фильтрует.
+  const availableStatuses = useMemo(() => {
+    if (underConstruction) return [];
+    const statuses = Array.from(new Set((centers ?? []).map((c) => c.status)));
+    // У ТЦ вместо строки «Статус» — переключатель «Показывать строящиеся».
+    return isTc ? [] : statuses;
+  }, [centers, underConstruction, isTc]);
   const districts = useMemo(() => {
     const all = Array.from(new Set((centers ?? []).map((c) => c.district).filter((v): v is string => !!v)));
     const inCity = all.filter((d) => d !== OUT_OF_TOWN_DISTRICT).sort((a, b) => a.localeCompare(b, 'ru'));
@@ -803,26 +901,55 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // всего в районе» — такая цифра врала бы при любом другом активном
   // фильтре. 143 записи в памяти, пересчёт на каждый клик ничего не стоит.
   function countWith(next: Partial<CatalogFilterState>): number {
-    return routeScoped.filter((c) => matchesCatalogFilter(c, { ...filter, ...next }, offerIndex)).length;
+    return routeScoped.filter((c) => matchesCatalogFilter(c, { ...filter, ...next }, offerIndex, tcIndex)).length;
   }
   const classCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const cls of availableClasses) m[cls] = countWith({ classes: [cls] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableClasses, routeScoped, filter, offerIndex]);
+  }, [availableClasses, routeScoped, filter, offerIndex, tcIndex]);
+  const formatCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const format of availableFormats) m[format] = countWith({ formats: [format] });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableFormats, routeScoped, filter, offerIndex, tcIndex]);
+  // Формат у ТЦ — «торговый центр» плюс специализированные; чип несёт
+  // несколько значений, и счётчик считается по всем сразу.
+  const formatChips = useMemo(
+    () => (isTc ? tcFormatChips(availableFormats).map((c) => ({ ...c, count: countWith({ formats: c.values }) })) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isTc, availableFormats, routeScoped, filter, offerIndex, tcIndex],
+  );
+  const tcFeatureCounts = useMemo(() => {
+    if (!isTc || !tcIndex) return null;
+    const m: Record<string, number> = {};
+    for (const group of TC_FEATURE_GROUPS) {
+      for (const o of group.options) {
+        m[o.id] = countWith({ tcFeatures: filter.tcFeatures.includes(o.id) ? filter.tcFeatures : [...filter.tcFeatures, o.id] });
+      }
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTc, routeScoped, filter, offerIndex, tcIndex]);
+  const underConstructionCount = useMemo(
+    () => (isTc ? countWith({ statuses: ['under_construction'] }) : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isTc, routeScoped, filter, offerIndex, tcIndex],
+  );
   const statusCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const status of availableStatuses) m[status] = countWith({ statuses: [status] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableStatuses, routeScoped, filter, offerIndex]);
+  }, [availableStatuses, routeScoped, filter, offerIndex, tcIndex]);
   const districtCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const d of districts) m[d] = countWith({ districts: [d] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [districts, routeScoped, filter, offerIndex]);
+  }, [districts, routeScoped, filter, offerIndex, tcIndex]);
   const microdistrictCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const microdistrict of filterMicrodistricts) {
@@ -830,13 +957,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMicrodistricts, routeScoped, filter, offerIndex]);
+  }, [filterMicrodistricts, routeScoped, filter, offerIndex, tcIndex]);
   const metroCounts = useMemo(() => {
     const m: Record<number, number> = {};
     for (const o of METRO_WITHIN_OPTIONS) m[o.value] = countWith({ metroWithin: o.value });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeScoped, filter, offerIndex]);
+  }, [routeScoped, filter, offerIndex, tcIndex]);
   // Список станций и счётчики по ним — фильтр «станция метро» с
   // множественным выбором (владелец, 2026-09-17).
   const metroStationList = useMemo(() => catalogMetroStations(routeScoped), [routeScoped]);
@@ -849,7 +976,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metroStationList, routeScoped, filter, offerIndex]);
+  }, [metroStationList, routeScoped, filter, offerIndex, tcIndex]);
   // Сколько зданий нельзя проверить по применённому фильтру метро: у них
   // не разобрана ни одна станция. «Не знаем» ≠ «не подходит».
   const unverifiableCount = useMemo(
@@ -866,13 +993,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // в query прямо на этом пути: там ось маршрута — другая, и терять её
   // ради класса нельзя.
   const routeHubPath = underConstruction
-    ? '/minsk/bc/new'
+    ? `${V.basePath}/new`
     : microdistrictFilter
-      ? microdistrictHubUrl(microdistrictFilter)
+      ? microdistrictHubUrl(microdistrictFilter, V.basePath)
       : streetFilter
-        ? streetHubUrl(streetFilter)
+        ? streetHubUrl(streetFilter, V.basePath)
         : metroFilter
-          ? metroHubUrl(metroFilter)
+          ? metroHubUrl(metroFilter, V.basePath)
           : null;
 
   function urlForFilter(next: CatalogFilterState): string {
@@ -897,21 +1024,22 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       next.classes.length === 0 &&
       next.districts === null
     ) {
-      const url = microdistrictHubUrl(next.microdistricts[0]);
+      const url = microdistrictHubUrl(next.microdistricts[0], V.basePath);
       if (url) return url + withoutAxes;
     }
-    if (next.classes.length === 1 && next.districts?.length === 1 && next.microdistricts === null) {
+    // Хабы класса — только у каталога БЦ (у ТЦ classes всегда пуст).
+    if (!isTc && next.classes.length === 1 && next.districts?.length === 1 && next.microdistricts === null) {
       const url = classDistrictHubUrl(next.classes[0] as NonNullable<BusinessCenter['businessClass']>, next.districts[0]);
       if (url) return url + withoutAxes;
     }
-    if (next.classes.length === 1 && next.districts === null && next.microdistricts === null) {
+    if (!isTc && next.classes.length === 1 && next.districts === null && next.microdistricts === null) {
       return classHubUrl(next.classes[0] as NonNullable<BusinessCenter['businessClass']>) + withoutAxes;
     }
     if (next.classes.length === 0 && next.districts?.length === 1 && next.microdistricts === null) {
-      const url = districtHubUrl(next.districts[0]);
+      const url = districtHubUrl(next.districts[0], V.basePath);
       if (url) return url + withoutAxes;
     }
-    return '/minsk/bc' + catalogFilterToQuery(next);
+    return V.basePath + catalogFilterToQuery(next);
   }
 
   // replace: true — фильтрование не должно забивать историю браузера так,
@@ -935,7 +1063,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     applyFilter({ ...EMPTY_CATALOG_FILTER, compare: filter.compare });
   }
 
-  const bcCountLabel = centers ? `${visibleCenters.length} ${pluralBusinessCenters(visibleCenters.length)}` : 'бизнес-центры';
+  const bcCountLabel = centers ? `${visibleCenters.length} ${V.plural(visibleCenters.length)}` : V.many;
 
   // Полоска сводки над сеткой (К1): пересчитывается под фильтр. С
   // 2026-09-22 это единственная сводка в теле каталога — карточка «Рынок в
@@ -961,7 +1089,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const underConstruction = visibleCenters.filter((c) => c.status === 'under_construction').length;
     const byClass: Record<string, number> = {};
     for (const c of visibleCenters) if (c.businessClass) byClass[c.businessClass] = (byClass[c.businessClass] ?? 0) + 1;
-    return { total: visibleCenters.length, totalArea, withAreaCount: withArea.length, nearMetro: nearMetro.length, withMetroCount: withMetro.length, underConstruction, byClass };
+    const byFormat: Record<string, number> = {};
+    for (const c of visibleCenters) if (c.retailFormat) byFormat[c.retailFormat] = (byFormat[c.retailFormat] ?? 0) + 1;
+    return { total: visibleCenters.length, totalArea, withAreaCount: withArea.length, nearMetro: nearMetro.length, withMetroCount: withMetro.length, underConstruction, byClass, byFormat };
   }, [visibleCenters]);
 
   // Подпись текущего раздела каталога для FAQ.
@@ -1002,7 +1132,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     if (centers === null) return [];
     const items: { question: string; answer: string }[] = [];
     const add = (question: string, answer: string) => items.push({ question, answer });
-    add(`Сколько бизнес-центров ${scopeLabel} есть в текущей выборке?`, `Найдено ${marketStats.total} зданий с учётом выбранных фильтров.`);
+    add(`Сколько ${V.manyGen} ${scopeLabel} есть в текущей выборке?`, `Найдено ${marketStats.total} зданий с учётом выбранных фильтров.`);
     const groupNames = (entries: [string, number][]) => `${entries.slice(0, 2).map(([name]) => `«${name}»`).join(' и ')}${entries.length > 2 ? ` и ещё ${entries.length - 2}` : ''}`;
     const extremes = (entries: [string, number][], most: string, least: string, equal: string, format: (value: number) => string) => {
       const sorted = [...entries].sort((a, b) => b[1] - a[1]);
@@ -1014,23 +1144,30 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       return `${most}: ${groupNames(high)} — ${high.length > 1 ? 'по ' : ''}${format(max)}. ${least}: ${groupNames(low)} — ${low.length > 1 ? 'по ' : ''}${format(min)}.`;
     };
     if (marketStats.withAreaCount > 0) add('Какая суммарная площадь зданий?', `${Math.round(marketStats.totalArea).toLocaleString('ru-RU')} м². Площадь известна у ${marketStats.withAreaCount} из ${marketStats.total} зданий выборки. Суммируем только их площади.`);
-    if (Object.keys(marketStats.byClass).length) add('Как здания выборки распределены по классам?', (() => {
+    if (!isTc && Object.keys(marketStats.byClass).length) add('Как здания выборки распределены по классам?', (() => {
       const classes = Object.entries(marketStats.byClass);
-      if (classes.length === 1) return `В выборке один известный класс — ${classes[0][0]}. К нему относятся ${classes[0][1]} БЦ.`;
-      return `В выборке классов: ${classes.length}. ${extremes(classes, 'Больше всего зданий в классах', 'Меньше всего в классах', 'В каждом классе поровну', (n) => `${n} БЦ`)}`;
+      if (classes.length === 1) return `В выборке один известный класс — ${classes[0][0]}. К нему относятся ${classes[0][1]} ${V.abbr}.`;
+      return `В выборке классов: ${classes.length}. ${extremes(classes, 'Больше всего зданий в классах', 'Меньше всего в классах', 'В каждом классе поровну', (n) => `${n} ${V.abbr}`)}`;
+    })());
+    // У ТЦ вместо класса — формат: тот же вопрос по тому, что на бейджах карточек.
+    if (isTc && Object.keys(marketStats.byFormat).length) add('Как здания выборки распределены по форматам?', (() => {
+      const formats = Object.entries(marketStats.byFormat);
+      if (formats.length === 1) return `В выборке один известный формат — «${formats[0][0]}». К нему относятся ${formats[0][1]} ${V.abbr}.`;
+      return `В выборке форматов: ${formats.length}. ${extremes(formats, 'Больше всего зданий в форматах', 'Меньше всего в форматах', 'В каждом формате поровну', (n) => `${n} ${V.abbr}`)}`;
     })());
     if (Object.keys(districtTotals).length) add('Как весь каталог распределён по районам?', (() => {
       const districts = Object.entries(districtTotals);
       const parts = [districts.length === 1
-        ? `В каталоге один район — «${districts[0][0]}», ${districts[0][1]} БЦ.`
-        : `В каталоге районов: ${districts.length}. ${extremes(districts, 'Больше всего БЦ в районах', 'Меньше всего в районах', 'В каждом районе поровну', (n) => `${n} БЦ`)}`];
+        ? `В каталоге один район — «${districts[0][0]}», ${districts[0][1]} ${V.abbr}.`
+        : `В каталоге районов: ${districts.length}. ${extremes(districts, `Больше всего ${V.abbr} в районах`, 'Меньше всего в районах', 'В каждом районе поровну', (n) => `${n} ${V.abbr}`)}`];
       const areas: [string, number][] = districts.map(([district]) => [district, (centers ?? []).filter((c) => c.district === district).reduce((sum, c) => sum + (c.totalArea ?? 0), 0)]);
       const knownAreas = areas.filter(([, area]) => area > 0).sort((a, b) => b[1] - a[1]);
       if (knownAreas.length) {
         const largest = knownAreas.filter(([, area]) => area === knownAreas[0][1]);
         parts.push(`Площади сравниваем только у зданий, где они известны. Наибольшая сумма площадей: ${groupNames(largest)} — ${largest.length > 1 ? 'по ' : ''}${Math.round(knownAreas[0][1]).toLocaleString('ru-RU')} м².`);
       }
-      const rates: [string, number][] = districts.flatMap(([district]) => {
+      // Ставки аренды — офисные (сегмент ofisy_bc), у ТЦ их нет.
+      const rates: [string, number][] = isTc ? [] : districts.flatMap(([district]) => {
         const rate = (officeSnapshots ?? []).find((s) => s.sliceType === 'district' && s.deal === 'rent' && s.sliceKey === district)?.median;
         return rate != null ? [[district, rate] as [string, number]] : [];
       });
@@ -1038,13 +1175,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       else if (rates.length > 1) parts.push(`Медианы аренды есть для ${rates.length} районов. ${extremes(rates, 'Самая высокая медиана', 'Самая низкая', 'Во всех этих районах медиана одинаковая', (rate) => `$${rate}/м²`)}`);
       return parts.join(' ');
     })());
-    if (marketStats.withMetroCount > 0) add('Сколько зданий рядом с метро?', `Не дальше 800 м от ближайшего метро — ${marketStats.nearMetro} БЦ. Расстояние известно для ${marketStats.withMetroCount} зданий выборки. Считаем только их.`);
+    if (marketStats.withMetroCount > 0) add('Сколько зданий рядом с метро?', `Не дальше 800 м от ближайшего метро — ${marketStats.nearMetro} ${V.abbr}. Расстояние известно для ${marketStats.withMetroCount} зданий выборки. Считаем только их.`);
     if (metroFilter && orderedCenters.length) {
       const nearest = [...orderedCenters].sort((a, b) => (metroHubDistance(a, metroFilter) ?? Infinity) - (metroHubDistance(b, metroFilter) ?? Infinity))[0];
       const distance = metroHubDistance(nearest, metroFilter);
-      if (distance != null) add(`Какой бизнес-центр ближе всего к метро ${metroFilter}?`, `${shortName(nearest)} — ${distance} м. В подборку станции входят здания не дальше 1,5 км.`);
+      if (distance != null) add(`Какой ${V.one} ближе всего к метро ${metroFilter}?`, `${shortName(nearest)} — ${distance} м. В подборку станции входят здания не дальше 1,5 км.`);
     }
-    add('Сколько зданий в выборке строится?', `Сейчас строится ${marketStats.underConstruction} БЦ.${underConstructionNames.length ? ` ${underConstructionNames.length > 3 ? 'Среди них' : 'Это'}: ${underConstructionNames.slice(0, 3).join(', ')}${underConstructionNames.length > 3 ? ` и ещё ${underConstructionNames.length - 3}` : ''}.` : ''}`);
+    // У ТЦ оси «строящиеся» нет: вопрос — только если такие здания в выборке есть.
+    if (!isTc || marketStats.underConstruction > 0) add('Сколько зданий в выборке строится?', `Сейчас строится ${marketStats.underConstruction} ${V.abbr}.${underConstructionNames.length ? ` ${underConstructionNames.length > 3 ? 'Среди них' : 'Это'}: ${underConstructionNames.slice(0, 3).join(', ')}${underConstructionNames.length > 3 ? ` и ещё ${underConstructionNames.length - 3}` : ''}.` : ''}`);
     if (summary.rentMedian != null) add('Какая медианная ставка аренды и как она рассчитана?', rentMethodology);
     if (showRatesBlock) {
       for (const [label, deal, rate] of [['аренды', 'rent', rateRent], ['продажи', 'sale', rateSale]] as const) {
@@ -1055,11 +1193,16 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     // переехали на /minsk/bc/analytics вместе с блоками, которые эти
     // ответы описывали (владелец, 2026-09-22, см. комментарий у тизера
     // «Аналитика каталога БЦ» ниже в рендере).
-    add('Где посмотреть, кто управляет зданиями и что сейчас сдаётся в каталоге?', 'На странице «Аналитика каталога БЦ». Там указано, кто управляет зданиями: товарищество собственников или единая УК. Там же — здания с активными объявлениями и диапазоны площади лотов. Данные внешних источников помогают оценить рынок офисов в целом.');
-    add('Как работают фильтры и подборки?', 'Фильтры оставляют здания с выбранными характеристиками. Список и сводка обновляются вместе с фильтрами. Сортировка меняет порядок. Карточки, таблица и карта помогают просматривать результаты, сравнение — сопоставлять выбранные здания. В справочнике по бизнес-центрам Минска есть подборки по классу и статусу строительства. Там же можно выбрать район, микрорайон, улицу или метро. Полный список названий в справочнике ведёт на страницы зданий.');
+    // У каталога ТЦ ни страницы аналитики, ни справочника нет — ответы свои.
+    if (!isTc) {
+      add('Где посмотреть, кто управляет зданиями и что сейчас сдаётся в каталоге?', 'На странице «Аналитика каталога БЦ». Там указано, кто управляет зданиями: товарищество собственников или единая УК. Там же — здания с активными объявлениями и диапазоны площади лотов. Данные внешних источников помогают оценить рынок офисов в целом.');
+      add('Как работают фильтры и подборки?', 'Фильтры оставляют здания с выбранными характеристиками. Список и сводка обновляются вместе с фильтрами. Сортировка меняет порядок. Карточки, таблица и карта помогают просматривать результаты, сравнение — сопоставлять выбранные здания. В справочнике по бизнес-центрам Минска есть подборки по классу и статусу строительства. Там же можно выбрать район, микрорайон, улицу или метро. Полный список названий в справочнике ведёт на страницы зданий.');
+    } else {
+      add('Как работают фильтры?', `Фильтры оставляют ${V.many} с выбранными характеристиками: формат, район, микрорайон, станция метро и расстояние до неё. Список обновляется вместе с фильтрами, счётчик у каждого варианта показывает, сколько зданий останется, если его выбрать.`);
+    }
     add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак подтверждён данными.');
     return items;
-  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale]);
+  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc]);
 
   useEffect(() => {
     setFaqJsonLd(pageIsIndexable ? faqItems : []);
@@ -1085,18 +1228,18 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     setItemListJsonLd(
       orderedCenters.slice(0, visibleCount).map((c) => ({
         name: shortName(c),
-        url: `https://redevelopment.pro/minsk/bc/${c.slug}`,
+        url: `${V.siteUrl}/${c.slug}`,
       })),
     );
     return () => setItemListJsonLd(null);
-  }, [orderedCenters, visibleCount, pageIsIndexable]);
+  }, [orderedCenters, visibleCount, pageIsIndexable, V.siteUrl]);
 
   if (notFound) {
     return (
       <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink-muted">Такой раздел каталога не найден.</p>
-        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
-          ← Все бизнес-центры Минска
+        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+          {`← Все ${V.many} Минска`}
         </Link>
       </div>
     );
@@ -1106,24 +1249,29 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // INTRO_TEXT, на хаб-подстранице класса/района — уникальные под конкретный
   // фильтр (то же значение, что уже посчитано для meta-тегов выше).
   const heroH1 = underConstruction
-    ? 'Строящиеся бизнес-центры Минска'
+    ? `Строящиеся ${V.many} Минска`
     : metroFilter
-      ? `Бизнес-центры у метро ${metroFilter}`
+      ? `${V.Many} у метро ${metroFilter}`
       : streetFilter
-        ? `Бизнес-центры Минска: ${streetFilter}`
+        ? `${V.Many} Минска: ${streetFilter}`
         : classFilter && districtFilter
-      ? `Бизнес-центры класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
+      ? `${V.Many} класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
       : classFilter
-        ? `Бизнес-центры класса ${classFilter} в Минске`
+        ? `${V.Many} класса ${classFilter} в Минске`
         : districtFilter
-          ? `Бизнес-центры Минска: ${districtFilter} район`
+          ? `${V.Many} Минска: ${districtFilter} район`
           : microdistrictFilter
-            ? `Бизнес-центры ${microdistrictFilter}`
-            : PAGE_H1;
+            ? `${V.Many} ${microdistrictFilter}`
+            : isTc
+              ? TC_PAGE_H1
+              : PAGE_H1;
+  // Хабы улиц, микрорайонов, классов и «строящиеся» есть только у каталога
+  // БЦ, поэтому офисные формулировки в этих ветках остаются как были; у ТЦ
+  // бывают только корень, район и метро.
   const heroIntro = underConstruction
     ? `${bcCountLabel} Минска, которые сейчас строятся, — класс, площадь, район и срок сдачи по данным застройщиков. Офисы в них пока нельзя ни арендовать, ни купить; готовые варианты — в общем каталоге.`
     : metroFilter
-      ? `Все бизнес-центры в пешей доступности от станции метро ${metroFilter} — от ближайшего к дальнему. В карточках — подробный обзор каждого бизнес-центра.`
+      ? `Все ${V.many} в пешей доступности от станции метро ${metroFilter} — от ближайшего к дальнему. В карточках — подробный обзор каждого ${V.oneGen}.`
     : streetFilter
       ? `${bcCountLabel} на «${streetFilter}» — класс, площадь, этажность, метро и объявления об аренде и продаже.`
     : classFilter && districtFilter
@@ -1131,7 +1279,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       : classFilter
         ? `${bcCountLabel} делового класса ${classFilter} в Минске — адреса, площадь, этажность, метро.`
         : districtFilter
-          ? `${bcCountLabel} в ${districtPrepositional(districtFilter)} районе Минска — сравнивайте по классу, площади и расположению.`
+          ? `${bcCountLabel} в ${districtPrepositional(districtFilter)} районе Минска — сравнивайте по ${isTc ? 'формату' : 'классу'}, площади и расположению.`
           : microdistrictFilter
             ? `${bcCountLabel} в микрорайоне ${microdistrictFilter} (Минск) — адреса, деловой класс, площадь, метро.`
           // Голова каталога раньше подменяла статичный INTRO_TEXT на подсчёт
@@ -1139,13 +1287,25 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           // секунды был виден один текст, а сразу следом другой (владелец,
           // 2026-09-20: убрать мигание, оставить первую формулировку).
           // Подзаголовок статичный всегда, независимо от состояния загрузки.
-          : INTRO_TEXT;
+          : isTc
+            ? TC_INTRO_TEXT
+            : INTRO_TEXT;
 
-  const heroImages = heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : HERO_IMAGES;
-  const heroSrcSets = heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : HERO_SRCSETS;
-  const heroImageWidth = heroCenter ? 1200 : HERO_IMAGE_WIDTH;
-  const heroImageHeight = heroCenter ? 1200 : HERO_IMAGE_HEIGHT;
-  const heroImageAlt = heroCenter ? heroCenter.name : 'Бизнес-центр «Титул»';
+  // Фолбэк «Футурис» — только у БЦ; у ТЦ пустой список, и hero рисует
+  // нейтральную заглушку «Фото скоро» той же рамки (ветка ниже в рендере).
+  // У ТЦ — обложка, вырезанная с фона и обрезанная по зданию (владелец,
+  // 2026-09-30: «без фона и крупнее»; варианты -cutout делает
+  // scripts/cutout-tc-covers.py). Касается корня каталога и всех подборок.
+  const tcCutout = isTc && heroCenter ? tcCoverCutoutSrc(heroCenter.photos[0]) : null;
+  const heroImages = tcCutout
+    ? [tcCutout.src]
+    : heroCenter ? [businessCenterPhotoSrc(heroCenter.photos[0], 'detail')] : isTc ? [] : HERO_IMAGES;
+  const heroSrcSets = tcCutout
+    ? [tcCutout.srcSet]
+    : heroCenter ? [businessCenterDetailPhotoSrcSet(heroCenter.photos[0])] : isTc ? [] : HERO_SRCSETS;
+  const heroImageWidth = tcCutout ? 1200 : heroCenter ? 1200 : HERO_IMAGE_WIDTH;
+  const heroImageHeight = tcCutout ? 800 : heroCenter ? 1200 : HERO_IMAGE_HEIGHT;
+  const heroImageAlt = heroCenter ? heroCenter.name : isTc ? V.catalogTitle : 'Бизнес-центр «Титул»';
 
   return (
     <div className="min-h-svh bg-bg">
@@ -1213,6 +1373,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             state={filter}
             onChange={applyFilter}
             availableClasses={availableClasses}
+            availableFormats={availableFormats}
+            formatCounts={formatCounts}
+            formatChips={formatChips}
+            tcFeatureCounts={tcFeatureCounts}
+            storeSuggestions={isTc && tcIndex ? (q: string) => brandSuggestions(tcIndex, q) : undefined}
+            underConstructionCount={underConstructionCount}
             availableStatuses={availableStatuses}
             statusCounts={statusCounts}
             districts={districts}
@@ -1225,7 +1391,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             stationCounts={stationCounts}
             unverifiableCount={unverifiableCount}
             resultCount={visibleCenters.length}
-            resultLabel={pluralBusinessCenters(visibleCenters.length)}
+            resultLabel={V.plural(visibleCenters.length)}
             hasActiveFilter={hasActiveCatalogFilter(filter)}
             onReset={resetFilter}
           />
@@ -1243,10 +1409,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 {UPDATED_BADGE_LABEL}
               </span>
             </div>
-            <div className="order-2 w-full min-w-0 sm:order-none sm:flex-[2]">
+            <div className={cn('order-2 w-full min-w-0 sm:order-none', tcCutout ? 'sm:flex-[3]' : 'sm:flex-[2]')}>
               {/* Padding задаёт высоту по ширине независимо от Grid/Flex и
                   процентной высоты вложенной картинки в Safari. */}
-              <div className="relative w-full pt-[56.25%] sm:pt-[125%]">
+              <div className={cn('relative w-full', tcCutout ? 'pt-[66%] sm:pt-[80%]' : 'pt-[56.25%] sm:pt-[125%]')}>
                 <div className="absolute inset-0">
                   {heroImages.length > 0 ? (
                     <HeroImageSlider
@@ -1300,7 +1466,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <p className="text-sm text-ink">Загрузка…</p>
           ) : visibleCenters.length === 0 ? (
             <div className="flex flex-col items-start gap-3">
-              <p className="text-sm text-ink">Нет бизнес-центров по выбранным фильтрам.</p>
+              <p className="text-sm text-ink">{`Нет ${V.manyGen} по выбранным фильтрам.`}</p>
               {hasActiveCatalogFilter(filter) && (
                 <button
                   type="button"
@@ -1387,7 +1553,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 них почти никто не доскролливал, а поисковику это читалось
                 как дубль контента. Тизер — единственное, что остаётся
                 здесь. */}
-            {centers !== null && centers.length > 0 && (
+            {/* У каталога ТЦ страницы аналитики нет — и тизера тоже. */}
+            {!isTc && centers !== null && centers.length > 0 && (
               <Link
                 to="/minsk/bc/analytics"
                 className={cn(
@@ -1423,7 +1590,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             {/* На главной вместо двух больших блоков — тизер справочника,
                 парный тизеру аналитики выше: и человеку не мешает, и краулер
                 по нему доходит до всех хабов и до полного списка зданий. */}
-            {isGeneralCatalog && (
+            {/* Справочник — про классы и офисы, только у каталога БЦ. */}
+            {!isTc && isGeneralCatalog && (
               <Link
                 to="/minsk/bc/guide"
                 className={cn(

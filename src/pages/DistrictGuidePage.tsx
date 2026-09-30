@@ -2138,7 +2138,7 @@ export function DistrictGuidePage() {
                       'На старте продаж стоили значительно дешевле квартир',
                     ].map((text) => (
                       <li key={text} className="flex items-start gap-2 text-sm text-ink-muted">
-                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-icon" />
                         {text}
                       </li>
                     ))}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { DATA_SOURCE_GROUPS } from '../../data/businessCenterSources';
 import { fetchCatalogSiteSources, type CatalogSources, type SourceSite } from '../../lib/businessCenterSourcesApi';
+import { useCatalogKind } from '../../lib/catalogKind';
 import { CookieFooterLinks } from '../layout/CookieFooterLinks';
 
 // Владелец, 2026-09-22: не хочет отдельных кликабельных плашек на каждый
@@ -43,6 +44,7 @@ function GroupTitle({ children }: { children: React.ReactNode }) {
 }
 
 export function SourcesTrademarkNote() {
+  const V = useCatalogKind();
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState<CatalogSources | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -59,7 +61,7 @@ export function SourcesTrademarkNote() {
   return (
     <>
       <p className="text-xs text-ink-muted">
-        Информацию о бизнес-центрах мы собираем из открытых источников и стараемся поддерживать её в
+        Информацию о {V.manyPrep} мы собираем из открытых источников и стараемся поддерживать её в
         актуальном состоянии; точные условия уточняйте у управляющей компании объекта или автора
         объявления. Названия компаний и логотипы упомянуты для удобной идентификации объектов и
         принадлежат их правообладателям. Все сведения носят справочный характер.{' '}
@@ -109,7 +111,7 @@ export function SourcesTrademarkNote() {
             {loaded !== null && loaded.publications.length > 0 && <SourceLinks sites={loaded.publications} />}
           </div>
           <div className="flex flex-col gap-2">
-            <GroupTitle>Сайты бизнес-центров и застройщиков</GroupTitle>
+            <GroupTitle>Сайты {V.manyGen} и застройщиков</GroupTitle>
             {loadFailed && (
               <p className="text-sm text-ink-muted">Не удалось загрузить список — попробуйте ещё раз позже.</p>
             )}

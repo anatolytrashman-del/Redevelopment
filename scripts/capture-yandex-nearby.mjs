@@ -56,6 +56,7 @@
 // стандартном месте, CHROME_WINDOW_SIZE / CHROME_WINDOW_POSITION — чтобы
 // окно не закрывало терминал, в котором нужно жать Enter.
 
+import './local-supabase-env.mjs'; // первым: ключ из ~/.config/redevelopment/supabase.env
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -81,6 +82,11 @@ const valueOf = (name) => {
 const has = (name) => args.includes(name);
 
 const onlySlug = valueOf('--slug');
+// --slug принимает и список через запятую: пробный прогон по нескольким зданиям.
+const onlySlugs = (onlySlug ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+// --kind bc|tc|all — какой каталог собирать (по умолчанию bc, как было до
+// каталога ТЦ 2026-09-23; торговые центры — `--kind tc`).
+const catalogKind = valueOf('--kind') ?? 'bc';
 const limit = Number(valueOf('--limit') ?? 0);
 const maxAgeDays = Number(valueOf('--max-age-days') ?? 45);
 const writeDb = has('--write-db');
@@ -560,13 +566,13 @@ async function main() {
     supabase = createClient(SUPABASE_URL, serviceRoleKey);
   }
 
-  const centers = await readCenters({ supabase, accessToken });
+  const centers = await readCenters({ supabase, accessToken, kind: catalogKind });
   const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
   const withYandexReviews = onlyMissingReviews || excludeMissingReviews
     ? await slugsWithYandexReviews({ supabase, accessToken })
     : null;
   let queue = centers.filter((center) => {
-    if (onlySlug && center.slug !== onlySlug) return false;
+    if (onlySlugs.length > 0 && !onlySlugs.includes(center.slug)) return false;
     if (onlyMissingReviews && withYandexReviews.has(center.slug)) return false;
     if (excludeMissingReviews && !withYandexReviews.has(center.slug)) return false;
     if (!skipCollected) return true;

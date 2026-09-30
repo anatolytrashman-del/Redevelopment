@@ -1,3 +1,5 @@
+import type { UniqueBrand } from './tradeCenterGuide';
+
 // Данные раздела БЦ, положенные в сборку (scripts/generate-catalog-data.mjs).
 //
 // 2026-09-23 Supabase закрыл проект за трафик (402 на любой REST-запрос), и
@@ -83,6 +85,7 @@ export interface BcAnalyticsFile {
 }
 
 export interface BcExtraFile {
+  uniqueBrands?: UniqueBrand[];
   offers: unknown[];
   reviews: unknown[];
   nearby: unknown[];

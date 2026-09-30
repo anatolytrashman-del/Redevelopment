@@ -87,10 +87,44 @@ const SECTION_HEIGHT_MODEL: Record<string, SectionHeightModel> = {
   // База — бейджи рейтинга без единого отзыва (okean, 154px).
   reviews: { base: 155, perItem: 95, maxItems: 6 },
   awards: { base: 110, perItem: 40 },
+  // «Награды и рейтинги» ТЦ (TradeCenterAwardsBlock) — единица ~60px, см.
+  // awardsRankingSize в lib/tradeCenterRetail; сетка обновлена — владелец, 2026-09-25.
+  'awards-ranking': { base: 245, perItem: 60 },
   media: { base: 15, perItem: 80 },
   facts: { base: 145, perItem: 80 },
   history: { base: 0, perItem: 115 },
   developer: { base: 240, perItem: 15 },
+  // Торговые блоки ТЦ (TradeCenterRetailBlocks), замер 2026-09-23 на
+  // 1280px: этажи — 553px на 6 строк со строкой рейтинга (с 2026-09-24
+  // рейтинга в карточке нет: 386px на 3 строки, модель даёт 373), досуг —
+  // 333px на 2 ряда плиток (у досуга элемент — ряд из двух плиток, см.
+  // sectionSizes на странице).
+  floors: { base: 190, perItem: 61 },
+  // Карточка «Первые в Беларуси и якоря» 2026-09-24 разделена на две
+  // (TradeCenterAnchorsHistory). Замер на 1280px, «Замок»: лента «в истории
+  // ритейла» — 822px на 9 строк (мок) и 490px на 4 длинные (живые старые
+  // firsts); якоря — 592px на 3 ряда плиток по три (мок) и 307px на 1 ряд.
+  'retail-history': { base: 225, perItem: 66 },
+  anchors: { base: 165, perItem: 142 },
+  leisure: { base: 165, perItem: 85 },
+  // «Где поесть» и «Развлечения» (TradeCenterFoodFun) вместо leisure у ТЦ с
+  // retail_info.food/fun. Замер 2026-09-24 на 1280px по моку Galleria Minsk:
+  // «Где поесть» — 975px на 18 единиц (foodSectionSize, список свёрнут),
+  // «Развлечения» — 890px на 3 ряда (кинотеатр во всю ширину + 2 ряда по две).
+  food: { base: 200, perItem: 43 },
+  fun: { base: 150, perItem: 245 },
+  // Два блока посетителя считают видимые строки раздельно (владелец, 2026-09-25).
+  'getting-here': { base: 150, perItem: 60 },
+  'offers-events': { base: 150, perItem: 60 },
+  advertising: { base: 150, perItem: 43 },
+  numbers: { base: 140, perItem: 175 },
+  quotes: { base: 130, perItem: 148 },
+  // «Инфраструктура» ТЦ (TradeCenterInfrastructure) — единица из
+  // infrastructureSectionSize: строка пояснения плитки (~17px), подзаголовки
+  // и отступы рядов пересчитаны в те же строки. Замер 2026-09-24 на 1280px
+  // по живым данным: Dana Mall — 931px на 40 строк, Galleria Minsk — 1607px
+  // на 72 (из них ~70px — четыре строки источников).
+  amenities: { base: 170, perItem: 19 },
   // <details>: в DOM есть и вопрос, и ответ, но на экране до раскрытия —
   // только строка вопроса.
   faq: { base: 85, perItem: 45 },
@@ -154,6 +188,7 @@ export interface PageSectionSize {
   id: string;
   /** Строк таблицы, карточек, вопросов FAQ — смотря что за блок. */
   items: number;
+  extraHeight?: number;
 }
 
 /**
@@ -172,10 +207,10 @@ export function estimateTextLines(text: string | null | undefined, charsPerLine:
 }
 
 /** Оценка высоты блока в пикселях опорного экрана. */
-export function estimateSectionHeight({ id, items }: PageSectionSize): number {
+export function estimateSectionHeight({ id, items, extraHeight = 0 }: PageSectionSize): number {
   const model = SECTION_HEIGHT_MODEL[id] ?? DEFAULT_SECTION_MODEL;
   const counted = Math.max(0, model.maxItems != null ? Math.min(items, model.maxItems) : items);
-  return model.base + model.perItem * counted + SECTION_GAP;
+  return model.base + model.perItem * counted + extraHeight + SECTION_GAP;
 }
 
 /**

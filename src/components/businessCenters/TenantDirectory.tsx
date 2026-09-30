@@ -14,23 +14,30 @@
 // Блок держим в один экран: владелец отдельно просил «сводка в одну строку,
 // сегменты в выпадающий фильтр» — поэтому первым экраном остаётся ровно
 // каталог, а расклад по этажам открывается по клику.
+//
+// 2026-09-24: этаж стал фильтром, как переключатель уровней на поэтажном
+// плане Яндекса («у яндекса есть прям схема, какой магазин где расположен»):
+// ряд кнопок «Все этажи · −1 · 1 · 2 …» над списком. Этаж у организаций
+// теперь проставляет скрипт сбора по карточкам (у Galleria — 286 из 313
+// вместо 102), так что фильтр показывает этаж целиком, а не выборку.
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, Search, Star } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type { TenantOrganizationView } from '../../data/businessCenterTenants';
 import { tenantDirectionLabel } from '../../data/tenantIndustries';
-import { buildFloorGroups, formatFloorLabel, type TenantAmenity } from '../../lib/businessCenterTenants';
+import { buildFloorGroups, formatFloorLabel, hasFloorSchema } from '../../lib/businessCenterTenants';
+import { FloorSchema } from './FloorSchema';
 
 const TENANT_PAGE_SIZE = 6;
 const ALL_TENANT_DIRECTIONS = 'Все организации';
-// Оборудование и точки самообслуживания (банкоматы, кофейные автоматы) идут
-// в общий каталог отдельным направлением — так их видно и можно найти
-// поиском/фильтром, но не путают с обычным арендатором в других направлениях.
-const AMENITY_DIRECTION = 'Оборудование';
+// Оборудование и точки самообслуживания (банкоматы, туалеты, терминалы) с
+// 2026-09-23 здесь не показываются: у них свой блок «Инфраструктура» под
+// каталогом (BuildingAmenities), и в счётчик организаций они не входят.
 // Этажи показываем, только когда они известны хотя бы у трети арендаторов:
 // на десятке из девяноста «по этажам» — не срез здания, а случайная выборка.
 const FLOOR_SUMMARY_MIN_SHARE = 0.3;
+const FLOOR_SCHEMA_ENABLED = false;
 
 function pluralOrganizations(n: number): string {
   const mod10 = n % 10;
@@ -40,45 +47,20 @@ function pluralOrganizations(n: number): string {
   return 'организаций';
 }
 
-function pluralFloors(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'этаж';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'этажа';
-  return 'этажей';
-}
-
 function formatCompactNumber(value: number): string {
   return value >= 1000 ? `${(value / 1000).toFixed(value >= 10000 ? 0 : 1).replace('.', ',')} тыс.` : String(value);
 }
 
-export function TenantDirectory({
-  organizations,
-  amenities,
-}: {
-  organizations: TenantOrganizationView[];
-  amenities: TenantAmenity[];
-}) {
+export function TenantDirectory({ organizations }: { organizations: TenantOrganizationView[] }) {
   const [query, setQuery] = useState('');
   const [activeDirection, setActiveDirection] = useState(ALL_TENANT_DIRECTIONS);
   const [page, setPage] = useState(0);
-  const [floorsOpen, setFloorsOpen] = useState(false);
+  const [activeFloor, setActiveFloor] = useState<string | null>(null);
 
-  const entries = useMemo(() => {
-    const orgEntries = organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) }));
-    const amenityEntries = amenities.map((amenity) => ({
-      name: amenity.count > 1 ? `${amenity.category} (${amenity.count})` : amenity.category,
-      rubric: 'Оборудование и сервисы',
-      industry: null,
-      placement: null,
-      floor: null,
-      rating: null,
-      reviewCount: null,
-      url: null,
-      direction: AMENITY_DIRECTION,
-    }));
-    return [...orgEntries, ...amenityEntries];
-  }, [organizations, amenities]);
+  const entries = useMemo(
+    () => organizations.map((org) => ({ ...org, direction: tenantDirectionLabel(org.industry) })),
+    [organizations],
+  );
   const directions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const entry of entries) counts.set(entry.direction, (counts.get(entry.direction) ?? 0) + 1);
@@ -91,7 +73,8 @@ export function TenantDirectory({
     const matchesQuery =
       !normalizedQuery ||
       `${entry.name} ${entry.rubric ?? ''}`.toLocaleLowerCase('ru-RU').includes(normalizedQuery);
-    return matchesDirection && matchesQuery;
+    const matchesFloor = activeFloor === null || entry.floor === activeFloor;
+    return matchesDirection && matchesQuery && matchesFloor;
   });
   const pageCount = Math.max(1, Math.ceil(filtered.length / TENANT_PAGE_SIZE));
   const currentPage = Math.min(page, pageCount - 1);
@@ -104,19 +87,27 @@ export function TenantDirectory({
   const floorGroups = useMemo(() => buildFloorGroups(organizations), [organizations]);
   const withFloor = organizations.filter((org) => org.floor).length;
   const showFloors = organizations.length > 0 && withFloor / organizations.length >= FLOOR_SUMMARY_MIN_SHARE;
+  // Схема этажа (2026-09-24) — когда у магазинов собраны точки. На «Все
+  // этажи» схема показывает первый этаж: схема всех этажей разом — каша.
+  // Выключена до отдельного решения: владелец 2026-09-24 — «схема 1 в 1 не
+  // получается, для прототипа достаточно стандартного каталога арендаторов».
+  // Код и точки магазинов остаются, включается сменой флага.
+  const showSchema = FLOOR_SCHEMA_ENABLED && showFloors && hasFloorSchema(organizations);
+  const schemaFloor = activeFloor ?? floorGroups.find((group) => group.floor === '1')?.floor ?? floorGroups[0]?.floor ?? null;
+  const schemaHighlight = normalizedQuery || activeDirection !== ALL_TENANT_DIRECTIONS ? new Set(filtered) : null;
 
-  useEffect(() => setPage(0), [query, activeDirection]);
+  useEffect(() => setPage(0), [query, activeDirection, activeFloor]);
 
   return (
     <div id="tenants" className={cn('mt-6 scroll-mt-32 overflow-hidden', glassCardClass)} style={glassCardShadow}>
       <div className="flex flex-col gap-4 p-5 sm:p-6">
         <div>
           <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
-            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            <Building2 className="h-5 w-5 shrink-0 text-icon" />
             Каталог арендаторов
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">
-            Компании и сервисы внутри здания. Выберите направление или найдите конкретного арендатора.
+            Компании внутри здания. Выберите направление или найдите конкретного арендатора.
           </p>
         </div>
 
@@ -167,6 +158,49 @@ export function TenantDirectory({
             </select>
           </label>
         </div>
+
+        {showFloors && (
+          <div className="flex flex-col gap-1.5">
+            <div role="group" aria-label="Этаж" className="flex flex-wrap gap-1.5">
+              {[{ floor: null as string | null, count: entries.length }, ...floorGroups].map((group) => {
+                const active = activeFloor === group.floor;
+                return (
+                  <button
+                    key={group.floor ?? 'all'}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setActiveFloor(group.floor)}
+                    title={
+                      group.floor === null
+                        ? 'Показать все этажи'
+                        : `${formatFloorLabel(group.floor)}: ${group.count} ${pluralOrganizations(group.count)}`
+                    }
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-semibold transition',
+                      active
+                        ? 'border-ink bg-ink text-white'
+                        : 'border-border bg-white/70 text-ink hover:border-primary/30',
+                    )}
+                  >
+                    {group.floor === null ? 'Все этажи' : formatFloorLabel(group.floor)}
+                    <span className={cn('ml-1.5 font-normal', active ? 'text-white/75' : 'text-ink-muted')}>
+                      {group.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {withFloor < organizations.length && (
+              <p className="text-xs text-ink-faint">
+                Этаж известен у {withFloor} из {organizations.length} {pluralOrganizations(organizations.length)}.
+              </p>
+            )}
+          </div>
+        )}
+
+        {showSchema && schemaFloor !== null && (
+          <FloorSchema entries={entries} floor={schemaFloor} highlighted={schemaHighlight} />
+        )}
 
         {visibleEntries.length > 0 ? (
           <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 xl:grid-cols-3">
@@ -246,38 +280,6 @@ export function TenantDirectory({
           )}
         </div>
 
-        {/* Этажи — то, чего нет ни у 2GIS, ни у старого списка: арендатору
-            важно не только «кто здесь», но и «сколько соседей на этаже».
-            Под кнопкой, чтобы каталог оставался в один экран. */}
-        {showFloors && (
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => setFloorsOpen((value) => !value)}
-              className="self-start text-sm font-semibold text-primary-hover hover:underline"
-            >
-              {floorsOpen ? 'Скрыть этажи' : `По этажам: ${floorGroups.length} ${pluralFloors(floorGroups.length)}`}
-            </button>
-            {floorsOpen && (
-              <>
-                <div className="flex flex-wrap gap-1.5">
-                  {floorGroups.map((group) => (
-                    <span
-                      key={group.floor}
-                      className="rounded-full bg-surface-muted px-2.5 py-1 text-xs text-ink-muted"
-                      title={`${formatFloorLabel(group.floor)}: ${group.count} ${pluralOrganizations(group.count)}`}
-                    >
-                      {formatFloorLabel(group.floor)} <span className="font-bold text-ink">{group.count}</span>
-                    </span>
-                  ))}
-                </div>
-                <p className="text-xs text-ink-faint">
-                  Этаж известен у {withFloor} из {organizations.length} организаций.
-                </p>
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -22,6 +22,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 import { buildDataOffline } from './_buildFallback.mjs';
+import ts from 'typescript';
+
+// Один фильтр для сборки и страницы, без копии правил (владелец, 2026-09-25).
+const guideModule = ts.transpileModule(readFileSync(new URL('../src/lib/tradeCenterGuide.ts', import.meta.url), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
+}).outputText;
+const { uniqueBrandsByCenter } = await import(`data:text/javascript;base64,${Buffer.from(guideModule).toString('base64')}`);
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -67,7 +74,7 @@ async function main(columns) {
   const generatedAt = new Date().toISOString();
 
   const rows = await supabaseSelect(
-    `business_centers?select=${columns}&kind=eq.bc&order=sort_order.asc`,
+    `business_centers?select=${columns}&kind=eq.bc&is_hidden=eq.false&order=sort_order.asc`,
     'business_centers (список для каталога)',
   );
   mkdirSync(DIST_DATA, { recursive: true });
@@ -75,11 +82,23 @@ async function main(columns) {
   const listJson = JSON.stringify({ generatedAt, rows });
   writeFileSync(listPath, listJson);
 
+  // Каталог торговых центров (/minsk/tc, 2026-09-23) — та же таблица с
+  // kind = 'tc' и свой файл списка. Файлы отдельных зданий у обоих каталогов
+  // общие (dist/data/bc/<slug>.json): слаг уникален на всю таблицу, а чужой
+  // каталог карточка отсекает по kind (fetchBusinessCenter).
+  const tcRows = await supabaseSelect(
+    `business_centers?select=${columns}&kind=eq.tc&is_hidden=eq.false&order=sort_order.asc`,
+    'business_centers (список торговых центров)',
+  );
+  writeFileSync(join(DIST_DATA, 'trade-centers.json'), JSON.stringify({ generatedAt, rows: tcRows }));
+
   // Полные ряды по одному файлу на здание — их читает карточка БЦ, которой
   // нужны колонки, выброшенные из списка (технические параметры,
   // арендаторы, СМИ). Имя файла = слаг, поэтому инлайн-скрипту не нужно
   // знать, где карточка, а где раздел: у раздела такого файла просто нет.
-  const full = await supabaseSelect('business_centers?select=*&kind=eq.bc&order=sort_order.asc', 'business_centers (полные ряды)');
+  // Скрытые здания (is_hidden, 2026-09-29: ТЦ без обложки) — ни в список,
+  // ни файлом здания: иначе карточка открылась бы по прямой ссылке.
+  const full = await supabaseSelect('business_centers?select=*&is_hidden=eq.false&order=sort_order.asc', 'business_centers (полные ряды БЦ и ТЦ)');
   const bcDir = join(DIST_DATA, 'bc');
   mkdirSync(bcDir, { recursive: true });
   let written = 0;
@@ -91,7 +110,7 @@ async function main(columns) {
   }
 
   console.log(
-    `[catalog-data] список: ${rows.length} зданий, ${Math.round(Buffer.byteLength(listJson) / 1024)} КБ; карточки: ${written} файлов`,
+    `[catalog-data] список: ${rows.length} зданий, ${Math.round(Buffer.byteLength(listJson) / 1024)} КБ; ТЦ: ${tcRows.length}; карточки: ${written} файлов`,
   );
 }
 
@@ -224,7 +243,7 @@ const SLICE_COLUMNS = 'business_center_slug,source,ad_id,deal_type,property_type
 
 async function writeExtras() {
   const generatedAt = new Date().toISOString();
-  const [market, external, lotSizes, offerSlices, tenantCity, sources, offers, reviews, nearby, gis2, tenants] =
+  const [market, external, lotSizes, offerSlices, tenantCity, sources, bcOffers, tcOffers, reviews, nearby, gis2, tenants] =
     await Promise.all([
       dataset('market_ofisy_bc', latestMarketSnapshots),
       dataset('external_ofisy_bc', () => supabaseSelect('external_metrics?select=*&segment=eq.ofisy_bc', 'external_metrics')),
@@ -237,13 +256,32 @@ async function writeExtras() {
         supabaseSelect('business_centers?select=website,developer_info,media_mentions,building_facts&kind=eq.bc&limit=1000', 'источники'),
       ),
       dataset('offers', () => selectAll('business_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления')),
+      // Объявления торговых центров — своя таблица (2026-09-23), нужны только
+      // карточкам ТЦ. Необязательный набор: нет доступа и нет в запасном
+      // снимке — карточки ТЦ просто без объявлений, сборка не падает.
+      dataset('tc_offers', () => selectAll('trade_center_offers?select=*&order=price_per_sqm.asc,id.asc', 'объявления ТЦ')).catch(() => []),
       dataset('reviews', () => selectAll('business_center_review_snapshots?select=*&order=id.asc', 'отзывы')),
       dataset('nearby', () => selectAll('business_center_nearby_places?select=*&order=distance_meters.asc,id.asc', 'окружение')),
       dataset('gis2', () => supabaseSelect(`business_center_2gis_snapshots?select=${GIS2_COLUMNS}`, '2ГИС')),
       dataset('tenants', () =>
-        supabaseSelect(`business_center_tenant_source_snapshots?select=${TENANT_COLUMNS}&source=eq.yandex_maps`, 'арендаторы'),
+        selectAll(`business_center_tenant_source_snapshots?select=${TENANT_COLUMNS}&source=eq.yandex_maps&order=business_center_slug.asc`, 'арендаторы'),
       ),
     ]);
+  // Здания БЦ и ТЦ не пересекаются, поэтому порядок внутри каждого здания
+  // (цена, затем id) сохраняется и после склейки.
+  const offers = [...bcOffers, ...tcOffers];
+
+  // Городские срезы (размеры лотов для каталога, срезы для аналитики) — только
+  // объявления в бизнес-центрах: в business_center_offers лежат и объявления
+  // торговых центров (kind = 'tc'), им в офисных медианах не место. Набор
+  // слагов — из уже записанного списка БЦ (там только kind = 'bc'); нет
+  // списка — оба ключа не пишем, и страница сама сходит в базу, где
+  // businessCenterOffersApi фильтрует тем же правилом.
+  const bcListPath = join(DIST_DATA, 'business-centers.json');
+  const bcSlugs = existsSync(bcListPath)
+    ? new Set(JSON.parse(readFileSync(bcListPath, 'utf8')).rows.map((r) => r.slug))
+    : null;
+  const onlyBc = (rows) => (bcSlugs ? rows.filter((r) => bcSlugs.has(r.business_center_slug)) : undefined);
 
   mkdirSync(join(DIST_DATA, 'bc'), { recursive: true });
   // Каталог и хабы берут отсюда ставки рынка и размеры лотов — файл держим
@@ -251,18 +289,21 @@ async function writeExtras() {
   // аналитики и живут в своём файле, чтобы каталог их не качал.
   writeFileSync(
     join(DIST_DATA, 'bc-market.json'),
-    JSON.stringify({ generatedAt, marketSnapshots: { ofisy_bc: market }, externalMetrics: { ofisy_bc: external }, lotSizes }),
+    JSON.stringify({ generatedAt, marketSnapshots: { ofisy_bc: market }, externalMetrics: { ofisy_bc: external }, lotSizes: onlyBc(lotSizes) }),
   );
-  writeFileSync(join(DIST_DATA, 'bc-analytics.json'), JSON.stringify({ generatedAt, offerSlices, tenantCity }));
+  writeFileSync(join(DIST_DATA, 'bc-analytics.json'), JSON.stringify({ generatedAt, offerSlices: onlyBc(offerSlices), tenantCity }));
   writeFileSync(join(DIST_DATA, 'bc-sources.json'), JSON.stringify({ generatedAt, rows: sources }));
 
   // Файл .extra пишется КАЖДОМУ зданию из списка, даже пустой: пустой файл
   // — это ответ «у здания нет отзывов», а отсутствие файла браузер понял бы
   // как «не знаю» и пошёл бы в базу.
-  const listPath = join(DIST_DATA, 'business-centers.json');
-  const slugs = existsSync(listPath)
-    ? JSON.parse(readFileSync(listPath, 'utf8')).rows.map((r) => r.slug).filter((s) => /^[a-z0-9-]+$/.test(s ?? ''))
-    : [];
+  // Оба каталога: и бизнес-центры, и торговые центры (trade-centers.json).
+  const slugs = ['business-centers.json', 'trade-centers.json'].flatMap((name) => {
+    const listPath = join(DIST_DATA, name);
+    return existsSync(listPath)
+      ? JSON.parse(readFileSync(listPath, 'utf8')).rows.map((r) => r.slug).filter((s) => /^[a-z0-9-]+$/.test(s ?? ''))
+      : [];
+  });
   const bySlug = (rows) => {
     const map = new Map();
     for (const row of rows) {
@@ -272,6 +313,15 @@ async function writeExtras() {
     return map;
   };
   const [offersBy, reviewsBy, nearbyBy, gis2By, tenantsBy] = [offers, reviews, nearby, gis2, tenants].map(bySlug);
+  const tcListPath = join(DIST_DATA, 'trade-centers.json');
+  const tcSlugs = new Set(existsSync(tcListPath) ? JSON.parse(readFileSync(tcListPath, 'utf8')).rows.map((row) => row.slug) : []);
+  const uniqueBrands = uniqueBrandsByCenter(tenants.filter((row) => tcSlugs.has(row.business_center_slug)).map((row) => ({
+    slug: row.business_center_slug,
+    kind: 'tc',
+    organizations: (Array.isArray(row.organizations) ? row.organizations : [])
+      .filter((org) => org && typeof org.name === 'string')
+      .map((org) => ({ name: org.name, rubric: typeof org.category === 'string' ? org.category : null, reviewCount: typeof org.reviewCount === 'number' ? org.reviewCount : null })),
+  })));
   for (const slug of slugs) {
     writeFileSync(
       join(DIST_DATA, 'bc', `${slug}.extra.json`),
@@ -282,6 +332,7 @@ async function writeExtras() {
         nearby: nearbyBy.get(slug) ?? [],
         gis2: gis2By.get(slug)?.[0] ?? null,
         tenants: tenantsBy.get(slug)?.[0] ?? null,
+        uniqueBrands: uniqueBrands.get(slug),
       }),
     );
   }
@@ -409,7 +460,44 @@ async function run() {
   if (dbStamps && !usedFallback) writeFileSync(join(DIST_DATA, STAMPS_FILE), JSON.stringify({ stamps: dbStamps }));
 }
 
-run().catch((err) => {
+// --- Фильтры каталога ТЦ (2026-09-30) --------------------------------------
+//
+// «Магазин в ТЦ», «Что внутри», «Парковка», «Когда» опираются на retail_info и
+// снимок арендаторов — тяжёлые поля, которых в списке нет. Сюда кладём их
+// выжимку одним файлом (~сотни КБ, в основном названия арендаторов); смысл
+// признаков считает src/lib/tradeCenterCatalogFeatures.ts. Собирается из уже
+// записанных файлов карточек, поэтому работает при любом источнике данных
+// (база, снимок, копия с прода); нет файлов ТЦ — нет и выжимки, а страница
+// тогда просто не показывает эти строки фильтра.
+function writeTcFilters() {
+  const listPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(listPath)) return;
+  const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null);
+  const rows = {};
+  for (const { slug } of JSON.parse(readFileSync(listPath, 'utf8')).rows) {
+    if (typeof slug !== 'string' || !/^[a-z0-9-]+$/.test(slug)) continue;
+    const r = readJson(join(DIST_DATA, 'bc', `${slug}.json`))?.row?.retail_info ?? {};
+    const tenants = readJson(join(DIST_DATA, 'bc', `${slug}.extra.json`))?.tenants;
+    const arr = (v) => (Array.isArray(v) ? v : []);
+    const str = (v) => (typeof v === 'string' ? v : '');
+    rows[slug] = {
+      funKinds: arr(r.fun).map((f) => str(f?.kind)).filter(Boolean),
+      foodZones: arr(r.food?.zones).length,
+      foodcourtPlaces: arr(r.food?.places).filter((p) => p?.inFoodcourt === true).length,
+      anchorCategories: arr(r.anchors).map((a) => str(a?.category)).filter(Boolean),
+      parking: r.parking && typeof r.parking === 'object'
+        ? { summary: str(r.parking.summary), items: arr(r.parking.items).map((i) => ({ label: str(i?.label), value: str(i?.value) })) }
+        : null,
+      hours: arr(r.hours).map((h) => ({ zone: str(h?.zone), value: str(h?.value) })),
+      brands: arr(tenants?.organizations).map((o) => str(o?.name)).filter(Boolean),
+    };
+  }
+  const json = JSON.stringify({ rows });
+  writeFileSync(join(DIST_DATA, 'tc-filters.json'), json);
+  console.log(`[catalog-data] фильтры ТЦ: ${Object.keys(rows).length} ТЦ, ${Math.round(Buffer.byteLength(json) / 1024)} КБ`);
+}
+
+run().then(writeTcFilters).catch((err) => {
   // Без догружаемых файлов страницы работают как раньше — через запросы в
   // базу из браузера, — поэтому сборку не валим.
   console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);

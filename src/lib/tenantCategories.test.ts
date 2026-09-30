@@ -3,8 +3,10 @@ import {
   cleanTenantCategory,
   formatTenantPlacement,
   isTenantAmenity,
+  parseTenantFloor,
   parseTenantPlacement,
   primaryTenantCategory,
+  tenantAmenityLabel,
   tenantIndustryFromCategory,
 } from './tenantCategories';
 import { TENANT_INDUSTRY_LABELS, TENANT_INDUSTRY_OTHER } from '../data/tenantIndustries';
@@ -44,6 +46,35 @@ describe('isTenantAmenity', () => {
     expect(isTenantAmenity('Кофейный автомат')).toBe(true);
     expect(isTenantAmenity('Обмен валюты, криптомат')).toBe(true);
     expect(isTenantAmenity(null, 'Банкомат Приорбанк')).toBe(true);
+  });
+
+  it('парковки и камеры хранения ТЦ — тоже не арендаторы', () => {
+    expect(isTenantAmenity('Велопарковка')).toBe(true);
+    expect(isTenantAmenity('Автомобильная парковка')).toBe(true);
+    expect(isTenantAmenity('Камера хранения')).toBe(true);
+    expect(isTenantAmenity('Магазин автозапчастей')).toBe(false);
+  });
+
+  it('зарядка электромобилей, инфоцентр, гардероб, комната матери и ребёнка — оборудование ТЦ', () => {
+    expect(tenantAmenityLabel('Станция зарядки электромобилей уровень 3 паркинга, ТРЦ Prizma', 'Zaryadka')).toBe(
+      'Зарядка электромобилей',
+    );
+    expect(tenantAmenityLabel('Информационная служба', 'Инфоцентр')).toBe('Инфоцентр');
+    expect(tenantAmenityLabel('Информационная служба', 'Information')).toBe('Инфоцентр');
+    expect(tenantAmenityLabel('Гардероб', 'Гардероб')).toBe('Гардероб');
+    expect(tenantAmenityLabel('Комната матери и ребенка', 'Комната матери и ребенка')).toBe('Комната матери и ребёнка');
+  });
+
+  it('не путает их с настоящими арендаторами', () => {
+    // «Информационная служба» — рубрика и настоящих компаний в БЦ.
+    expect(tenantAmenityLabel('Информационная служба подъезд 4', 'Бизнес инфо')).toBeNull();
+    expect(tenantAmenityLabel('Информационная служба', 'Thomson Reuters')).toBeNull();
+    expect(tenantAmenityLabel('Турагентство, туристический инфоцентр', 'Alltour.by')).toBeNull();
+    expect(tenantAmenityLabel('Гардеробные системы, мебель на заказ', 'Гардеробка бай')).toBeNull();
+    expect(tenantAmenityLabel('Магазин одежды', 'Гардероб')).toBeNull();
+    expect(tenantAmenityLabel('Электромобили, продажа и сервис, автосалон', 'Voltauto')).toBeNull();
+    // Пауэрбанки остаются «Зарядной станцией».
+    expect(tenantAmenityLabel('Аренда зарядных устройств', 'Rentbox')).toBe('Зарядная станция');
   });
 
   it('пункт выдачи — настоящий арендатор, он снимает помещение', () => {
@@ -168,5 +199,20 @@ describe('parseTenantPlacement', () => {
   it('собирает человеческую подпись', () => {
     expect(formatTenantPlacement({ floor: '4', office: '401', entrance: null })).toBe('4 этаж, офис 401');
     expect(formatTenantPlacement({ floor: 'цокольный', office: null, entrance: null })).toBe('цокольный этаж');
+  });
+});
+
+describe('parseTenantFloor', () => {
+  it('читает оба порядка: «этаж 2» на странице дома и «2 этаж» в плитках ТЦ', () => {
+    expect(parseTenantFloor('Stradivarius Магазин одежды Рейтинг 4,8 2 этаж')).toBe('2');
+    expect(parseTenantFloor('Гиппо Гипермаркет Рейтинг 4,6 -1 этаж В подборке')).toBe('-1');
+    expect(parseTenantFloor('Магазин одежды офис 401, этаж 4')).toBe('4');
+    expect(parseTenantFloor('Ветеринарная клиника этаж цокольный')).toBe('цокольный');
+    expect(parseTenantFloor('Кафе этаж −1')).toBe('-1');
+  });
+
+  it('не берёт слово после «этаж» с заглавной и рейтинг вместо этажа', () => {
+    expect(parseTenantFloor('Магазин Рейтинг 4,8 этаж В подборке')).toBeNull();
+    expect(parseTenantFloor('Магазин одежды Рейтинг 4,8')).toBeNull();
   });
 });

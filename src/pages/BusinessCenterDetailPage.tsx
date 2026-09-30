@@ -1,3 +1,7 @@
+import { TradeCenterFactCards } from '../components/businessCenters/TradeCenterFactCards';
+import { TradeCenterReviewThemes } from '../components/businessCenters/TradeCenterReviewThemes';
+import { reviewThemeColumns, reviewThemesFaq, yandexReviewsUrl } from '../lib/tradeCenterFactsReviews';
+import { isHiddenVisitService } from '../lib/tradeCenterVisit';
 import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -41,6 +45,7 @@ import {
   Star,
   Trophy,
   UtensilsCrossed,
+  LayoutGrid,
   Users,
   Waves,
   X,
@@ -52,15 +57,18 @@ import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from
 import { Badge } from '../components/ui/Badge';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
+import { MetroValue, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
+  setGenericPageMeta,
   setNoIndex,
   clearNoIndex,
   setBusinessCenterPageMeta,
   setPlaceJsonLd,
 } from '../lib/pageMeta';
+import { useCatalogKind } from '../lib/catalogKind';
 import {
   fullName,
   shortAddress,
@@ -100,6 +108,8 @@ import type { BusinessCenterOffer } from '../data/businessCenterOffers';
 import { fetchBusinessCenterOffers, peekBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { dedupeOffers } from '../lib/businessCenterOfferDuplicates';
 import { buildDealStats } from '../lib/businessCenterOfferStats';
+import { TradeCenterLeasing } from '../components/businessCenters/TradeCenterBusiness';
+import { leasingSectionSize } from '../lib/tradeCenterBusiness';
 import { BuildingOffersSection } from '../components/businessCenters/BuildingOffersSection';
 import { pluralRu } from '../lib/pluralRu';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -119,8 +129,61 @@ import {
   formatFloorLabel,
 } from '../lib/businessCenterTenants';
 import { TenantDirectory } from '../components/businessCenters/TenantDirectory';
+import { BuildingAmenities } from '../components/businessCenters/BuildingAmenities';
+import { TradeCenterRetailBlocks } from '../components/businessCenters/TradeCenterRetailBlocks';
+import { TradeCenterInfrastructure } from '../components/businessCenters/TradeCenterInfrastructure';
+import {
+  buildTradeCenterInfrastructure,
+  infrastructureFaqAnswer,
+  infrastructureSectionSize,
+} from '../lib/tradeCenterInfrastructure';
+import { TradeCenterAwardsBlock } from '../components/businessCenters/TradeCenterAwardsBlock';
+import { DeveloperDeepCard } from '../components/businessCenters/DeveloperDeepCard';
+import {
+  developerAboutFaqAnswer,
+  developerCompaniesFaqAnswer,
+  developerMainName,
+  developerPortfolioFaqAnswer,
+  developerProfileSentence,
+  developerSectionSize,
+  hasDeveloperDeepData,
+} from '../lib/developerProfile';
+import {
+  RETAIL_SECTION_LABELS,
+  anchorsFaqAnswer,
+  anchorsForPage,
+  foodFaqAnswer,
+  vacanciesFaqAnswer,
+  funFaqAnswer,
+  leisureForPage,
+  retailHistoryFaqAnswer,
+  audienceFaqQuestion,
+  awardsFaqAnswer,
+  awardsRankingSize,
+  awardsRankingTitle,
+  eventsFaqAnswer,
+  figuresFaqAnswer,
+  floorsFaqAnswer,
+  hoursFaqAnswer,
+  leisureFaqAnswer,
+  leisureFaqQuestion,
+  loyaltyFaqAnswer,
+  parkingFaqAnswer,
+  parkingFaqQuestion,
+  pitchFaqAnswer,
+  quotesFaqAnswer,
+  rankingFaqAnswer,
+  retailSectionGroup,
+  retailSectionIds,
+  retailSectionSize,
+  rulesFaqAnswer,
+  transportFaqAnswer,
+  transportFaqQuestion,
+  type RetailSectionId,
+} from '../lib/tradeCenterRetail';
+import { RETAIL_SECTION_ICONS } from '../components/businessCenters/tradeCenterRetailStyle';
 import type { BusinessCenterTenantSnapshot } from '../data/businessCenterTenants';
-import { buildOfferIndex, METRO_LINE_DOT_CLASS, metroLineId } from '../lib/businessCenterCatalogFilter';
+import { buildOfferIndex } from '../lib/businessCenterCatalogFilter';
 import { buildMarketPosition, haversineMeters } from '../lib/businessCenterMarketPosition';
 import { buildPriceComparison } from '../lib/businessCenterPriceCompare';
 import {
@@ -149,6 +212,9 @@ import { buildRanking as buildBusinessCenterRanking } from './BusinessCentersRan
 // блоки реально отрисованы.
 const SECTION_LABELS: Record<string, string> = {
   awards: 'Награды',
+  // У ТЦ вместо «Наград» — «Награды и рейтинги» (TradeCenterAwardsBlock);
+  // подпись пункта уточняется по содержимому (awardsRankingTitle).
+  'awards-ranking': 'Награды и рейтинги',
   facts: 'Интересные факты',
   media: 'СМИ о здании',
   developer: 'Застройщик',
@@ -156,6 +222,21 @@ const SECTION_LABELS: Record<string, string> = {
   map: 'Инфраструктура рядом',
   tech: 'Параметры здания',
   tenants: 'Каталог арендаторов',
+  // Только у ТЦ: у БЦ блок оборудования в меню «На странице» не выводится.
+  amenities: 'Инфраструктура',
+  // Торговые блоки — только у ТЦ (TradeCenterRetailBlocks).
+  floors: RETAIL_SECTION_LABELS.floors,
+  'retail-history': RETAIL_SECTION_LABELS['retail-history'],
+  food: RETAIL_SECTION_LABELS.food,
+  fun: RETAIL_SECTION_LABELS.fun,
+  leisure: RETAIL_SECTION_LABELS.leisure,
+  'getting-here': RETAIL_SECTION_LABELS['getting-here'],
+  'offers-events': RETAIL_SECTION_LABELS['offers-events'],
+  advertising: RETAIL_SECTION_LABELS.advertising,
+  numbers: RETAIL_SECTION_LABELS.numbers,
+  quotes: RETAIL_SECTION_LABELS.quotes,
+  anchors: RETAIL_SECTION_LABELS.anchors,
+  // «БЦ» подменяется на «ТЦ» в каталоге торговых центров (см. sectionLabel).
   rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
   history: 'История здания',
@@ -165,6 +246,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 const SECTION_ICONS: Record<string, typeof FileText> = {
   awards: Trophy,
+  'awards-ranking': Trophy,
   facts: Sparkles,
   media: Newspaper,
   developer: HardHat,
@@ -172,6 +254,8 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   map: MapPin,
   tech: Building2,
   tenants: Users,
+  amenities: LayoutGrid,
+  ...RETAIL_SECTION_ICONS,
   rental: FileText,
   offers: Banknote,
   history: Clock,
@@ -210,6 +294,10 @@ interface RecommendationBlockData {
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
+// Владелец, 2026-09-23: каталог ТЦ закрыт от индексации на время сбора
+// данных. Снять — отдельным решением вместе с полноценной SEO-разметкой ТЦ.
+const TC_NOINDEX = true;
+
 // ownerMode — та же карточка для сайта самого БЦ, адрес /bc/<slug>
 // (владелец, 2026-09-24: «отдельный линк на страницу его БЦ без
 // рекомендательных блоков и инфы про другие БЦ… чтобы этой страницы не было
@@ -224,12 +312,16 @@ const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 // и FAQ: он строится из тех же выборок, их режим и обнуляет.
 export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: boolean } = {}) {
   const { slug } = useParams<{ slug: string }>();
+  // Каталог страницы: бизнес-центры (/minsk/bc) или торговые центры
+  // (/minsk/tc) — один шаблон, словарь и корень из src/lib/catalogKind.tsx.
+  const V = useCatalogKind();
+  const isTc = V.kind === 'tc';
   // Стартуем с данных, положенных в сборку (Ш3-b плана
   // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
   // поэтому первый же рендер получается полным — без «Загрузка…» поверх
   // готовой разметки пререндера и без прыжка вёрстки. Нет снимка (SPA-
   // переход, страница вне раздела) — как раньше, null и запрос ниже.
-  const [centers, setCenters] = useState<BusinessCenter[] | null>(snapshotBusinessCenters);
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(() => snapshotBusinessCenters(V.kind));
   // Все догружаемые блоки карточки стартуют с уже пришедшего файла
   // .extra (peekBuildData в src/lib/buildData.ts): пререндер-снапшот
   // нарисован с ними, и первый кадр React обязан совпасть с ним — иначе на
@@ -253,7 +345,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     return slug && data !== undefined ? { slug, data } : null;
   });
   const gis2 = gis2Result?.slug === slug ? gis2Result?.data ?? null : null;
-  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() => peekLatestMarketSnapshots('ofisy_bc'));
+  // Офисный рынок (ставки аренды офисов в БЦ) торговым центрам не нужен —
+  // сравнение «дорого/дёшево против класса» у ТЦ не показываем вовсе.
+  const [officeSnapshots, setOfficeSnapshots] = useState<MarketSnapshot[] | null>(() =>
+    isTc ? [] : peekLatestMarketSnapshots('ofisy_bc'),
+  );
   const [tenantSnapshotResult, setTenantSnapshotResult] = useState<{
     slug: string;
     data: BusinessCenterTenantSnapshot | null;
@@ -275,12 +371,12 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   });
 
   useEffect(() => {
-    fetchBusinessCenters()
+    fetchBusinessCenters(V.kind)
       .then(setCenters)
       // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
       // каталог на месте готового — хуже, чем данные часовой давности.
       .catch(() => setCenters((prev) => prev ?? []));
-  }, []);
+  }, [V.kind]);
 
   // Снапшот 2GIS (владелец подключил API в параллельной ветке, 2026-09-06:
   // "давай выведем на страницы вообще всю инфу, которую мы спарсили") —
@@ -347,7 +443,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     // вёрстки, от которого стартовое состояние выше и защищает.
     const fromBuild = peekBusinessCenterOffers(slug);
     setOffersResult(fromBuild ? { slug, offers: fromBuild, error: false } : null);
-    fetchBusinessCenterOffers(slug)
+    fetchBusinessCenterOffers(slug, V.kind)
       .then((data) => {
         if (!cancelled) setOffersResult({ slug, offers: data, error: false });
       })
@@ -355,17 +451,18 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         if (!cancelled) setOffersResult({ slug, offers: null, error: true });
       });
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, V.kind]);
 
   // Сравнение со средней по классу/району (ANALYTICSPLAN.md §4.2) — тот же
   // сегмент 'ofisy_bc', что и на каталоге/хабах. Грузится один раз, не по
   // slug — 23 строки на весь город, дешевле держать в памяти, чем
   // перезапрашивать при каждом переходе на следующий/предыдущий БЦ.
   useEffect(() => {
+    if (isTc) return;
     fetchLatestMarketSnapshots('ofisy_bc')
       .then(setOfficeSnapshots)
       .catch(() => setOfficeSnapshots([]));
-  }, []);
+  }, [isTc]);
 
   // Порядок для "предыдущий/следующий" — тот же алфавит по короткому имени,
   // что и в боковом меню хаба, чтобы стрелки совпадали с порядком, который
@@ -383,7 +480,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   // а не «здания нет»: такой ответ не имеет права превращаться в soft-404 с
   // noindex (см. эффект ниже у setNoIndex).
   const [detail, setDetail] = useState<{ slug: string; center: BusinessCenter | null; failed?: boolean } | null>(() =>
-    slug ? (snapshotBusinessCenter(slug) ? { slug, center: snapshotBusinessCenter(slug) } : null) : null,
+    slug ? (snapshotBusinessCenter(slug, V.kind) ? { slug, center: snapshotBusinessCenter(slug, V.kind) } : null) : null,
   );
   useEffect(() => {
     if (!slug) return;
@@ -392,9 +489,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     // сборки сразу, если оно там есть, и только иначе гасим страницу в
     // «Загрузка…»: сбрасывать в null всегда — значит мигать пустым экраном
     // там, где данные уже на руках.
-    const fromBuild = snapshotBusinessCenter(slug);
+    const fromBuild = snapshotBusinessCenter(slug, V.kind);
     setDetail(fromBuild ? { slug, center: fromBuild } : null);
-    fetchBusinessCenter(slug)
+    fetchBusinessCenter(slug, V.kind)
       .then((data) => {
         if (!cancelled) setDetail({ slug, center: data });
       })
@@ -410,13 +507,13 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         // параметров и арендаторов, но с именем, адресом, классом и фото, то
         // есть страница остаётся собой), и только если нет и его — честная
         // ошибка без noindex.
-        const fromList = snapshotBusinessCenters()?.find((c) => c.slug === slug) ?? null;
+        const fromList = snapshotBusinessCenters(V.kind)?.find((c) => c.slug === slug) ?? null;
         setDetail({ slug, center: fromList, failed: fromList === null });
       });
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, V.kind]);
   const center = detail !== null && detail.slug === slug ? detail.center : null;
 
   // Организации здания и оборудование (банкоматы, кофейные автоматы) —
@@ -442,21 +539,42 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   );
   const tenantSource: 'yandex_maps' | '2gis' =
     (yandexTenants?.tenants.length ?? 0) > 0 || (legacyTenants?.tenants.length ?? 0) > 0 ? 'yandex_maps' : '2gis';
+  // Каталог показан у соседнего корпуса того же комплекса (retailInfo.tenantsAt):
+  // здесь ни списка, ни удобств из него, ни фолбэка на 2GIS — только ссылка.
+  const tenantsAt = center?.retailInfo?.tenantsAt ?? null;
   const tenantOrganizations = useMemo(() => {
+    if (tenantsAt) return [];
     if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.tenants;
     if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.tenants;
     return gis2 ? buildTenantsFromGis2(gis2.tenantOrganizations) : [];
-  }, [yandexTenants, legacyTenants, gis2]);
+  }, [tenantsAt, yandexTenants, legacyTenants, gis2]);
   const tenantAmenities = useMemo(() => {
+    if (tenantsAt) return [];
     if (yandexTenants && yandexTenants.tenants.length > 0) return yandexTenants.amenities;
     if (legacyTenants && legacyTenants.tenants.length > 0) return legacyTenants.amenities;
     return [];
-  }, [yandexTenants, legacyTenants]);
-
+  }, [tenantsAt, yandexTenants, legacyTenants]);
+  // «Инфраструктура» ТЦ (2026-09-24): то же оборудование плюс удобства с
+  // сайта ТЦ (retail_info.services) одним списком по группам. Блок, FAQ и
+  // модель высоты берут эти группы, у БЦ список пуст — там BuildingAmenities.
+  const tcInfrastructure = useMemo(
+    () => {
+      if (!isTc || !center) return [];
+      // Скрываем «Полезно знать» также в инфраструктуре (владелец, 2026-09-25).
+      return buildTradeCenterInfrastructure(center.retailInfo?.services ?? [], tenantAmenities)
+        .map((group) => ({ ...group, items: group.items.filter((item) => !isHiddenVisitService(item.title)) }))
+        .filter((group) => group.items.length);
+    },
+    [isTc, center, tenantAmenities],
+  );
   const nearbyPlaces = nearbyPlacesResult?.slug === slug
     ? nearbyPlacesResult?.places ?? EMPTY_NEARBY_PLACES
     : EMPTY_NEARBY_PLACES;
   const reviews = !ownerMode && reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
+  const factCards = isTc ? center?.retailInfo?.factCards ?? null : null;
+  const reviewThemes = isTc ? center?.retailInfo?.reviewThemes ?? null : null;
+  const hasReviewThemes = Boolean(reviewThemes && reviewThemes.reviews >= 100 && reviewThemeColumns(reviewThemes).length);
+
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = !ownerMode && index > 0 ? sorted[index - 1] : null;
   const next = !ownerMode && index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
@@ -835,6 +953,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         ),
     [center],
   );
+  // «Награды и рейтинги» ТЦ (TradeCenterAwardsBlock): наградами считаются и
+  // структурные retail_info.awards, и строки из highlights — блок показывает
+  // вторые, пока нет первых.
+  const tcHasAwards = isTc && Boolean(center?.retailInfo?.awards.length || awardItems.length);
+  const tcHasRanking = isTc && Boolean(center?.retailInfo?.ranking.length);
 
   // Блоки-рекомендации других БЦ — готовые данные (заголовок/карточки/
   // ссылка на каталог), УЖЕ отсортированные по приоритету показа: чем
@@ -892,12 +1015,14 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       ? centers.filter((c) => c.slug !== center.slug && streetOfAddress(c.address) === street).sort(byDistance)
       : [];
 
-    const microdistrictCatalogUrl = center.microdistrict ? microdistrictHubUrl(center.microdistrict) : null;
+    // У каталога ТЦ хабы только районов и метро: построители улиц и
+    // микрорайонов для его корня отдают null, класса у ТЦ нет.
+    const microdistrictCatalogUrl = center.microdistrict ? microdistrictHubUrl(center.microdistrict, V.basePath) : null;
     const metroCatalogUrl =
-      nearestMetro && metroHubDistance(center, nearestMetro.name) !== null ? metroHubUrl(nearestMetro.name) : null;
+      nearestMetro && metroHubDistance(center, nearestMetro.name) !== null ? metroHubUrl(nearestMetro.name, V.basePath) : null;
     const classDistrictCatalogUrl =
-      center.businessClass && center.district ? classDistrictHubUrl(center.businessClass, center.district) : null;
-    const streetCatalogUrl = street ? streetHubUrl(street) : null;
+      !isTc && center.businessClass && center.district ? classDistrictHubUrl(center.businessClass, center.district) : null;
+    const streetCatalogUrl = street ? streetHubUrl(street, V.basePath) : null;
 
     interface Candidate {
       id: RecommendationBlockId;
@@ -913,10 +1038,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           list.length > 0
             ? {
                 id: 'microdistrictCenters',
-                title: `Бизнес-центры ${center.microdistrict}`,
+                title: `${V.Many} ${center.microdistrict}`,
                 centers: list,
                 catalogUrl: microdistrictCatalogUrl,
-                catalogLabel: `Все БЦ ${center.microdistrict}`,
+                catalogLabel: `Все ${V.abbr} ${center.microdistrict}`,
               }
             : null,
       });
@@ -929,17 +1054,18 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           list.length > 0
             ? {
                 id: 'metroCenters',
-                title: `Бизнес-центры у станции ${nearestMetro.name}`,
+                title: `${V.Many} у станции ${nearestMetro.name}`,
                 centers: list,
                 catalogUrl: metroCatalogUrl,
-                catalogLabel: `Все БЦ у станции ${nearestMetro.name}`,
+                catalogLabel: `Все ${V.abbr} у станции ${nearestMetro.name}`,
                 stationName: nearestMetro.name,
                 fallbackCenter: fallback,
               }
             : null,
       });
     }
-    if (ratingRaw.length > 0) {
+    // Рейтинг есть только у каталога БЦ (/minsk/bc/rating).
+    if (!isTc && ratingRaw.length > 0) {
       candidates.push({
         id: 'ratingCenters',
         raw: ratingRaw,
@@ -1049,7 +1175,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     // него страницы без совпадений по метро/улице/микрорайону остаются
     // с одним-двумя блоками на девять экранов.
     const generic: Candidate[] = [];
-    const businessClass = center.businessClass;
+    const businessClass = isTc ? null : center.businessClass;
     if (businessClass && !specific.some((b) => b.id === 'classDistrictCenters')) {
       const classRaw = centers.filter((c) => c.slug !== center.slug && c.businessClass === businessClass).sort(byDistance);
       if (classRaw.length > 0) {
@@ -1071,7 +1197,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     }
     if (center.lat != null && center.lng != null) {
       const nearbyRaw = centers.filter((c) => c.slug !== center.slug).sort(byDistance);
-      const districtUrl = center.district ? districtHubUrl(center.district) : null;
+      const districtUrl = center.district ? districtHubUrl(center.district, V.basePath) : null;
       const district = center.district;
       if (nearbyRaw.length > 0) {
         generic.push({
@@ -1081,13 +1207,13 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             list.length > 0
               ? {
                   id: 'nearbyCenters',
-                  title: 'Бизнес-центры рядом',
+                  title: `${V.Many} рядом`,
                   centers: list,
-                  catalogUrl: districtUrl ?? '/minsk/bc',
+                  catalogUrl: districtUrl ?? V.basePath,
                   catalogLabel:
                     districtUrl && district
-                      ? `Все БЦ в ${districtPrepositional(district)} районе`
-                      : 'Все бизнес-центры Минска',
+                      ? `Все ${V.abbr} в ${districtPrepositional(district)} районе`
+                      : `Все ${V.many} Минска`,
                 }
               : null,
         });
@@ -1095,7 +1221,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     }
 
     return [...specific, ...buildAll(generic)];
-  }, [center, centers, nearestMetro]);
+  }, [center, centers, nearestMetro, V, isTc]);
 
   // Медианы по зданиям (Д3) — те же, что в каталоге и блоке
   // «БЦ на фоне конкурентов», чтобы одна и та же ставка не расходилась.
@@ -1104,16 +1230,19 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   // Сводка по сделке (диапазон площади/цены) — используется в FAQ; на
   // самой странице с 2026-09-20 не выводится отдельной строкой, чтобы не
   // дублировать таблицу ниже (см. offers-блок).
+  // У ТЦ сравнения с рынком нет: снимки рынка — офисный сегмент ofisy_bc, и
+  // сравнивать с ним ставки торговых помещений нельзя. Сам список объявлений
+  // здания (BuildingOffersSection) у ТЦ показывается так же, как у БЦ.
   const marketPosition = useMemo(() => {
-    if (!center) return null;
+    if (!center || isTc) return null;
     const position = buildMarketPosition(center, centers ?? [], officeSnapshots, offerIndex);
     if (!ownerMode || !position) return position;
     // Сводка «сильнее по N из M» выдала бы и число проигранных строк.
     return { bars: position.bars.filter((bar) => bar.tone === 'favorable' && !bar.nearTypical), summary: null };
-  }, [center, centers, officeSnapshots, offerIndex, ownerMode]);
+  }, [center, centers, officeSnapshots, offerIndex, isTc, ownerMode]);
   const priceComparison = useMemo(
-    () => (center && !ownerMode ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
-    [center, centers, offerIndex, ownerMode],
+    () => (center && !isTc && !ownerMode ? buildPriceComparison(center, centers ?? [], offerIndex) : null),
+    [center, centers, offerIndex, isTc, ownerMode],
   );
   // Цитаты отзывов из «Интересных фактов» — отдельным блоком «Что говорят»
   // вместе с рейтингами (Б11), а не россыпью по странице.
@@ -1162,12 +1291,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     // Адрес в кавычках читается как опечатка, поэтому он идёт с предлогом;
     // всё остальное — в кавычках. Признак адреса: уличный префикс или
     // «Улица Номер» («Энгельса 34А»), но не «А1» и не «Аден».
-    const addressLike = /^(ул\.|пр-т|просп|проспект|пер\.|пл\.|тракт|бул|наб|индустриальн)/i.test(name) || /^[\p{Lu}][\p{L}\s-]+\s\d+[\p{L}]?$/u.test(name);
-    const bcTail = addressLike ? `на ${shortAddress(center.address)}` : `«${name}»`;
-    const bcNom = `бизнес-центр ${bcTail}`;
-    const bcGen = `бизнес-центра ${bcTail}`;
-    const bcPrep = `бизнес-центре ${bcTail}`;
-    const bcIns = `бизнес-центром ${bcTail}`;
+    const bcTail = centerNameTail(center, name);
+    const bcNom = `${V.one} ${bcTail}`;
+    const bcGen = `${V.oneGen} ${bcTail}`;
+    const bcPrep = `${V.onePrep} ${bcTail}`;
+    const bcIns = `${V.oneIns} ${bcTail}`;
     const cls = center.businessClass;
     const typicalOfClass = `типичного здания класса ${cls}`;
 
@@ -1275,18 +1403,27 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               : ''
           }`
         : null;
-      const question = cls
+      // У ТЦ вместо делового класса — формат (ТРЦ, районный ТЦ, рынок…).
+      const formatSentence = isTc && center.retailFormat ? `Формат — ${center.retailFormat}.` : null;
+      const question = formatSentence
+        ? `Какой формат у ${bcGen} и когда он открылся?`
+        : cls
         ? center.status === 'under_construction'
           ? `Какого класса ${bcNom} и когда его сдадут?`
           : `Какого класса ${bcNom} и давно ли он построен?`
         : center.status === 'under_construction'
           ? `Когда сдадут ${bcNom}?`
           : `Когда построен ${bcNom}?`;
-      add(question, sentences([classSentence, yearSentence]));
+      add(question, sentences([formatSentence ?? classSentence, yearSentence]));
     }
-    if (center.developer) {
+    // Главная компания: короткое поле developer, а если его нет —
+    // профиль из развёрнутого блока (ресёрч ТЦ, 2026-09-24).
+    const developerName = center.developer ?? center.developerInfo?.profile?.name ?? null;
+    if (developerName) {
       const info = center.developerInfo;
-      const lines = [`Застройщик — ${center.developer}.`];
+      const lines = [`Застройщик — ${developerName}.`];
+      const profileSentence = developerProfileSentence(info?.profile);
+      if (profileSentence) lines.push(profileSentence);
       if (info?.description) lines.push(plain(info.description));
       const contactBits = [
         info?.phone ? `тел. ${info.phone}` : null,
@@ -1296,6 +1433,21 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       ].filter((v): v is string => Boolean(v));
       if (contactBits.length) lines.push(`${contactBits.join(', ')}.`);
       add(`Кто застройщик ${bcGen}?`, lines.join('\n'));
+    }
+    // Развёрнутый блок «Кто стоит за…» — по вопросу на каждую его часть,
+    // только когда она есть (правило FAQ: всё, что на странице, и ничего
+    // сверх). Один участник — это и есть застройщик из ответа выше, отдельный
+    // вопрос был бы повтором.
+    if ((center.developerInfo?.companies?.length ?? 0) > 1) {
+      add(`Кто участвовал в строительстве ${bcGen}?`, developerCompaniesFaqAnswer(center.developerInfo?.companies));
+    }
+    {
+      const mainName = developerMainName(center.developerInfo, center.developer);
+      const company = mainName ? `компания ${mainName}` : 'компания-застройщик';
+      if (center.developerInfo?.portfolio?.length) {
+        add(`Что ещё построила и чем владеет ${company}?`, developerPortfolioFaqAnswer(center.developerInfo.portfolio));
+      }
+      add(`Что известно о компании${mainName ? ` ${mainName}` : '-застройщике'}?`, developerAboutFaqAnswer(center.developerInfo));
     }
     // Технический паспорт — раньше это был один ответ-выгрузка: связная
     // фраза про этажи и площади, а следом хвост «Подпись: значение;
@@ -1381,7 +1533,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         restRows.length ? restRows.map((row) => `${row.label} — ${row.value}.`).join(' ') : null,
       ]);
       add(
-        floors != null ? `Сколько этажей в ${bcPrep} и как устроены офисы?` : `Как устроен ${bcNom}?`,
+        floors != null
+          ? isTc
+            ? `Сколько этажей в ${bcPrep}?`
+            : `Сколько этажей в ${bcPrep} и как устроены офисы?`
+          : `Как устроен ${bcNom}?`,
         answer || null,
       );
     }
@@ -1494,8 +1650,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     // нарисованы на карте и в списке под ней — но текстом, а не картой: для
     // краулера, который карту не читает, это не дубль, а единственный способ
     // узнать эти цифры. Метро и остановки не повторяются: они уже названы в
-    // ответе про адрес.
-    {
+    // ответе про адрес. У ТЦ блока нет (владелец, 2026-09-25) — и вопроса нет.
+    if (!isTc) {
       const genitiveLabels: Partial<Record<NearbyPlaceCategory, string>> = {
         grocery: 'Продуктовых магазинов',
         shop: 'Магазинов',
@@ -1529,6 +1685,41 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       if (lines.length) {
         add(`Что есть рядом с ${bcIns}?`, `${lines.join(' ')} Учтены объекты в пешей доступности — примерно до 800 м.`);
       }
+    }
+    // Торговые блоки ТЦ (TradeCenterRetailBlocks) — в том же порядке, что на
+    // странице: между картой и каталогом арендаторов. Ответы собирают те же
+    // функции, что рисуют блоки (lib/tradeCenterRetail.ts), — нет записей,
+    // нет и вопроса.
+    if (isTc && center.retailInfo) {
+      const retail = center.retailInfo;
+      add(`Что находится на каждом этаже ${bcGen}?`, floorsFaqAnswer(retail.floorsGuide));
+      add(`Чем ${bcNom} вошёл в историю ритейла Беларуси?`, retailHistoryFaqAnswer(retail.timeline));
+      // «Где поесть» и «Развлечения» (2026-09-24) вместо старого досуга;
+      // вопрос про досуг — только у ТЦ без новых блоков (leisureForPage).
+      add(`Где поесть в ${bcPrep}?`, foodFaqAnswer(retail.food));
+      add(`Какие развлечения есть в ${bcPrep}?`, funFaqAnswer(retail.fun));
+      const leisure = leisureForPage(retail);
+      const leisureQuestion = leisureFaqQuestion(leisure, `в ${bcPrep}`);
+      if (leisureQuestion) add(leisureQuestion, leisureFaqAnswer(leisure));
+      // «Посетителю» и «для бизнеса» (TradeCenterExtraBlocks) — в том же
+      // порядке, что панели на странице.
+      add(`Какой режим работы у ${bcGen}?`, hoursFaqAnswer(retail.hours, retail.hoursNote));
+      const parkingQuestion = parkingFaqQuestion(retail.parking, bcGen);
+      if (parkingQuestion) add(parkingQuestion, parkingFaqAnswer(retail.parking));
+      const transportQuestion = transportFaqQuestion(retail.transport, bcGen);
+      if (transportQuestion) add(transportQuestion, transportFaqAnswer(retail.transport));
+      add(`Какие правила посещения действуют в ${bcPrep}?`, rulesFaqAnswer(retail.rules));
+      add(`Есть ли у ${bcGen} программа лояльности или подарочные сертификаты?`, loyaltyFaqAnswer(retail.loyalty));
+      add(`Какие события проходят в ${bcPrep}?`, eventsFaqAnswer(retail.events));
+      const audienceQuestion = audienceFaqQuestion(retail.audience, bcPrep);
+      if (audienceQuestion) add(audienceQuestion, figuresFaqAnswer(retail.audience));
+      add(`Какие помещения свободны в ${bcPrep}?`, vacanciesFaqAnswer(retail.vacancies));
+      add(`Как арендовать помещение в ${bcPrep}?`, pitchFaqAnswer(retail.leasing));
+      add(`Как разместить рекламу в ${bcPrep}?`, pitchFaqAnswer(retail.advertising));
+      add(`${capitalize(bcNom)} в цифрах: что известно?`, figuresFaqAnswer(retail.numbers));
+      if (!reviewThemes) add(`Что говорят о ${bcPrep}?`, quotesFaqAnswer(retail.quotes));
+      // «Якорные арендаторы» стоят последними, прямо перед каталогом арендаторов.
+      add(`Какие якорные арендаторы в ${bcPrep}?`, anchorsFaqAnswer(anchorsForPage(retail)));
     }
     // Арендаторы и «что есть кроме офисов» — один вопрос (владелец,
     // 2026-09-22: «я бы анализировал весь список арендаторов, если он есть,
@@ -1595,8 +1786,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           return `${item.label} — ${shown.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}`;
         });
       // Точки самообслуживания (туалет, банкомат, кофейный автомат) —
-      // не организации, у них своя каноническая подпись.
-      const amenityParts = tenantAmenities.map((item) => lower(item.category));
+      // не организации, у них своя каноническая подпись. У ТЦ они — в
+      // отдельном вопросе про инфраструктуру ниже, вместе с удобствами.
+      const amenityParts = isTc ? [] : tenantAmenities.map((item) => lower(item.category));
       const manualParts = (redistributedTechnicalParams.internalInfrastructureText ?? '')
         .split(/[,;]\s*/)
         .map((item) => lower(item.trim()))
@@ -1605,7 +1797,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         // («банк, кафе»), что уже названо сервисом с именем организации.
         .filter((item) => !serviceParts.some((part) => part.startsWith(item)));
       add(
-        `Какие компании работают в ${bcPrep} и что есть в здании кроме офисов?`,
+        isTc
+          ? `Какие магазины и компании работают в ${bcPrep}?`
+          : `Какие компании работают в ${bcPrep} и что есть в здании кроме офисов?`,
         sentences([
           `В списке организаций здания — ${tenantOrganizations.length}.`,
           reported != null && reported > tenantOrganizations.length
@@ -1617,7 +1811,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 .map((group) => `${formatFloorLabel(group.floor).toLowerCase()} — ${group.count}`)
                 .join(', ')}.`
             : null,
-          serviceParts.length ? `Кроме офисов, в здании есть ${serviceParts.join('; ')}.` : null,
+          serviceParts.length ? `${isTc ? 'Ещё в здании есть' : 'Кроме офисов, в здании есть'} ${serviceParts.join('; ')}.` : null,
           amenityParts.length || manualParts.length
             ? `Из остального в здании ${joinAnd([...manualParts, ...amenityParts])}.`
             : null,
@@ -1625,6 +1819,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         ]),
       );
     }
+    // «Инфраструктура» ТЦ стоит сразу под каталогом арендаторов — и вопрос
+    // тут же: оборудование с числом из Яндекса и удобства с сайта ТЦ, по тем
+    // же группам, что в блоке.
+    if (isTc) add(`Какая инфраструктура есть для посетителей в ${bcPrep}?`, infrastructureFaqAnswer(tcInfrastructure));
     // Часы работы и доступная среда — один вопрос, а не два. По отдельности
     // оба ответа короткие и совпадают дословно у десятков зданий («Здание
     // работает круглосуточно» — у 56, «пандус, широкий лифт и доступный
@@ -1635,7 +1833,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         .split(/,\s*/)
         .map((item) => lower(item.trim()))
         .filter(Boolean);
-      const hoursText = !accessHoursText
+      // У ТЦ с поминутным режимом по зонам (retail_info.hours) часы уже
+      // отвечены своим вопросом «Какой режим работы…» — второй вопрос о том
+      // же самом общей строкой был бы дублем.
+      const hoursText = !accessHoursText || (isTc && center.retailInfo?.hours.length)
         ? null
         : accessHoursText === 'Круглосуточно'
           ? 'Здание открыто круглосуточно.'
@@ -1659,7 +1860,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     // Рейтинг приезжает из карточки на картах в свободном тексте фактов.
     // Название сервиса в ответе не упоминается (владелец, 2026-09-22) — на
     // странице его тоже больше не видно, только в «Источниках».
-    {
+    if (reviewThemes) {
+      if (hasReviewThemes) add(`Что посетители говорят о ${center.name}?`, reviewThemesFaq(reviewThemes));
+    } else {
       const yandexRatings = parseHighlightRatings(center.highlights);
       const ratingSentences = yandexRatings.map(
         (r) =>
@@ -1677,13 +1880,23 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         );
       }
     }
+    // «Награды и рейтинги» ТЦ — после отзывов, как блок на странице. Ответы
+    // собирают те же функции, что рисуют блок (lib/tradeCenterRetail.ts);
+    // строки наград из highlights — запасной вариант, пока нет структурных.
+    if (isTc) {
+      const retail = center.retailInfo;
+      add(`Какие награды у ${bcGen}?`, awardsFaqAnswer(retail?.awards ?? [], awardItems));
+      add(`Какие места ${bcNom} занимает в рейтингах ${V.manyGen}?`, rankingFaqAnswer(retail?.ranking ?? []));
+    }
     // СМИ и история здания убраны из FAQ (владелец, 2026-09-22: «Что писали
     // в СМИ — убирай», «Что известно об истории — ответ хуйня, убирай»).
     // Оба блока остаются видимыми на странице, FAQ их не пересказывает.
-    if (visibleHighlights.length)
+    if (factCards !== null) {
+      if (factCards.length) add(`Чем примечателен ${bcNom}?`, factCards.map((f) => `${f.headline}. ${f.text}`).join('\n'));
+    } else if (visibleHighlights.length)
       add(`Чем примечателен ${bcNom}?`, visibleHighlights.map((h) => (h.label ? `${h.label}: ${plain(h.text)}` : plain(h.text))).join('\n'));
     return items;
-  }, [center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks]);
+  }, [factCards, reviewThemes, hasReviewThemes, center, centers, marketPosition, accessibilityAttributes, accessHoursText, saleStats, rentStats, awardItems, mediaMentions, visibleHighlights, buildingParamHighlights, gis2, tenantOrganizations, tenantAmenities, tenantSource, reviewQuotes, redistributedTechnicalParams, derivedInternalInfrastructureText, nearbyPlaces, priceComparison?.blocks, V, isTc, tcInfrastructure]);
 
   // Б7: липкое меню «На странице». Пункт появляется только если
   // соответствующий блок реально отрисован — ссылка на несуществующий
@@ -1694,14 +1907,15 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   // (см. recommendationSlots ниже).
   const pageSections = useMemo(() => {
     if (!center) return [];
-    const has = (id: string, cond: boolean) => (cond ? { id, label: SECTION_LABELS[id] } : null);
+    const has = (id: string, cond: boolean) =>
+      cond ? { id, label: isTc && id === 'offers' ? 'Аренда в ТЦ' : SECTION_LABELS[id].replace(/БЦ$/, V.abbr) } : null;
     // Порядок пунктов повторяет порядок блоков на странице (владелец принял
     // 2026-09-20; "Параметры здания" переехали под "Историю здания"
     // 2026-09-22): что предлагают и почём → где оно → кто внутри → на фоне
     // конкурентов → отзывы → блоки доверия (награды/СМИ/факты/история/
     // параметры здания) → застройщик → FAQ.
     return [
-      has('offers', saleStats !== null || rentStats !== null),
+      has('offers', saleStats !== null || rentStats !== null || Boolean(isTc && (center.retailInfo?.vacancies.length || center.retailInfo?.leasing))),
       has(
         'rental',
         Boolean(
@@ -1712,23 +1926,37 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       // на всех страницах каталога, а не только там, где собран снимок
       // точек. Подпись пункта меню повторяет заголовок блока: вести
       // «Инфраструктуру рядом» на голую карту — обещать то, чего там нет.
-      center.lat != null && center.lng != null
+      // У ТЦ блок «Инфраструктура в 10 минутах пешком» снят (владелец,
+      // 2026-09-25: «убираем блок со всех страниц ТЦ»).
+      !isTc && center.lat != null && center.lng != null
         ? {
             id: 'map',
             label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
           }
         : null,
-      has('tenants', tenantOrganizations.length > 0),
+      // Торговые блоки ТЦ стоят между картой и каталогом арендаторов;
+      // каталог у ТЦ — часть «Путеводителя» (id 'floors'), отдельного
+      // пункта меню 'tenants' у ТЦ больше нет (владелец, 2026-09-25).
+      ...(isTc ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : []).map((id) => has(id, true)),
+      has('tenants', !isTc && tenantOrganizations.length > 0),
+      // «Инфраструктура» — пунктом меню только у ТЦ (у БЦ блок оборудования
+      // короткий и в меню не выводился).
+      has('amenities', tcInfrastructure.length > 0),
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has(
         'reviews',
-        center.highlights.some((h) => h.icon === 'rating') ||
+        reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
           reviewQuotes.length > 0 ||
-          reviews.some((r) => r.source !== '2gis'),
+          reviews.some((r) => r.source !== '2gis')),
       ),
-      has('awards', awardItems.length > 0),
+      // У ТЦ награды (в том числе строки из highlights) и места в рейтингах
+      // — один блок «Награды и рейтинги», общий блок «Награды» не рисуется.
+      has('awards', !isTc && awardItems.length > 0),
+      isTc && (tcHasAwards || tcHasRanking)
+        ? { id: 'awards-ranking', label: awardsRankingTitle(tcHasAwards, tcHasRanking) }
+        : null,
       has('media', mediaMentions.length > 0),
-      has('facts', visibleHighlights.length > 0),
+      has('facts', factCards !== null ? factCards.length > 0 : visibleHighlights.length > 0),
       has('history', extractHistoryPoints(center).length >= 2),
       has(
         'tech',
@@ -1747,6 +1975,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     rentStats,
     awardItems,
     visibleHighlights,
+    factCards,
+    reviewThemes,
+    hasReviewThemes,
     buildingParamHighlights,
     mediaMentions,
     tenantOrganizations,
@@ -1757,6 +1988,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     accessibilityAttributes,
     nearbyPlaces,
     reviews,
+    isTc,
+    tcHasAwards,
+    tcHasRanking,
+    tcInfrastructure,
+    V,
   ]);
 
   // Сколько в блоке повторяющихся элементов — единственное, что нужно
@@ -1775,7 +2011,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         // внутри колонки не сплошной список, а полки по бюджету, и строки
         // видны только в раскрытой — их не больше шести.
         case 'offers':
-          return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0);
+          return Math.max(saleStats?.count ?? 0, rentStats?.count ?? 0, isTc ? (center?.retailInfo?.vacancies.length ?? 0) : 0);
         case 'rental':
           return rentalInfo
             ? [rentalInfo.terms, rentalInfo.rates, rentalInfo.contacts].reduce(
@@ -1801,30 +2037,59 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         // Настоящие отзывы вытесняют кураторские цитаты и выводятся
         // постранично по 6 (MAX_REAL_REVIEWS в BusinessCenterMarketBlocks).
         case 'reviews': {
+          if (reviewThemes) return hasReviewThemes ? Math.max(reviewThemes.praise.length, reviewThemes.complaints.length) + 2 : 0;
           const realReviewCount = reviews.filter((r) => r.source !== '2gis').length;
           return realReviewCount > 0 ? Math.min(realReviewCount, 6) : reviewQuotes.length;
         }
         case 'awards':
           return awardItems.length;
+        case 'awards-ranking':
+          return awardsRankingSize(center.retailInfo, awardItems.length);
         case 'media':
           return mediaMentions.length;
         case 'facts':
-          return visibleHighlights.length;
+          return factCards !== null ? Math.ceil(Math.min(factCards.length, 6) / 2) : visibleHighlights.length;
         case 'history':
           return extractHistoryPoints(center).length;
         case 'developer':
-          return developerInfo ? estimateTextLines(developerInfo.description, 110) : 0;
+          // Без новых полей — строки описания, как раньше; с ними модель
+          // складывает части развёрнутого блока (lib/developerProfile).
+          return developerSectionSize(developerInfo);
         case 'faq':
           return faqItems.length;
+        // «Инфраструктура» ТЦ: строки подзаголовков групп и ряды плиток.
+        case 'amenities':
+          return infrastructureSectionSize(tcInfrastructure);
+        // Торговые карточки ТЦ — модель строк в lib/tradeCenterRetail.
+        // Поиск в «Что где» имеет постоянную высоту (владелец, 2026-09-25).
+        case 'floors':
+          return retailSectionSize(center.retailInfo, id, tenantOrganizations.length);
+        case 'retail-history':
+        case 'food':
+        case 'fun':
+        case 'leisure':
+        case 'getting-here':
+        case 'offers-events':
+        case 'advertising':
+        case 'numbers':
+        case 'quotes':
+        case 'anchors':
+          return retailSectionSize(center.retailInfo, id);
         // tenants — пагинация по 6 карточек, высота от числа организаций
         // не зависит вовсе.
         default:
           return 0;
       }
     };
-    return pageSections.map((section) => ({ id: section.id, items: sizeOf(section.id) }));
+    return pageSections.map((section) => ({
+      id: section.id,
+      items: sizeOf(section.id),
+      // Контакты и форматы не обрезаются лимитом объявлений (владелец, 2026-09-25).
+      extraHeight: isTc && section.id === 'offers' ? leasingSectionSize(center.retailInfo?.leasing ?? null) * 41 : 0,
+    }));
   }, [
     center,
+    isTc,
     pageSections,
     saleStats,
     rentStats,
@@ -1838,8 +2103,13 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     awardItems,
     mediaMentions,
     visibleHighlights,
+    factCards,
+    reviewThemes,
+    hasReviewThemes,
     buildingParamHighlights,
     faqItems,
+    tcInfrastructure,
+    tenantOrganizations,
   ]);
 
   // Раскладка блоков-рекомендаций по странице — вся логика в
@@ -1851,12 +2121,36 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   // самому верхнему месту.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    planRecommendationSlots(sectionSizes, recommendationBlocks.length).forEach((sectionId, index) => {
+    // Торговые карточки ТЦ читаются двумя группами — «для посетителя»
+    // (этажи, история ритейла, еда, развлечения, посетителю) и «для бизнеса» (аренда и реклама,
+    // цифры, цитаты). Рекомендацию, выпавшую внутри группы, переносим за
+    // последнюю карточку той же группы; на стыке групп она остаётся. Если
+    // там уже стоит своя, оставляем как было: две рекомендации подряд хуже.
+    const retailIds = new Set<string>(
+      isTc && center ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : [],
+    );
+    // «Якорные арендаторы» и каталог арендаторов под ними читаются как одно
+    // целое: рекомендация после якорей уезжает за каталог, если он есть.
+    const hasTenants = sectionSizes.some((section) => section.id === 'tenants');
+    const lastRetailOf = (group: 'visitor' | 'business' | 'tenants') =>
+      group === 'tenants' && hasTenants
+        ? 'tenants'
+        : ([...sectionSizes]
+            .reverse()
+            .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
+            ?.id ?? null);
+    const planned = planRecommendationSlots(sectionSizes, recommendationBlocks.length);
+    planned.forEach((sectionId, index) => {
       const block = recommendationBlocks[index];
-      if (block) slots.set(sectionId, [...(slots.get(sectionId) ?? []), block.id]);
+      if (!block) return;
+      const lastRetail = retailIds.has(sectionId)
+        ? lastRetailOf(retailSectionGroup(sectionId as RetailSectionId))
+        : null;
+      const target = lastRetail && !planned.includes(lastRetail) ? lastRetail : sectionId;
+      slots.set(target, [...(slots.get(target) ?? []), block.id]);
     });
     return slots;
-  }, [sectionSizes, recommendationBlocks]);
+  }, [sectionSizes, recommendationBlocks, isTc, center, tenantOrganizations]);
 
   const recommendationBlocksById = useMemo(
     () => new Map(recommendationBlocks.map((b) => [b.id, b])),
@@ -1894,13 +2188,13 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       saleOfferCount: saleStats?.count ?? 0,
       hasReviews: Boolean(
         center &&
-          (center.highlights.some((h) => h.icon === 'rating') ||
+          (reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
             reviewQuotes.length > 0 ||
-            reviews.some((r) => r.source !== '2gis')),
+            reviews.some((r) => r.source !== '2gis'))),
       ),
-      hasNearbyInfrastructure: Boolean(center && hasNearbyContent(center, nearbyPlaces)),
+      hasNearbyInfrastructure: Boolean(center && !isTc && hasNearbyContent(center, nearbyPlaces)),
     }),
-    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces],
+    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc, reviewThemes, hasReviewThemes],
   );
 
   // Тёзки в каталоге: «Порт» на Независимости, 177 и «Порт» на
@@ -1916,6 +2210,21 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
 
   useEffect(() => {
     if (!center) return;
+    if (isTc) {
+      // Каталог ТЦ пока закрыт от индексации (TC_NOINDEX): простые мета-теги
+      // для превью ссылки и noindex, без разметки здания и крошек.
+      setGenericPageMeta({
+        title: `${fullName(center)} — ${V.one} в Минске`,
+        description: [center.retailFormat, center.address].filter(Boolean).join(', '),
+        url: `${V.siteUrl}/${center.slug}`,
+        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
+      });
+      if (TC_NOINDEX) {
+        setNoIndex();
+        return () => clearNoIndex();
+      }
+      return;
+    }
     setBusinessCenterPageMeta(
       center.slug,
       { ...center, ambiguousName },
@@ -1945,7 +2254,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       ],
     });
     return () => setPlaceJsonLd(null);
-  }, [center, pageComposition, ambiguousName]);
+  }, [center, pageComposition, ambiguousName, isTc, V]);
 
   // Разметку пререндера на /bc/<slug> прячет инлайн-скрипт index.html:
   // в ней полная карточка с соседями. Показываем, когда отрисовался режим
@@ -1955,10 +2264,12 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   }, [ownerMode]);
 
   // Метаданные страницы выше сбрасывают JSON-LD: FAQ записываем после них.
+  // Страницам ТЦ, закрытым от индекса, разметка FAQ ни к чему.
   useEffect(() => {
+    if (isTc && TC_NOINDEX) return;
     setFaqJsonLd(faqItems);
     return () => setFaqJsonLd([]);
-  }, [faqItems]);
+  }, [faqItems, isTc]);
 
   // Б7-мобайл (владелец, 2026-09-23: «сделаем меню страницы не сверху, а
   // постоянно видимым блоком, как Фильтры»). До этой правки «На странице»
@@ -2026,9 +2337,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   if (!center && detail.failed) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
-        <p className="text-base text-ink">Не удалось загрузить данные о бизнес-центре. Обновите страницу чуть позже.</p>
-        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
-          ← Все бизнес-центры Минска
+        <p className="text-base text-ink">Не удалось загрузить данные о {V.onePrep}. Обновите страницу чуть позже.</p>
+        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+          ← Все {V.many} Минска
         </Link>
       </main>
     );
@@ -2037,9 +2348,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   if (!center) {
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
-        <p className="text-base text-ink">Такой бизнес-центр не найден.</p>
-        <Link to="/minsk/bc" className="text-sm font-semibold text-primary-hover hover:underline">
-          ← Все бизнес-центры Минска
+        <p className="text-base text-ink">Такой {V.one} не найден.</p>
+        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+          ← Все {V.many} Минска
         </Link>
       </main>
     );
@@ -2066,6 +2377,60 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       developerWebsiteUrl = null;
     }
   }
+  // Контакты застройщика — общий кусок простой карточки «Застройщик» и
+  // развёрнутого блока «Кто стоит за…» (DeveloperDeepCard).
+  const developerContacts =
+    center.developerInfo &&
+    (center.developerInfo.phone ||
+      center.developerInfo.email ||
+      center.developerInfo.address ||
+      center.developerInfo.hours ||
+      center.developerInfo.website) && (
+      <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+        {center.developerInfo.phone && (
+          <a
+            href={`tel:${center.developerInfo.phone.replace(/[^\d+]/g, '')}`}
+            className="flex w-fit items-center gap-2 text-ink hover:underline"
+          >
+            <Phone className="h-4 w-4 shrink-0" />
+            {center.developerInfo.phone}
+          </a>
+        )}
+        {center.developerInfo.email && (
+          <a
+            href={`mailto:${center.developerInfo.email}`}
+            className="flex w-fit items-center gap-2 text-ink hover:underline"
+          >
+            <Mail className="h-4 w-4 shrink-0" />
+            {center.developerInfo.email}
+          </a>
+        )}
+        {center.developerInfo.address && (
+          <div className="flex items-start gap-2">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{center.developerInfo.address}</span>
+          </div>
+        )}
+        {center.developerInfo.hours && (
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 shrink-0" />
+            <span>{center.developerInfo.hours}</span>
+          </div>
+        )}
+        {developerWebsiteUrl && (
+          <a
+            href={developerWebsiteUrl.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-fit items-center gap-1 text-ink hover:underline"
+          >
+            <Globe className="h-4 w-4 shrink-0" />
+            {developerWebsiteUrl.label}
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
+        )}
+      </div>
+    );
   return (
     <div className="min-h-svh bg-bg">
       {/* Сквозная шапка каталога (владелец, 2026-09-22). Раньше на карточке
@@ -2117,7 +2482,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 приглушённая текстовая ссылка заменена на pill-кнопку (тот
                 же glassPillClass, что и у стрелок prev/next ниже). */}
             <Link
-              to="/minsk/bc"
+              to={V.basePath}
               className={cn(
                 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,
@@ -2125,8 +2490,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               style={glassPillShadow}
             >
               <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Все бизнес-центры</span>
-              <span className="sm:hidden">Все БЦ</span>
+              <span className="hidden sm:inline">Все {V.many}</span>
+              <span className="sm:hidden">Все {V.abbr}</span>
             </Link>
             {/* Кнопка «Содержание» — владелец, 2026-09-23: "пусть будет в
                 том же месте по высоте, где возврат на каталог всех БЦ,
@@ -2184,8 +2549,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           навигация — строка кнопок под карточкой ниже. */}
       {prev && (
         <Link
-          to={`/minsk/bc/${prev.slug}`}
-          aria-label={`Предыдущий бизнес-центр: ${shortName(prev)}`}
+          to={`${V.basePath}/${prev.slug}`}
+          aria-label={`Предыдущий ${V.one}: ${shortName(prev)}`}
           className={cn(
             'fixed left-4 top-1/2 z-40 hidden -translate-y-1/2 items-center justify-center rounded-full p-3 text-ink lg:flex',
             glassPillClass,
@@ -2197,8 +2562,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       )}
       {next && (
         <Link
-          to={`/minsk/bc/${next.slug}`}
-          aria-label={`Следующий бизнес-центр: ${shortName(next)}`}
+          to={`${V.basePath}/${next.slug}`}
+          aria-label={`Следующий ${V.one}: ${shortName(next)}`}
           className={cn(
             'fixed right-4 top-1/2 z-40 hidden -translate-y-1/2 items-center justify-center rounded-full p-3 text-ink lg:flex',
             glassPillClass,
@@ -2246,7 +2611,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                     onClick={() => setTocOpen(false)}
                     className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm leading-snug text-ink transition-colors hover:bg-surface-muted"
                   >
-                    <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+                    <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon" />
                     <span>{sec.label}</span>
                   </a>
                 );
@@ -2278,7 +2643,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           <aside className={cn('sticky hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex', ownerMode ? 'top-6' : 'top-24')}>
             {!ownerMode && (
             <Link
-              to="/minsk/bc"
+              to={V.basePath}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,
@@ -2286,7 +2651,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               style={glassPillShadow}
             >
               <ArrowLeft className="h-4 w-4 shrink-0" />
-              Все бизнес-центры
+              Все {V.many}
             </Link>
             )}
             <nav
@@ -2304,7 +2669,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                       href={`#${sec.id}`}
                       className="group flex items-start gap-3 rounded-xl px-2 py-2 text-sm leading-snug text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
                     >
-                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint transition-colors group-hover:text-primary" />
+                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon transition-colors group-hover:text-primary" />
                       <span>{sec.label}</span>
                     </a>
                   );
@@ -2405,8 +2770,35 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
                 </p>
               )}
+              {/* Формат/этажность/год одной приглушённой строкой — только у
+                  ТЦ (владелец, 2026-09-25): у БЦ эти же факты уже есть в
+                  плитках ниже, а формат объекта («ТРЦ», «аутлет»…) у БЦ не
+                  собирается вовсе. */}
             </div>
 
+            {/* У ТЦ вместо «Расположения», плиток класс/площадь/год/рейтинг
+                и строки «В здании» — свой правый блок (владелец,
+                2026-09-25): режим работы с онлайн-статусом, «Как
+                добраться» (без «Района», его у ТЦ не собирают), до трёх
+                плиток фактов, якорные арендаторы и быстрые переходы к
+                разделам карточки. БЦ-версия ниже не тронута. */}
+            {isTc && (
+              <TradeCenterHeroSummary
+                center={center}
+                displayAddress={displayAddress}
+                nearestMetro={nearestMetro}
+                displayMetro={displayMetro}
+                mapRating={mapRating}
+                tenantCount={tenantOrganizations.length}
+              />
+            )}
+
+            {/* Весь блок ниже — только у БЦ (владелец, 2026-09-25): у ТЦ его
+                заменяет TradeCenterHeroSummary выше (режим работы, «Как
+                добраться», плитки фактов, якоря, быстрые переходы). Сама
+                разметка БЦ не менялась — только обёрнута условием. */}
+            {!isTc && (
+              <>
             {/* Район, адрес и метро — три горизонтальные строки: подпись и
                 значение находятся на одной базовой линии. Разделитель-тире
                 между подписью и значением убран (владелец, 2026-09-20: "бесят
@@ -2467,29 +2859,14 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 {(nearestMetro || center.metro) && (
                   <div className="grid min-w-0 items-baseline gap-x-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Метро</p>
+                    {/* Цвет линии — как на карточках каталога
+                        (METRO_LINE_DOT_CLASS): владелец, 2026-09-20,
+                        "добавляй цветной кружочек для обозначения линии
+                        метро". Точка+подпись — общий MetroValue
+                        (TradeCenterHeroSummary.tsx), тот же кусок разметки
+                        нужен и в «Как добраться» у ТЦ. */}
                     <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm leading-snug text-ink sm:mt-0">
-                      {nearestMetro ? (
-                        <>
-                          {/* Цвет линии — как на карточках каталога
-                              (METRO_LINE_DOT_CLASS): владелец, 2026-09-20,
-                              "добавляй цветной кружочек для обозначения линии
-                              метро". Серая точка — когда линия не одна из
-                              трёх известных (пока таких станций нет, но на
-                              случай новых веток). */}
-                          <span
-                            className={cn(
-                              'h-2.5 w-2.5 shrink-0 rounded-full',
-                              metroLineId(nearestMetro.line) ? METRO_LINE_DOT_CLASS[metroLineId(nearestMetro.line)!] : 'bg-ink-faint',
-                            )}
-                          />
-                          {nearestMetro.name} — {(displayMetro ?? nearestMetro).distanceMeters} м
-                        </>
-                      ) : (
-                        <>
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-ink-faint" />
-                          {center.metro}
-                        </>
-                      )}
+                      <MetroValue nearestMetro={nearestMetro} displayMetro={displayMetro} fallbackMetro={center.metro} />
                     </p>
                   </div>
                 )}
@@ -2560,6 +2937,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 compact
               />
             )}
+              </>
+            )}
 
             </div>
           </div>
@@ -2594,7 +2973,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             Сравнение со срезом рынка живёт в соседнем блоке «Цены в
             здании и по рынку», окупаемость не считается вовсе (обе
             причины — в комментариях тех файлов). */}
-        {!ownerMode && <BuildingOffersSection sale={saleStats} rent={rentStats} />}
+        {!ownerMode && (isTc ? <TradeCenterLeasing info={center.retailInfo} name={center.name} sale={saleStats} rent={rentStats} /> : <BuildingOffersSection sale={saleStats} rent={rentStats} />)}
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
@@ -2635,7 +3014,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         {center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <FileText className="h-5 w-5 shrink-0 text-primary" />
+              <FileText className="h-5 w-5 shrink-0 text-icon" />
               Отдел аренды БЦ
             </h2>
 
@@ -2655,7 +3034,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             ниже про то, что карта есть у любого БЦ с координатами).
             "Параметры здания" отсюда переехали ниже, под "Историю здания"
             (владелец, 2026-09-22) — см. блок с id="tech" в конце страницы. */}
-        {center && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
+        {center && !isTc && <NearbyInfrastructureBlock center={center} places={nearbyPlaces} />}
 
         {renderRecommendationSlot('map')}
 
@@ -2670,12 +3049,60 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             2026-09-06 ("на первое место ставь места с максимумом отзывов на
             картах"), но тогда рейтинг был известен только по зданию целиком —
             теперь число оценок есть на саму организацию. */}
-        {tenantOrganizations.length > 0 && (
-          <TenantDirectory organizations={tenantOrganizations} amenities={tenantAmenities} />
-
+        {/* Торговые блоки ТЦ — что на каком этаже, чем ТЦ вошёл в историю
+            ритейла, где поесть и развлечения (или старый блок досуга), … и последними якорные арендаторы
+            (вплотную к каталогу), место в рейтинге ТЦ Минска
+            (business_centers.retail_info, 2026-09-23). Стоят перед каталогом
+            арендаторов: это выжимка того же состава здания, а каталог —
+            полный список для поиска по имени. У БЦ не рисуются. */}
+        {isTc && (
+          <TradeCenterRetailBlocks
+            slug={center.slug}
+            info={center.retailInfo}
+            name={`${V.abbr} ${centerNameTail(center)}`}
+            contactName={center.name}
+            organizations={tenantOrganizations}
+            after={renderRecommendationSlot}
+          />
         )}
 
-        {renderRecommendationSlot('tenants')}
+        {/* У ТЦ каталог арендаторов слит в «Путеводитель по ТЦ» выше
+            (владелец, 2026-09-25) — отдельным блоком TenantDirectory здесь
+            больше не рисуется. У БЦ — без изменений. */}
+        {!isTc && tenantOrganizations.length > 0 && (
+          <TenantDirectory organizations={tenantOrganizations} />
+        )}
+        {tenantsAt && (
+          <div id="tenants" className={cn('mt-6 scroll-mt-32 p-5 sm:p-6', glassCardClass)} style={glassCardShadow}>
+            <h2 className="text-xl font-bold text-ink">Магазины комплекса</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ink-muted">
+              {center.name} и {tenantsAt.name} стоят рядом и работают как один торговый комплекс. Большинство
+              магазинов — в соседнем корпусе, их полный список с этажами — на его странице.
+            </p>
+            <Link
+              to={`/minsk/tc/${tenantsAt.slug}#tenants`}
+              className="mt-3 inline-flex text-sm font-semibold text-primary hover:underline"
+            >
+              Все магазины: {tenantsAt.name} →
+            </Link>
+          </div>
+        )}
+        {/* У ТЦ оборудование из Яндекса и удобства с сайта ТЦ — одним
+            блоком «Инфраструктура» по группам (2026-09-24); это свой пункт
+            меню и своё место в модели высот, поэтому рекомендация после
+            каталога стоит между ними. У БЦ — прежний блок оборудования. */}
+        {isTc ? (
+          <>
+            {renderRecommendationSlot('tenants')}
+            <TradeCenterInfrastructure groups={tcInfrastructure} />
+            {renderRecommendationSlot('amenities')}
+          </>
+        ) : (
+          <>
+            <BuildingAmenities amenities={tenantAmenities} />
+            {renderRecommendationSlot('tenants')}
+          </>
+        )}
 
         {/* Сравнение с конкурентами — после того как показали цену, условия
             аренды, параметры здания и список арендаторов: сначала факты о
@@ -2687,7 +3114,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
 
         {renderRecommendationSlot('market')}
 
-        {center && <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
+        {reviewThemes ? (
+          <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} />
+        ) : <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
 
         {renderRecommendationSlot('reviews')}
 
@@ -2705,10 +3134,17 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             Список строим из готовых строк awardItems, а не через
             renderRentalText: тот рисует буллеты мелким шрифтом абзаца,
             а нужен тот же маркер, но крупнее. */}
-        {awardItems.length > 0 && (
+        {/* У ТЦ вместо этого блока — «Награды и рейтинги» (2026-09-24):
+            награды из retail_info.awards (или, пока их нет, те же строки
+            из highlights) и места в рейтингах ТЦ Минска одной карточкой. */}
+        {isTc && (
+          <TradeCenterAwardsBlock info={center.retailInfo} legacyAwardLines={awardItems} renderLine={renderBold} />
+        )}
+        {isTc && renderRecommendationSlot('awards-ranking')}
+        {!isTc && awardItems.length > 0 && (
           <div id="awards" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Trophy className="h-5 w-5 shrink-0 text-primary" />
+              <Trophy className="h-5 w-5 shrink-0 text-icon" />
               Награды
             </h2>
             <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-ink-muted marker:text-ink-muted">
@@ -2740,7 +3176,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         {mediaMentions.length > 0 && (
           <div id="media" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Newspaper className="h-5 w-5 shrink-0 text-primary" />
+              <Newspaper className="h-5 w-5 shrink-0 text-icon" />
               СМИ о здании
             </h2>
             <ul className="flex flex-col divide-y divide-border">
@@ -2784,10 +3220,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             СМИ/факты/история), после цены, параметров здания, арендаторов
             и сравнения с конкурентами (владелец принял предложенный
             порядок блоков). */}
-        {visibleHighlights.length > 0 && (
+        {factCards !== null && <TradeCenterFactCards key={`facts-${center.slug}`} facts={factCards} />}
+        {factCards === null && visibleHighlights.length > 0 && (
           <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+              <Sparkles className="h-5 w-5 shrink-0 text-icon" />
               Интересные факты
             </h2>
 
@@ -2827,7 +3264,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             арендаторов", теперь — здесь; сама разметка блока не менялась. */}
         <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-            <Building2 className="h-5 w-5 shrink-0 text-primary" />
+            <Building2 className="h-5 w-5 shrink-0 text-icon" />
             Параметры здания
           </h2>
           {/* Один сплошной список фактов о здании, без подзаголовков по
@@ -2972,12 +3409,25 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             в конце (после цены, параметров здания, арендаторов, отзывов и
             остального контента, перед выходами на другие БЦ) — блок про
             компанию-застройщика, а не про само здание, и заполнен меньше
-            чем у половины БЦ (56 из 141 на 2026-09-20). */}
-        {center.developerInfo && (
+            чем у половины БЦ (56 из 141 на 2026-09-20).
+            2026-09-24: когда ресёрч положил в developer_info участников
+            проекта, профиль, портфель или факты (пока — только ТЦ), вместо
+            этой карточки рисуется развёрнутый блок «Кто стоит за…»
+            (DeveloperDeepCard); без них карточка прежняя. */}
+        {center.developerInfo && hasDeveloperDeepData(center.developerInfo) ? (
+          <DeveloperDeepCard
+            showSources={!isTc}
+            info={center.developerInfo}
+            title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
+            mainName={developerMainName(center.developerInfo, center.developer)}
+            logoAlt={center.developer ?? shortName(center)}
+            contacts={developerContacts}
+          />
+        ) : center.developerInfo ? (
           <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-                <HardHat className="h-5 w-5 shrink-0 text-primary" />
+                <HardHat className="h-5 w-5 shrink-0 text-icon" />
                 Застройщик
               </h2>
               {center.developerInfo.logoUrl && (
@@ -2993,58 +3443,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             {center.developerInfo.description && (
               <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
             )}
-            {(center.developerInfo.phone ||
-              center.developerInfo.email ||
-              center.developerInfo.address ||
-              center.developerInfo.hours ||
-              center.developerInfo.website) && (
-              <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
-                {center.developerInfo.phone && (
-                  <a
-                    href={`tel:${center.developerInfo.phone.replace(/[^\d+]/g, '')}`}
-                    className="flex w-fit items-center gap-2 text-ink hover:underline"
-                  >
-                    <Phone className="h-4 w-4 shrink-0" />
-                    {center.developerInfo.phone}
-                  </a>
-                )}
-                {center.developerInfo.email && (
-                  <a
-                    href={`mailto:${center.developerInfo.email}`}
-                    className="flex w-fit items-center gap-2 text-ink hover:underline"
-                  >
-                    <Mail className="h-4 w-4 shrink-0" />
-                    {center.developerInfo.email}
-                  </a>
-                )}
-                {center.developerInfo.address && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{center.developerInfo.address}</span>
-                  </div>
-                )}
-                {center.developerInfo.hours && (
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 shrink-0" />
-                    <span>{center.developerInfo.hours}</span>
-                  </div>
-                )}
-                {developerWebsiteUrl && (
-                  <a
-                    href={developerWebsiteUrl.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-fit items-center gap-1 text-ink hover:underline"
-                  >
-                    <Globe className="h-4 w-4 shrink-0" />
-                    {developerWebsiteUrl.label}
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                  </a>
-                )}
-              </div>
-            )}
+            {developerContacts}
           </div>
-        )}
+        ) : null}
 
         {renderRecommendationSlot('developer')}
 
@@ -3059,7 +3460,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             <p className="flex flex-wrap items-baseline gap-x-1.5 text-sm leading-relaxed text-ink-muted">
               <span>Если хотите добавить, убрать или изменить информацию — напишите нам, поправим:</span>
               <a
-                href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные бизнес-центра «${shortName(center)}»`)}`}
+                href={`mailto:a@redevelopment.pro?subject=${encodeURIComponent(`Данные ${V.oneGen} «${shortName(center)}»`)}`}
                 className="w-fit font-semibold text-primary-hover hover:underline"
               >
                 a@redevelopment.pro
@@ -3074,7 +3475,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           <div className="mt-5 flex items-center justify-between gap-3 xl:hidden">
             {prev ? (
               <Link
-                to={`/minsk/bc/${prev.slug}`}
+                to={`${V.basePath}/${prev.slug}`}
                 className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
               >
                 <ChevronLeft className="h-4 w-4 shrink-0" />
@@ -3085,7 +3486,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             )}
             {next ? (
               <Link
-                to={`/minsk/bc/${next.slug}`}
+                to={`${V.basePath}/${next.slug}`}
                 className="flex items-center gap-1.5 text-right text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
               >
                 {shortName(next)}
@@ -3123,14 +3524,14 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             Минск Мира, каталог БЦ), когда здание будет куплено. */}
 
         <div className={cn('mt-6 flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-          <h2 className="text-lg font-bold text-ink">Источники</h2>
+          {!isTc && <h2 className="text-lg font-bold text-ink">Источники</h2>}
           {/* Владелец, 2026-09-22: один короткий дисклеймер без дат снимков и
               имён источников в основном тексте страницы — читатель видит
               длинный список оговорок как "нам нельзя доверять". Даты (2ГИС,
               Яндекс.Карты) и полный список конкретных сайтов остались только
               в попапе SourcesTrademarkNote — по клику на "Полный список
               источников", не в подверстке блока. */}
-          <SourcesTrademarkNote />
+          {isTc ? <p className="text-sm text-ink-muted">Все сведения носят справочный характер. Названия и товарные знаки принадлежат их правообладателям.</p> : <SourcesTrademarkNote />}
         </div>
 
         </main>
@@ -3138,6 +3539,16 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       </div>
     </div>
   );
+}
+
+/**
+ * Имя здания после родового слова: «Фаренгейт» → «Фаренгейт» в кавычках,
+ * адрес — с предлогом («на ул. …»). Разбор — в faqItems, где этим пользуются
+ * вопросы FAQ; тем же видом подписан заголовок ленты ТЦ.
+ */
+function centerNameTail(center: BusinessCenter, name = shortName(center)): string {
+  const addressLike = /^(ул\.|пр-т|просп|проспект|пер\.|пл\.|тракт|бул|наб|индустриальн)/i.test(name) || /^[\p{Lu}][\p{L}\s-]+\s\d+[\p{L}]?$/u.test(name);
+  return addressLike ? `на ${shortAddress(center.address)}` : `«${name}»`;
 }
 
 function RelatedCentersSection({
@@ -3157,6 +3568,7 @@ function RelatedCentersSection({
   stationName?: string;
   fallbackCenter?: BusinessCenter;
 }) {
+  const V = useCatalogKind();
   // Владелец, 2026-09-20: "если у нас всего 1 БЦ в блоке рекомендаций,
   // давай использовать вторую половину блока под рекомендацию других БЦ
   // этого же класса" — вторая плитка не пустует, показывает ближайшее
@@ -3186,7 +3598,7 @@ function RelatedCentersSection({
           // визуально стилизованный <span>.
           <Link
             key={related.slug}
-            to={`/minsk/bc/${related.slug}`}
+            to={`${V.basePath}/${related.slug}`}
             aria-label={`Открыть страницу ${related.name}`}
             // Владелец, 2026-09-22: "предложи новый макет блока рекомендаций,
             // он огромный". Ниже sm карточка была столбиком с фото во всю
@@ -3379,14 +3791,16 @@ function MediaOutletMark({ url, outlet }: { url: string; outlet: string }) {
 
   if (!brand?.logo || failed) {
     return (
-      <span className={cn('flex shrink-0 items-center text-sm font-semibold text-ink-muted sm:pt-0.5', MEDIA_LOGO_WIDTH)}>
+      // Название издания текстом («Megapolis-real.by», «СБ. Беларусь сегодня»)
+      // в колонку логотипа не влезало — у текста своя, более широкая колонка.
+      <span className="shrink-0 break-words text-sm font-semibold text-ink-muted sm:w-[120px] sm:pt-0.5">
         {label}
       </span>
     );
   }
   return (
-    <span className={cn('flex shrink-0 items-center justify-center', MEDIA_LOGO_WIDTH)}>
-      <img src={brand.logo} alt={label} loading="lazy" onError={() => setFailed(true)} className="h-auto w-full" />
+    <span className="flex shrink-0 items-center sm:w-[120px]">
+      <img src={brand.logo} alt={label} loading="lazy" onError={() => setFailed(true)} className={cn('h-auto', MEDIA_LOGO_WIDTH)} />
     </span>
   );
 }

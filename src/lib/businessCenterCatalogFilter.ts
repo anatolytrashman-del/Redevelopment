@@ -16,6 +16,7 @@
 import { BUSINESS_CENTER_CLASSES, type BusinessCenter } from '../data/businessCenters';
 import type { MarketSnapshot } from '../data/marketSnapshots';
 import { mapRatingFromHighlights, shortName, streetOfAddress } from './businessCenterDisplay';
+import { matchesTcFeatures, TC_FEATURE_IDS, type TcFilterIndex } from './tradeCenterCatalogFeatures';
 
 // --- Сортировка (К5) ---------------------------------------------------
 
@@ -53,6 +54,10 @@ export const CATALOG_SORTS: { key: CatalogSortKey; label: string }[] = [
 
 export interface CatalogFilterState {
   classes: string[];
+  // Формат торгового центра (ТРЦ, универмаг, рынок…) — ось каталога ТЦ
+  // (/minsk/tc, 2026-09-23), у бизнес-центров всегда пусто. [] = все
+  // форматы, как и у classes: явный выбор сужает.
+  formats: string[];
   // Статус здания — построено / строится (владелец, 2026-09-20). [] = обе
   // группы, как и у classes/facts — явный выбор сужает.
   statuses: string[];
@@ -78,6 +83,11 @@ export interface CatalogFilterState {
   // «свободные площади» из prometr.by (те известны у 30 из 143).
   lotSize: number | null;
   facts: string[];
+  // Каталог ТЦ (владелец, 2026-09-30): признаки «Что внутри», «Парковка»,
+  // «Когда» (id из TC_FEATURE_GROUPS) и строка «Магазин в ТЦ». Проверяются
+  // по выжимке /data/tc-filters.json — см. lib/tradeCenterCatalogFeatures.
+  tcFeatures: string[];
+  store: string;
   query: string;
   sort: CatalogSortKey;
   // Поля query/sort/view оставлены в типе для совместимости внутренних
@@ -103,6 +113,7 @@ export const CATALOG_VIEWS: { key: CatalogView; label: string }[] = [
 
 export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   classes: [],
+  formats: [],
   statuses: [],
   districts: null,
   microdistricts: null,
@@ -110,6 +121,8 @@ export const EMPTY_CATALOG_FILTER: CatalogFilterState = {
   metroStations: [],
   lotSize: null,
   facts: [],
+  tcFeatures: [],
+  store: '',
   query: '',
   sort: 'default',
   view: 'cards',
@@ -340,10 +353,13 @@ export function isPresetActive(preset: CatalogPreset, state: CatalogFilterState)
     a === null || b === null ? a === b : same(a, b);
   return (
     same(target.classes, state.classes) &&
+    same(target.formats, state.formats) &&
     same(target.statuses, state.statuses) &&
     sameNullable(target.districts, state.districts) &&
     sameNullable(target.microdistricts, state.microdistricts) &&
     same(target.facts, state.facts) &&
+    same(target.tcFeatures, state.tcFeatures) &&
+    target.store === state.store &&
     target.metroWithin === state.metroWithin &&
     same(target.metroStations, state.metroStations) &&
     target.lotSize === state.lotSize &&
@@ -370,6 +386,9 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
   const lotRaw = Number(params.get('lot'));
   return {
     classes: splitList(params.get('class')).filter((v) => ['A', 'B+', 'B', 'C'].includes(v)),
+    // Список форматов открытый (админка дописывает свои), поэтому значения
+    // не сверяются с перечнем: незнакомый формат просто ничего не найдёт.
+    formats: splitList(params.get('format')),
     statuses: splitList(params.get('status')).filter((v) => ['built', 'under_construction'].includes(v)),
     districts: parseSelection(params, 'district'),
     microdistricts: parseSelection(params, 'microdistrict'),
@@ -377,6 +396,8 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
     metroStations: splitList(params.get('station')),
     lotSize: Number.isFinite(lotRaw) && lotRaw > 0 ? Math.round(lotRaw) : null,
     facts: splitList(params.get('facts')).filter((id) => FACT_BY_ID.has(id)),
+    tcFeatures: splitList(params.get('has')).filter((id) => TC_FEATURE_IDS.has(id)),
+    store: (params.get('store') ?? '').trim().slice(0, 60),
     // Поиск, переключатель карты и сортировка сняты с первого экрана.
     // Старые ссылки с q/sort/view открываются в новом стандартном виде.
     query: '',
@@ -393,6 +414,7 @@ export function parseCatalogFilter(params: URLSearchParams): CatalogFilterState 
 export function catalogFilterToQuery(state: CatalogFilterState): string {
   const params = new URLSearchParams();
   if (state.classes.length > 0) params.set('class', [...state.classes].sort().join(','));
+  if (state.formats.length > 0) params.set('format', [...state.formats].sort().join(','));
   if (state.statuses.length > 0) params.set('status', [...state.statuses].sort().join(','));
   if (state.districts !== null) params.set('district', [...state.districts].sort().join(','));
   if (state.microdistricts !== null) params.set('microdistrict', [...state.microdistricts].sort().join(','));
@@ -400,6 +422,8 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
   if (state.metroStations.length > 0) params.set('station', [...state.metroStations].sort().join(','));
   if (state.lotSize != null) params.set('lot', String(state.lotSize));
   if (state.facts.length > 0) params.set('facts', [...state.facts].sort().join(','));
+  if (state.tcFeatures.length > 0) params.set('has', [...state.tcFeatures].sort().join(','));
+  if (state.store.trim()) params.set('store', state.store.trim());
   // Порядок сравнения — тот, в котором отмечал пользователь: колонки не
   // должны переставляться сами при перезагрузке страницы.
   if (state.compare.length > 0) params.set('compare', state.compare.join(','));
@@ -413,6 +437,7 @@ export function catalogFilterToQuery(state: CatalogFilterState): string {
 export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
   return (
     state.classes.length > 0 ||
+    state.formats.length > 0 ||
     state.statuses.length > 0 ||
     state.districts !== null ||
     state.microdistricts !== null ||
@@ -420,6 +445,8 @@ export function hasActiveCatalogFilter(state: CatalogFilterState): boolean {
     state.metroStations.length > 0 ||
     state.lotSize != null ||
     state.facts.length > 0 ||
+    state.tcFeatures.length > 0 ||
+    state.store.trim().length > 0 ||
     state.query.length > 0
   );
 }
@@ -448,12 +475,27 @@ export function matchesCatalogFilter(
   center: BusinessCenter,
   state: CatalogFilterState,
   offers: CatalogOfferIndex,
+  tcIndex?: TcFilterIndex | null,
 ): boolean {
   if (state.classes.length > 0) {
     if (center.businessClass === null || !state.classes.includes(center.businessClass)) return false;
   }
+  if (state.formats.length > 0) {
+    if (center.retailFormat == null || !state.formats.includes(center.retailFormat)) return false;
+  }
   if (state.statuses.length > 0 && !state.statuses.includes(center.status)) {
     return false;
+  }
+  // Строящихся ТЦ всего три, поэтому вместо строки «Статус» у каталога ТЦ
+  // переключатель «Показывать строящиеся», по умолчанию выключенный
+  // (владелец, 2026-09-30): пока статус не выбран явно, в выдаче только
+  // построенные.
+  if (center.kind === 'tc' && state.statuses.length === 0 && center.status === 'under_construction') {
+    return false;
+  }
+  if ((state.tcFeatures.length > 0 || state.store.trim()) && center.kind === 'tc') {
+    // Выжимка ещё не загрузилась — не отсекаем, иначе список мигнул бы пустым.
+    if (tcIndex && !matchesTcFeatures(tcIndex.get(center.slug), state.tcFeatures, state.store)) return false;
   }
   if (state.districts !== null && (center.district === null || !state.districts.includes(center.district))) {
     return false;

@@ -176,7 +176,8 @@ async function selectAllPages(buildQuery) {
 // Читать и писать умеем двумя путями: service-role ключом (если он есть в
 // окружении) и Management API по SUPABASE_ACCESS_TOKEN — в сессиях Claude
 // доступен только второй, локально у владельца бывает первый.
-export async function readCenters({ supabase, accessToken }) {
+// kind: 'bc' | 'tc' | 'all' — каталог (см. --kind в capture-yandex-nearby.mjs).
+export async function readCenters({ supabase, accessToken, kind = 'bc' }) {
   if (supabase) {
     const centers = await selectAllPages(() =>
       supabase
@@ -184,6 +185,7 @@ export async function readCenters({ supabase, accessToken }) {
         .select('slug,name,address,lat,lng')
         .not('lat', 'is', null)
         .not('lng', 'is', null)
+        .in('kind', kind === 'all' ? ['bc', 'tc'] : [kind])
         .order('slug'),
     );
     const snapshots = await selectAllPages(() =>
@@ -202,6 +204,7 @@ export async function readCenters({ supabase, accessToken }) {
               where p.business_center_slug = bc.slug and p.source = ${sqlLiteral(SOURCE)}) as collected_at
        from public.business_centers bc
       where bc.lat is not null and bc.lng is not null
+        and bc.kind in (${kind === 'all' ? "'bc','tc'" : sqlLiteral(kind)})
       order by bc.slug`,
     accessToken,
   );
