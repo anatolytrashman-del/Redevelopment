@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { brandSuggestions, buildTcFilterEntry, buildTcFilterIndex, isOpenAt, matchesTcFeatures, tcFormatChips, type TcFilterSource } from './tradeCenterCatalogFeatures';
+// @ts-expect-error — скрипт сборки без типов
+import { TC_FORMAT_HUB_MIN_CENTERS, TC_FORMAT_HUB_VALUES } from '../../scripts/_tcPaths.mjs';
+import { MIN_INDEXABLE_HUB_CENTERS } from './businessCenterHubs';
+import { brandSuggestions, buildTcFilterEntry, buildTcFilterIndex, isOpenAt, matchesTcFeatures, TC_FORMAT_HUBS, tcFormatChips, tcFormatHubOf, type TcFilterSource } from './tradeCenterCatalogFeatures';
 
 const base: TcFilterSource = { funKinds: [], foodZones: 0, foodcourtPlaces: 0, anchorCategories: [], parking: null, hours: [], brands: [] };
 
@@ -63,5 +66,21 @@ describe('tcFormatChips', () => {
       { label: 'торговый центр', values: ['ТРЦ', 'районный ТЦ', 'новый формат'] },
       { label: 'стройка и авто', values: ['строительный центр', 'автоцентр'] },
     ]);
+  });
+});
+
+describe('подборки по формату', () => {
+  it('близнец в scripts/_tcPaths.mjs совпадает', () => {
+    expect(Object.fromEntries(TC_FORMAT_HUBS.map((h) => [h.slug, h.values]))).toEqual(TC_FORMAT_HUB_VALUES);
+    expect(TC_FORMAT_HUB_MIN_CENTERS).toBe(MIN_INDEXABLE_HUB_CENTERS);
+  });
+
+  it('склоняет число и находит подборку по формату', () => {
+    const markets = TC_FORMAT_HUBS.find((h) => h.slug === 'markets')!;
+    expect(`3 ${markets.plural(3)}`).toBe('3 рынка');
+    expect(markets.subjectGen(21)).toBe('рынка Минска');
+    expect(markets.subjectGen(3)).toBe('рынков Минска');
+    expect(tcFormatHubOf('мебельный центр')?.slug).toBe('furniture');
+    expect(tcFormatHubOf('ТРЦ')).toBeNull();
   });
 });

@@ -232,6 +232,8 @@ export function setPlaceJsonLd(
     lat?: number | null;
     lng?: number | null;
     amenities?: string[];
+    /** Тип schema.org: 'Place' у БЦ, 'ShoppingCenter' у торговых центров. */
+    type?: 'Place' | 'ShoppingCenter';
   } | null,
 ) {
   const ld = document.getElementById('place-json-ld');
@@ -242,7 +244,7 @@ export function setPlaceJsonLd(
   }
   ld.textContent = JSON.stringify({
     '@context': 'https://schema.org',
-    '@type': 'Place',
+    '@type': place.type ?? 'Place',
     name: place.name,
     // alternateName — стандартное место для второго имени здания (БЦ «V» =
     // «Столица»): тот же объект, а не отдельное место на карте.

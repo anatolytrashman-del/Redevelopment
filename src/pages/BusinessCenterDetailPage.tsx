@@ -95,7 +95,10 @@ import {
   classHubUrl,
   districtHubUrl,
   microdistrictHubUrl,
+  MIN_INDEXABLE_HUB_CENTERS,
 } from '../lib/businessCenterHubs';
+import { fitsSerpTitle } from '../lib/serpTitleWidth';
+import { tcFormatHubOf, tcFormatHubUrl } from '../lib/tradeCenterCatalogFeatures';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenter, fetchBusinessCenters, snapshotBusinessCenter, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
@@ -2212,19 +2215,69 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   useEffect(() => {
     if (!center) return;
     if (isTc) {
-      // Страницы ТЦ: простые мета-теги для превью ссылки, без разметки
-      // здания и крошек (её добавим отдельно); noindex — только при TC_NOINDEX.
+      // Страницы ТЦ (в индексе с 2026-09-30): заголовок называет то, за чем
+      // приходят на страницу ТЦ, — магазины, часы, парковку, — и только то,
+      // что на ней действительно есть. Длинный вариант уступает короткому,
+      // если не влезает в ширину заголовка выдачи.
+      const info = center.retailInfo;
+      const topics = [
+        center.tenantCount > 0 ? 'магазины' : null,
+        info?.hours.length ? 'часы работы' : null,
+        info?.parking ? 'парковка' : null,
+      ].filter((v): v is string => v !== null);
+      const titleBase = `${fullName(center)} в Минске`;
+      const title =
+        [topics.length ? `${titleBase} — ${topics.join(', ')}` : null, topics.length > 1 ? `${titleBase} — ${topics.slice(0, 2).join(' и ')}` : null]
+          .filter((v): v is string => v !== null)
+          .find(fitsSerpTitle) ?? titleBase;
+      const facts = [
+        center.tenantCount > 0 ? `${center.tenantCount} ${pluralRu(center.tenantCount, 'магазин или заведение', 'магазина и заведения', 'магазинов и заведений')} внутри` : null,
+        info?.hours.length ? 'часы работы' : null,
+        info?.parking ? 'парковка' : null,
+        info?.reviewThemes ? 'что хвалят посетители и на что жалуются' : null,
+      ].filter((v): v is string => v !== null);
+      const place = [center.district ? `${center.district} район` : null, center.address].filter(Boolean).join(', ');
+      const description = [
+        `${fullName(center)}${place ? ` — ${place}` : ''}.`,
+        facts.length ? `${facts[0][0].toUpperCase()}${facts.join(', ').slice(1)}.` : null,
+      ].filter(Boolean).join(' ');
+      const url = `${V.siteUrl}/${center.slug}`;
       setGenericPageMeta({
-        title: `${fullName(center)} — ${V.one} в Минске`,
-        description: [center.retailFormat, center.address].filter(Boolean).join(', '),
-        url: `${V.siteUrl}/${center.slug}`,
+        title,
+        description,
+        url,
         image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
       });
       if (TC_NOINDEX) {
         setNoIndex();
         return () => clearNoIndex();
       }
-      return;
+      // Крошки ведут через подборку формата, если она есть и открыта для
+      // индекса («Рынки», «Мебельные центры»), — так у подборки появляется
+      // ссылка с каждой её карточки.
+      const formatHub = tcFormatHubOf(center.retailFormat);
+      const formatHubSize = formatHub && centers
+        ? centers.filter((c) => c.status !== 'under_construction' && c.retailFormat != null && formatHub.values.includes(c.retailFormat)).length
+        : 0;
+      setBreadcrumbJsonLd([
+        { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+        { name: V.catalogTitle, url: V.siteUrl },
+        ...(formatHub && formatHubSize >= MIN_INDEXABLE_HUB_CENTERS
+          ? [{ name: formatHub.label, url: `https://redevelopment.pro${tcFormatHubUrl(formatHub, V.basePath)}` }]
+          : []),
+        { name: shortName(center) },
+      ]);
+      setPlaceJsonLd({
+        type: 'ShoppingCenter',
+        name: fullName(center),
+        altNames: center.altNames,
+        url,
+        address: center.address,
+        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
+        lat: center.lat,
+        lng: center.lng,
+      });
+      return () => setPlaceJsonLd(null);
     }
     setBusinessCenterPageMeta(
       center.slug,
@@ -2255,7 +2308,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       ],
     });
     return () => setPlaceJsonLd(null);
-  }, [center, pageComposition, ambiguousName, isTc, V]);
+  }, [center, centers, pageComposition, ambiguousName, isTc, V]);
 
   // Разметку пререндера на /bc/<slug> прячет инлайн-скрипт index.html:
   // в ней полная карточка с соседями. Показываем, когда отрисовался режим

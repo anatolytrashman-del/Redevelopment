@@ -292,6 +292,7 @@ const TC_HERO_CUTOUTS = new Set([
   'tc-metropol-tc',
   'tc-minsk-city-mall',
   'tc-momo',
+  'tc-moskovskiy-rynok',
   'tc-nemiga-3',
   'tc-ocean',
   'tc-pershy-natsyyanalny-gandlevy-dom',
