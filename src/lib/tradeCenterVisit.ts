@@ -58,15 +58,28 @@ export function transportForVisit(entries: RetailTransportEntry[]) {
   };
 }
 
+/**
+ * Число мест без оговорок источника: «около 750 (600 у здания + 150 вокруг)
+ * — по данным 2017 года» → «около 750». Режем по скобкам, «;» и тире с
+ * пробелами (тире внутри «300–500» не трогаем). Не вышло коротко — null:
+ * значит, цифры тут нет, а есть рассказ, и ему место в блоке «Как добраться
+ * и где встать», а не в строке с многоточием (владелец, 2026-09-30).
+ */
+export function parkingSpacesShort(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const head = value.replace(/\([^)]*\)?/g, ' ').split(/;|\s[—–-]\s/u)[0].replace(/\s+/g, ' ').replace(/[\s,.]+$/, '').trim();
+  return /\d/.test(head) && head.length <= 24 ? head : null;
+}
+
 export function parkingForVisit(parking: RetailParking | null, hours: RetailHoursEntry[] = []) {
   if (!parking) return null;
   const item = (pattern: RegExp) => parking.items.find((i) => pattern.test(i.label) && i.value.trim());
   const entry = item(/въезд/iu)?.value;
   const entrance = entry ? (entry.match(/въезд\s+(.+)/iu)?.[1] ?? entry).replace(/[.;]+$/, '') : '';
   const allDay = /круглосуточ|24\s*\/\s*7/iu.test(parking.summary) || hours.some((h) => /паркинг|парков/iu.test(h.zone) && /круглосуточ|24\s*\/\s*7/iu.test(h.value));
-  const spaces = item(/мест/iu);
+  const spaces = parkingSpacesShort(item(/мест/iu)?.value);
   const tiles = [
-    ...(spaces ? [{ value: spaces.value, label: `мест${allDay ? ', круглосуточно' : ''}` }] : []),
+    ...(spaces ? [{ value: spaces, label: `мест${allDay ? ', круглосуточно' : ''}` }] : []),
     ...[/перв/iu, /следующ/iu].flatMap((re) => { const row = item(re); return row ? [{ value: row.value, label: row.label.toLowerCase() }] : []; }),
   ];
   const free = parking.items.filter((i) => /^бесплатно|электромобил/iu.test(i.label) && i.value.trim()).map((i) => {

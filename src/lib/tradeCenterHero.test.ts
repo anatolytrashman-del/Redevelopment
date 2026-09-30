@@ -152,6 +152,13 @@ describe('tcParkingShort / tcParkingSpaces', () => {
   it('совсем пусто — null', () => {
     expect(tcParkingShort(parking())).toBeNull();
   });
+  it('оговорки источника не тащит и не режет многоточием', () => {
+    const p = parking({ items: [{ label: 'Мест', value: 'около 750 (600 у здания + 150 вокруг) — по данным 2017 года' }], summary: 'Большая бесплатная парковка у входа, рядом ещё две городские стоянки на 300 машин' });
+    expect(tcParkingShort(p)).toBe('около 750 мест');
+    expect(tcParkingSpaces(p)).toBe('около 750');
+    expect(tcParkingSpaces(parking({ items: [{ label: 'Мест', value: '300–500 на 3–4 уровнях (разные страницы)' }] }))).toBe('300–500 на 3–4 уровнях');
+    expect(tcParkingShort(parking({ summary: 'Своего паркинга у галереи нет: рядом наземные парковки во дворах и у соседнего бизнес-центра' }))).toBeNull();
+  });
 });
 
 describe('selectTcFactTiles', () => {

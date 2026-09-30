@@ -6,6 +6,7 @@
 // теста (везде считаем время явно, а не через `new Date()` без зоны).
 import type { RetailFigureEntry, RetailFoodInfo, RetailFunEntry, RetailHoursEntry, RetailInfo, RetailParking } from '../data/businessCenters';
 import { pluralRu } from './pluralRu';
+import { parkingSpacesShort } from './tradeCenterVisit';
 import { anchorsForPage, retailSectionIds } from './tradeCenterRetail';
 
 /** «ТЦ» / «40+ м²» и т.п. — подпись строкой под «Также известен как…». */
@@ -163,30 +164,43 @@ export function truncateOneLine(text: string, maxLength = 70): string {
 
 const PARKING_PLACES_RE = /мест/iu;
 
-/** Короткая сводка парковки (≤ ~60 символов) для строки «Как добраться». */
+/** Первая фраза без скобок, если она целиком влезает в maxLength, иначе null. */
+function shortClause(text: string, maxLength: number): string | null {
+  const head = text.replace(/\([^)]*\)?/g, ' ').split(/;|\s[—–-]\s|(?<=[.!?])\s/u)[0].replace(/\s+/g, ' ').replace(/[\s,.]+$/, '').trim();
+  return head && head.length <= maxLength ? head : null;
+}
+
+/**
+ * Короткая сводка парковки для строки «Как добраться». Текст не обрезаем
+ * многоточием: берём только то, что влезает целиком (места, въезд), а
+ * длинное описание остаётся в блоке парковки ниже.
+ */
 export function tcParkingShort(parking: RetailParking | null, maxLength = 60): string | null {
   if (!parking) return null;
   const placesItem = parking.items.find((i) => PARKING_PLACES_RE.test(i.label));
   const parts: string[] = [];
-  if (placesItem) parts.push(`${placesItem.value} мест`);
-  // Въезд полезнее описания здания паркинга (владелец, 2026-09-25: на
-  // первом экране описание обрезалось на полуслове). summary — только
-  // если нет ни мест, ни въезда.
+  const places = parkingSpacesShort(placesItem?.value);
+  if (places) parts.push(`${places} мест`);
+  // Въезд полезнее описания здания паркинга (владелец, 2026-09-25).
   const entryItem = parking.items.find((i) => /въезд/iu.test(i.label) || /въезд/iu.test(i.value));
-  const entry = entryItem?.value.match(/въезд[^;]*/iu)?.[0];
+  const entryRaw = entryItem?.value.match(/въезд[^;]*/iu)?.[0];
+  const entry = entryRaw ? shortClause(entryRaw, maxLength - (parts.join(' · ').length + 3)) : null;
   if (entry) parts.push(entry);
-  if (!parts.length && parking.summary) parts.push(parking.summary);
-  if (!parts.length && parking.items[0]) parts.push(`${parking.items[0].label}: ${parking.items[0].value}`);
-  if (!parts.length) return null;
-  let text = parts.join(' · ');
-  if (text.length > maxLength) text = `${text.slice(0, maxLength - 1).trimEnd()}…`;
-  return text;
+  if (!parts.length && parking.summary) {
+    const summary = shortClause(parking.summary, maxLength);
+    if (summary) parts.push(summary);
+  }
+  if (!parts.length && parking.items[0]) {
+    const first = shortClause(`${parking.items[0].label}: ${parking.items[0].value}`, maxLength);
+    if (first) parts.push(first);
+  }
+  return parts.length ? parts.join(' · ') : null;
 }
 
 /** Число мест на парковке отдельной строкой — запасная плитка фактов. */
 export function tcParkingSpaces(parking: RetailParking | null): string | null {
   const item = parking?.items.find((i) => PARKING_PLACES_RE.test(i.label));
-  return item ? item.value : null;
+  return parkingSpacesShort(item?.value);
 }
 
 // --- Плитки фактов ------------------------------------------------------
