@@ -23,6 +23,12 @@ interface ChipProps {
   disabled?: boolean;
 }
 
+// Подписи фильтров — с заглавной буквы (владелец, 2026-09-30), даже если в
+// данных значение строчное («районный ТЦ», «до 500 м»).
+function capitalizeFirst(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function Chip({ active, count, onClick, children, disabled }: ChipProps) {
   return (
     <button
@@ -39,7 +45,7 @@ function Chip({ active, count, onClick, children, disabled }: ChipProps) {
             : 'border-border bg-surface text-ink hover:border-primary hover:text-primary-hover',
       )}
     >
-      <span>{children}</span>
+      <span>{typeof children === 'string' ? capitalizeFirst(children) : children}</span>
       {count !== undefined && (
         <span className={cn('text-xs font-bold tabular-nums', active ? 'text-white/80' : 'text-ink-faint')}>
           {count}
