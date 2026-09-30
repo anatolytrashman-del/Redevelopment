@@ -3670,9 +3670,13 @@ function RelatedCentersSection({
             // телефоне до правки (владелец так и написал «у меня пока старый
             // вид» — он смотрел как раз в этом диапазоне). Вместо столбика
             // строка с фото поменьше (7rem), как на всех остальных ширинах.
-            className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-2 transition-colors hover:border-primary/40 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-0 sm:p-0 lg:grid-cols-[7rem_minmax(0,1fr)] xl:grid-cols-[10rem_minmax(0,1fr)]"
+            className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-2 transition-colors hover:border-primary/40 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-1 lg:grid-cols-[7rem_minmax(0,1fr)] xl:grid-cols-[10rem_minmax(0,1fr)]"
           >
-            <div className="aspect-square overflow-hidden rounded-xl bg-surface-muted sm:rounded-2xl">
+            {/* Фото — с отступом от рамки плитки на всех ширинах (владелец,
+                2026-09-30: «фотка не влезает в края блока»). Раньше от sm
+                у плитки не было padding, и квадрат фото, который ниже
+                высоты плитки (lg: 7rem), лип к левой рамке. */}
+            <div className="aspect-square overflow-hidden rounded-xl bg-surface-muted">
               {/* sizes повторяет ширины колонки фото из grid-cols выше
                   (5rem / 10rem / 7rem / 10rem) — см. PhotoBlock. */}
               <PhotoBlock
@@ -3682,7 +3686,7 @@ function RelatedCentersSection({
                 sizes="(min-width: 1280px) 10rem, (min-width: 1024px) 7rem, (min-width: 640px) 10rem, 5rem"
               />
             </div>
-            <div className="flex min-w-0 flex-col items-start justify-center gap-1 py-1 pr-2 sm:gap-2 sm:p-4">
+            <div className="flex min-w-0 flex-col items-start justify-center gap-1 py-1 pr-2 sm:gap-2 sm:px-3 sm:py-2">
               {isFallback && (
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Похож по классу</p>
               )}
