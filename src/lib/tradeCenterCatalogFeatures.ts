@@ -5,6 +5,7 @@
 // /data/tc-filters.json (scripts/generate-catalog-data.mjs, writeTcFilters),
 // а смысл признаков считается здесь, чтобы правило жило в одном месте и
 // проверялось тестом, а не дублировалось в JS сборки.
+import { pluralRu } from './pluralRu';
 import { minskNowMinutes, parseDailyHours, pickMainHoursZone, type ParsedDailyHours } from './tradeCenterHero';
 
 /** Одна запись /data/tc-filters.json — сырые куски retail_info и арендаторов. */
@@ -184,4 +185,68 @@ export function tcFormatChips(available: string[]): { label: string; values: str
     ...(general.length ? [{ label: 'торговый центр', values: general }] : []),
     ...TC_SPECIAL_FORMAT_CHIPS.filter((c) => c.values.some((v) => available.includes(v))),
   ];
+}
+
+// Подборки по формату (владелец, 2026-09-30: «Рынки», «Мебельные центры»,
+// «Аутлеты»): отдельные адреса /minsk/tc/format/<slug> с тем же каталогом,
+// ограниченным форматом. В индекс и sitemap подборка идёт, только когда в
+// ней не меньше MIN_INDEXABLE_HUB_CENTERS видимых ТЦ: подборка из одного
+// аутлета повторяла бы его карточку. ФАЙЛ-БЛИЗНЕЦ: slug и значения формата
+// повторены в scripts/_tcPaths.mjs (TC_FORMAT_HUB_VALUES), сверяет тест.
+export interface TcFormatHub {
+  slug: string;
+  values: string[];
+  /** «Рынки Минска» — заголовок подборки. */
+  title: string;
+  /** «Рынки» — звено крошек и подпись ссылки. */
+  label: string;
+  /** «рынков Минска» — родительный падеж под «аналитика N …». */
+  subjectGen: (n: number) => string;
+  /** 1 рынок, 2 рынка, 5 рынков (без числа). */
+  plural: (n: number) => string;
+  /** Подзаголовок hero с числом объектов в начале. */
+  intro: (countLabel: string) => string;
+}
+
+export const TC_FORMAT_HUBS: TcFormatHub[] = [
+  {
+    slug: 'markets',
+    values: ['рынок'],
+    title: 'Рынки Минска',
+    label: 'Рынки',
+    subjectGen: (n) => `${n % 10 === 1 && n % 100 !== 11 ? 'рынка' : 'рынков'} Минска`,
+    plural: (n) => pluralRu(n, 'рынок', 'рынка', 'рынков'),
+    intro: (count) => `${count} Минска и пригорода — адреса, площадь, парковка и часы работы.`,
+  },
+  {
+    slug: 'furniture',
+    values: ['мебельный центр'],
+    title: 'Мебельные центры Минска',
+    label: 'Мебельные центры',
+    subjectGen: (n) => `${n % 10 === 1 && n % 100 !== 11 ? 'мебельного центра' : 'мебельных центров'} Минска`,
+    plural: (n) => pluralRu(n, 'мебельный центр', 'мебельных центра', 'мебельных центров'),
+    intro: (count) => `${count} Минска — адреса, площадь, парковка, часы работы и магазины внутри.`,
+  },
+  {
+    slug: 'outlets',
+    values: ['аутлет'],
+    title: 'Аутлеты Минска',
+    label: 'Аутлеты',
+    subjectGen: (n) => `${n % 10 === 1 && n % 100 !== 11 ? 'аутлета' : 'аутлетов'} Минска`,
+    plural: (n) => pluralRu(n, 'аутлет', 'аутлета', 'аутлетов'),
+    intro: (count) => `${count} Минска — адреса, площадь, парковка, часы работы и бренды внутри.`,
+  },
+];
+
+export function tcFormatHubBySlug(slug: string | undefined): TcFormatHub | null {
+  return TC_FORMAT_HUBS.find((h) => h.slug === slug) ?? null;
+}
+
+export function tcFormatHubUrl(hub: TcFormatHub, basePath = '/minsk/tc'): string {
+  return `${basePath}/format/${hub.slug}`;
+}
+
+/** Подборка, в которую попадает ТЦ этого формата (для крошек карточки). */
+export function tcFormatHubOf(format: string | null | undefined): TcFormatHub | null {
+  return format ? (TC_FORMAT_HUBS.find((h) => h.values.includes(format)) ?? null) : null;
 }

@@ -358,6 +358,11 @@ export default function App() {
         path="/minsk/tc/metro/:metroSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
+      {/* Подборки по формату: «Рынки», «Мебельные центры», «Аутлеты» (2026-09-30), см. TC_FORMAT_HUBS. */}
+      <Route
+        path="/minsk/tc/format/:formatSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
       <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
       {/* Карточка БЦ для ссылки с сайта самого здания (владелец, 2026-09-24):
           без шапки, соседей и объявлений, canonical — на /minsk/bc/:slug,
