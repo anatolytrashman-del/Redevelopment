@@ -1048,7 +1048,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     if (summary.rentMedian != null) add('Какая медианная ставка аренды и как она рассчитана?', rentMethodology);
     if (showRatesBlock) {
       for (const [label, deal, rate] of [['аренды', 'rent', rateRent], ['продажи', 'sale', rateSale]] as const) {
-        if (rate?.median != null) add(`Какая ставка ${label} в блоке рыночных ставок?`, `${formatRate(rate.median, deal)} по ${rate.n} объявлениям Kufar, Realt, Domovita и Megapolis.${rate.period ? ` Период: ${rate.period.slice(0, 7)}.` : ''}${rate.n < MIN_RELIABLE_N ? ' Объявлений мало, ставка лишь ориентировочная.' : ''} Это медиана ставок в объявлениях для выбранной части рынка.`);
+        if (rate?.median != null) add(`Какая ставка ${label} в блоке рыночных ставок?`, `${formatRate(rate.median, deal)} по ${rate.n} объявлениям Kufar, Realt и Domovita.${rate.period ? ` Период: ${rate.period.slice(0, 7)}.` : ''}${rate.n < MIN_RELIABLE_N ? ' Объявлений мало, ставка лишь ориентировочная.' : ''} Это медиана ставок в объявлениях для выбранной части рынка.`);
       }
     }
     // Управление зданиями, текущие объявления и внешний контекст рынка —
@@ -1350,7 +1350,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
                 <h2 className="text-lg font-bold text-ink">Ставки аренды и продажи</h2>
                 <p className="text-xs text-ink-faint">
-                  Медиана по объявлениям Kufar, Realt, Domovita и Megapolis{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : ` в ${districtPrepositional(rateSliceKey ?? '')} районе`}
+                  Медиана по объявлениям Kufar, Realt и Domovita{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : ` в ${districtPrepositional(rateSliceKey ?? '')} районе`}
                   {rateRent?.period ? `, ${rateRent.period.slice(0, 7)}` : ''}.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

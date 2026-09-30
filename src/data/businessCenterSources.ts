@@ -52,7 +52,6 @@ export const DATA_SOURCE_GROUPS: DataSourceGroup[] = [
       { label: 'Kufar', href: 'https://re.kufar.by/', note: 'объявления об аренде и продаже помещений' },
       { label: 'Realt.by', href: 'https://realt.by/', note: 'объявления об аренде и продаже помещений' },
       { label: 'Domovita.by', href: 'https://domovita.by/', note: 'объявления об аренде и продаже помещений' },
-      { label: 'Megapolis-real.by', href: 'https://megapolis-real.by/', note: 'объявления об аренде и продаже помещений' },
       { label: 'Garantiruem.by', href: 'https://garantiruem.by/', note: 'объявления об аренде и продаже помещений' },
       { label: 'Pro-N.by', href: 'https://pro-n.by/', note: 'объявления об аренде и продаже помещений' },
       {
@@ -114,12 +113,20 @@ export const DATA_SOURCE_GROUPS: DataSourceGroup[] = [
   },
 ];
 
+// Площадки, которые в списках источников не называем вовсе (владелец,
+// 2026-09-30: «Убери megapolis-real из упоминания списков источников»).
+// Ссылки на них остались в фактах карточек в базе, поэтому хост нужен здесь:
+// без него подтянутый из базы список вывел бы megapolis-real.by отдельной
+// строкой, как только он пропал из DATA_SOURCE_GROUPS.
+const UNLISTED_SOURCE_HOSTS = ['megapolis-real.by'];
+
 // Хосты постоянных источников — чтобы издание или площадка, уже названные
 // выше, не попали во второй раз в подтянутые из базы списки.
 export const STATIC_SOURCE_HOSTS = new Set(
-  DATA_SOURCE_GROUPS.flatMap((g) =>
-    g.sources.map((s) => new URL(s.href).host.replace(/^www\./, '')),
-  ).flatMap((host) => {
+  [
+    ...DATA_SOURCE_GROUPS.flatMap((g) => g.sources.map((s) => new URL(s.href).host.replace(/^www\./, ''))),
+    ...UNLISTED_SOURCE_HOSTS,
+  ].flatMap((host) => {
     // re.kufar.by и ru.wikipedia.org встречаются в ссылках и без
     // поддомена, и с другим — сверяем по домену второго уровня тоже.
     const parts = host.split('.');

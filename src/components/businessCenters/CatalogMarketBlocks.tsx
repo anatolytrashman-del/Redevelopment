@@ -286,7 +286,7 @@ export function AvailableNowBlock({
           Сейчас сдаётся и продаётся
         </h2>
         <p className="text-xs text-ink-faint">
-          {withLots.length} зданий каталога с активными объявлениями на Kufar, Realt, Domovita и Megapolis. Остальные
+          {withLots.length} зданий каталога с активными объявлениями на Kufar, Realt и Domovita. Остальные
           сдают напрямую через управляющую компанию либо заняты.
         </p>
       </div>
