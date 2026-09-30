@@ -7,6 +7,7 @@
 // (BusinessCentersMinskPage.tsx) и админка (BusinessCentersAdminTab.tsx)
 // читают/пишут через lib/businessCentersApi.ts.
 //
+import type { CatalogKind } from '../lib/catalogKind';
 import type { DocumentFile } from './contractorDocuments';
 
 // district=null — "не указано": не выдумывать значение, честно показывать
@@ -282,6 +283,18 @@ export interface BusinessCenter {
   photos: string[];
   // 'built' по умолчанию. 'under_construction' — как МФЦ, ещё строится.
   status: 'built' | 'under_construction';
+  // Какому каталогу принадлежит запись: 'bc' — бизнес-центры (/minsk/bc),
+  // 'tc' — торговые центры (/minsk/tc). Одна таблица на оба каталога, см.
+  // src/lib/catalogKind.tsx и миграцию 20260923-catalog-kind.sql.
+  kind: CatalogKind;
+  // Формат торгового объекта (ТРЦ, ТЦ, универмаг, рынок…) — у ТЦ он вместо
+  // делового класса. У бизнес-центров null.
+  retailFormat: string | null;
+  // Торговые блоки карточки ТЦ (2026-09-23): что на каком этаже, первые в
+  // Беларуси и якоря, кино/еда/развлечения, место в рейтинге ТЦ Минска.
+  // Заполняет ресёрч ТЦ, в админке не правится (поэтому не входит в
+  // BusinessCenterInput — сохранение формы его не затирает). У БЦ — null.
+  retailInfo: RetailInfo | null;
   // Порядок на публичной странице (изначально — примерно по частотности
   // поисковых запросов, не алфавитный — алфавит только в боковой навигации).
   // Управляется в админке (см. BusinessCentersAdminTab.tsx).
@@ -319,6 +332,72 @@ export interface DeveloperInfo {
   // до этого поля не было вовсе ни у одного БЦ. Показывается на публичной
   // карточке тем же принципом, что и остальные поля этого блока.
   email: string | null;
+  // Развёрнутый блок «Кто стоит за ТЦ» (владелец, 2026-09-24: у ТЦ блок
+  // застройщика «смотрится бедно, мало инфы»). Все четыре поля
+  // необязательные: у 141 БЦ их нет вовсе, и карточка рисуется как раньше.
+  // Заполняет ресёрч (бриф tc-catalog/codex/briefs/developer-deep.md),
+  // форма админки их не редактирует, но и не стирает — сохраняет как были
+  // (buildDeveloperInfo в BusinessCentersAdminTab.tsx). Из базы приходят
+  // через normalizeDeveloperInfo (lib/developerProfile.ts): кривые записи
+  // отбрасываются там, а не на странице. Контакты главной компании —
+  // существующие phone/email/address/website выше, не дублируются.
+  companies?: DeveloperCompany[];
+  profile?: DeveloperProfile | null;
+  portfolio?: DeveloperPortfolioEntry[];
+  facts?: DeveloperFact[];
+}
+
+/** Участник проекта: инвестор, собственник, генподрядчик, архитектор, УК… */
+export interface DeveloperCompany extends RetailSource {
+  /** Как в ресёрче: «инвестор и застройщик», «генподрядчик», «управляющая компания». */
+  role: string;
+  name: string;
+  legalName: string | null;
+  /** «2011–2014», «2014–н. в.» — строкой, как опубликовано. */
+  years: string | null;
+  country: string | null;
+  website: string | null;
+  text: string | null;
+  quote: string | null;
+}
+
+/** Цифра масштаба главной компании: «25 торговых центров» на дату. */
+export interface DeveloperScaleEntry extends RetailSource {
+  label: string;
+  value: string;
+  date: string | null;
+}
+
+export interface DeveloperProfile {
+  name: string;
+  /** Год или дата основания строкой («1996»). */
+  founded: string | null;
+  hq: string | null;
+  business: string | null;
+  scale: DeveloperScaleEntry[];
+  // Людей (учредителей, директоров) и их доли не показываем — только
+  // компании (владелец, 2026-09-30: «никаких физлиц»). profile.people в
+  // базе, если остался, парсер игнорирует.
+}
+
+/** Другой объект компании (или её группы). */
+export interface DeveloperPortfolioEntry extends RetailSource {
+  name: string;
+  /** Тип: ТЦ, БЦ, жильё, отель… */
+  kind: string | null;
+  city: string | null;
+  year: string | null;
+  /** Уже с единицей: число из базы превращается в «12 300 м²». */
+  area: string | null;
+  note: string | null;
+  /** Какой из companies принадлежит — для группировки. */
+  owner: string | null;
+}
+
+export interface DeveloperFact extends RetailSource {
+  label: string | null;
+  text: string;
+  quote: string | null;
 }
 
 // Фиксированный набор иконок для "Интересных фактов" (не сам React-компонент
@@ -363,6 +442,9 @@ export interface TenantOrganization {
   category: string;
   rating?: number | null;
   reviewCount?: number | null;
+  // Скрипт сбора Яндекса кладёт сюда же ссылку, текст карточки и этаж; форма
+  // админки их не показывает, но и не должна терять при сохранении.
+  floor?: string | null;
 }
 
 // См. комментарий у BusinessCenter.technicalParams выше.
@@ -423,6 +505,325 @@ export interface NearestMetroStation {
   color: string | null;
 }
 
+// Торговые блоки карточки ТЦ — jsonb-колонка business_centers.retail_info
+// (миграция 20260923-business-centers-retail-info.sql). Ключи camelCase — так
+// они и лежат в jsonb. У каждой записи свой источник: блоки собраны из разных
+// публикаций, и одна общая ссылка на всю колонку врала бы про половину строк.
+// Разбор и нормализация (любой массив может отсутствовать) —
+// src/lib/tradeCenterRetail.ts.
+export interface RetailSource {
+  source: string | null;
+  sourceUrl: string | null;
+}
+
+export interface RetailFloorEntry extends RetailSource {
+  // Как у источника: "-1", "1", "2–3", "6". Порядок на странице — по первому
+  // числу строки, сверху вниз (sortFloorsTopDown).
+  floor: string;
+  text: string;
+  date: string | null;
+}
+
+// Якорные арендаторы — retail_info.anchors (2026-09-24, бриф
+// tc-catalog/codex/briefs/anchors-timeline.md): кто СЕЙЧАС тянет в ТЦ людей.
+// Категория — открытый список ресёрча; незнакомая сводится к «другое».
+// У старых записей firsts (kind anchor) категории нет — null.
+export const RETAIL_ANCHOR_CATEGORIES = [
+  'гипермаркет',
+  'кинотеатр',
+  'fashion',
+  'электроника',
+  'детские товары',
+  'спорт',
+  'дом и интерьер',
+  'развлечения',
+  'фудкорт',
+  'фитнес',
+  'другое',
+] as const;
+
+export type RetailAnchorCategory = (typeof RETAIL_ANCHOR_CATEGORIES)[number];
+
+export interface RetailAnchorEntry extends RetailSource {
+  name: string;
+  category: RetailAnchorCategory | null;
+  // Как у источника: "-1", "1", "2–3".
+  floor: string | null;
+  // "6 300 м²".
+  area: string | null;
+  // Год прихода в ТЦ, "2016".
+  since: string | null;
+  text: string;
+  yandexUrl: string | null;
+}
+
+// «Чем ТЦ вошёл в историю ритейла» — retail_info.timeline (та же схема).
+// Только достижения: уходы брендов и закрытия сюда не пишутся вовсе.
+export type RetailTimelineKind = 'first' | 'first_format' | 'record' | 'milestone';
+
+export interface RetailTimelineEntry extends RetailSource {
+  // "2019-03-15", "2019-03" или "2019" — запись без года отбрасывается.
+  date: string;
+  kind: RetailTimelineKind;
+  name: string;
+  text: string;
+  note: string | null;
+}
+
+export type RetailLeisureKind = 'cinema' | 'food' | 'kids' | 'sport' | 'other';
+
+export interface RetailLeisureEntry extends RetailSource {
+  kind: RetailLeisureKind;
+  name: string;
+  text: string;
+  date: string | null;
+}
+
+// «Где поесть» и «Развлечения» — retail_info.food и retail_info.fun
+// (2026-09-24): владелец разделил старый блок «Кино, еда, развлечения»
+// (leisure) на два. У ТЦ, где есть хоть один из новых ключей, leisure не
+// показывается; у остальных — пока как раньше. Разбор —
+// normalizeRetailInfo в lib/tradeCenterRetail.
+export interface RetailFoodZone extends RetailSource {
+  // Фудкорт, ресторанный дворик, гастрозона.
+  name: string;
+  floor: string | null;
+  // Как у источника; число из jsonb приходит строкой: "1200", "около 600".
+  area: string | null;
+  seats: string | null;
+  points: string | null;
+  hours: string | null;
+  text: string | null;
+}
+
+export const RETAIL_FOOD_PLACE_TYPES = ['restaurant', 'cafe', 'fastfood', 'coffee', 'dessert', 'bar'] as const;
+
+export type RetailFoodPlaceType = (typeof RETAIL_FOOD_PLACE_TYPES)[number];
+
+export interface RetailFoodPlace {
+  name: string;
+  // Незнакомый тип — 'cafe'.
+  type: RetailFoodPlaceType;
+  cuisine: string | null;
+  floor: string | null;
+  inFoodcourt: boolean | null;
+  yandexUrl: string | null;
+  note: string | null;
+}
+
+export interface RetailFoodInfo {
+  summary: string | null;
+  zones: RetailFoodZone[];
+  // Все заведения ТЦ, у крупных — 30–90 штук.
+  places: RetailFoodPlace[];
+}
+
+export const RETAIL_FUN_KINDS = ['cinema', 'ice', 'kids', 'concert', 'games', 'quest', 'sport', 'fitness', 'other'] as const;
+
+export type RetailFunKind = (typeof RETAIL_FUN_KINDS)[number];
+
+export interface RetailFunEntry extends RetailSource {
+  name: string;
+  // Незнакомый вид — 'other'.
+  kind: RetailFunKind;
+  floor: string | null;
+  area: string | null;
+  capacity: string | null;
+  // «IMAX», «4DX», «VIP-зал».
+  formats: string[];
+  hours: string | null;
+  // Год открытия в ТЦ, "2016".
+  since: string | null;
+  text: string | null;
+  yandexUrl: string | null;
+}
+
+export interface RetailRankingEntry extends RetailSource {
+  place: number;
+  // "арендопригодная площадь" (у записей до 2026-09-24 значение бывает
+  // прямо в скобках: "арендопригодная площадь (52 000 м²)")
+  criterion: string;
+  // "ТЦ Минска"
+  scope: string;
+  total: number | null;
+  year: number | null;
+  // С 2026-09-24 (tc-catalog/codex/briefs/awards.md), у старых записей нет:
+  // человеческая формулировка «Крупнейший ТЦ Минска по арендопригодной
+  // площади», значение показателя «68 600 м²» и оговорка.
+  headline: string | null;
+  value: string | null;
+  note: string | null;
+}
+
+// Награды и конкурсы ТЦ — retail_info.awards (2026-09-24, та же схема).
+export type RetailAwardResult = 'winner' | 'diploma' | 'laureate' | 'finalist' | 'nominee' | 'other';
+
+export interface RetailAwardEntry extends RetailSource {
+  // Короткое название для читателя: «Realt Golden Key 2014».
+  title: string;
+  org: string | null;
+  // Строкой: у конкурсов бывает «2014–2015».
+  year: string | null;
+  category: string | null;
+  result: RetailAwardResult;
+  // Как написать на странице: «диплом I степени». Нет — подпись по result.
+  resultText: string | null;
+  // За что: здание / проект до открытия / фасад / интерьер / маркетинг.
+  subject: string | null;
+  // Кто получил, если не сам ТЦ (архитекторы, застройщик).
+  recipient: string | null;
+  text: string | null;
+  // false — только со слов ТЦ или застройщика, независимого подтверждения нет.
+  confirmed: boolean;
+}
+
+// --- Дополнительные блоки ТЦ (2026-09-23, схема extras-schema.md) ---------
+// «Посетителю» (режим, парковка, проезд, удобства, скидки) и «для бизнеса»
+// (аудитория, аренда, реклама, цифры, цитаты). Все ключи необязательные в
+// jsonb; после normalizeRetailInfo массивы всегда есть (пустые), а
+// одиночные объекты — null.
+
+export interface RetailHoursEntry extends RetailSource {
+  // «Торговая галерея», «Гипермаркет ГИППО», «Паркинг»
+  zone: string;
+  // «ежедневно 10:00–22:00»
+  value: string;
+  note: string | null;
+}
+
+export interface RetailLabeledValue {
+  label: string;
+  value: string;
+}
+
+export interface RetailParking extends RetailSource {
+  summary: string;
+  // «Мест» → «685», «Первые 3 часа» → «5 руб.»
+  items: RetailLabeledValue[];
+  // Актуальность тарифов.
+  date: string | null;
+}
+
+export type RetailTransportMode = 'metro' | 'bus' | 'trolleybus' | 'tram' | 'minibus' | 'shuttle' | 'car' | 'walk';
+
+export interface RetailTransportEntry extends RetailSource {
+  mode: RetailTransportMode;
+  text: string;
+}
+
+/**
+ * Группа удобства в блоке «Инфраструктура» ТЦ (2026-09-24). В порядке
+ * показа. Ресёрч может её не заполнить — тогда её выводит
+ * serviceGroupFromName в lib/tradeCenterRetail по названию.
+ */
+export const RETAIL_SERVICE_GROUPS = ['info', 'comfort', 'family', 'access', 'money', 'car', 'everyday', 'eco'] as const;
+export type RetailServiceGroup = (typeof RETAIL_SERVICE_GROUPS)[number];
+
+export interface RetailServiceEntry extends RetailSource {
+  name: string;
+  text: string | null;
+  floor: string | null;
+  group: RetailServiceGroup;
+}
+
+export interface RetailRuleEntry extends RetailSource {
+  text: string;
+}
+
+export interface RetailLoyaltyEntry extends RetailSource {
+  name: string;
+  text: string;
+}
+
+export interface RetailEventEntry extends RetailSource {
+  name: string;
+  text: string;
+  date: string | null;
+}
+
+/** Цифра с подписью — и «аудитория», и «ТЦ в цифрах». */
+export interface RetailFigureEntry extends RetailSource {
+  label: string;
+  value: string;
+  date: string | null;
+  // «по данным ТЦ», «из рекламного материала»
+  note: string | null;
+  // «ТЦ в цифрах» (2026-09-24, бриф numbers.md): одна фраза, почему цифра
+  // впечатляет, — сравнение или контекст. У аудитории и старых записей нет.
+  text: string | null;
+}
+
+/** «Как арендовать» и «реклама в ТЦ» — одна форма. */
+export interface RetailPitch extends RetailSource {
+  text: string;
+  points: string[];
+  contacts: string | null;
+}
+
+export interface RetailQuoteEntry extends RetailSource {
+  who: string;
+  text: string;
+  date: string | null;
+}
+
+/**
+ * Свободное помещение из списка самого ТЦ или агентства (2026-09-24, бриф
+ * vacancies.md). У крупных ТЦ цены почти всегда «по запросу» — поэтому
+ * отдельно от объявлений Kufar/Realt, где цена есть всегда. Владелец
+ * выбрал показывать такие помещения списком под объявлениями.
+ */
+export interface RetailVacancyEntry extends RetailSource {
+  deal: 'rent' | 'sale';
+  type: string | null;
+  size: number;
+  // «−1», «средний подземный уровень» — как пишет сам ТЦ
+  floor: string | null;
+  // USD за м² (аренда — в месяц); нет цены — null
+  pricePerSqm: number | null;
+  note: string | null;
+  checkedAt: string | null;
+}
+
+export interface RetailInfo {
+  // Короткие факты и темы отзывов — владелец, 2026-09-25.
+  factCards: { headline: string; text: string }[] | null;
+  reviewThemes: {
+    reviews: number; source: string; analyzedAt: string;
+    praise: { theme: string; share: number }[];
+    complaints: { theme: string; share: number }[];
+    // Из карточки Яндекса; её оценку не берём — парсер отдаёт 5.0 у 26 зданий (2026-09-25).
+    reviewCount?: number | null; orgId?: string | null;
+  } | null;
+  floorsGuide: RetailFloorEntry[];
+  anchors: RetailAnchorEntry[];
+  timeline: RetailTimelineEntry[];
+  leisure: RetailLeisureEntry[];
+  food: RetailFoodInfo | null;
+  fun: RetailFunEntry[];
+  ranking: RetailRankingEntry[];
+  awards: RetailAwardEntry[];
+  hours: RetailHoursEntry[];
+  hoursNote: string | null;
+  parking: RetailParking | null;
+  transport: RetailTransportEntry[];
+  services: RetailServiceEntry[];
+  rules: RetailRuleEntry[];
+  loyalty: RetailLoyaltyEntry[];
+  events: RetailEventEntry[];
+  audience: RetailFigureEntry[];
+  leasing: RetailPitch | null;
+  advertising: RetailPitch | null;
+  numbers: RetailFigureEntry[];
+  quotes: RetailQuoteEntry[];
+  vacancies: RetailVacancyEntry[];
+  // Каталог арендаторов показан на странице соседнего корпуса того же
+  // комплекса (2026-09-24, «Европа» 57А и «Новая Европа» 57Б: в Яндексе
+  // карточка «Европа» на деле собирает магазины 57Б, и срез у обеих страниц
+  // совпадал на 212 организаций из 224). Здесь вместо каталога — ссылка туда,
+  // чтобы не было двух одинаковых списков.
+  tenantsAt: { slug: string; name: string } | null;
+}
+
 // Форма строки в таблице Supabase (snake_case-колонки) — см. lib/businessCentersApi.ts
 export interface BusinessCenterRow {
   id: string;
@@ -479,11 +880,31 @@ export interface BusinessCenterRow {
   management_replied_at?: string | null;
   photos: string[] | null;
   status: string | null;
+  // Необязательные: в снимках сборки, снятых до 2026-09-23, этих колонок нет.
+  kind?: string | null;
+  retail_format?: string | null;
+  // Торговые блоки ТЦ; у БЦ и в снимках до 2026-09-23 — null/нет ключа.
+  retail_info?: RetailInfo | null;
   sort_order: number;
   created_at: string;
 }
 
 export const BUSINESS_CENTER_CLASSES = ['A', 'B+', 'B', 'C'] as const;
+
+// Форматы торговых объектов (каталог ТЦ, kind = 'tc') — открытый список, как
+// остальные растущие поля: в админке можно дописать свой (AddableSelect).
+export const RETAIL_FORMATS = [
+  'ТРЦ',
+  'ТЦ',
+  'районный ТЦ',
+  'универмаг',
+  'аутлет',
+  'рынок',
+  'гипермаркет с галереей',
+  'мебельный центр',
+  'строительный центр',
+  'автоцентр',
+] as const;
 
 export type BusinessCenterLayoutType = 'cabinet' | 'block' | 'open_space';
 

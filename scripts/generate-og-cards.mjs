@@ -48,6 +48,7 @@ function sectionKicker(path) {
   if (path === 'minsk') return 'Объекты, аналитика, справочник бизнес-центров';
   if (path.startsWith('minsk/analytics')) return 'Аналитика рынка · redevelopment.pro';
   if (path.startsWith('minsk/bc')) return 'Справочник бизнес-центров Минска';
+  if (path.startsWith('minsk/tc')) return 'Справочник торговых центров Минска';
   if (path.startsWith('minsk/minsk-mir')) return 'Гид по району · redevelopment.pro';
   if (path === 'tz') return 'Просчёт объёмов работ по объекту';
   if (path === 'estimate') return 'Смета на ремонт помещения';

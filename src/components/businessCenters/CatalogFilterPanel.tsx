@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { useCatalogKind } from '../../lib/catalogKind';
 import { MINSK_METRO_LINES, METRO_WITHIN_OPTIONS, type CatalogFilterState } from '../../lib/businessCenterCatalogFilter';
+import { TC_FEATURE_GROUPS } from '../../lib/tradeCenterCatalogFeatures';
 
 const STATUS_CHIP_LABELS: Record<string, string> = {
   built: 'Построенные',
@@ -19,6 +21,12 @@ interface ChipProps {
   onClick: () => void;
   children: React.ReactNode;
   disabled?: boolean;
+}
+
+// Подписи фильтров — с заглавной буквы (владелец, 2026-09-30), даже если в
+// данных значение строчное («районный ТЦ», «до 500 м»).
+function capitalizeFirst(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function Chip({ active, count, onClick, children, disabled }: ChipProps) {
@@ -37,7 +45,7 @@ function Chip({ active, count, onClick, children, disabled }: ChipProps) {
             : 'border-border bg-surface text-ink hover:border-primary hover:text-primary-hover',
       )}
     >
-      <span>{children}</span>
+      <span>{typeof children === 'string' ? capitalizeFirst(children) : children}</span>
       {count !== undefined && (
         <span className={cn('text-xs font-bold tabular-nums', active ? 'text-white/80' : 'text-ink-faint')}>
           {count}
@@ -236,10 +244,68 @@ function MetroStationSelector({ stations, selected, counts, onChange }: MetroSta
   );
 }
 
+// «Магазин в ТЦ»: поле того же вида, что выпадающие списки ниже, и до шести
+// подсказок из названий арендаторов. В URL уходит с паузой, а не на каждую
+// букву — иначе история и счётчики дёргались бы при наборе.
+function StoreSearch({ value, suggest, onChange }: { value: string; suggest: (q: string) => string[]; onChange: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => setDraft(value), [value]);
+  useEffect(() => {
+    if (draft.trim() === value.trim()) return;
+    const id = window.setTimeout(() => onChange(draft.trim()), 350);
+    return () => window.clearTimeout(id);
+  }, [draft, value, onChange]);
+  const suggestions = focused ? suggest(draft).filter((s) => s.toLowerCase() !== draft.trim().toLowerCase()) : [];
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Магазин в ТЦ</span>
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2.5">
+        <Search className="h-4 w-4 shrink-0 text-ink-muted" />
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => window.setTimeout(() => setFocused(false), 150)}
+          placeholder="Например, Zara"
+          aria-label="Магазин в ТЦ"
+          className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-ink outline-none placeholder:font-normal placeholder:text-ink-faint"
+        />
+        {draft && (
+          <button type="button" onClick={() => { setDraft(''); onChange(''); }} aria-label="Очистить" className="shrink-0 text-ink-muted hover:text-ink">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {suggestions.length > 0 && (
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+          {suggestions.map((name) => (
+            <Chip key={name} active={false} onClick={() => { setDraft(name); onChange(name); }}>
+              {name}
+            </Chip>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export interface CatalogFilterPanelProps {
   state: CatalogFilterState;
   onChange: (next: CatalogFilterState) => void;
   availableClasses: string[];
+  // Форматы торговых центров (каталог ТЦ). У БЦ не передаются — строки
+  // «Формат» нет, как нет строки «Класс» у ТЦ (там availableClasses пуст).
+  availableFormats?: string[];
+  formatCounts?: Record<string, number>;
+  // Каталог ТЦ (2026-09-30): формат одной строкой, признаки «Что внутри» /
+  // «Парковка» / «Когда», поиск магазина и переключатель строящихся. У БЦ
+  // не передаются — строк нет.
+  formatChips?: { label: string; values: string[]; count: number }[];
+  tcFeatureCounts?: Record<string, number> | null;
+  storeSuggestions?: (query: string) => string[];
+  underConstructionCount?: number;
   availableStatuses: string[];
   districts: string[];
   microdistricts: string[];
@@ -269,6 +335,12 @@ export function CatalogFilterPanel({
   state,
   onChange,
   availableClasses,
+  availableFormats = [],
+  formatCounts = {},
+  formatChips,
+  tcFeatureCounts = null,
+  storeSuggestions,
+  underConstructionCount = 0,
   availableStatuses,
   districts,
   microdistricts,
@@ -285,6 +357,7 @@ export function CatalogFilterPanel({
   hasActiveFilter,
   onReset,
 }: CatalogFilterPanelProps) {
+  const V = useCatalogKind();
   const [sheetOpen, setSheetOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -312,27 +385,97 @@ export function CatalogFilterPanel({
 
   const activeCount =
     state.classes.length +
+    state.formats.length +
     state.statuses.length +
     (state.districts === null ? 0 : 1) +
     (state.microdistricts === null ? 0 : 1) +
     state.metroStations.length +
-    (state.metroWithin != null ? 1 : 0);
+    (state.metroWithin != null ? 1 : 0) +
+    state.tcFeatures.length +
+    (state.store.trim() ? 1 : 0);
+
+  function toggleValues(list: string[], values: string[]): string[] {
+    const on = values.every((v) => list.includes(v));
+    return on ? list.filter((v) => !values.includes(v)) : [...list, ...values.filter((v) => !list.includes(v))];
+  }
 
   const controls = (
     <div className="flex flex-col gap-4">
-      <ChipRow label="Класс">
-        {availableClasses.map((cls) => (
-          <Chip
-            key={cls}
-            active={state.classes.includes(cls)}
-            count={classCounts[cls] ?? 0}
-            disabled={!state.classes.includes(cls) && (classCounts[cls] ?? 0) === 0}
-            onClick={() => onChange({ ...state, classes: toggleInList(state.classes, cls) })}
-          >
-            {cls}
-          </Chip>
+      {availableClasses.length > 0 && (
+        <ChipRow label="Класс">
+          {availableClasses.map((cls) => (
+            <Chip
+              key={cls}
+              active={state.classes.includes(cls)}
+              count={classCounts[cls] ?? 0}
+              disabled={!state.classes.includes(cls) && (classCounts[cls] ?? 0) === 0}
+              onClick={() => onChange({ ...state, classes: toggleInList(state.classes, cls) })}
+            >
+              {cls}
+            </Chip>
+          ))}
+        </ChipRow>
+      )}
+
+      {storeSuggestions && (
+        <StoreSearch value={state.store} suggest={storeSuggestions} onChange={(store) => onChange({ ...state, store })} />
+      )}
+
+      {formatChips && formatChips.length > 0 ? (
+        <ChipRow label="Формат">
+          {formatChips.map((chip) => {
+            const active = chip.values.every((v) => state.formats.includes(v));
+            return (
+              <Chip
+                key={chip.label}
+                active={active}
+                count={chip.count}
+                disabled={!active && chip.count === 0}
+                onClick={() => onChange({ ...state, formats: toggleValues(state.formats, chip.values) })}
+              >
+                {chip.label}
+              </Chip>
+            );
+          })}
+        </ChipRow>
+      ) : null}
+
+      {tcFeatureCounts &&
+        TC_FEATURE_GROUPS.map((group) => (
+          <ChipRow key={group.label} label={group.label}>
+            {group.options.map((option) => {
+              const active = state.tcFeatures.includes(option.id);
+              const count = tcFeatureCounts[option.id] ?? 0;
+              return (
+                <Chip
+                  key={option.id}
+                  active={active}
+                  count={count}
+                  disabled={!active && count === 0}
+                  onClick={() => onChange({ ...state, tcFeatures: toggleInList(state.tcFeatures, option.id) })}
+                >
+                  {option.label}
+                </Chip>
+              );
+            })}
+          </ChipRow>
         ))}
-      </ChipRow>
+
+      {!formatChips && availableFormats.length > 0 && (
+        <ChipRow label="Формат">
+          {availableFormats.map((format) => (
+            <Chip
+              key={format}
+              active={state.formats.includes(format)}
+              count={formatCounts[format] ?? 0}
+              disabled={!state.formats.includes(format) && (formatCounts[format] ?? 0) === 0}
+              onClick={() => onChange({ ...state, formats: toggleInList(state.formats, format) })}
+            >
+              {format}
+            </Chip>
+          ))}
+        </ChipRow>
+      )}
 
       {availableStatuses.length > 0 && (
         <ChipRow label="Статус">
@@ -390,9 +533,26 @@ export function CatalogFilterPanel({
         ))}
       </ChipRow>
 
+      {underConstructionCount > 0 && (
+        <ChipRow label="Строящиеся">
+          <Chip
+            active={state.statuses.includes('under_construction')}
+            count={underConstructionCount}
+            onClick={() =>
+              onChange({
+                ...state,
+                statuses: state.statuses.includes('under_construction') ? [] : ['built', 'under_construction'],
+              })
+            }
+          >
+            показывать
+          </Chip>
+        </ChipRow>
+      )}
+
       {unverifiableCount > 0 && (
         <p className="text-xs text-ink-faint">
-          По выбранному фильтру {unverifiableCount} {plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в данных prometr.by и 2ГИС — они не попадают ни в совпадения, ни в несовпадения.
+          По выбранному фильтру {unverifiableCount} {plural(unverifiableCount, 'здание', 'здания', 'зданий')} проверить невозможно: признака нет в {V.kind === 'tc' ? 'собранных данных' : 'данных prometr.by и 2ГИС'} — они не попадают ни в совпадения, ни в несовпадения.
         </p>
       )}
     </div>

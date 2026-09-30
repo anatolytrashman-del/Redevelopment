@@ -419,7 +419,7 @@ function OfferTableHead() {
   );
 }
 
-const PAGE_TABS = ['Верификация', 'Обсуждение', 'Дома', 'Бизнес-центры'] as const;
+const PAGE_TABS = ['Верификация', 'Обсуждение', 'Дома', 'Бизнес-центры', 'Торговые центры'] as const;
 type PageTab = (typeof PAGE_TABS)[number];
 
 export function MarketOffersReview() {
@@ -1199,7 +1199,8 @@ export function MarketOffersReview() {
       )}
 
       {tab === 'Дома' && <DistrictBusinessesTab />}
-      {tab === 'Бизнес-центры' && <BusinessCentersAdminTab />}
+      {tab === 'Бизнес-центры' && <BusinessCentersAdminTab key="bc" />}
+      {tab === 'Торговые центры' && <BusinessCentersAdminTab key="tc" kind="tc" />}
 
       <Modal
         open={!!discussTarget}

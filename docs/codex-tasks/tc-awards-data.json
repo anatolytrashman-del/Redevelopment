@@ -1,0 +1,397 @@
+{
+ "dana-mall": {
+  "awards": [
+   {
+    "org": "Портал Realt.by (премия рынка недвижимости Realt Golden Key)",
+    "note": "Второе подтверждение от организатора — страница итогов 2014 года (https://web.archive.org/web/20140704021613/http://goldenkey.realt.by/2014/results/): «Лучший торговый центр Строящийся объект Победитель Организация Dana Holdings Сайт http://www.dana-mall.com». Дата церемонии — Realt.by, 2014-06-17 (https://realt.by/news/article/13815/): «И 12 июня 2014 года на торжественной церемонии награждения в «Президент Отеле» рынок наконец-то услышал долгожданные имена победителей». Застройщик в своём списке наград пишет эту награду как «2014 Realt Golden Key «Лучший торговый центр»». Отдельная награда 2014 года «Лучший многофункциональный комплекс» — у «Маяка Минска», не у ТРЦ (см. rejected).",
+    "text": "Первая премия Realt Golden Key вручалась 12 июня 2014 года: победителей выбирали голосованием пользователей и экспертным советом, и в номинации строящихся торговых центров первым стал проект Dana Mall.",
+    "year": "2014",
+    "title": "Realt Golden Key 2014",
+    "result": "winner",
+    "source": "Realt Golden Key (сайт премии), страница участника, копия web.archive.org от 2014-07-03",
+    "subject": "проект до открытия",
+    "category": "Лучший торговый центр. Строящийся объект",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/20140703224522/http://goldenkey.realt.by/2014/participants/profile/dana-mall/",
+    "resultText": "победитель"
+   },
+   {
+    "org": "EuropaProperty (NEE Real Estate Awards — премия коммерческой недвижимости Северо-Восточной Европы)",
+    "note": "Строка стоит в списке под заголовком «Concept & Design Project of the Year»; номинанты: Borovaya, Clever Park, Dana Mall, Galleria Minsk, МФК «Газпром трансгаз Беларусь», «Великий камень», Green Center, Nordika (Литва), Palazzo Mall. Первое предложение статьи: «EuropaProperty has successfully completed its first annual NEE Real Estate Awards at the Intercontinental Crowne Plaza Hotel in Minsk, Belarus.» Даты 26–27 марта и русское название номинации — сайт ТРЦ, копия от 2015-06-12 (https://web.archive.org/web/20150612103358/http://dana-mall.com:80/index.php/ru/component/k2/item/61-sostoyalos-torzhestvennoe-vruchenie-nagrad-v-oblasti-kommercheskoj-nedvizhimosti-v-stranakh-severo-vostochnoj-evropy): «Dana Mall – Лучшая концепция и дизайн проекта года!». Там же сказано, что Dana Holdings была одним из партнёров мероприятия. Именно эта награда стоит за фразой БелТА (2015-11-30) «Весной 2015 года проект торгового центра \"Дана молл\" был признан лучшим в Северо-Восточной Европе». В списке наград застройщика она датирована 2014 годом («2014 NORTH EASTERN EUROPE REAL ESTATE AWARDS «Лучший концептуальный и архитектурный проект года»»). В тот же вечер Dana Holdings получила «Застройщик года» и «Компания года» — это награды группы, не ТРЦ.",
+    "text": "Первая премия NEE Real Estate Awards прошла в Минске в конце марта 2015 года; в номинации за концепцию и дизайн Dana Mall выбрали из девяти проектов Беларуси и Литвы, среди которых были Galleria Minsk и Palazzo.",
+    "year": "2015",
+    "title": "NEE Real Estate Awards 2015 — «Концепция и дизайн проекта года»",
+    "result": "winner",
+    "source": "EuropaProperty.com, «Winners celebrate at the first annual NEE Real Estate Awards», март 2015 (копия web.archive.org от 2015-04-02)",
+    "subject": "проект до открытия (концепция и дизайн)",
+    "category": "Concept & Design Project of the Year (концепция и дизайн проекта года)",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/20150402090201/http://europaproperty.com/news/2015/03/winners-celebrate-at-the-first-annual-nee-real-estate-awards-1595",
+    "resultText": "победитель"
+   },
+   {
+    "org": "Портал Realt.by (премия рынка недвижимости Realt Golden Key)",
+    "note": "Страница снята во время голосования. На странице «Голосование (результат)» 2015 года (копия от 2016-08-14, https://web.archive.org/web/20160814063453/http://goldenkey.realt.by/2015/voting-result/) Dana Mall — единственный объект в этой номинации: «Лучший торговый центр Строящийся объект Dana Mall». Победу при этом не подтверждает ни один источник. БелТА на английском (2015-06-22, https://web.archive.org/web/2020/https://eng.belta.by/economics/view/dana-holdings-receives-four-realt-golden-key-awards-83088-2015) перечисляет четыре награды Dana Holdings: «Маяк Минска», ЖК «Чайковский» дважды и Minsk Mir. В списке наград самой Dana Holdings за 2015 год тоже четыре пункта Realt Golden Key, и Dana Mall среди них нет. Фраза БелТА 2015-11-30 «В числе достижений центра также награды Realt Golden Key 2014 и Realt Golden Key 2015» для 2015 года, видимо, относится к «Маяку Минска». На странице: если давать, то «номинант», не «победитель»; можно и не давать.",
+    "text": null,
+    "year": "2015",
+    "title": "Realt Golden Key 2015 — номинация",
+    "result": "nominee",
+    "source": "Realt Golden Key (сайт премии), страница участника 2015 года, копия web.archive.org от 2015-05-08",
+    "subject": "проект до открытия",
+    "category": "Лучший торговый центр. Строящийся объект",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/20150508060719/http://goldenkey.realt.by:80/2015/participants/profile/dana-mall/",
+    "resultText": "номинант"
+   },
+   {
+    "org": "EuropaProperty (9-я ежегодная премия CEE Retail Real Estate Awards, Варшава)",
+    "note": "Церемония — 2017-01-26, отель InterContinental в Варшаве (там же: «will take place on January 26th 2017, at the Intercontinental Hotel in Warsaw, Poland»). Победитель категории — Posnania (EuropaProperty, 2017-01-27, https://web.archive.org/web/20230205021628/https://europaproperty.com/retail-excellence-honoured-at-the-ninth-annual-europaproperty-cee-retail-real-estate-awards-gala-3205/: «Shopping Centre Large – over 50,000 sqm GLA Posnania – Apsys – Poland»).",
+    "text": "Через несколько дней после официального открытия Dana Mall попал в шорт-лист международной премии торговой недвижимости Центральной и Восточной Европы: в категории крупных ТЦ он был одним из четырёх финалистов вместе с Posnania (Польша), Lavina Mall и Victoria Gardens (Украина).",
+    "year": "2017",
+    "title": "CEE Retail Real Estate Awards 2017 — шорт-лист",
+    "result": "finalist",
+    "source": "EuropaProperty.com, «EuropaProperty unveils short-list for 9th annual CEE Retail Real Estate Awards», 2017-01-02 (копия web.archive.org)",
+    "subject": "здание",
+    "category": "Shopping Centre Large — over 50,000 sqm GLA (крупный торговый центр, более 50 000 м² GLA)",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/20240908213824/https://europaproperty.com/europaproperty-unveils-short-list-for-9th-annual-cee-retail-real-estate-awards-3131/",
+    "resultText": "финалист"
+   },
+   {
+    "org": "EuropaProperty (10-я ежегодная премия CEE Retail Real Estate Awards, Варшава)",
+    "note": "Заявитель — ИООО «Зомекс Инвестмент» (компания группы Dana Holdings). Та же строка есть в более раннем варианте шорт-листа от 2018-01-10 (…-4395). Победитель категории — Wroclavia (EuropaProperty, 2018-02-09, https://web.archive.org/web/2024/https://europaproperty.com/cee-retail-real-estate-awards-victorias-secret-and-unbail-rodamco-big-winners-4496/: «Retail Project Large Wroclavia – Unibail-Rodamco – Poland»).",
+    "text": "Второй год подряд Dana Mall попал в шорт-лист премии: среди крупных торговых проектов Центральной и Восточной Европы его выбрали вместе с Galeria Północna, Skende Shopping (обе — Польша) и Wroclavia.",
+    "year": "2018",
+    "title": "CEE Retail Real Estate Awards 2018 — шорт-лист",
+    "result": "finalist",
+    "source": "EuropaProperty.com, «EuropaProperty unveils short-list for the 10th annual CEE Retail Real Estate Awards», 2018-01-29 (копия web.archive.org)",
+    "subject": "здание",
+    "category": "Retail Project Large (over 50,000 sqm) (крупный торговый проект, более 50 000 м²)",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/2024/https://europaproperty.com/europaproperty-unveils-short-list-for-the-10th-annual-cee-retail-real-estate-awards-4456/",
+    "resultText": "финалист"
+   },
+   {
+    "org": "Портал Realt.by (премия рынка недвижимости Realt Golden Key)",
+    "note": "Победители номинации — Galleria Minsk и ТЦ «Секрет» (Гомель). Номинация подтверждается и страницей участника (копия от 2017-05-09, https://web.archive.org/web/20170509231728/http://goldenkey.realt.by:80/participants/profile/dana-mall/): «Торговый центр года (действующий) (282 голоса)». Если на странице нужны только победы, запись можно опустить.",
+    "text": null,
+    "year": "2017",
+    "title": "Realt Golden Key 2017 — номинация",
+    "result": "nominee",
+    "source": "Realt Golden Key (сайт премии), страница итогов 2017 года, копия web.archive.org от 2017-07-16",
+    "subject": "здание",
+    "category": "Торговый центр года (действующий)",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/20170716223201/http://goldenkey.realt.by/results/",
+    "resultText": "номинант"
+   }
+  ],
+  "ranking": [
+   {
+    "note": "Рейтинг Onliner составлен вместе с «Коллиерз Интернешнл Консалтинг», опубликован 2025-06-26. Впереди «Замок» (68 600 м²), Expobel (62 900 м²) и Avia Mall (57 200 м²). По общей площади (97 000 м²) Dana Mall крупнее, но этот рейтинг считает именно арендопригодную площадь.",
+    "year": 2025,
+    "place": 4,
+    "scope": "торговые центры Минска",
+    "total": 10,
+    "value": "52 000 м²",
+    "source": "Onliner (realt.onliner.by), 2025-06-26",
+    "headline": "4-й по величине торговый центр Минска по арендопригодной площади",
+    "criterion": "арендопригодная площадь (GLA)",
+    "sourceUrl": "https://realt.onliner.by/2025/06/26/top-10-2"
+   },
+   {
+    "note": "Данные на 2021 год. Рейтинг составили Office Life и деловой журнал «Бизнес-ревю» по общей площади с сайтов владельцев ТЦ; опубликован 2021-08-04, Belretail перепечатал его 2021-08-08 с нумерацией «1. Dana Mall» (https://belretail.by/article/top-krupneyshih-torgovyih-tsentrov-belarusi). В 2025 году по арендопригодной площади Dana Mall четвёртый в Минске (см. выше), поэтому формулировка — только «по общей площади, на 2021 год».",
+    "year": 2021,
+    "place": 1,
+    "scope": "частные торговые центры Беларуси общей площадью от 50 000 м²",
+    "total": 10,
+    "value": "97 000 м²",
+    "source": "Office Life, 2021-08-04",
+    "headline": "Крупнейший частный торговый центр Беларуси по общей площади на 2021 год",
+    "criterion": "общая площадь",
+    "sourceUrl": "https://officelife.media/article/money/27096-po-pyatdesyat-top-10-krupneyshikh-chastnykh-torgovykh-tsentrov-belarusi/"
+   },
+   {
+    "note": "Результаты MASMI Belarus представили на Belarus Retail & Real Estate Forum 2024 (конец сентября), Belretail опубликовал их 2024-10-22. Первое место у Galleria Minsk (29%), третье у Galileo (23%). total — размер опубликованной таблицы. Второй источник — Office Life, 2024-09-28 (https://officelife.media/news/56845-top-10-torgovykh-tsentrov-kotorye-minchane-poseshchayut-chashche-vsego/): «Топ-10 ТРЦ, которые минчане посещали за последние полгода чаще других: Galleria Minsk; Dana Mall; Galileo…».",
+    "year": 2024,
+    "place": 2,
+    "scope": "ТРЦ Минска, опрос жителей Минска агентства MASMI Belarus",
+    "total": 20,
+    "value": "28% ответов",
+    "source": "Belretail, 2024-10-22",
+    "headline": "Второй по посещаемости торговый центр Минска по опросу горожан",
+    "criterion": "посещаемость: ответы на вопрос «Какие ТРЦ вы посещали за последние полгода чаще всего?»",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   },
+   {
+    "note": "Следом Galleria Minsk и «Замок» (по 84%). Та же публикация Belretail от 2024-10-22 (исследование MASMI Belarus, Belarus Retail & Real Estate Forum 2024).",
+    "year": 2024,
+    "place": 1,
+    "scope": "ТРЦ Минска, опрос жителей Минска агентства MASMI Belarus",
+    "total": 20,
+    "value": "86% опрошенных",
+    "source": "Belretail, 2024-10-22",
+    "headline": "Самый узнаваемый торговый центр Минска, когда горожанам показывают список",
+    "criterion": "знание с подсказкой: «Какие ТРЦ из нижеперечисленных в Минске вы знаете?»",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   },
+   {
+    "note": "Первое место у Galleria Minsk (41%), у Galileo столько же, сколько у Dana Mall (40%), но в таблице он стоит третьим. В той же публикации есть ещё таблица «Рейтинг столичных ТРЦ по узнаваемости» (Титан 12%, Momo 11%, Dana Mall 11%, 3-е место). Что там измеряли, не пояснено, поэтому её не берём. Если на странице нужен один рейтинг узнаваемости, достаточно строки со знанием с подсказкой (1-е место).",
+    "year": 2024,
+    "place": 2,
+    "scope": "ТРЦ Минска, опрос жителей Минска агентства MASMI Belarus",
+    "total": 20,
+    "value": "40% опрошенных",
+    "source": "Belretail, 2024-10-22",
+    "headline": "Второй торговый центр Минска, который горожане называют сами, без подсказки",
+    "criterion": "спонтанное знание: «Какие ТРЦ в Минске вы знаете?» (без списка)",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   }
+  ]
+ },
+ "galleria-minsk": {
+  "awards": [
+   {
+    "org": "Белорусский союз архитекторов (БСА)",
+    "text": "Высшая награда главного архитектурного конкурса страны за постройку: жюри БСА отметило реализацию проекта многофункционального торгово-развлекательного комплекса с гостиницей и паркингом на проспекте Победителей, 9.",
+    "year": "2017",
+    "title": "Медаль и диплом I степени XVIII Республиканского конкурса на лучшее архитектурное произведение, 2017",
+    "result": "diploma",
+    "source": "Белорусский союз архитекторов, протокол № 2 заседания жюри XVIII Республиканского конкурса на лучшее архитектурное произведение, 2017-11-10 (копия web.archive.org)",
+    "subject": "здание (реализованный проект комплекса с гостиницей и паркингом)",
+    "category": "Общественные здания и сооружения (постройка)",
+    "confirmed": true,
+    "recipient": "авторский коллектив: ОАО «Институт «Минскгражданпроект», архитектурное бюро SZK/z (Латвия), Rönesans (Турция); ГАП А. А. Ивашко и Г. Экремоглу, архитектор Угис Заберс, конструктор К. Н. Рудич",
+    "sourceUrl": "https://web.archive.org/web/20190705052517/http://bsa.by/news/BUA/protokol-2-18-respublikanskogo-konkursa-na-luchshee-arhitekturnoe-proizvedenie",
+    "resultText": "медаль и диплом I степени"
+   },
+   {
+    "org": "Global Retail Real Estate Awards (GRREAt), международная премия в торговой недвижимости и ритейле; церемония в Москве",
+    "text": "Международная премия (заявки из 12 стран, 19 номинаций, решение международного жюри в два тура); награду вручили 3 декабря 2021 года, в пятилетие ТРЦ.",
+    "year": "2021",
+    "title": "GRREAt 2021 — лучшее продвижение в социальных сетях",
+    "result": "winner",
+    "source": "grre.at — «Вручены премии GRREAt 2021», 2021-12-06 (копия web.archive.org); второй источник — Belretail, 2021-12-08",
+    "subject": "маркетинг (продвижение в социальных сетях)",
+    "category": "Лучшее продвижение объекта в социальных сетях",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/20220125221657/http://grre.at/2021/12/06/grreat21-winners/",
+    "resultText": "победитель"
+   },
+   {
+    "org": "Global Retail Real Estate Awards (GRREAt)",
+    "text": "В том же 2021 году ТРЦ вышел в финал ещё одной номинации премии (вместе с «Лотос Плазой» и «Охта Моллом»; победил «Охта Молл»).",
+    "year": "2021",
+    "title": "GRREAt 2021 — финалист в номинации «Лучшая рекламная кампания торгового центра»",
+    "result": "finalist",
+    "source": "grre.at — «Определены финалисты международной премии Global Retail Real Estate Awards (GRREAt) 2021», 2021-10-22 (копия web.archive.org)",
+    "subject": "маркетинг (рекламная кампания)",
+    "category": "Лучшая рекламная кампания торгового центра",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://web.archive.org/web/20211130130418/http://grre.at/2021/10/22/1/",
+    "resultText": "финалист"
+   },
+   {
+    "org": "Belretail.by (премия Belarus Retail & Real Estate Awards)",
+    "text": "Награду вручили на церемонии 26 сентября 2025 года; всего на премию подали 113 проектов, награды получили более 60 компаний.",
+    "year": "2025",
+    "title": "Belarus Retail & Real Estate Awards 2025 — «За популяризацию культурной самобытности»",
+    "result": "other",
+    "source": "Belretail.by — «Названы Победители и Лауреаты Премии Belarus Retail & Real Estate Awards 2025», 2025-10-02",
+    "subject": "маркетинг",
+    "category": "раздел «Маркетинг в сферах ритейла и коммерческой недвижимости»",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://belretail.by/news/pobediteli-i-laureatyi-premii-belarus-retail-real-estate-awards-2025",
+    "resultText": "награда «За популяризацию культурной самобытности»"
+   }
+  ],
+  "ranking": [
+   {
+    "note": "Рейтинг Onliner, составленный вместе с «Коллиерз Интернешнл Консалтинг» (июнь 2025). В той же статье Galleria Minsk названа «самым многоуровневым ТРЦ Минска».",
+    "year": 2025,
+    "place": 8,
+    "scope": "ТЦ Минска",
+    "total": 10,
+    "value": "36 500 м²",
+    "source": "Onliner — «Dana Mall, «Замок» или Avia Mall — какой ТЦ в Минске самый большой?», 2025-06-26",
+    "headline": "8-е место среди крупнейших ТЦ Минска по арендопригодной площади",
+    "criterion": "арендопригодная площадь",
+    "sourceUrl": "https://realt.onliner.by/2025/06/26/top-10-2"
+   },
+   {
+    "note": "Отрыв минимальный: Dana Mall — 28%, Galileo — 23%. total — число ТРЦ в опубликованной таблице. Данные представлены на Belarus Retail & Real Estate Forum 2024; то же пересказывает Office Life, 2024-09-28.",
+    "year": 2024,
+    "place": 1,
+    "scope": "ТРЦ Минска, опрос жителей Минска агентства MASMI Belarus",
+    "total": 20,
+    "value": "29% ответов",
+    "source": "Belretail — «Какие ТРЦ знают и посещают жители Минска и что там покупают. Исследование», 2024-10-22",
+    "headline": "Самый посещаемый ТРЦ Минска по опросу горожан",
+    "criterion": "посещаемость: «Какие ТРЦ вы посещали за последние полгода чаще всего?»",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   },
+   {
+    "note": "Рядом Dana Mall и Galileo (по 40%). По узнаваемости (другой рейтинг в той же публикации) — 4-е место, 10%.",
+    "year": 2024,
+    "place": 1,
+    "scope": "ТРЦ Минска, опрос MASMI Belarus",
+    "total": 20,
+    "value": "41%",
+    "source": "Belretail, 2024-10-22",
+    "headline": "Первый ТРЦ, который минчане называют без подсказки",
+    "criterion": "спонтанное знание: «Какие ТРЦ в Минске вы знаете?»",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   },
+   {
+    "note": "Делит 2-е место с «Замком» (тоже 84%); первое — Dana Mall (86%).",
+    "year": 2024,
+    "place": 2,
+    "scope": "ТРЦ Минска, опрос MASMI Belarus",
+    "total": 20,
+    "value": "84%",
+    "source": "Belretail, 2024-10-22",
+    "headline": "2-е место по знанию среди ТРЦ Минска, если показать список",
+    "criterion": "знание с подсказкой: «Какие ТРЦ из нижеперечисленных в Минске вы знаете?»",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   },
+   {
+    "note": "2-е место разделено с Palazzo; 1-е — «Момо» (10 баллов). Отмечено, что места расположены наискосок, так проще парковаться. total не указан точно: в статье — «больше 20 столичных паркингов».",
+    "year": 2024,
+    "place": 2,
+    "scope": "общедоступные паркинги у торговых центров Минска (больше 20)",
+    "total": null,
+    "value": "9 баллов из 10",
+    "source": "Onliner — «Минские паркинги: удобные и не очень. Завершаем инспекцию и подводим итоги», 2024-02-16",
+    "headline": "Один из двух лучших паркингов у торговых центров Минска по оценке Onliner",
+    "criterion": "удобство паркинга, субъективная оценка инструктора по вождению Юрия Краснова",
+    "sourceUrl": "https://auto.onliner.by/2024/02/16/luchshie-parkingi"
+   },
+   {
+    "note": "Данные на 2021 год. Список составлен Office Life вместе с журналом «Бизнес-ревю» (2021-08-04), Belretail опубликовал его с номерами 2021-08-08.",
+    "year": 2021,
+    "place": 7,
+    "scope": "частные ТЦ Беларуси площадью от 50 тыс. м²",
+    "total": 10,
+    "value": "54 500 м² (арендопригодная — 36 000 м²)",
+    "source": "Belretail — «ТОП-10 крупнейших торговых центров Беларуси», 2021-08-08",
+    "headline": "7-е место среди крупнейших частных ТЦ Беларуси по общей площади",
+    "criterion": "общая площадь",
+    "sourceUrl": "https://belretail.by/article/top-krupneyshih-torgovyih-tsentrov-belarusi"
+   }
+  ]
+ },
+ "zamok": {
+  "awards": [
+   {
+    "org": "Onliner (раздел «Недвижимость», realt.onliner.by)",
+    "note": "Путь по сетке подтверждают статьи самого турнира: первый тур (https://realt.onliner.by/2016/04/25/galileo-vs-titan — «С большим отрывом побеждает «Замок», который по праву можно назвать народным любимцем»), финал (https://realt.onliner.by/2016/06/01/final-bitva-tc — «Финалист «Замок» сперва обогнал Arena City, а в полуфинале одолел Expobel»). Отдельной статьи с итогом финала и числами голосов Onliner не публиковал (проверена страница тега realt.onliner.by/tag/bitva-torgovyx-centrov и архив финала); итог назван только во фразе из статьи 2017 года. Сама статья 2017 года — рейтинг лучших и худших зданий, где «Замок» стоит в списке худших по архитектуре (см. negative), поэтому для публичной ссылки лучше дать статью финала и формулировку «победитель (по данным Onliner)». Прежняя запись «финалист» устарела.",
+    "text": "Весенний турнир Onliner среди восьми минских ТЦ: по голосованию читателей «Замок» обошёл Arena City, Expobel и в финале Galileo.",
+    "year": "2016",
+    "title": "«Битва торговых центров» Onliner 2016",
+    "result": "winner",
+    "source": "Onliner",
+    "subject": "торговый центр целиком: магазины, развлечения, удобство",
+    "category": "лучший торговый центр Минска по голосованию читателей",
+    "confirmed": true,
+    "recipient": null,
+    "sourceUrl": "https://realt.onliner.by/2016/06/01/final-bitva-tc",
+    "resultText": "победитель"
+   }
+  ],
+  "ranking": [
+   {
+    "note": "Рейтинг Onliner вместе с «Коллиерз Интернешнл Консалтинг», июнь 2025. На втором месте Expobel — 62 900 м², на третьем Avia Mall, на четвёртом Dana Mall (52 000 м²).",
+    "year": 2025,
+    "place": 1,
+    "scope": "ТЦ Минска",
+    "total": 10,
+    "value": "68 600 м²",
+    "source": "Onliner + Colliers, 2025-06-26",
+    "headline": "Крупнейший торговый центр Минска по арендопригодной площади",
+    "criterion": "арендопригодная площадь (GLA)",
+    "sourceUrl": "https://realt.onliner.by/2025/06/26/top-10-2"
+   },
+   {
+    "note": "Исследование агентства MASMI Belarus, представлено на Belarus Retail & Real Estate Forum 2024. Впереди только Dana Mall (86%); у Galleria Minsk столько же, 84%, — фактически второе-третье место. Без подсказки «Замок» назвали 20% опрошенных (7-е место). В публикации показаны первые 20 строк, общее число ТРЦ в опросе не указано.",
+    "year": 2024,
+    "place": 3,
+    "scope": "ТРЦ Минска, опрос жителей Минска",
+    "total": null,
+    "value": "84%",
+    "source": "Belretail.by (исследование MASMI Belarus), 2024-10-22",
+    "headline": "Один из трёх самых узнаваемых ТРЦ Минска: «Замок» знают 84% опрошенных минчан",
+    "criterion": "знание торгового центра с подсказкой (доля опрошенных жителей Минска, которые знают ТРЦ, когда им показывают список)",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   },
+   {
+    "note": "Тот же опрос MASMI Belarus 2024. Столько же (13%) у ProStore и OUTLETO — «Замок» делит с ними 6–8-е места; лидеры — Galleria Minsk (29%), Dana Mall (28%), Galileo (23%). Этот же список со ссылкой на МАСМИ опубликовал Office Life (https://officelife.media/news/56845-top-10-torgovykh-tsentrov-kotorye-minchane-poseshchayut-chashche-vsego/).",
+    "year": 2024,
+    "place": 7,
+    "scope": "ТРЦ Минска, опрос жителей Минска",
+    "total": null,
+    "value": "13%",
+    "source": "Belretail.by (исследование MASMI Belarus), 2024-10-22",
+    "headline": "В десятке самых посещаемых ТРЦ Минска по опросу горожан",
+    "criterion": "посещаемость: доля опрошенных, которые чаще всего ходили в этот ТРЦ за последние полгода",
+    "sourceUrl": "https://belretail.by/article/kakie-trts-znayut-i-poseschayut-jiteli-minska"
+   },
+   {
+    "note": "Рубрика «Разбор с Красновым», зима 2024. Третье место с 8 баллами «Замок» делит с Minsk City Mall, «Радиомаркетом» и паркингом Mile на Каменногорской; 10 баллов — только у «Момо», 9 — у Galleria Minsk и Palazzo. Оценка субъективная, одного эксперта; отмечены бесплатность, круглосуточная работа, высокие потолки и индикация свободных мест на первом уровне.",
+    "year": 2024,
+    "place": 3,
+    "scope": "паркинги торговых центров Минска (больше 20 проверенных)",
+    "total": null,
+    "value": "8 баллов из 10",
+    "source": "Onliner, 2024-02-16",
+    "headline": "Паркинг «Замка» — в тройке лучших среди паркингов у торговых центров Минска по оценке Onliner",
+    "criterion": "удобство паркинга: оценка инструктора по вождению по 10-балльной шкале",
+    "sourceUrl": "https://auto.onliner.by/2024/02/16/luchshie-parkingi"
+   },
+   {
+    "note": "Данные на 2021 год (старше пяти лет). Впереди Dana Mall (97 тыс. м²) и Palazzo (94 870 м²). В той же статье: «Замок» «долгое время считался крупнейшим торговым комплексом и в Минске, и во всей Беларуси». В 2022 году рейтинг перепечатал Belretail.by.",
+    "year": 2021,
+    "place": 3,
+    "scope": "частные ТЦ Беларуси площадью от 50 тыс. м²",
+    "total": 10,
+    "value": "более 90 тыс. м² общей площади, около 40 тыс. м² торговых помещений",
+    "source": "Office Life совместно с журналом «Бизнес-ревю», 2021-08-04",
+    "headline": "Третий по общей площади частный торговый центр Беларуси",
+    "criterion": "общая площадь по данным официальных сайтов ТЦ",
+    "sourceUrl": "https://officelife.media/article/money/27096-po-pyatdesyat-top-10-krupneyshikh-chastnykh-torgovykh-tsentrov-belarusi/"
+   },
+   {
+    "note": "Данные на 2015 год. На втором месте Expobel (33 000 м²), на третьем Arena City (31 000 м²). «Несменный» — потому что «Замок» возглавлял и прошлую версию рейтинга 2014 года (её адрес теперь ведёт на обновлённую статью 2025 года). В апреле 2016 года Onliner повторял: «Вот уже который год «Замок» на проспекте Победителей, 65, является самым крупным торгово-развлекательным центром в Беларуси» (https://realt.onliner.by/2016/04/18/zamok-vs-arenacity).",
+    "year": 2015,
+    "place": 1,
+    "scope": "ТЦ Минска",
+    "total": 10,
+    "value": "39 100 м²",
+    "source": "Onliner, 2015-12-01",
+    "headline": "Первое место в топ-10 крупнейших ТЦ Минска Onliner, «несменный лидер рейтинга»",
+    "criterion": "площадь (какая именно — общая, торговая или арендопригодная — в статье не сказано)",
+    "sourceUrl": "https://realt.onliner.by/2015/12/01/top-10-torg"
+   },
+   {
+    "note": "Это не рейтинг, а сравнение на 2012 год: более крупных ТРЦ в стране тогда не было. Независимое подтверждение — Realt.by, 2023-01-10 (https://realt.by/news/article/35152/): «Когда 10 лет назад на проспекте Победителей открывался «Замок», он был самым большим ТЦ в стране: площадь — больше 90 тысяч квадратов». Позже «Замок» обогнали по общей площади Dana Mall и Palazzo (Office Life, 2021), но по арендопригодной площади он по-прежнему первый в Минске (Onliner + Colliers, 2025).",
+    "year": 2012,
+    "place": 1,
+    "scope": "ТРЦ Беларуси",
+    "total": null,
+    "value": "93 298 м²",
+    "source": "Onliner, 2012-09-26",
+    "headline": "На момент открытия — самый большой торгово-развлекательный центр Беларуси",
+    "criterion": "общая площадь по проекту",
+    "sourceUrl": "https://realt.onliner.by/2012/09/26/zamok-4"
+   }
+  ]
+ }
+}

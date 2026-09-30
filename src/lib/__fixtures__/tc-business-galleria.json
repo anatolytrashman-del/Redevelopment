@@ -1,0 +1,69 @@
+{
+ "audience": [
+  {
+   "date": "2026-06",
+   "note": "по данным ТЦ",
+   "label": "Посетителей в будни",
+   "value": "более 30 тыс. в день",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260613212858/https://galleria-minsk.by/adv/"
+  },
+  {
+   "date": "2026-06",
+   "note": "по данным ТЦ",
+   "label": "Посетителей в выходные",
+   "value": "более 40–50 тыс. в день",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260613212858/https://galleria-minsk.by/adv/"
+  },
+  {
+   "date": "2026-06",
+   "note": "по данным ТЦ",
+   "label": "Посещаемость за месяц",
+   "value": "более 1 млн",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260613212858/https://galleria-minsk.by/adv/"
+  },
+  {
+   "date": "2026-06",
+   "note": "по данным ТЦ",
+   "label": "Доля женщин",
+   "value": "70%",
+   "source": "Сайт ТРЦ (копия web.archive.org)",
+   "sourceUrl": "https://web.archive.org/web/20260613212858/https://galleria-minsk.by/adv/"
+  },
+  {
+   "date": "2020-03",
+   "note": "по данным ТЦ (со слов управляющей компании)",
+   "label": "Возраст",
+   "value": "80% посетителей — 25–35 лет",
+   "source": "Realt.by",
+   "sourceUrl": "https://realt.by/news/article/27012/"
+  }
+ ],
+ "leasing": {
+  "text": "Помещения сдаёт отдел аренды ТРЦ; заявку можно оставить через форму на сайте. Форматы и требования на сайте не расписаны.",
+  "points": [
+   "В галерее встречаются островные торговые места, на 5 этаже — корнеры и островки белорусских дизайнеров в пространстве TREND PARK (700 м², отдельный контакт: trendpark@galleriaminsk.com, +375 (29) 699-44-29)",
+   "Действующим арендаторам — «Кабинет арендатора» на сайте",
+   "Трафик для арендатора: больше 30 тыс. посетителей в будни и 40–50 тыс. в выходные (по данным ТЦ)"
+  ],
+  "source": "Сайт ТРЦ (копия web.archive.org)",
+  "contacts": "arenda@galleriaminsk.com, +375 (44) 597-18-88, будни 08:30–17:30",
+  "sourceUrl": "https://web.archive.org/web/20260317121748/https://galleria-minsk.by/contacts/"
+ },
+ "advertising": {
+  "text": "Больше 150 мест для рекламы внутри и снаружи ТРЦ (по данным ТЦ).",
+  "points": [
+   "LED-экран на фасаде 24 × 13 м, 323,28 м²",
+   "11 видеоэкранов у лифтов и на фудкорте",
+   "Аудиореклама в атриуме и общих зонах",
+   "Подвесной баннер в атриуме, оклейка балюстрад и эскалаторов, лайтбоксы",
+   "Брендирование входной группы и показ автомобиля у центрального входа",
+   "Промоакции, дегустации и опросы"
+  ],
+  "source": "Сайт ТРЦ (копия web.archive.org)",
+  "contacts": "reklama@galleriaminsk.com, +375 (29) 309-15-69",
+  "sourceUrl": "https://web.archive.org/web/20260613212858/https://galleria-minsk.by/adv/"
+ }
+}

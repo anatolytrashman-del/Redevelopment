@@ -15,9 +15,10 @@
 // lastmod карточек — дата сборки: у business_centers нет updated_at, а сам
 // снапшот карточки (prerender.mjs) пересобирается каждый деплой, плюс
 // объявления Kufar/Realt внутри карточек обновляются ежемесячным синком.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
+import { tradeCenterPaths } from './_tcPaths.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -268,6 +269,22 @@ async function fetchMetroHubStations() {
   return [...slugs];
 }
 
+// Каталог ТЦ (открыт для индексации 2026-09-30) — из списка видимых ТЦ,
+// который generate-catalog-data.mjs кладёт в dist раньше этого скрипта.
+function tradeCenterUrls() {
+  const listPath = resolve(process.cwd(), 'dist/data/trade-centers.json');
+  if (!existsSync(listPath)) {
+    console.warn('[generate-sitemap] нет dist/data/trade-centers.json — каталог ТЦ не добавлен');
+    return [];
+  }
+  const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
+  return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
+    districtSlugs: DISTRICT_SLUGS,
+    metroSlugs: METRO_HUB_SLUG_BY_STATION,
+    metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
+  }).map((path) => `${SITE}/${path}`);
+}
+
 function escapeXml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -299,6 +316,7 @@ async function main() {
     ...metroSlugs.map((slug) => `${SITE}/minsk/bc/metro/${slug}`),
     ...(hubs ? hubs.streets.map((path) => `${SITE}${path}`) : []),
     ...slugs.map((slug) => `${SITE}/minsk/bc/${slug}`),
+    ...tradeCenterUrls(),
   ]
     .filter((url) => !existing.has(url))
     .map(
@@ -314,7 +332,7 @@ async function main() {
   writeFileSync(SITEMAP_PATH, pruned);
   const total = [...pruned.matchAll(/<loc>/g)].length;
   console.log(
-    `[generate-sitemap] добавлено URL (хабы метро/улиц + карточки БЦ): ${entries.length}, убрано тонких срезов: ${removed} (всего <loc>: ${total})`,
+    `[generate-sitemap] добавлено URL (хабы метро/улиц, карточки БЦ, каталог ТЦ): ${entries.length}, убрано тонких срезов: ${removed} (всего <loc>: ${total})`,
   );
 }
 

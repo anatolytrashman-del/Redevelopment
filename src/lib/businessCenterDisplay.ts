@@ -258,7 +258,7 @@ const LOCAL_BC_PHOTO_RE = /^\/images\/business-centers\/([^/]+)\.jpe?g$/i;
 // адрес — другая запись в кэше, а пути в `business_centers.photos` трогать не
 // надо. ПОДНИМАТЬ ПРИ КАЖДОЙ ЗАМЕНЕ ПАКЕТА ФОТО — иначе правка не доедет до
 // тех, кто уже был на сайте.
-export const BC_PHOTO_VERSION = '7';
+export const BC_PHOTO_VERSION = '8';
 
 // Версия дописывается только к нашим закоммиченным файлам. Пути из Supabase
 // Storage (загрузки через админку) приходят с собственными query и именами —
@@ -271,6 +271,47 @@ export function businessCenterPhotoSrc(path: string, variant: 'card' | 'detail')
   const m = path.match(LOCAL_BC_PHOTO_RE);
   if (!m) return path;
   return `/images/business-centers/${m[1]}${variant === 'card' ? '-card' : ''}.webp?v=${BC_PHOTO_VERSION}`;
+}
+
+// Обложка ТЦ без фона, обрезанная по зданию, для hero каталога ТЦ и его
+// подборок (2026-09-30). Вырезаны только обложки, которые стоят в шапке
+// корня, районов и станций метро (владелец: «вырежи только то, что попадает
+// на главные блоки»). Встанет в шапку другой ТЦ — прогнать для него
+// scripts/cutout-tc-covers.py и дописать сюда; до тех пор шапка покажет
+// обычную обложку (null).
+const TC_HERO_CUTOUTS = new Set([
+  'tc-avia-mall',
+  'tc-chervenskiy',
+  'tc-evropa-tc',
+  'tc-galileo',
+  'tc-galleria-minsk',
+  'tc-globo',
+  'tc-green-city-tc',
+  'tc-korona-na-kalvariyskoy',
+  'tc-leningrad',
+  'tc-metropol-tc',
+  'tc-minsk-city-mall',
+  'tc-momo',
+  'tc-nemiga-3',
+  'tc-ocean',
+  'tc-pershy-natsyyanalny-gandlevy-dom',
+  'tc-pikasso',
+  'tc-prizma-tc',
+  'tc-siluet-tc',
+  'tc-skala',
+  'tc-spektr',
+  'tc-stolitsa',
+  'tc-titan-tc',
+  'tc-tivali',
+  'tc-univermag-belarus',
+]);
+
+export function tcCoverCutoutSrc(path: string | undefined): { src: string; srcSet: string } | null {
+  const m = path?.match(LOCAL_BC_PHOTO_RE);
+  if (!m || !TC_HERO_CUTOUTS.has(m[1])) return null;
+  const base = `/images/business-centers/${m[1]}-cutout`;
+  const v = `?v=${BC_PHOTO_VERSION}`;
+  return { src: `${base}.webp${v}`, srcSet: `${base}-w480.webp${v} 480w, ${base}-w720.webp${v} 720w, ${base}.webp${v} 1200w` };
 }
 
 // Ширины уменьшенных копий карточного фото (scripts/generate-card-image-

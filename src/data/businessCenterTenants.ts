@@ -23,6 +23,14 @@ export interface TenantSourceOrganization {
   rating: number | null;
   reviewCount: number | null;
   rawText: string | null;
+  // Этаж, проставленный скриптом сбора (2026-09-24): из текста плитки, а если
+  // там пусто — уровень поэтажного плана из карточки самой организации.
+  // Старые снимки его не имеют — тогда этаж разбирается из rawText.
+  floor?: string | null;
+  // Точка магазина [долгота, широта] из его карточки (--coords, 2026-09-24):
+  // у магазинов с поэтажного плана ТЦ это место внутри здания. Из точек
+  // рисуется схема этажа (FloorSchema). Есть не во всех снимках.
+  coords?: [number, number] | null;
 }
 
 export interface BusinessCenterTenantSnapshot {
@@ -52,6 +60,7 @@ export interface TenantOrganizationView {
   industry: string | null;
   placement: string | null;
   floor: string | null;
+  coords: [number, number] | null;
   rating: number | null;
   reviewCount: number | null;
   url: string | null;

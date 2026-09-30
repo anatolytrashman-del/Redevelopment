@@ -259,7 +259,7 @@ export function BusinessCentersGuidePage() {
 
         <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <div className="flex items-center gap-3">
-            <BookOpen className="h-6 w-6 shrink-0 text-primary-hover" />
+            <BookOpen className="h-6 w-6 shrink-0 text-icon" />
             <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-3xl">{PAGE_H1}</h1>
           </div>
           <p className="text-sm leading-relaxed text-ink-muted">

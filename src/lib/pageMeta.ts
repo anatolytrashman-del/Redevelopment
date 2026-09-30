@@ -8,6 +8,7 @@
 import { pluralRu } from './pluralRu';
 import { fullName, shortAddress, shortName } from './businessCenterDisplay';
 import { fitsSerpTitle } from './serpTitleWidth';
+import type { CatalogKind } from './catalogKind';
 
 export interface PageMeta {
   title: string;
@@ -540,12 +541,22 @@ const HUB_SNIPPET_ITEMS = [
   'класс, площадь и метро',
 ];
 
-export function businessCenterHubDescription(subject: string, count: number | null): string {
+// Каталог торговых центров (/minsk/tc, 2026-09-23): ставок аренды офисов и
+// делового класса у ТЦ нет — оглавление своё.
+const TC_HUB_SNIPPET_ITEMS = [
+  'адреса и форматы',
+  'арендаторы',
+  'отзывы',
+  'площадь и парковка',
+  'метро рядом',
+];
+
+export function businessCenterHubDescription(subject: string, count: number | null, kind: CatalogKind = 'bc'): string {
   const head = `Актуальная аналитика ${count === null ? '' : `${count} `}${subject}. Обновляется ежемесячно.`;
   // Пункты снимаются с конца, пока строка не влезет в бюджет: у подборки
   // все они равноценны (это оглавление раздела, а не находки конкретного
   // здания), поэтому приоритета выбывания тут, в отличие от карточки, нет.
-  const shown = [...HUB_SNIPPET_ITEMS];
+  const shown = [...(kind === 'tc' ? TC_HUB_SNIPPET_ITEMS : HUB_SNIPPET_ITEMS)];
   const assemble = () => `${head} ${capitalizeFirst(shown.join(', '))}.`;
   while (shown.length > 1 && assemble().length > DESCRIPTION_BUDGET) shown.pop();
   return assemble();

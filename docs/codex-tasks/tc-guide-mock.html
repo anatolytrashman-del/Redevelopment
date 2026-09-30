@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#16171a;--muted:#6b6d73;--faint:#a3a5ab;--border:#e7e5e1;--card:#f7f6f4;--primary:#e4152b;--page:#ecebe8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Montserrat,sans-serif;background:var(--page);color:var(--ink);padding:24px}
+.card{max-width:1040px;margin:0 auto;background:var(--card);border-radius:28px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+h2{font-size:22px;font-weight:700;display:flex;gap:10px;align-items:center}
+h2 svg{color:var(--primary)}
+.lead{color:var(--muted);font-size:14px;margin-top:6px}
+.search{margin-top:22px;background:#fff;border:1px solid var(--border);border-radius:18px;padding:14px 18px}
+.search .input{display:flex;align-items:center;gap:10px;font-size:15px}
+.search .input b{font-weight:600}
+.answer{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);font-size:15px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.answer .fl{background:var(--primary);color:#fff;font-weight:700;border-radius:8px;padding:2px 9px;font-size:13px}
+.answer .near{color:var(--muted);font-size:13px}
+.pop{margin-top:10px;font-size:12px;color:var(--faint)}
+.pop span{color:var(--muted);text-decoration:underline dotted;margin-right:8px}
+.grid{display:grid;grid-template-columns:1fr 300px;gap:24px;margin-top:24px}
+.board{background:#1b1c20;border-radius:22px;padding:14px;color:#fff}
+.board .roof{height:10px;margin:0 30px 8px;border-radius:10px 10px 0 0;background:#2a2b31}
+.floor{display:grid;grid-template-columns:54px 1fr;align-items:center;border-top:1px solid #2c2d33;padding:12px 6px}
+.floor:first-of-type{border-top:0}
+.num{font-size:26px;font-weight:800;color:#fff;text-align:center}
+.num.sel{color:var(--primary)}
+.theme{font-size:16px;font-weight:700;letter-spacing:.01em}
+.brands{font-size:13px;color:#a9abb2;margin-top:3px}
+.floor.hit{background:#2a1418;border-radius:12px}
+.floor.hit .theme{color:#fff}
+.tag{display:inline-block;font-size:11px;font-weight:700;background:var(--primary);color:#fff;border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:2px}
+.only{background:#fff;border:1px solid var(--border);border-radius:22px;padding:20px}
+.only h3{font-size:16px;font-weight:700}
+.only p.sub{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+.only ul{list-style:none;margin-top:14px}
+.only li{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--border);font-size:14px;font-weight:600}
+.only li span{font-weight:400;color:var(--muted);font-size:12px;white-space:nowrap}
+.src{margin-top:22px;font-size:12px;color:var(--faint)}
+.note{max-width:1040px;margin:14px auto 0;font-size:12px;color:var(--muted)}
+@media (max-width:760px){body{padding:12px}.card{padding:20px;border-radius:22px}.grid{grid-template-columns:1fr}.num{font-size:22px}.floor{grid-template-columns:44px 1fr}}
+</style></head><body>
+<div class="card">
+  <h2><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 2 10 5-10 5L2 7l10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>Что где в Galleria Minsk</h2>
+  <p class="lead">7 уровней, около 270 магазинов, кафе и сервисов</p>
+
+  <div class="search">
+    <div class="input"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a3a5ab" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><b>Mango</b></div>
+    <div class="answer"><b>Mango</b><span class="fl">2 этаж</span><span class="near">рядом New Yorker, Stradivarius, Zarina</span></div>
+    <div class="pop">Часто ищут: <span>KFC</span><span>Гиппо</span><span>Familia</span><span>Спортмастер</span><span>Золотое Яблоко</span></div>
+  </div>
+
+  <div class="grid">
+    <div class="board">
+      <div class="roof"></div>
+      <div class="floor"><div class="num">6</div><div><div class="theme">Еда и летняя терраса</div><div class="brands">KFC · Burger King · «Васильки»</div></div></div>
+      <div class="floor"><div class="num">5</div><div><div class="theme">Дети и белорусские дизайнеры</div><div class="brands">Familia · Mothercare · Trend Park</div></div></div>
+      <div class="floor"><div class="num">4</div><div><div class="theme">Спорт, техника, хобби</div><div class="brands">Спортмастер · 5 элемент · «Леонардо»</div></div></div>
+      <div class="floor"><div class="num">3</div><div><div class="theme">Одежда и обувь</div><div class="brands">LC Waikiki · Gloria Jeans · ECCO</div></div></div>
+      <div class="floor hit"><div class="num sel">2</div><div><div class="theme">Масс-маркет и бельё<span class="tag">Mango здесь</span></div><div class="brands">Mango · New Yorker · Stradivarius</div></div></div>
+      <div class="floor"><div class="num">1</div><div><div class="theme">Ювелирные, косметика, гаджеты</div><div class="brands">Pandora · Золотое Яблоко · i-Store</div></div></div>
+      <div class="floor"><div class="num">−1</div><div><div class="theme">Гипермаркет «Гиппо» до 02:00</div><div class="brands">аптека · зоотовары</div></div></div>
+    </div>
+
+    <div class="only">
+      <h3>Только здесь</h3>
+      <p class="sub">Этих магазинов нет в других торговых центрах Минска из нашего каталога</p>
+      <ul>
+        <li>Vans <span>обувь</span></li>
+        <li>Geox <span>обувь</span></li>
+        <li>Ryłko <span>обувь</span></li>
+        <li>Ketroy <span>одежда</span></li>
+        <li>Trend Park <span>белорусские бренды</span></li>
+        <li>Park Marine <span>ресторан</span></li>
+        <li>Мираторг <span>стейки и бургеры</span></li>
+      </ul>
+    </div>
+  </div>
+  <p class="src">Источники: сайт ТРЦ, Яндекс.Карты. Полного списка арендаторов на странице нет: любой магазин находится поиском.</p>
+</div>
+<p class="note">Макет, не вёрстка. Тексты этажей из собранного описания, бренды «Только здесь» отобраны вручную для примера.</p>
+</body></html>

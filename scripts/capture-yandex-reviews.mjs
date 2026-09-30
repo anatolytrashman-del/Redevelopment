@@ -11,7 +11,7 @@
 // toponym-страницу адреса («Организации внутри»). Отзывы (.business-review-view)
 // лежат только на вкладке «Отзывы» СОБСТВЕННОЙ карточки организации этого
 // БЦ на Яндекс.Карте — третья, отдельная страница, её адрес заранее не
-// известен (в базе не хранится), поэтому без человека не обойтись: скрипт
+// известен (в базе не хранится). В ручном режиме (по умолчанию для БЦ) скрипт
 // открывает поиск по НАЗВАНИЮ БЦ и ждёт Enter — владелец кликает на нужную
 // организацию и открывает саму вкладку «Отзывы» (та же логика, что уже
 // работает в capture-yandex-bc-tenants.mjs для «Организации внутри»).
@@ -42,13 +42,38 @@
 // ней нет отзывов — здание просто останется без отзывов, без попытки
 // скроллить случайную страницу.
 //
-// Флаги: --limit N, --slug SLUG, --missing-only, --classes A,B,B+,
-// --skip-collected, --max-age-days 45, --output DIR, --profile DIR.
+// АВТОМАТИЧЕСКИЙ РЕЖИМ (--auto; для --kind tc включён по умолчанию,
+// владелец, 2026-09-23: «одна команда, без Enter на каждом здании»). Карточку
+// организации здания скрипт находит сам — scripts/yandex-org-resolve.mjs
+// (поиск по названию у координат здания, проверка рубрики, имени и
+// расстояния), открывает её вкладку «Отзывы» прямым адресом
+// /maps/org/<id>/reviews/ и собирает. Человек нужен только при CAPTCHA.
+// Не нашлась карточка или вкладка открылась не та — здание ничего не пишет
+// (ни в базу, ни в latest.json) и попадает в список «не собраны» в конце
+// прогона. Ноль отзывов сохраняется только если открыта вкладка «Отзывы»
+// именно найденной организации и Яндекс сам показывает, что отзывов нет.
+//   node scripts/capture-yandex-reviews.mjs --kind tc --missing-only --write-db
+// --manual возвращает ручной режим и для ТЦ.
+//
+// Флаги: --kind bc|tc|all, --limit N, --slug SLUG[,SLUG2…], --missing-only, --classes A,B,B+,
+// --skip-collected, --max-age-days 45, --output DIR, --profile DIR,
+// КАРТОЧКА ЗДАНИЯ (2026-09-24): в автоматическом режиме вместе с отзывами
+// пишется собственная карточка здания — общий рейтинг, часы, телефоны, сайты
+// и соцсети, удобства, рубрики, метро (business_center_yandex_cards). Места
+// вокруг не собираются. При --skip-collected здание со свежими отзывами, но
+// без карточки, получает только карточку. --no-card — без неё.
+// Всё разом (арендаторы, потом карточка и отзывы) — scripts/capture-yandex-all.mjs.
+//
+// --auto | --manual, --max-reviews N (стоп после N отзывов на здание; по
+// умолчанию 600 для ТЦ, для БЦ без ограничения; 0 —
+// без ограничения), --max-distance 400, --headless (без окна —
+// для проверки на сервере).
 //
 // Переменные окружения: SUPABASE_SERVICE_ROLE_KEY или SUPABASE_ACCESS_TOKEN
 // (для --write-db и --skip-collected/--missing-only), CHROME_PATH,
 // CHROME_WINDOW_SIZE / CHROME_WINDOW_POSITION.
 
+import './local-supabase-env.mjs'; // первым: ключ из ~/.config/redevelopment/supabase.env
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -56,6 +81,16 @@ import process from 'node:process';
 import readline from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, runSql, slugsWithYandexReviews, sqlLiteral } from './nearby-places-common.mjs';
+import {
+  DEFAULT_MAX_DISTANCE_M,
+  isOrgTabUrl,
+  launchOptions,
+  orgUrl,
+  resolveBuildingOrganization,
+} from './yandex-org-resolve.mjs';
+import { cardFromOrgHtml } from './yandex-org-card.mjs';
+import { isCaptchaHtml } from './yandex-tenant-floors.mjs';
+import { orgFromUrl, pickedOrgFor, savePickedOrg, searchUrlFor, withoutSeoname } from './yandex-picked-orgs.mjs';
 
 const args = process.argv.slice(2);
 const valueOf = (name) => {
@@ -65,16 +100,42 @@ const valueOf = (name) => {
 const has = (name) => args.includes(name);
 
 const onlySlug = valueOf('--slug');
+// --slug принимает и список через запятую: пробный прогон по нескольким зданиям.
+const onlySlugs = (onlySlug ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+// --kind bc|tc|all — какой каталог собирать (по умолчанию bc, как было до
+// каталога ТЦ 2026-09-23; торговые центры — `--kind tc`).
+const catalogKind = valueOf('--kind') ?? 'bc';
 const limit = Number(valueOf('--limit') ?? 0);
 const maxAgeDays = Number(valueOf('--max-age-days') ?? 45);
 const writeDb = has('--write-db');
 const listOnly = has('--list');
 const skipCollected = has('--skip-collected');
 const missingOnly = has('--missing-only');
+// Карточка здания (рейтинг, часы, телефоны, ссылки, удобства) — вместе с
+// отзывами, в автоматическом режиме; --no-card отключает. Места вокруг НЕ
+// собираем (владелец, 2026-09-24).
+const withCard = !has('--no-card');
+// Здания, у которых отзывы свежие, но карточки ещё нет: при --skip-collected
+// берём у них только карточку (см. catalogEntries и runAuto).
+const cardOnlySlugs = new Set();
 // Владелец, 2026-09-22: сначала добить класс A/B/B+, класс C — потом (у него
 // меньше трафика и цены сделки, отзывы там не так критичны). business_class
 // в базе — латиница ('A','B','B+','C'), сравнение регистронезависимое.
 const classesFilter = (valueOf('--classes') ?? '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+// Автоматический режим — см. шапку файла. Для ТЦ по умолчанию, для БЦ
+// поведение прежнее, пока не передан --auto.
+const autoMode = has('--auto') || (catalogKind === 'tc' && !has('--manual'));
+const headless = has('--headless');
+// Потолок отзывов на здание. У крупных ТЦ их тысячи (Galleria Minsk —
+// 10 364, ЦУМ — 5 338 на 2026-09-23): прокрутка до конца — десятки минут на
+// одно здание и тысячи карточек в DOM. Для ТЦ в автоматическом режиме по
+// умолчанию 600 первых в порядке Яндекса (владелец, 2026-09-29: больше
+// Яндекс в одной сортировке и не отдаёт), в любом режиме; --max-reviews 0 —
+// без ограничения. Для БЦ ограничения по-прежнему нет.
+const maxReviews = valueOf('--max-reviews') != null
+  ? Number(valueOf('--max-reviews'))
+  : catalogKind === 'tc' ? 600 : 0;
+const maxDistance = Number(valueOf('--max-distance') ?? DEFAULT_MAX_DISTANCE_M);
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-reviews');
 // Тот же профиль, что у сбора организаций и инфраструктуры — в нём уже
 // лежат куки Яндекса, а значит CAPTCHA спрашивают реже. НЕ запускать
@@ -190,6 +251,7 @@ async function collectReviewsFromOpenTab(page) {
   let latest = [];
   while (unchanged < 6) {
     latest = dedupeReviews(await page.evaluate(extractReviewCardsInPage));
+    if (maxReviews > 0 && latest.length >= maxReviews) return latest.slice(0, maxReviews);
     unchanged = latest.length === previous ? unchanged + 1 : 0;
     previous = latest.length;
     const scrolled = await page
@@ -258,6 +320,87 @@ async function writeReviews({ supabase, slug, reviews, capturedAt }) {
   );
 }
 
+// --- Карточка здания ------------------------------------------------------
+async function writeCard({ slug, card, capturedAt }) {
+  const row = {
+    business_center_slug: slug,
+    org_id: card.orgId,
+    name: card.name,
+    address: card.address,
+    rating: card.rating,
+    rating_count: card.ratingCount,
+    review_count: card.reviewCount,
+    status: card.status,
+    working_time_text: card.workingTimeText,
+    working_time: card.workingTime,
+    phones: card.phones,
+    sites: card.sites,
+    social_links: card.socialLinks,
+    categories: card.categories,
+    features: card.features,
+    metro: card.metro,
+    photo_count: card.photoCount,
+    captured_at: capturedAt,
+  };
+  if (supabase) {
+    const { error } = await supabase.from('business_center_yandex_cards').upsert(row, { onConflict: 'business_center_slug' });
+    if (error) throw error;
+    return;
+  }
+  const columns = Object.keys(row);
+  const jsonColumns = new Set(['working_time', 'phones', 'sites', 'social_links', 'categories', 'features', 'metro']);
+  const value = (column) => {
+    const v = row[column];
+    if (v === null || v === undefined) return 'null';
+    if (jsonColumns.has(column)) return `${sqlLiteral(JSON.stringify(v))}::jsonb`;
+    if (typeof v === 'number') return String(v);
+    return sqlLiteral(v);
+  };
+  await runSql(
+    `insert into public.business_center_yandex_cards (${columns.join(', ')})
+       values (${columns.map(value).join(', ')})
+     on conflict (business_center_slug) do update set
+       ${columns.filter((c) => c !== 'business_center_slug').map((c) => `${c} = excluded.${c}`).join(', ')};`,
+    accessToken,
+  );
+}
+
+async function slugsWithCards() {
+  if (supabase) {
+    const slugs = new Set();
+    const pageSize = 1000;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from('business_center_yandex_cards')
+        .select('business_center_slug')
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      for (const row of data ?? []) slugs.add(row.business_center_slug);
+      if (!data || data.length < pageSize) break;
+    }
+    return slugs;
+  }
+  const rows = await runSql('select business_center_slug from public.business_center_yandex_cards;', accessToken);
+  return new Set(rows.map((row) => row.business_center_slug));
+}
+
+// HTML главной страницы карточки — fetch'ем изнутри вкладки, как поиск в
+// resolveWithPage. На проверку Яндекса — один повтор после человека.
+async function captureCard(page, org) {
+  const url = orgUrl(org);
+  const fetchHtml = () => page.evaluate(
+    (target) => fetch(target, { credentials: 'include' }).then((response) => response.text()),
+    url,
+  );
+  let html = await fetchHtml().catch(() => '');
+  if (isCaptchaHtml(html)) {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+    await passCaptchaIfAny(page);
+    html = await fetchHtml().catch(() => '');
+  }
+  return cardFromOrgHtml(html, org.id);
+}
+
 async function latestCapturedAt() {
   if (supabase) {
     // PostgREST отдаёт максимум 1000 строк за запрос — .range(0, N) с
@@ -293,10 +436,11 @@ async function catalogEntries() {
   const client = createClient(SUPABASE_URL, anonKey);
   let query = client
     .from('business_centers')
-    .select('slug,name,address,status,sort_order,business_class')
+    .select('slug,name,address,status,sort_order,business_class,lat,lng')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
-  if (onlySlug) query = query.eq('slug', onlySlug);
+  if (catalogKind !== 'all') query = query.eq('kind', catalogKind);
+  if (onlySlugs.length > 0) query = query.in('slug', onlySlugs);
   if (classesFilter.length > 0) query = query.in('business_class', classesFilter);
   const { data, error } = await query;
   if (error) throw error;
@@ -307,10 +451,17 @@ async function catalogEntries() {
     centers = centers.filter((c) => !withReviews.has(c.slug));
   } else if (skipCollected) {
     const latest = await latestCapturedAt();
+    const withCards = autoMode && withCard ? await slugsWithCards() : null;
     const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
     centers = centers.filter((c) => {
       const capturedAt = latest.get(c.slug);
-      return !capturedAt || Date.now() - new Date(capturedAt).getTime() > maxAgeMs;
+      const reviewsStale = !capturedAt || Date.now() - new Date(capturedAt).getTime() > maxAgeMs;
+      if (reviewsStale) return true;
+      if (withCards && !withCards.has(c.slug)) {
+        cardOnlySlugs.add(c.slug);
+        return true;
+      }
+      return false;
     });
   }
   if (limit > 0) centers = centers.slice(0, limit);
@@ -330,13 +481,20 @@ async function main() {
 
   console.log(`БЦ в очереди: ${queue.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
   const { chromium } = await import('playwright-core');
-  const context = await chromium.launchPersistentContext(profileDir, {
-    headless: false,
-    executablePath: chromePath,
-    viewport: null,
-    args: [`--window-size=${windowSize}`, `--window-position=${windowPosition}`],
-  });
+  const context = await chromium.launchPersistentContext(
+    profileDir,
+    launchOptions({ headless, chromePath, windowSize, windowPosition }),
+  );
   const page = context.pages()[0] ?? (await context.newPage());
+
+  if (autoMode) {
+    try {
+      await runAuto(page, queue);
+    } finally {
+      await context.close();
+    }
+    return;
+  }
 
   let done = 0;
   let totalReviews = 0;
@@ -358,6 +516,14 @@ async function main() {
         console.log(`  пропущено: организации нет или отзывов нет`);
       } else {
         reviews = await collectReviewsFromOpenTab(page);
+        // Прокрутка в ручном режиме упирается в первые 50 (2026-09-29) —
+        // добираем по страницам ?page=N, как в автоматическом.
+        const org = orgFromUrl(page.url());
+        if (org && (maxReviews === 0 || reviews.length < maxReviews)) {
+          const before = reviews.length;
+          reviews = await collectReviewsByPages(page, org, reviews);
+          if (reviews.length > before) console.log(`  прокрутка дала ${before}, по страницам — ${reviews.length}`);
+        }
       }
       await saveCheckpoint(center.slug, reviews, page.url(), capturedAt);
       if (writeDb) await writeReviews({ supabase, slug: center.slug, reviews, capturedAt });
@@ -370,6 +536,271 @@ async function main() {
   }
 
   console.log(`Готово: ${done} БЦ, ${totalReviews} отзывов${writeDb ? '' : ' (в базу НЕ писали — добавьте --write-db)'}`);
+}
+
+// --- Автоматический режим -------------------------------------------------
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// 1–3 секунды случайно между запросами: одинаковый ритм — примета робота.
+const randomDelay = () => sleep(1000 + Math.floor(Math.random() * 2000));
+
+async function passCaptchaIfAny(page) {
+  if (!(await looksLikeCaptcha(page))) return false;
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  await rl.question('Яндекс показал проверку. Пройдите её в окне Chrome и нажмите Enter… ');
+  rl.close();
+  return true;
+}
+
+// Поиск идёт fetch'ем ИЗНУТРИ вкладки (тот же домен и куки, без перехода) —
+// как у scripts/capture-yandex-nearby.mjs. Для этого вкладка должна стоять
+// на yandex.by.
+async function ensureOnYandex(page) {
+  if (page.url().startsWith('https://yandex.by/')) return;
+  await page.goto(`https://yandex.by/maps/${CITY_PATH}/`, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+  await passCaptchaIfAny(page);
+}
+
+async function resolveWithPage(page, center) {
+  await ensureOnYandex(page);
+  return resolveBuildingOrganization({
+    building: center,
+    maxDistance,
+    fetchHtml: (url) => page.evaluate(
+      (target) => fetch(target, { credentials: 'include' }).then((response) => response.text()),
+      url,
+    ),
+    onCaptcha: async (url) => {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+      await passCaptchaIfAny(page);
+    },
+    delay: randomDelay,
+    log: (line) => console.log(line),
+  });
+}
+
+// Что показывает вкладка «Отзывы»: та ли организация (по адресу страницы) и
+// сколько отзывов пишет сам Яндекс в заголовке вкладки («Отзывы 5338»).
+async function reviewsTabState(page, orgId) {
+  const urlOk = isOrgTabUrl(page.url(), orgId, 'reviews');
+  const tab = await page.evaluate(() => {
+    const el = document.querySelector('.tabs-select-view__title._name_reviews');
+    if (!el) return { tabPresent: false, tabCount: null };
+    const digits = (el.textContent ?? '').replace(/\D+/g, '');
+    return { tabPresent: true, tabCount: digits ? Number(digits) : 0 };
+  }).catch(() => ({ tabPresent: false, tabCount: null }));
+  return { urlOk, ...tab };
+}
+
+async function openReviewsTab(page, org) {
+  const url = orgUrl(org, 'reviews');
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+    if (await passCaptchaIfAny(page)) continue; // после проверки — открыть заново
+    await page.waitForSelector('.business-review-view', { timeout: 15_000 }).catch(() => {});
+    return url;
+  }
+  return url;
+}
+
+// Запасной путь, когда прокрутка упёрлась раньше, чем кончились отзывы (так
+// бывает, если подгрузка следующей порции не прошла — проверено 2026-09-23
+// в окружении, где часть доменов Яндекса закрыта): вкладка «Отзывы» отдаёт
+// по 50 отзывов на странице ?page=N прямо в HTML. Идём по страницам, пока
+// они приносят новые отзывы. Если прокрутка уже собрала всё, первая же
+// страница ничего нового не даст — и цикл сразу закончится.
+async function collectReviewsByPages(page, org, collected) {
+  const byKey = new Map(collected.map((r) => [`${r.author}__${r.publishedAt}`, r]));
+  // Одна пустая страница — ещё не конец: на Валерьяново (1 483 отзыва) Яндекс
+  // на ~250-м отдал пустую страницу, и сбор бросался (2026-09-30). Пустую
+  // страницу повторяем после паузы, заканчиваем только после трёх пустых подряд.
+  let emptyInRow = 0;
+  let retried = false;
+  for (let n = 2; n <= 500; n += 1) {
+    if (maxReviews > 0 && byKey.size >= maxReviews) break;
+    await page.goto(`${orgUrl(org, 'reviews')}?page=${n}`, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+    if (await passCaptchaIfAny(page)) {
+      n -= 1; // та же страница ещё раз, уже после проверки
+      continue;
+    }
+    await page.waitForSelector('.business-review-view', { timeout: 10_000 }).catch(() => {});
+    if (!isOrgTabUrl(page.url(), org.id, 'reviews')) {
+      console.log(`  страница ${n}: Яндекс увёл с вкладки «Отзывы», сбор по страницам закончен`);
+      break;
+    }
+    let added = 0;
+    for (const review of dedupeReviews(await page.evaluate(extractReviewCardsInPage))) {
+      const key = `${review.author}__${review.publishedAt}`;
+      if (byKey.has(key)) continue;
+      byKey.set(key, review);
+      added += 1;
+    }
+    if (added === 0) {
+      if (!retried) {
+        retried = true;
+        console.log(`  страница ${n}: новых отзывов нет, пробую её ещё раз через 20 с`);
+        await page.waitForTimeout(20_000);
+        n -= 1;
+        continue;
+      }
+      emptyInRow += 1;
+      retried = false;
+      if (emptyInRow >= 3) {
+        console.log(`  три пустые страницы подряд, всего собрано ${byKey.size}`);
+        break;
+      }
+      await randomDelay();
+      continue;
+    }
+    emptyInRow = 0;
+    retried = false;
+    if (n % 5 === 0) console.log(`  страница ${n}: собрано ${byKey.size}`);
+    await randomDelay();
+  }
+  const all = [...byKey.values()];
+  return maxReviews > 0 ? all.slice(0, maxReviews) : all;
+}
+
+// Автопоиск не нашёл карточку — человек открывает её в окне Chrome (любую
+// вкладку) и жмёт Enter; вкладку «Отзывы» и страницы скрипт листает сам.
+async function pickOrgByHand(page, center) {
+  // Сначала сами открываем поиск этого здания: иначе в окне остаётся
+  // карточка предыдущего ТЦ, и Enter отдаёт её (2026-09-29).
+  await page.goto(searchUrlFor(center, CITY_PATH), { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+  await passCaptchaIfAny(page);
+  for (;;) {
+    const answer = await pauseForUser(
+      `  Яндекс не нашёл «${center.name ?? center.slug}» сам. В окне Chrome открыт поиск — нажмите на это здание, чтобы открылась его карточка.`,
+    );
+    if (isSkip(answer)) return null;
+    const org = orgFromUrl(page.url());
+    if (!org) {
+      console.log('  в окне не карточка организации — откройте карточку здания или наберите "s"');
+      continue;
+    }
+    if (orgOwners.has(org.id) && orgOwners.get(org.id) !== center.slug) {
+      console.log(`  это карточка ${orgOwners.get(org.id)}, а не этого здания — откройте нужную или наберите "s"`);
+      continue;
+    }
+    savePickedOrg(center.slug, org);
+    return org;
+  }
+}
+
+// Одна карточка на два здания каталога («Европа» и «Новая Европа» по
+// соседним адресам) — неоднозначность: второму зданию её не отдаём.
+const orgOwners = new Map();
+
+async function runAuto(page, queue) {
+  let done = 0;
+  let totalReviews = 0;
+  let cards = 0;
+  const unresolved = [];
+  const failed = [];
+  const noCard = [];
+  for (const [index, center] of queue.entries()) {
+    console.log(`\n[${index + 1}/${queue.length}] ${center.name ?? center.slug} — ${center.address ?? ''}`);
+    let org = pickedOrgFor(center.slug);
+    if (org && orgOwners.has(org.id) && orgOwners.get(org.id) !== center.slug) org = null;
+    if (org) console.log(`  карточка выбрана вручную раньше: id ${org.id}`);
+    else org = await resolveWithPage(page, center);
+    if (!org && !headless) org = await pickOrgByHand(page, center);
+    if (!org) {
+      console.log(`  ${center.slug}: карточка организации не найдена — пропускаю, ничего не пишу`);
+      unresolved.push(center.slug);
+      await randomDelay();
+      continue;
+    }
+    if (orgOwners.has(org.id)) {
+      console.log(`  ${center.slug}: карточка ${org.name} (${org.id}) уже досталась ${orgOwners.get(org.id)} — пропускаю, проверьте вручную`);
+      unresolved.push(center.slug);
+      continue;
+    }
+    orgOwners.set(org.id, center.slug);
+    if (!org.picked) console.log(`  карточка: ${org.name} (${org.rubric}), id ${org.id}, ${org.distance} м, запрос «${org.query}»`);
+    const capturedAt = new Date().toISOString();
+    if (withCard) {
+      let card = await captureCard(page, org);
+      if (!card && org.seoname) {
+        card = await captureCard(page, withoutSeoname(org));
+        if (card) org = withoutSeoname(org);
+      }
+      if (card) {
+        if (writeDb) await writeCard({ slug: center.slug, card, capturedAt });
+        cards += 1;
+        console.log(
+          `  карточка здания: рейтинг ${card.rating ?? '—'} (${card.ratingCount ?? 0} оценок), ` +
+            `${card.workingTimeText ?? 'часы —'}, телефонов ${card.phones.length}, ссылок ${card.sites.length + card.socialLinks.length}, ` +
+            `удобств ${card.features.length}${writeDb ? ', записано' : ''}`,
+        );
+      } else {
+        console.log('  карточка здания не разобралась — пропускаю её');
+        noCard.push(center.slug);
+      }
+      if (cardOnlySlugs.has(center.slug)) {
+        console.log('  отзывы свежие — только карточка');
+        await randomDelay();
+        continue;
+      }
+      await randomDelay();
+    }
+    await openReviewsTab(page, org);
+    let state = await reviewsTabState(page, org.id);
+    if ((!state.urlOk || !state.tabPresent) && org.seoname) {
+      org = withoutSeoname(org);
+      await openReviewsTab(page, org);
+      state = await reviewsTabState(page, org.id);
+    }
+    let reviews = state.urlOk ? await collectReviewsFromOpenTab(page) : [];
+    if (
+      reviews.length > 0 &&
+      (state.tabCount ?? 0) > reviews.length &&
+      (maxReviews === 0 || reviews.length < maxReviews)
+    ) {
+      const before = reviews.length;
+      reviews = await collectReviewsByPages(page, org, reviews);
+      if (reviews.length > before) console.log(`  прокрутка дала ${before}, по страницам — ${reviews.length}`);
+    }
+    if (reviews.length === 0) {
+      // Ноль — только если это точно вкладка «Отзывы» найденной организации
+      // и Яндекс сам не показывает ни одного отзыва. Иначе это сбой перехода,
+      // а не пустая карточка: ничего не пишем.
+      const confirmedEmpty = state.urlOk && state.tabPresent && state.tabCount === 0;
+      if (!confirmedEmpty) {
+        console.log(
+          `  ${center.slug}: отзывы не собрались (адрес ${state.urlOk ? 'верный' : `не тот: ${page.url()}`}, ` +
+            `на вкладке ${state.tabCount ?? '—'}) — ничего не пишу`,
+        );
+        failed.push(center.slug);
+        await randomDelay();
+        continue;
+      }
+      console.log(`  ${center.slug}: у организации нет отзывов (так показывает Яндекс)`);
+    }
+    await saveCheckpoint(center.slug, reviews, page.url(), capturedAt);
+    if (writeDb) await writeReviews({ supabase, slug: center.slug, reviews, capturedAt });
+    done += 1;
+    totalReviews += reviews.length;
+    console.log(
+      `${done}/${queue.length} ${center.slug}: ${reviews.length} отзывов` +
+        `${state.tabCount ? ` (на вкладке ${state.tabCount})` : ''}${writeDb ? ', записано в базу' : ''}`,
+    );
+    await randomDelay();
+  }
+  console.log(
+    `\nГотово: ${done} зданий, ${totalReviews} отзывов` +
+      `${withCard ? `, карточек здания ${cards}` : ''}${writeDb ? '' : ' (в базу НЕ писали — добавьте --write-db)'}`,
+  );
+  if (noCard.length > 0) console.log(`Карточка здания не разобралась (${noCard.length}): ${noCard.join(',')}`);
+  if (unresolved.length > 0) {
+    console.log(`Карточка организации не найдена (${unresolved.length}): ${unresolved.join(',')}`);
+  }
+  if (failed.length > 0) {
+    console.log(`Карточка найдена, но отзывы не собрались (${failed.length}): ${failed.join(',')}`);
+  }
+  if (unresolved.length + failed.length > 0) {
+    console.log('Их можно добрать вручную: --manual --slug <список через запятую>');
+  }
 }
 
 main().catch((error) => {
