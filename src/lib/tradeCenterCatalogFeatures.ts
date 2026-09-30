@@ -164,38 +164,24 @@ export function brandSuggestions(index: TcFilterIndex, query: string, limit = 6)
     .map(([, v]) => v.name);
 }
 
-// Формат двумя группами вместо одного списка (владелец, 2026-09-30).
-// Значения — как в колонке retail_format; подпись чипа короче: «гипермаркет»
-// вместо «гипермаркет с галереей», строительный центр и автоцентр (по одному
-// объекту) — одним чипом.
-export const TC_FORMAT_GROUPS: { label: string; chips: { label: string; values: string[] }[] }[] = [
-  {
-    label: 'Торговые центры',
-    chips: [
-      { label: 'ТРЦ', values: ['ТРЦ'] },
-      { label: 'ТЦ', values: ['ТЦ'] },
-      { label: 'районный', values: ['районный ТЦ'] },
-      { label: 'универмаг', values: ['универмаг'] },
-      { label: 'гипермаркет', values: ['гипермаркет с галереей'] },
-    ],
-  },
-  {
-    label: 'Специализированные',
-    chips: [
-      { label: 'мебель', values: ['мебельный центр'] },
-      { label: 'рынки', values: ['рынок'] },
-      { label: 'стройка и авто', values: ['строительный центр', 'автоцентр'] },
-      { label: 'аутлет', values: ['аутлет'] },
-    ],
-  },
+// Формат одной строкой (владелец, 2026-09-30): деление ТРЦ / ТЦ / районный /
+// универмаг / гипермаркет покупателю ничего не говорит — это один чип
+// «торговый центр», а разница (кино, фудкорт, продукты) видна по «Что
+// внутри». Отдельно — только места другого назначения. Значения — как в
+// колонке retail_format; незнакомый формат из админки уходит в общий чип.
+const TC_SPECIAL_FORMAT_CHIPS: { label: string; values: string[] }[] = [
+  { label: 'мебель', values: ['мебельный центр'] },
+  { label: 'рынки', values: ['рынок'] },
+  { label: 'стройка и авто', values: ['строительный центр', 'автоцентр'] },
+  { label: 'аутлет', values: ['аутлет'] },
 ];
 
-/** Группы форматов с чипами, у которых в каталоге есть хоть одно значение; незнакомые форматы — в конец первой группы. */
-export function tcFormatGroups(available: string[]) {
-  const known = new Set(TC_FORMAT_GROUPS.flatMap((g) => g.chips.flatMap((c) => c.values)));
-  const extra = available.filter((f) => !known.has(f)).map((f) => ({ label: f, values: [f] }));
-  return TC_FORMAT_GROUPS.map((g, i) => ({
-    label: g.label,
-    chips: [...g.chips.filter((c) => c.values.some((v) => available.includes(v))), ...(i === 0 ? extra : [])],
-  })).filter((g) => g.chips.length > 0);
+/** Чипы формата: «торговый центр» (всё, что не специализированное) и специализированные, у которых в каталоге есть объекты. */
+export function tcFormatChips(available: string[]): { label: string; values: string[] }[] {
+  const special = new Set(TC_SPECIAL_FORMAT_CHIPS.flatMap((c) => c.values));
+  const general = available.filter((f) => !special.has(f));
+  return [
+    ...(general.length ? [{ label: 'торговый центр', values: general }] : []),
+    ...TC_SPECIAL_FORMAT_CHIPS.filter((c) => c.values.some((v) => available.includes(v))),
+  ];
 }

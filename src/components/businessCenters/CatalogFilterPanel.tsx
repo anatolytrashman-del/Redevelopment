@@ -293,10 +293,10 @@ export interface CatalogFilterPanelProps {
   // «Формат» нет, как нет строки «Класс» у ТЦ (там availableClasses пуст).
   availableFormats?: string[];
   formatCounts?: Record<string, number>;
-  // Каталог ТЦ (2026-09-30): формат двумя группами, признаки «Что внутри» /
+  // Каталог ТЦ (2026-09-30): формат одной строкой, признаки «Что внутри» /
   // «Парковка» / «Когда», поиск магазина и переключатель строящихся. У БЦ
   // не передаются — строк нет.
-  formatGroups?: { label: string; chips: { label: string; values: string[]; count: number }[] }[];
+  formatChips?: { label: string; values: string[]; count: number }[];
   tcFeatureCounts?: Record<string, number> | null;
   storeSuggestions?: (query: string) => string[];
   underConstructionCount?: number;
@@ -331,7 +331,7 @@ export function CatalogFilterPanel({
   availableClasses,
   availableFormats = [],
   formatCounts = {},
-  formatGroups,
+  formatChips,
   tcFeatureCounts = null,
   storeSuggestions,
   underConstructionCount = 0,
@@ -415,31 +415,22 @@ export function CatalogFilterPanel({
         <StoreSearch value={state.store} suggest={storeSuggestions} onChange={(store) => onChange({ ...state, store })} />
       )}
 
-      {formatGroups && formatGroups.length > 0 ? (
+      {formatChips && formatChips.length > 0 ? (
         <ChipRow label="Формат">
-          <div className="flex min-w-0 flex-col gap-2">
-            {formatGroups.map((group) => (
-              <div key={group.label} className="flex min-w-0 flex-col gap-1.5">
-                <span className="text-xs text-ink-faint">{group.label}</span>
-                <div className="flex min-w-0 flex-wrap gap-1.5">
-                  {group.chips.map((chip) => {
-                    const active = chip.values.every((v) => state.formats.includes(v));
-                    return (
-                      <Chip
-                        key={chip.label}
-                        active={active}
-                        count={chip.count}
-                        disabled={!active && chip.count === 0}
-                        onClick={() => onChange({ ...state, formats: toggleValues(state.formats, chip.values) })}
-                      >
-                        {chip.label}
-                      </Chip>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+          {formatChips.map((chip) => {
+            const active = chip.values.every((v) => state.formats.includes(v));
+            return (
+              <Chip
+                key={chip.label}
+                active={active}
+                count={chip.count}
+                disabled={!active && chip.count === 0}
+                onClick={() => onChange({ ...state, formats: toggleValues(state.formats, chip.values) })}
+              >
+                {chip.label}
+              </Chip>
+            );
+          })}
         </ChipRow>
       ) : null}
 
@@ -464,7 +455,7 @@ export function CatalogFilterPanel({
           </ChipRow>
         ))}
 
-      {!formatGroups && availableFormats.length > 0 && (
+      {!formatChips && availableFormats.length > 0 && (
         <ChipRow label="Формат">
           {availableFormats.map((format) => (
             <Chip
