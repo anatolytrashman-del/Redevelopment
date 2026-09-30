@@ -1,6 +1,6 @@
 import { TradeCenterFactCards } from '../components/businessCenters/TradeCenterFactCards';
 import { TradeCenterReviewThemes } from '../components/businessCenters/TradeCenterReviewThemes';
-import { reviewThemeColumns, reviewThemesFaq, yandexReviewsUrl } from '../lib/tradeCenterFactsReviews';
+import { reviewThemesFaq, reviewThemesVisible, yandexReviewsUrl } from '../lib/tradeCenterFactsReviews';
 import { isHiddenVisitService } from '../lib/tradeCenterVisit';
 import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -577,7 +577,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   const reviews = !ownerMode && reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
   const factCards = isTc ? center?.retailInfo?.factCards ?? null : null;
   const reviewThemes = isTc ? center?.retailInfo?.reviewThemes ?? null : null;
-  const hasReviewThemes = Boolean(reviewThemes && reviewThemes.reviews >= 100 && reviewThemeColumns(reviewThemes).length);
+  const hasReviewThemes = reviewThemesVisible(reviewThemes);
+
 
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = !ownerMode && index > 0 ? sorted[index - 1] : null;
@@ -1262,6 +1263,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         .slice(0, 6),
     [center, ownerMode],
   );
+  // У ТЦ отзывы — только сводкой по темам; без неё блока нет (дословный
+  // список отзывов владелец снял 2026-09-30).
+  const hasReviewsBlock = isTc
+    ? hasReviewThemes
+    : Boolean(center && (center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.some((r) => r.source !== '2gis')));
 
   // FAQ использует те же модели и выборки, что видимые блоки страницы.
   //
@@ -1949,9 +1955,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has(
         'reviews',
-        reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
-          reviewQuotes.length > 0 ||
-          reviews.some((r) => r.source !== '2gis')),
+        hasReviewsBlock,
       ),
       // У ТЦ награды (в том числе строки из highlights) и места в рейтингах
       // — один блок «Награды и рейтинги», общий блок «Награды» не рисуется.
@@ -2041,7 +2045,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         // Настоящие отзывы вытесняют кураторские цитаты и выводятся
         // постранично по 6 (MAX_REAL_REVIEWS в BusinessCenterMarketBlocks).
         case 'reviews': {
-          if (reviewThemes) return hasReviewThemes ? Math.max(reviewThemes.praise.length, reviewThemes.complaints.length) + 2 : 0;
+          if (isTc) return hasReviewThemes && reviewThemes ? Math.max(reviewThemes.praise.length, reviewThemes.complaints.length) + 2 : 0;
           const realReviewCount = reviews.filter((r) => r.source !== '2gis').length;
           return realReviewCount > 0 ? Math.min(realReviewCount, 6) : reviewQuotes.length;
         }
@@ -2190,12 +2194,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       infrastructure: center?.infraInternal ?? [],
       rentOfferCount: rentStats?.count ?? 0,
       saleOfferCount: saleStats?.count ?? 0,
-      hasReviews: Boolean(
-        center &&
-          (reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
-            reviewQuotes.length > 0 ||
-            reviews.some((r) => r.source !== '2gis'))),
-      ),
+      hasReviews: hasReviewsBlock,
       hasNearbyInfrastructure: Boolean(center && !isTc && hasNearbyContent(center, nearbyPlaces)),
     }),
     [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc, reviewThemes, hasReviewThemes],
@@ -3168,8 +3167,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
 
         {renderRecommendationSlot('market')}
 
-        {reviewThemes ? (
-          <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} />
+        {isTc ? (
+          reviewThemes && <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} />
         ) : <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
 
         {renderRecommendationSlot('reviews')}

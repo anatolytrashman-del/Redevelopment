@@ -1,6 +1,6 @@
 import { MessageSquare } from 'lucide-react';
 import type { HighlightRatingEntry } from '../../lib/businessCenterDisplay';
-import { reviewThemeColumns, reviewThemeWidth, type ReviewThemes } from '../../lib/tradeCenterFactsReviews';
+import { reviewThemeColumns, reviewThemesShowShares, reviewThemesVisible, reviewThemeWidth, type ReviewThemes } from '../../lib/tradeCenterFactsReviews';
 import { glassCardShadow } from '../../lib/glass';
 import { retailCardClass } from './tradeCenterRetailStyle';
 
@@ -10,7 +10,8 @@ export function TradeCenterReviewThemes({ themes, rating, yandexUrl }: {
   yandexUrl?: string;
 }) {
   const columns = reviewThemeColumns(themes);
-  if (themes.reviews < 100 || !columns.length) return null;
+  if (!reviewThemesVisible(themes)) return null;
+  const shares = reviewThemesShowShares(themes);
   return (
     <section id="reviews" className={retailCardClass} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -39,8 +40,8 @@ export function TradeCenterReviewThemes({ themes, rating, yandexUrl }: {
             <div className="divide-y divide-border">
               {column.items.map((item, index) => (
                 <div key={item.theme} className="py-2.5">
-                  <div className="flex justify-between gap-2.5 text-sm text-ink"><span>{item.theme}</span><span className="shrink-0 text-[13px] text-ink-muted">{item.share}%{index === 0 ? ' отзывов' : ''}</span></div>
-                  <div className="mt-1.5 h-[7px] overflow-hidden rounded bg-surface-muted"><div className="h-full rounded" style={{ width: `${reviewThemeWidth(item.share, themes)}%`, backgroundColor: column.color }} /></div>
+                  <div className="flex justify-between gap-2.5 text-sm text-ink"><span>{item.theme}</span>{shares && <span className="shrink-0 text-[13px] text-ink-muted">{item.share}%{index === 0 ? ' отзывов' : ''}</span>}</div>
+                  {shares && <div className="mt-1.5 h-[7px] overflow-hidden rounded bg-surface-muted"><div className="h-full rounded" style={{ width: `${reviewThemeWidth(item.share, themes)}%`, backgroundColor: column.color }} /></div>}
                 </div>
               ))}
             </div>
