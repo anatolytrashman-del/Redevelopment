@@ -10,6 +10,7 @@ import {
   shortRankingTitle, sortAwardTiles, sortRankingTiles,
 } from '../../lib/tradeCenterAwards';
 import { retailCardClass } from './tradeCenterRetailStyle';
+import { fitGridClass } from '../../lib/fitGrid';
 
 const goldClass = 'bg-[#f6efdc] text-[#b88a1e]';
 const tileClass = 'min-w-0 rounded-2xl border border-border bg-white/65 p-3 sm:p-4';
@@ -43,7 +44,7 @@ export function TradeCenterAwardsBlock({
       {hasRanking && (
         <section className="flex flex-col gap-2.5">
           <PartTitle>Места в рейтингах</PartTitle>
-          <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className={`grid gap-2.5 ${fitGridClass(ranking.length, 3)}`}>
             {ranking.map((entry, i) => {
               const badge = rankingBadge(entry);
               const meta = [rankingSource(entry), entry.year].filter((part) => part != null && part !== '').join(' · ');
@@ -66,7 +67,7 @@ export function TradeCenterAwardsBlock({
       {hasAwards && (
         <section className="flex flex-col gap-2.5">
           <PartTitle>Награды</PartTitle>
-          <ul className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          <ul className={`grid gap-2.5 ${fitGridClass(awards.length, 4, 'tiles')}`}>
             {awards.map((award, i) => {
               const category = awardCategory(award);
               const neutral = award.result === 'finalist' || award.result === 'nominee';

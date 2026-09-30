@@ -46,6 +46,7 @@ import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnc
 import { TradeCenterGettingHere, TradeCenterOffersEvents } from './TradeCenterVisit';
 import { TradeCenterAdvertising } from './TradeCenterBusiness';
 import { TradeCenterFoodCard, TradeCenterFunCard } from './TradeCenterFoodFun';
+import { fitGridClass } from '../../lib/fitGrid';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
   cinema: Clapperboard,
@@ -102,7 +103,7 @@ export function TradeCenterRetailBlocks({
       {leisure.length > 0 && (
         <div id="leisure" className={cardClass} style={glassCardShadow}>
           <CardTitle id="leisure" />
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <ul className={`grid gap-2 ${fitGridClass(leisure.length, 2)}`}>
             {leisure.map((entry, i) => {
               const Icon = LEISURE_ICONS[entry.kind];
               return (

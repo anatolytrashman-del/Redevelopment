@@ -40,6 +40,7 @@ import {
 import { Badge } from '../ui/Badge';
 import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
 import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
+import { fitGridClass } from '../../lib/fitGrid';
 
 const ANCHOR_ICONS: Record<RetailAnchorCategory, LucideIcon> = {
   гипермаркет: ShoppingCart,
@@ -104,7 +105,7 @@ export function TradeCenterAnchorsCard({ anchors }: { anchors: RetailAnchorEntry
   return (
     <div id="anchors" className={cardClass} style={glassCardShadow}>
       <CardTitle id="anchors" />
-      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className={`grid gap-2 ${fitGridClass(anchors.length, 3)}`}>
         {anchors.map((anchor, i) => (
           <AnchorTile key={`${anchor.name}-${i}`} anchor={anchor} />
         ))}

@@ -7,6 +7,7 @@ import { glassCardShadow } from '../../lib/glass';
 import { eventDateForVisit, eventsForVisit, loyaltyForVisit, parkingForVisit, transportForVisit } from '../../lib/tradeCenterVisit';
 import { RetailCardTitle } from './TradeCenterRetailParts';
 import { retailCardClass } from './tradeCenterRetailStyle';
+import { fitGridClass } from '../../lib/fitGrid';
 
 const boxClass = 'min-w-0 rounded-[20px] border border-border bg-white px-5 py-[18px]';
 const labelClass = 'text-[11px] font-bold uppercase tracking-wide text-ink-muted';
@@ -23,9 +24,12 @@ export function TradeCenterGettingHere({ info }: { info: RetailInfo }) {
   const parking = parkingForVisit(info.parking, info.hours);
   const hasTransport = Boolean(transport.metro.length || transport.routes.length || transport.transfers.length);
   if (!hasTransport && !parking) return null;
+  // Парковка из одной-двух цифр не тянет на половину ширины: ей треть,
+  // транспорту — две трети, иначе справа остаётся пустая карточка.
+  const parkingIsShort = Boolean(parking && parking.tiles.length <= 2 && !parking.free.length);
   return <section id="getting-here" className={retailCardClass} style={glassCardShadow}>
     <RetailCardTitle id="getting-here" label="Как добраться и где встать" />
-    <div className={cn('grid grid-cols-1 gap-[18px]', hasTransport && parking && 'md:grid-cols-2')}>
+    <div className={cn('grid grid-cols-1 gap-[18px]', hasTransport && parking && (parkingIsShort ? 'md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : 'md:grid-cols-2'))}>
       {hasTransport && <div className={boxClass}>
         <h3 className={cn(labelClass, 'mb-3')}>Транспорт</h3>
         <dl className="divide-y divide-border">
@@ -44,7 +48,7 @@ export function TradeCenterGettingHere({ info }: { info: RetailInfo }) {
       </div>}
       {parking && <div className={boxClass}>
         <h3 className={cn(labelClass, 'mb-3')}>Парковка{parking.entrance && ` · въезд ${parking.entrance}`}</h3>
-        {parking.tiles.length > 0 && <dl className="mb-4 grid grid-cols-3 gap-2">
+        {parking.tiles.length > 0 && <dl className={cn('grid gap-2', fitGridClass(parking.tiles.length, 3, 'tiles'), (parking.free.length > 0 || parking.charging) && 'mb-4')}>
           {parking.tiles.map((tile) => <div key={tile.label} className="min-w-0 rounded-2xl bg-surface-muted p-3">
             <dd className="break-words text-lg font-extrabold sm:text-xl">{tile.value}</dd>
             <dt className="mt-0.5 break-words text-[11px] leading-snug text-ink-muted [hyphens:auto]">{tile.label}</dt>
@@ -70,13 +74,13 @@ export function TradeCenterOffersEvents({ info }: { info: RetailInfo }) {
     <RetailCardTitle id="offers-events" />
     {loyalty.map((program, index) => <div key={`${program.name}-${index}`} className="grid grid-cols-1 items-center gap-[18px] rounded-[20px] bg-[#1b1c20] px-5 py-[18px] text-white md:grid-cols-[1.1fr_2fr]">
       <div><h3 className="text-base font-bold">{program.name}</h3>{program.subtitle && <p className="mt-1 text-xs text-white/65">{program.subtitle}</p>}</div>
-      {program.facts.length > 0 ? <dl className="grid grid-cols-1 gap-2 min-[400px]:grid-cols-3">
+      {program.facts.length > 0 ? <dl className={cn('grid gap-2', fitGridClass(program.facts.length, 3, 'tiles'))}>
         {program.facts.map((fact) => <div key={fact.label} className="min-w-0 rounded-xl bg-white/[0.06] px-3 py-2.5">
           <dd className="break-words text-base font-extrabold">{fact.value}</dd><dt className="mt-0.5 break-words text-[11px] leading-snug text-white/65 [hyphens:auto]">{fact.label}</dt>
         </div>)}
       </dl> : <p className="text-sm leading-relaxed text-white/65">{program.fallback}</p>}
     </div>)}
-    {events.length > 0 && <div className="grid grid-cols-1 items-start gap-2.5 md:grid-cols-3">
+    {events.length > 0 && <div className={cn('grid items-start gap-2.5', fitGridClass(events.length, 3))}>
       {events.map((event, index) => <article key={`${event.name}-${index}`} className="min-w-0 rounded-[18px] border border-border bg-white px-4 py-3.5">
         {eventDateForVisit(event) && <p className="text-[11px] font-bold uppercase tracking-wide text-primary">{eventDateForVisit(event)}</p>}
         <h3 className="mt-1 text-[15px] font-bold">{event.name}</h3>

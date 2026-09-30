@@ -6,6 +6,7 @@ import { glassCardShadow } from '../../lib/glass';
 import { BuildingOffersSection } from './BuildingOffersSection';
 import { RetailCardTitle } from './TradeCenterRetailParts';
 import { retailCardClass } from './tradeCenterRetailStyle';
+import { fitGridClass } from '../../lib/fitGrid';
 
 const boxClass = 'min-w-0 rounded-[20px] border border-border bg-white px-5 py-[18px]';
 const icons = { monitor: Monitor, play: Play, volume: Volume2, image: Image, car: Car, sparkles: Sparkles, megaphone: Megaphone };
@@ -41,7 +42,7 @@ export function TradeCenterLeasing({ info, name, sale, rent }: { info: RetailInf
         <p className="text-sm text-ink">ТЦ не публикует список свободных площадей<span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">Узнать, что есть сейчас, можно напрямую в отделе аренды.</span></p>
       </div>}
     </div>
-    {formats.length > 0 && <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+    {formats.length > 0 && <div className={`grid gap-2.5 ${fitGridClass(formats.length, 2)}`}>
       {formats.map((format, index) => <article key={index} className={boxClass}>
         <h3 className="text-sm font-bold text-ink">{format.title}</h3>
         {format.text && <p className="mt-1 break-words text-xs leading-relaxed text-ink-muted">{format.text}</p>}
@@ -57,7 +58,7 @@ export function TradeCenterAdvertising({ info, name }: { info: RetailInfo; name:
   const lead = advertising?.text?.match(/^.*?(?:[.!?](?=\s|$)|$)/)?.[0];
   return <section id="advertising" className={retailCardClass} style={glassCardShadow}>
     <div><RetailCardTitle id="advertising" />{lead && <p className="mt-1 text-sm text-ink-muted">{lead}</p>}</div>
-    {audience.length > 0 && <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
+    {audience.length > 0 && <div className={`grid gap-2.5 ${fitGridClass(audience.length, 5, 'tiles')}`}>
       {audience.map((entry, index) => {
         const tile = compactAudience(entry);
         return <div key={index} className="min-w-0 rounded-2xl border border-border bg-white p-3.5">
@@ -66,7 +67,7 @@ export function TradeCenterAdvertising({ info, name }: { info: RetailInfo; name:
         </div>;
       })}
     </div>}
-    {!!advertising?.points.length && <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
+    {!!advertising?.points.length && <div className={`grid gap-2.5 ${fitGridClass(advertising.points.length, 3)}`}>
       {advertising.points.map((point, index) => {
         const medium = advertisingMedium(point);
         const Icon = icons[medium.icon];

@@ -27,6 +27,7 @@ import {
   tcParkingSpaces,
 } from '../../lib/tradeCenterHero';
 import { FactTile } from './BusinessCenterVisuals';
+import { fitGridClass } from '../../lib/fitGrid';
 
 /**
  * Точка линии + название/расстояние станции — тот же вид, что и в блоке
@@ -181,7 +182,7 @@ export function TradeCenterHeroSummary({
       </section>
 
       {tiles.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className={`grid gap-3 ${fitGridClass(tiles.length, 3, 'tiles')}`}>
           {tiles.map((tile) => (
             <FactTile
               key={tile.kind}

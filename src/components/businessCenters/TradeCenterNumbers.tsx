@@ -6,19 +6,26 @@ import { glassCardShadow } from '../../lib/glass';
 import { groupNumbers, holidayDate, numberFormat, numberIcon } from '../../lib/tradeCenterNumbers';
 import { RetailCardTitle } from './TradeCenterRetailParts';
 import { retailCardClass } from './tradeCenterRetailStyle';
+import { balancedColumns, fitGridClass } from '../../lib/fitGrid';
 
 const icons = { ArrowUpDown, Building2, Car, Flag, HardHat, Monitor, PanelsTopLeft, Sparkles };
 
-function NumberTile({ entry }: { entry: RetailFigureEntry }) {
+function NumberTile({ entry, wide }: { entry: RetailFigureEntry; wide: boolean }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const Icon = icons[numberIcon(entry)];
   return <button type="button" aria-expanded={open} aria-controls={entry.text ? id : undefined}
     onClick={() => { if (entry.text) setOpen(!open); }}
     className={cn('min-w-0 rounded-[18px] border bg-white p-4 text-left text-ink transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary', open ? 'border-primary' : 'border-border', entry.text && 'cursor-pointer hover:border-ink-faint')}>
-    <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-icon-bg text-icon"><Icon className="h-[19px] w-[19px]" aria-hidden="true" /></span>
-    <span className="block break-words text-2xl font-extrabold leading-none tabular-nums">{entry.value}</span>
-    <span className="mt-1.5 block break-words text-xs leading-snug text-ink-muted">{entry.label}</span>
+    {/* Плиток мало и они широкие — иконка слева, а не над цифрой: иначе
+        в плитке остаётся пустое поле справа. */}
+    <span className={cn('block', wide && 'sm:flex sm:items-start sm:gap-3.5')}>
+      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon', wide ? 'mb-3 sm:mb-0' : 'mb-3')}><Icon className="h-[19px] w-[19px]" aria-hidden="true" /></span>
+      <span className="block min-w-0">
+        <span className="block break-words text-2xl font-extrabold leading-none tabular-nums">{entry.value}</span>
+        <span className="mt-1.5 block break-words text-xs leading-snug text-ink-muted">{entry.label}</span>
+      </span>
+    </span>
     {entry.text && <span id={id} hidden={!open} className={cn('mt-2.5 break-words border-t border-dashed border-border pt-2 text-xs leading-relaxed', open ? 'block' : 'hidden')}>{entry.text}</span>}
   </button>;
 }
@@ -43,6 +50,13 @@ function ScaleNumber({ entry }: { entry: RetailFigureEntry }) {
   </div>;
 }
 
+// Левая граница плитки праздника — только между колонками одного ряда.
+const HOLIDAY_COLUMNS: Record<number, string> = {
+  1: 'md:[&>*]:border-l-0',
+  2: 'md:grid-cols-2 md:[&>*:nth-child(2n+1)]:border-l-0',
+  3: 'md:grid-cols-3 md:[&>*:nth-child(3n+1)]:border-l-0',
+};
+
 // Разные форматы отделяют главные цифры от деталей (владелец, 2026-09-25).
 export function TradeCenterNumbersCard({ numbers }: { numbers: RetailFigureEntry[] }) {
   const groups = groupNumbers(numbers);
@@ -51,10 +65,10 @@ export function TradeCenterNumbersCard({ numbers }: { numbers: RetailFigureEntry
     <RetailCardTitle id="numbers" />
     {groups.map((group) => <div key={group.kind}>
       {group.label && <h3 className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{group.label}</h3>}
-      {group.kind === 'scale' && <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">{group.entries.map((entry, index) => <ScaleNumber key={`${entry.label}-${index}`} entry={entry} />)}</div>}
-      {group.kind === 'building' && <div className="grid grid-cols-2 items-start gap-2.5 lg:grid-cols-5">{group.entries.map((entry, index) => <NumberTile key={`${entry.label}-${entry.value}-${index}`} entry={entry} />)}</div>}
-      {group.kind === 'holidays' && <div className="grid grid-cols-1 overflow-hidden rounded-[22px] bg-[#1b1c20] text-white md:grid-cols-3">
-        {group.entries.map((entry, index) => <div key={`${entry.label}-${index}`} className="min-w-0 border-white/10 px-5 py-[18px] max-md:border-t max-md:first:border-t-0 md:border-l md:[&:nth-child(3n+1)]:border-l-0">
+      {group.kind === 'scale' && <div className={cn('grid gap-3.5', fitGridClass(group.entries.length, 2))}>{group.entries.map((entry, index) => <ScaleNumber key={`${entry.label}-${index}`} entry={entry} />)}</div>}
+      {group.kind === 'building' && <div className={cn('grid items-start gap-2.5', fitGridClass(group.entries.length, 5, 'tiles'))}>{group.entries.map((entry, index) => <NumberTile key={`${entry.label}-${entry.value}-${index}`} entry={entry} wide={balancedColumns(group.entries.length, 5) <= 3} />)}</div>}
+      {group.kind === 'holidays' && <div className={cn('grid grid-cols-1 overflow-hidden rounded-[22px] bg-[#1b1c20] text-white', HOLIDAY_COLUMNS[balancedColumns(group.entries.length, 3)])}>
+        {group.entries.map((entry, index) => <div key={`${entry.label}-${index}`} className="min-w-0 border-white/10 px-5 py-[18px] max-md:border-t max-md:first:border-t-0 md:border-l">
           {holidayDate(entry) && <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">{holidayDate(entry)}</p>}
           <p className="break-words text-[28px] font-extrabold leading-none tabular-nums">{entry.value}</p>
           <p className="mt-1.5 break-words text-xs leading-snug text-white/65">{entry.label}</p>
