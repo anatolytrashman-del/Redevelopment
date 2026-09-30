@@ -368,12 +368,6 @@ export interface DeveloperScaleEntry extends RetailSource {
   date: string | null;
 }
 
-/** Человек в публичной роли (основатель, директор) — без оценок. */
-export interface DeveloperPerson extends RetailSource {
-  name: string;
-  role: string;
-}
-
 export interface DeveloperProfile {
   name: string;
   /** Год или дата основания строкой («1996»). */
@@ -381,7 +375,9 @@ export interface DeveloperProfile {
   hq: string | null;
   business: string | null;
   scale: DeveloperScaleEntry[];
-  people: DeveloperPerson[];
+  // Людей (учредителей, директоров) и их доли не показываем — только
+  // компании (владелец, 2026-09-30: «никаких физлиц»). profile.people в
+  // базе, если остался, парсер игнорирует.
 }
 
 /** Другой объект компании (или её группы). */
