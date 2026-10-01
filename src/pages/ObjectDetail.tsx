@@ -550,7 +550,7 @@ export function ObjectDetail() {
 
             <BuildingPlanWidget object={object} onAttachPlan={attachBuildingPlan} onDetachPlan={detachBuildingPlan} />
 
-            <Card className="flex flex-col gap-4 p-5">
+            <Card className="hidden flex-col gap-4 p-5">
               <div className="flex items-baseline justify-between gap-3">
                 <div className="font-bold text-ink">Проверка спроса</div>
                 {lastStatsUpdate && (
