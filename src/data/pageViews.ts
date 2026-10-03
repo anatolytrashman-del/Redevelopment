@@ -19,3 +19,15 @@ export interface PageViewDailyRow {
   views: number;
   entries: number;
 }
+
+export interface SearchVisitDaily {
+  day: string;
+  source: string;
+  visits: number;
+}
+
+export interface SearchVisitDailyRow {
+  day: string;
+  source: string;
+  visits: number;
+}
