@@ -28,6 +28,10 @@ import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
 import { fetchPageViewsDaily } from '../lib/pageViewsApi';
 import type { PageViewDaily } from '../data/pageViews';
+import {
+  mergeSiteDailyStats, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate, siteMetricsToday,
+  type SiteMetricsPeriod,
+} from '../lib/siteMetrics';
 
 // Показатели посещаемости сайта из Яндекс.Метрики (счётчик 111858495) —
 // не отчёт по staff-активности (это отдельная /admin/metrics, RequireSuperAdmin,
@@ -89,22 +93,8 @@ import type { PageViewDaily } from '../data/pageViews';
 // скрейпим недокументированные ручки: показываем честный статус и прямую
 // ссылку на штатный отчёт Google.
 
-// 2026-09-13 — по просьбе владельца добавлен период "Вчера" (ровно один
-// календарный день, не "последний день из окна") — отдельно от 7/30/90,
-// потому что те считают скользящее окно N дней, а "Вчера" должен показывать
-// именно вчерашний день без сегодняшнего (у которого сутки ещё не закончились).
-// Порядок вариантов задаём явно массивом PERIOD_ORDER, а не полагаемся на
-// порядок ключей объекта — числовые ключи (7/30/90) в JS всегда
-// перечисляются раньше строковых ('yesterday'), это увело бы "Вчера" в конец
-// списка вместо начала.
-//
-// 2026-09-16 — добавлен период "Сегодня": синк переведён на часовой крон
-// (было раз в сутки), так что последняя строка данных внутри текущих суток
-// реально успевает обновиться несколько раз, а не только на завтра —
-// "Вчера"-only больше не отражал этого. Логика та же, что у "Вчера" —
-// последняя строка массива и есть "сегодня" (date2: 'today' в запросе к
-// Метрике), сравниваем с предыдущей (вчера).
-type Period = 'today' | 'yesterday' | 7 | 30 | 90;
+// Периоды считаются по календарю Europe/Minsk, как собственный счётчик.
+type Period = SiteMetricsPeriod;
 const PERIOD_LABELS: Record<Period, string> = {
   today: 'Сегодня',
   yesterday: 'Вчера',
@@ -117,23 +107,6 @@ const PERIOD_OPTIONS = PERIOD_ORDER.map((p) => PERIOD_LABELS[p]);
 const LABEL_TO_PERIOD = Object.fromEntries(
   PERIOD_ORDER.map((p) => [PERIOD_LABELS[p], p]),
 ) as Record<string, Period>;
-
-// Данные приходят по дням без пропусков (см. supabase/functions/sync-yandex-metrika)
-// и последняя строка — всегда "сегодня" (date2: 'today' в запросе к Метрике),
-// поэтому "вчера" — предпоследняя строка массива, а не дата, вычисленная
-// вручную через часовой пояс (так это остаётся верным независимо от того,
-// в каком часовом поясе Метрика считает границу суток).
-function sliceCurrentPeriod<T>(data: T[], period: Period): T[] {
-  if (period === 'today') return data.length >= 1 ? data.slice(-1) : [];
-  if (period === 'yesterday') return data.length >= 2 ? data.slice(-2, -1) : [];
-  return data.slice(-period);
-}
-
-function slicePreviousPeriod<T>(data: T[], period: Period): T[] {
-  if (period === 'today') return data.length >= 2 ? data.slice(-2, -1) : [];
-  if (period === 'yesterday') return data.length >= 3 ? data.slice(-3, -2) : [];
-  return data.slice(-period * 2, -period);
-}
 
 function formatDateShort(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -764,8 +737,8 @@ export function SiteMetrics() {
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const pageViewsSince = new Date();
-      pageViewsSince.setDate(pageViewsSince.getDate() - 91); // хватает на период «90 дней» с запасом
+      // Два полных окна по 90 дней нужны для сравнения с предыдущим периодом.
+      const pageViewsSince = shiftMetricsDate(siteMetricsToday(), -179);
       const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, googleP, backlinkRows, ownPageViews] =
         await Promise.all([
           fetchMetrikaDailyStats(),
@@ -782,7 +755,7 @@ export function SiteMetrics() {
           fetchGoogleSearchConsoleQueries().catch(() => []),
           fetchGoogleSearchConsolePages().catch(() => []),
           fetchSiteBacklinks().catch(() => []),
-          fetchPageViewsDaily(pageViewsSince.toISOString().slice(0, 10)).catch(() => []),
+          fetchPageViewsDaily(pageViewsSince),
         ]);
       setDailyStats(daily);
       setTrafficSources(traffic);
@@ -824,31 +797,24 @@ export function SiteMetrics() {
 
   const loading = dailyStats === null || trafficSources === null || topPages === null || goalCompletions === null;
 
-  const currentPeriod = useMemo(() => sliceCurrentPeriod(dailyStats ?? [], period), [dailyStats, period]);
-  const previousPeriod = useMemo(() => slicePreviousPeriod(dailyStats ?? [], period), [dailyStats, period]);
-
-  const currentGoals = useMemo(() => sliceCurrentPeriod(goalCompletions ?? [], period), [goalCompletions, period]);
-  const previousGoals = useMemo(
-    () => slicePreviousPeriod(goalCompletions ?? [], period),
-    [goalCompletions, period],
+  const today = siteMetricsToday();
+  const combinedDaily = useMemo(
+    () => mergeSiteDailyStats(dailyStats ?? [], pageViewRows ?? []),
+    [dailyStats, pageViewRows],
   );
+  const currentPeriod = useMemo(() => selectMetricsPeriod(combinedDaily, period, today), [combinedDaily, period, today]);
+  const previousPeriod = useMemo(() => selectMetricsPeriod(combinedDaily, period, today, true), [combinedDaily, period, today]);
+  const currentGoals = useMemo(() => selectMetricsPeriod(goalCompletions ?? [], period, today), [goalCompletions, period, today]);
+  const previousGoals = useMemo(
+    () => selectMetricsPeriod(goalCompletions ?? [], period, today, true),
+    [goalCompletions, period, today],
+  );
+  const { start, end } = metricsPeriodBounds(period, today);
+  const periodDatesLabel = start === end
+    ? `за ${formatDateShort(start)}`
+    : `${formatDateShort(start)} — ${formatDateShort(end)}`;
 
-  // Какие КАЛЕНДАРНЫЕ дни реально показаны. Периоды нарезаются по строкам
-  // массива, а не по датам (см. sliceCurrentPeriod), и строки приходят
-  // только за дни, где был хоть один визит — поэтому "Сегодня" молча
-  // показывал вчерашний день, если за сегодня визитов ещё не было или синк
-  // не успел отработать (владелец поймал 2026-09-16: карточки — за 15-е,
-  // подпись — "Сегодня"). Даты здесь берём из самих данных, без вычисления
-  // "сегодня" в часовом поясе счётчика: подпись остаётся верной в любом
-  // часовом поясе, а расхождение с Метрикой сразу видно глазами.
-  const periodDatesLabel = useMemo(() => {
-    if (currentPeriod.length === 0) return null;
-    const first = currentPeriod[0].date;
-    const last = currentPeriod[currentPeriod.length - 1].date;
-    return first === last ? `за ${formatDateShort(first)}` : `${formatDateShort(first)} — ${formatDateShort(last)}`;
-  }, [currentPeriod]);
-
-  const currentWebmaster = useMemo(() => sliceCurrentPeriod(webmasterStats ?? [], period), [webmasterStats, period]);
+  const currentWebmaster = useMemo(() => selectMetricsPeriod(webmasterStats ?? [], period, today), [webmasterStats, period, today]);
   // "Страниц в поиске" — не сумма по дням (это счётчик состояния, не
   // событие), берём последнее известное значение в периоде.
   const latestPagesInSearch = useMemo(() => {
@@ -860,7 +826,7 @@ export function SiteMetrics() {
   }, [currentWebmaster]);
   const hasSearchQueryData = currentWebmaster.some((d) => d.impressions !== null || d.clicks !== null);
 
-  const currentGoogle = useMemo(() => sliceCurrentPeriod(googleStats ?? [], period), [googleStats, period]);
+  const currentGoogle = useMemo(() => selectMetricsPeriod(googleStats ?? [], period, today), [googleStats, period, today]);
   const latestGoogleCoverage = useMemo(() => {
     for (let i = currentGoogle.length - 1; i >= 0; i--) {
       const d = currentGoogle[i];
@@ -875,27 +841,6 @@ export function SiteMetrics() {
     if (dates.length === 0) return null;
     return dates.reduce((a, b) => (a > b ? a : b));
   }, [trafficSources]);
-
-  // Один общий ряд визитов и просмотров (владелец, 2026-09-28): с плашкой
-  // cookie Метрика видит только согласившихся, а свой счётчик без cookie —
-  // всех. За каждый день берём большее из двух: до начала учёта это
-  // Метрика, после — счётчик; дни не удваиваются, потому что счётчик уже
-  // включает согласившихся.
-  const ownDaily = (() => {
-    const views = new Map<string, number>();
-    const entries = new Map<string, number>();
-    for (const r of pageViewRows ?? []) {
-      views.set(r.day, (views.get(r.day) ?? 0) + r.views);
-      entries.set(r.day, (entries.get(r.day) ?? 0) + r.entries);
-    }
-    return { views, entries };
-  })();
-  const fullVisits = (d: MetrikaDailyStat) => Math.max(d.visits, ownDaily.entries.get(d.date) ?? 0);
-  // Уникальных посетителей без cookie не различить — с начала учёта
-  // «посетители» берутся по заходам на сайт из своего счётчика (владелец,
-  // 2026-09-29: считать по своему счётчику, а не по Метрике).
-  const fullUsers = (d: MetrikaDailyStat) => Math.max(d.users, ownDaily.entries.get(d.date) ?? 0);
-  const fullPageviews = (d: MetrikaDailyStat) => Math.max(d.pageviews, ownDaily.views.get(d.date) ?? 0);
 
   const maxTrafficVisits = Math.max(1, ...(trafficSources ?? []).map((s) => s.visits));
   const maxTopPageviews = Math.max(1, ...(topPages ?? []).map((p) => p.pageviews));
@@ -914,14 +859,14 @@ export function SiteMetrics() {
         </div>
       )}
 
-      {!loading && dailyStats!.length === 0 && (
+      {!loading && combinedDaily.length === 0 && (
         <Card className="text-sm text-ink-muted">
-          Данные ещё не собраны — первый синк со статистикой Яндекс.Метрики придёт по расписанию (раз в час) либо
-          после ручного запуска воркфлоу «Sync Yandex Metrika stats» на GitHub Actions (он дёргает ту же Edge Function).
+          Данные ещё не собраны. Посещения появятся после первого захода на публичную часть сайта;
+          дополнительные показатели Яндекс.Метрики обновляются раз в час.
         </Card>
       )}
 
-      {!loading && dailyStats!.length > 0 && (
+      {!loading && combinedDaily.length > 0 && (
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <ToggleGroup
@@ -949,27 +894,27 @@ export function SiteMetrics() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <KpiTile
               label="Визиты"
-              value={sum(currentPeriod.map(fullVisits)).toLocaleString('ru-RU')}
-              change={{ current: sum(currentPeriod.map(fullVisits)), previous: sum(previousPeriod.map(fullVisits)) }}
+              value={sum(currentPeriod.map((d) => d.visits)).toLocaleString('ru-RU')}
+              change={{ current: sum(currentPeriod.map((d) => d.visits)), previous: sum(previousPeriod.map((d) => d.visits)) }}
             />
             <KpiTile
               label="Посетители"
-              value={sum(currentPeriod.map(fullUsers)).toLocaleString('ru-RU')}
-              change={{ current: sum(currentPeriod.map(fullUsers)), previous: sum(previousPeriod.map(fullUsers)) }}
+              value={sum(currentPeriod.map((d) => d.users)).toLocaleString('ru-RU')}
+              change={{ current: sum(currentPeriod.map((d) => d.users)), previous: sum(previousPeriod.map((d) => d.users)) }}
             />
             <KpiTile
               label="Просмотры страниц"
-              value={sum(currentPeriod.map(fullPageviews)).toLocaleString('ru-RU')}
+              value={sum(currentPeriod.map((d) => d.pageviews)).toLocaleString('ru-RU')}
               change={{
-                current: sum(currentPeriod.map(fullPageviews)),
-                previous: sum(previousPeriod.map(fullPageviews)),
+                current: sum(currentPeriod.map((d) => d.pageviews)),
+                previous: sum(previousPeriod.map((d) => d.pageviews)),
               }}
             />
             <KpiTile
               label="Отказы"
               value={formatPercent(average(currentPeriod.map((d) => d.bounceRate)))}
               change={
-                previousPeriod.length > 0
+                average(currentPeriod.map((d) => d.bounceRate)) !== null && average(previousPeriod.map((d) => d.bounceRate)) !== null
                   ? {
                       current: average(currentPeriod.map((d) => d.bounceRate)) ?? 0,
                       previous: average(previousPeriod.map((d) => d.bounceRate)) ?? 0,
@@ -980,9 +925,9 @@ export function SiteMetrics() {
             />
             <KpiTile
               label="Глубина просмотра"
-              value={(average(currentPeriod.map((d) => d.pageDepth)) ?? 0).toFixed(1)}
+              value={average(currentPeriod.map((d) => d.pageDepth))?.toFixed(1) ?? '—'}
               change={
-                previousPeriod.length > 0
+                average(currentPeriod.map((d) => d.pageDepth)) !== null && average(previousPeriod.map((d) => d.pageDepth)) !== null
                   ? {
                       current: average(currentPeriod.map((d) => d.pageDepth)) ?? 0,
                       previous: average(previousPeriod.map((d) => d.pageDepth)) ?? 0,
@@ -995,7 +940,7 @@ export function SiteMetrics() {
               label="Время на сайте"
               value={formatDuration(average(currentPeriod.map((d) => d.avgDurationSeconds)))}
               change={
-                previousPeriod.length > 0
+                average(currentPeriod.map((d) => d.avgDurationSeconds)) !== null && average(previousPeriod.map((d) => d.avgDurationSeconds)) !== null
                   ? {
                       current: average(currentPeriod.map((d) => d.avgDurationSeconds)) ?? 0,
                       previous: average(previousPeriod.map((d) => d.avgDurationSeconds)) ?? 0,
@@ -1007,14 +952,14 @@ export function SiteMetrics() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <TrendCard title="Визиты по дням" data={currentPeriod} valueOf={fullVisits} />
-            <TrendCard title="Посетители по дням" data={currentPeriod} valueOf={fullUsers} />
-            <TrendCard title="Просмотры по дням" data={currentPeriod} valueOf={fullPageviews} />
+            <TrendCard title="Визиты по дням" data={currentPeriod} valueOf={(d) => d.visits} />
+            <TrendCard title="Посетители по дням" data={currentPeriod} valueOf={(d) => d.users} />
+            <TrendCard title="Просмотры по дням" data={currentPeriod} valueOf={(d) => d.pageviews} />
           </div>
           <p className="text-xs text-ink-muted">
-            С 28.09.2026 визиты, посетители и просмотры считает свой счётчик без cookie — это все посетители, в том
-            числе отказавшиеся от cookie; посетитель здесь равен заходу на сайт. Отказы, глубина и время — только по
-            согласившимся, из Метрики.
+            С 28.09.2026 визиты, посетители и просмотры включают данные своего счётчика без cookie.
+            Посетитель здесь равен заходу на сайт, а не уникальному человеку. Отказы, глубина и время —
+            только по согласившимся на cookie, из Метрики; прочерк означает, что данных пока нет.
           </p>
 
           {currentGoals.length > 0 && (
