@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { PageViewDaily, PageViewDailyRow } from '../data/pageViews';
+import type { PageViewDaily, PageViewDailyRow, SearchVisitDaily, SearchVisitDailyRow } from '../data/pageViews';
 
 const PAGE_SIZE = 1000;
 
@@ -29,6 +29,29 @@ export function fetchPageViewsDaily(sinceDate: string): Promise<PageViewDaily[]>
         .range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
       const page = (data as PageViewDailyRow[]).map(fromRow);
+      rows.push(...page);
+      if (page.length < PAGE_SIZE) return rows;
+    }
+  });
+}
+
+export function fetchSearchVisitsDaily(sinceDate: string): Promise<SearchVisitDaily[]> {
+  return withRetry(async () => {
+    const rows: SearchVisitDaily[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('search_visits_daily')
+        .select('*')
+        .gte('day', sinceDate)
+        .order('day', { ascending: true })
+        .order('source', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = (data as SearchVisitDailyRow[]).map((row) => ({
+        day: row.day,
+        source: row.source,
+        visits: row.visits,
+      }));
       rows.push(...page);
       if (page.length < PAGE_SIZE) return rows;
     }

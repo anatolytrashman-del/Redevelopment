@@ -18,8 +18,8 @@ import { fetchGoogleSearchConsoleStats, fetchGoogleSearchConsoleQueries } from '
 import type { GoogleSearchConsoleStat, GoogleSearchConsoleQuery } from '../data/googleSearchConsoleStats';
 import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
-import { fetchPageViewsDaily } from '../lib/pageViewsApi';
-import type { PageViewDaily } from '../data/pageViews';
+import { fetchPageViewsDaily, fetchSearchVisitsDaily } from '../lib/pageViewsApi';
+import type { PageViewDaily, SearchVisitDaily } from '../data/pageViews';
 import {
   mergeSiteDailyStats, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate, siteMetricsToday,
   type SiteMetricsPeriod,
@@ -705,6 +705,7 @@ export function SiteMetrics() {
   const [googleQueries, setGoogleQueries] = useState<GoogleSearchConsoleQuery[]>([]);
   const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
   const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
+  const [searchVisitRows, setSearchVisitRows] = useState<SearchVisitDaily[]>([]);
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
@@ -723,7 +724,7 @@ export function SiteMetrics() {
     try {
       // Два полных окна по 90 дней нужны для сравнения с предыдущим периодом.
       const pageViewsSince = shiftMetricsDate(siteMetricsToday(), -179);
-      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows, ownPageViews] =
+      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, backlinkRows, ownPageViews, searchVisits] =
         await Promise.all([
           fetchMetrikaDailyStats(),
           fetchMetrikaTrafficSources(),
@@ -739,6 +740,7 @@ export function SiteMetrics() {
           fetchGoogleSearchConsoleQueries().catch(() => []),
           fetchSiteBacklinks().catch(() => []),
           fetchPageViewsDaily(pageViewsSince),
+          fetchSearchVisitsDaily(pageViewsSince).catch(() => []),
         ]);
       setDailyStats(daily);
       setTrafficSources(traffic);
@@ -750,6 +752,7 @@ export function SiteMetrics() {
       setGoogleQueries(googleQ);
       setBacklinks(backlinkRows);
       setPageViewRows(ownPageViews);
+      setSearchVisitRows(searchVisits);
       setLastCheckedAt(new Date());
       setError('');
     } catch {
@@ -827,6 +830,22 @@ export function SiteMetrics() {
   const maxTrafficVisits = Math.max(1, ...(trafficSources ?? []).map((s) => s.visits));
   const maxTopPageviews = Math.max(1, ...(topPages ?? []).map((p) => p.pageviews));
   const totalTrafficVisits = sum((trafficSources ?? []).map((s) => s.visits));
+  const trafficWindowDays = trafficSources?.[0]?.windowDays ?? 90;
+  const searchWindowStart = shiftMetricsDate(siteMetricsToday(), -(trafficWindowDays - 1));
+  const searchVisitsBySource = Object.entries(
+    searchVisitRows
+      .filter((row) => row.day >= searchWindowStart)
+      .reduce<Record<string, number>>((totals, row) => {
+        totals[row.source] = (totals[row.source] ?? 0) + row.visits;
+        return totals;
+      }, {}),
+  ).sort((a, b) => b[1] - a[1]);
+  const totalSearchVisits = sum(searchVisitsBySource.map(([, visits]) => visits));
+  const maxSearchVisits = Math.max(1, ...searchVisitsBySource.map(([, visits]) => visits));
+  const searchLabels: Record<string, string> = {
+    yandex: 'Яндекс', google: 'Google', bing: 'Bing', duckduckgo: 'DuckDuckGo',
+    yahoo: 'Yahoo', baidu: 'Baidu', ecosia: 'Ecosia', brave: 'Brave Search',
+  };
 
   return (
     <>
@@ -1119,8 +1138,7 @@ export function SiteMetrics() {
                 <h3 className="text-sm font-semibold text-ink">Источники трафика</h3>
                 <p className="text-xs text-ink-muted">
                   {(() => {
-                    const days = trafficSources?.[0]?.windowDays ?? 90;
-                    return `За последние ${days} ${pluralDays(days)} — не зависит от выбранного периода выше.`;
+                    return `За последние ${trafficWindowDays} ${pluralDays(trafficWindowDays)} — не зависит от выбранного периода выше.`;
                   })()}
                 </p>
               </div>
@@ -1147,6 +1165,29 @@ export function SiteMetrics() {
                 {(trafficSources ?? []).length === 0 && (
                   <p className="text-sm text-ink-muted">Пока нет данных по источникам.</p>
                 )}
+                <div className="mt-2 border-t border-border pt-3">
+                  <div className="mb-2 flex items-center justify-between gap-2 text-sm">
+                    <span className="font-medium text-ink">Поиск — все посетители, без cookie</span>
+                    <span className="text-ink-muted">{totalSearchVisits.toLocaleString('ru-RU')}</span>
+                  </div>
+                  {searchVisitsBySource.map(([source, visits]) => (
+                    <div key={source} className="mb-2 flex flex-col gap-1 last:mb-0">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-ink">{searchLabels[source] ?? source}</span>
+                        <span className="text-ink-muted">
+                          {visits.toLocaleString('ru-RU')}
+                          <span className="ml-1 text-xs">({((visits / totalSearchVisits) * 100).toFixed(0)}%)</span>
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                        <div className="h-full rounded-full bg-primary" style={{ width: `${(visits / maxSearchVisits) * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                  {searchVisitsBySource.length === 0 && (
+                    <p className="text-xs text-ink-muted">Поисковых переходов пока нет. Браузеры могут не передавать источник захода.</p>
+                  )}
+                </div>
               </div>
             </Card>
 

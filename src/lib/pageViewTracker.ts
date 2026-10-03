@@ -13,6 +13,8 @@ import { isLikelyBot } from './botDetection';
 // entries=true — только для ПЕРВОЙ отслеженной страницы этой загрузки
 // документа, когда document.referrer пуст или ведёт на другой хост (значит
 // человек только что зашёл на сайт, а не кликнул по SPA-ссылке внутри него).
+// Для известных поисковиков дополнительно записываем агрегат source/day; сам
+// referrer не отправляем и не сохраняем.
 // Дальнейшие переходы внутри той же загрузки (React Router, без перезагрузки
 // страницы) — entries=false, это продолжение того же визита.
 let hasTrackedEntryThisLoad = false;
@@ -43,6 +45,28 @@ function referrerIsExternal(): boolean {
   }
 }
 
+function searchSourceFromReferrer(): string | null {
+  try {
+    const host = new URL(document.referrer).hostname.toLowerCase().replace(/\.$/, '');
+    const domains: Record<string, string[]> = {
+      yandex: ['yandex.ru', 'yandex.by', 'yandex.kz', 'yandex.com', 'yandex.com.tr', 'ya.ru'],
+      bing: ['bing.com'],
+      duckduckgo: ['duckduckgo.com'],
+      yahoo: ['search.yahoo.com', 'yahoo.com'],
+      baidu: ['baidu.com'],
+      ecosia: ['ecosia.org'],
+      brave: ['search.brave.com', 'brave.com'],
+    };
+    for (const [source, roots] of Object.entries(domains)) {
+      if (roots.some((root) => host === root || host.endsWith(`.${root}`))) return source;
+    }
+    if (/(^|\.)google\.(?:[a-z]{2,}|com\.[a-z]{2,}|co\.[a-z]{2,})$/.test(host)) return 'google';
+  } catch {
+    // Пустой или некорректный referrer остаётся обычным внешним визитом.
+  }
+  return null;
+}
+
 // pathname — БЕЗ search/hash: смена только query-строки или #якоря (например,
 // переключение фильтра каталога через URL) не считается новым просмотром
 // страницы для этого счётчика.
@@ -61,6 +85,13 @@ export function trackPageView(pathname: string): void {
 
   const isEntry = !hasTrackedEntryThisLoad && referrerIsExternal();
   hasTrackedEntryThisLoad = true;
+
+  const searchSource = isEntry ? searchSourceFromReferrer() : null;
+  if (searchSource) {
+    void supabase
+      .rpc('track_search_visit', { p_source: searchSource })
+      .then(() => undefined, () => undefined);
+  }
 
   void supabase
     .rpc('track_page_view', { p_path: pathname, p_entry: isEntry })
