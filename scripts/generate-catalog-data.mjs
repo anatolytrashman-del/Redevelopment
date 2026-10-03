@@ -23,6 +23,7 @@ import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 import { buildDataOffline } from './_buildFallback.mjs';
 import ts from 'typescript';
+import { applyApprovedTcPreview } from './_approvedTcPreview.mjs';
 
 // Один фильтр для сборки и страницы, без копии правил (владелец, 2026-09-25).
 const guideModule = ts.transpileModule(readFileSync(new URL('../src/lib/tradeCenterGuide.ts', import.meta.url), 'utf8'), {
@@ -497,7 +498,7 @@ function writeTcFilters() {
   console.log(`[catalog-data] фильтры ТЦ: ${Object.keys(rows).length} ТЦ, ${Math.round(Buffer.byteLength(json) / 1024)} КБ`);
 }
 
-run().then(writeTcFilters).catch((err) => {
+run().then(() => applyApprovedTcPreview(DIST_DATA)).then(writeTcFilters).catch((err) => {
   // Без догружаемых файлов страницы работают как раньше — через запросы в
   // базу из браузера, — поэтому сборку не валим.
   console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);
