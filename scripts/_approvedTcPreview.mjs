@@ -2,11 +2,30 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Approved covers are reviewed on preview without mutating the shared database.
-export function applyApprovedTcPreview(directory, environment = process.env.VERCEL_ENV) {
+export async function applyApprovedTcPreview(directory, environment = process.env.VERCEL_ENV) {
   if (environment !== 'preview') return;
   const approved = JSON.parse(readFileSync(new URL('./data/approved-tc-preview.json', import.meta.url), 'utf8'));
   const listFile = join(directory, 'trade-centers.json');
-  if (!existsSync(listFile)) throw new Error('Preview TC catalogue is missing');
+  if (!existsSync(listFile)) {
+    const rows = [];
+    const url = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
+    const key = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+    for (let offset = 0; ; offset += 500) {
+      const response = await fetch(`${url}/rest/v1/business_centers?select=*&kind=eq.tc&is_hidden=eq.false&order=sort_order.asc,id.asc`, {
+        headers: { apikey: key, Range: `${offset}-${offset + 499}` },
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!response.ok) throw new Error(`Preview TC catalogue fetch failed: ${response.status}`);
+      const page = await response.json();
+      rows.push(...page.map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith('official_site_snapshot_')))));
+      if (page.length < 500) break;
+    }
+    mkdirSync(directory, { recursive: true });
+    const generatedAt = new Date().toISOString();
+    mkdirSync(join(directory, 'bc'), { recursive: true });
+    for (const row of rows) writeFileSync(join(directory, 'bc', `${row.slug}.json`), JSON.stringify({ generatedAt, row }));
+    writeFileSync(listFile, JSON.stringify({ generatedAt, rows }));
+  }
   const list = JSON.parse(readFileSync(listFile, 'utf8'));
   const rows = new Map(list.rows.map((row) => [row.slug, row]));
   const detailDirectory = join(directory, 'bc');
