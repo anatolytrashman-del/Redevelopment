@@ -92,6 +92,9 @@ describe('подборки /minsk/tc/with', () => {
     expect(tcTopicHubUrl(hub)).toBe('/minsk/tc/with/shopping');
     expect(`5 ${hub.plural(5)}`).toBe('5 торговых центров');
     expect(hub.subjectGen(5)).toContain('с одеждой');
+    expect(hub.intro(`94 ${hub.plural(94)}`)).toBe(
+      '94 торговых центра Минска, где можно купить одежду. Адреса, площадь, парковка, часы работы и бренды внутри.',
+    );
   });
 
   it('правило shopping в близнеце совпадает с фронтом', () => {

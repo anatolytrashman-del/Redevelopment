@@ -15,7 +15,13 @@ import {
   RATING_THRESHOLD_LABEL,
   ratingsCount,
 } from '../lib/businessCenterRanking';
-import { buildTcExcluded, buildTcRanking, TC_RANKING_LIMIT, type RankedCenter } from '../lib/tradeCenterRanking';
+import {
+  buildTcExcluded,
+  buildTcRanking,
+  isTcRankingFormat,
+  TC_RANKING_LIMIT,
+  type RankedCenter,
+} from '../lib/tradeCenterRanking';
 import { CatalogMap } from '../components/businessCenters/CatalogMap';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { nearestMetroStation } from '../lib/metroStations';
@@ -77,7 +83,9 @@ export function TradeCentersRankingPage() {
   const ranking = useMemo(() => (centers && ratings ? buildTcRanking(centers, ratings) : []), [centers, ratings]);
   const excluded = useMemo(() => (centers && ratings ? buildTcExcluded(centers, ratings) : []), [centers, ratings]);
   const eligibleTotal = useMemo(
-    () => (centers ?? []).filter((c) => c.status !== 'under_construction' && !isOutsideMinsk(c)).length,
+    () =>
+      (centers ?? []).filter((c) => c.status !== 'under_construction' && !isOutsideMinsk(c) && isTcRankingFormat(c))
+        .length,
     [centers],
   );
 
@@ -94,9 +102,9 @@ export function TradeCentersRankingPage() {
       {
         question: 'По какой методике составлен рейтинг торговых центров Минска?',
         answer:
-          `Два проверяемых условия: рейтинг собственной карточки здания на Яндекс.Картах не ниже ${RATING_THRESHOLD_LABEL} из 5 и не менее ` +
-          `${MIN_RATING_COUNT} оценок. Среди прошедших порог берём топ-${TC_RANKING_LIMIT}: по рейтингу, при равном рейтинге выше тот, у кого больше оценок. ` +
-          'Строящиеся объекты и здания вне черты Минска не участвуют. Субъективных оценок и скрытых весов нет.',
+          `Только здания формата ТЦ или ТРЦ в черте Минска. Рейтинг собственной карточки на Яндекс.Картах не ниже ${RATING_THRESHOLD_LABEL} из 5 и не менее ` +
+          `${MIN_RATING_COUNT} оценок. Среди прошедших порог — топ-${TC_RANKING_LIMIT}: по рейтингу, при равном рейтинге выше тот, у кого больше оценок. ` +
+          'Рынки, автоцентры, мебельные и строительные центры, гипермаркеты и прочие форматы не участвуют. Субъективных оценок и скрытых весов нет.',
       },
       {
         question: 'Какой торговый центр Минска с самым высоким рейтингом в этом списке?',
@@ -105,9 +113,9 @@ export function TradeCentersRankingPage() {
       {
         question: 'Сколько торговых центров попало в рейтинг?',
         answer:
-          `В топ показываем не больше ${TC_RANKING_LIMIT} объектов из ${eligibleTotal} сданных торговых центров в черте Минска, которые проходят порог рейтинга и числа оценок. ` +
+          `В топ показываем не больше ${TC_RANKING_LIMIT} из ${eligibleTotal} сданных ТЦ и ТРЦ в черте Минска, которые проходят порог рейтинга и числа оценок. ` +
           (excluded.length > 0
-            ? `Не прошли порог ${excluded.length} объектов: нет рейтинга на Яндекс.Картах, рейтинг ниже ${RATING_THRESHOLD_LABEL} или меньше ${MIN_RATING_COUNT} оценок.`
+            ? `Остальные не в списке: другой формат, нет рейтинга на Яндекс.Картах, рейтинг ниже ${RATING_THRESHOLD_LABEL} или меньше ${MIN_RATING_COUNT} оценок.`
             : ''),
       },
     ];
@@ -200,7 +208,7 @@ export function TradeCentersRankingPage() {
           <div className="text-xs text-ink-muted">
             <strong className="text-ink">Методика оценки:</strong>
             <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-4 text-ink">
-              <li>Сданные торговые центры в черте Минска</li>
+              <li>Сданные здания формата ТЦ или ТРЦ в черте Минска</li>
               <li>Рейтинг собственной карточки здания на Яндекс.Картах от {RATING_THRESHOLD_LABEL}</li>
               <li>Не менее {MIN_RATING_COUNT} оценок на этой карточке</li>
             </ol>

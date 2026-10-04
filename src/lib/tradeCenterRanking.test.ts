@@ -72,14 +72,14 @@ function ratings(entries: [string, number, number][]): YandexCardRatingIndex {
 describe('buildTcRanking', () => {
   it('берёт рейтинг из yandex cards, сортирует по рейтингу и числу оценок', () => {
     const list = [
-      tc({ slug: 'low' }),
-      tc({ slug: 'top' }),
-      tc({ slug: 'tie-more' }),
-      tc({ slug: 'tie-less' }),
-      tc({ slug: 'few' }),
-      tc({ slug: 'building', status: 'under_construction' }),
-      tc({ slug: 'out', address: 'Минская область' }),
-      tc({ slug: 'missing' }),
+      tc({ slug: 'low', retailFormat: 'ТЦ' }),
+      tc({ slug: 'top', retailFormat: 'ТРЦ' }),
+      tc({ slug: 'tie-more', retailFormat: 'ТРЦ' }),
+      tc({ slug: 'tie-less', retailFormat: 'ТЦ' }),
+      tc({ slug: 'few', retailFormat: 'ТЦ' }),
+      tc({ slug: 'building', status: 'under_construction', retailFormat: 'ТРЦ' }),
+      tc({ slug: 'out', address: 'Минская область', retailFormat: 'ТРЦ' }),
+      tc({ slug: 'missing', retailFormat: 'ТЦ' }),
     ];
     const cards = ratings([
       ['low', 4.6, 80],
@@ -93,8 +93,23 @@ describe('buildTcRanking', () => {
     expect(buildTcRanking(list, cards).map((r) => r.center.slug)).toEqual(['top', 'tie-more', 'tie-less', 'low']);
   });
 
+  it('не берёт рынки, автоцентры и прочие форматы кроме ТЦ/ТРЦ', () => {
+    const list = [
+      tc({ slug: 'mall', retailFormat: 'ТРЦ' }),
+      tc({ slug: 'shop', retailFormat: 'ТЦ' }),
+      tc({ slug: 'market', retailFormat: 'рынок' }),
+      tc({ slug: 'auto', retailFormat: 'автоцентр' }),
+      tc({ slug: 'furniture', retailFormat: 'мебельный центр' }),
+      tc({ slug: 'hyper', retailFormat: 'гипермаркет с галереей' }),
+      tc({ slug: 'district', retailFormat: 'районный ТЦ' }),
+      tc({ slug: 'null-format', retailFormat: null }),
+    ];
+    const cards = ratings(list.map((c) => [c.slug, 5, 100] as [string, number, number]));
+    expect(buildTcRanking(list, cards).map((r) => r.center.slug)).toEqual(['mall', 'shop']);
+  });
+
   it('обрезает топ до 10 карточек', () => {
-    const list = Array.from({ length: 15 }, (_, i) => tc({ slug: `tc-${i}` }));
+    const list = Array.from({ length: 15 }, (_, i) => tc({ slug: `tc-${i}`, retailFormat: i % 2 ? 'ТЦ' : 'ТРЦ' }));
     const cards = ratings(list.map((c, i) => [c.slug, 5, 1000 - i] as [string, number, number]));
     expect(buildTcRanking(list, cards)).toHaveLength(10);
     expect(buildTcRanking(list, cards)[0].center.slug).toBe('tc-0');
@@ -102,20 +117,23 @@ describe('buildTcRanking', () => {
 
   it('excluded объясняет, почему не попали', () => {
     const list = [
-      tc({ slug: 'ok' }),
-      tc({ slug: 'low' }),
-      tc({ slug: 'out', address: 'Минская область' }),
-      tc({ slug: 'none' }),
+      tc({ slug: 'ok', retailFormat: 'ТРЦ' }),
+      tc({ slug: 'low', retailFormat: 'ТЦ' }),
+      tc({ slug: 'out', address: 'Минская область', retailFormat: 'ТРЦ' }),
+      tc({ slug: 'none', retailFormat: 'ТЦ' }),
+      tc({ slug: 'market', retailFormat: 'рынок' }),
     ];
     const cards = ratings([
       ['ok', 4.7, 100],
       ['low', 4.0, 100],
       ['out', 5.0, 100],
+      ['market', 5.0, 1000],
     ]);
     const reasons = Object.fromEntries(buildTcExcluded(list, cards).map((e) => [e.center.slug, e.reason]));
     expect(reasons.low).toMatch(/ниже порога/);
     expect(reasons.out).toBe('не в черте Минска');
     expect(reasons.none).toBe('рейтинг на Яндекс.Картах не найден');
+    expect(reasons.market).toBe('формат «рынок», не ТЦ/ТРЦ');
     expect(reasons.ok).toBeUndefined();
   });
 });
