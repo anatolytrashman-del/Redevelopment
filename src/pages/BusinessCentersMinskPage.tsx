@@ -94,7 +94,14 @@ import {
   type TcFilterIndex,
   type TcFormatHub,
 } from '../lib/tradeCenterCatalogFeatures';
-import { matchesTcTopicHub, tcTopicHubBySlug, tcTopicHubUrl, TC_TOPIC_HUBS, type TcTopicHub } from '../lib/tradeCenterHubs';
+import {
+  matchesTcTopicHub,
+  tcTopicHubBySlug,
+  tcTopicHubUrl,
+  TC_TOPIC_HUB_MIN_CENTERS,
+  TC_TOPIC_HUBS,
+  type TcTopicHub,
+} from '../lib/tradeCenterHubs';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -703,7 +710,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       const topicLinks = TC_TOPIC_HUBS.flatMap((hub) => {
         if (hub === topicHub) return [];
         const n = all.filter((c) => matchesTcTopicHub(c, hub)).length;
-        return big(n) ? [{ label: `${hub.label} (${n})`, url: tcTopicHubUrl(hub, V.basePath) }] : [];
+        // Тематические /with/* — с 1 ТЦ (TC_TOPIC_HUB_MIN_CENTERS), не общий порог 3.
+        return n >= TC_TOPIC_HUB_MIN_CENTERS
+          ? [{ label: `${hub.label} (${n})`, url: tcTopicHubUrl(hub, V.basePath) }]
+          : [];
       });
       const collectionLinks = [
         ...topicLinks,
@@ -729,11 +739,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // Срез улицы, микрорайона или «класс + район» с одним-двумя зданиями почти
   // повторяет карточку БЦ — в индекс такую страницу не пускаем (почему
   // именно эти три оси и почему не метро/район/класс — см. комментарий у
-  // MIN_INDEXABLE_HUB_CENTERS).
+  // MIN_INDEXABLE_HUB_CENTERS). Тематические /with/* — исключение: индексируем
+  // даже с 1–2 ТЦ (владелец, 2026-10-04), порог TC_TOPIC_HUB_MIN_CENTERS.
   const thinDerivedHub =
     hubCount !== null &&
-    hubCount < MIN_INDEXABLE_HUB_CENTERS &&
-    Boolean(streetFilter || microdistrictFilter || formatHub || topicHub || (classFilter && districtFilter));
+    ((Boolean(topicHub) && hubCount < TC_TOPIC_HUB_MIN_CENTERS) ||
+      (hubCount < MIN_INDEXABLE_HUB_CENTERS &&
+        Boolean(streetFilter || microdistrictFilter || formatHub || (classFilter && districtFilter))));
   // Единственный ответ на вопрос «эту страницу индексируем?»: и мета, и FAQ,
   // и ItemList смотрят сюда.
   // Каталог ТЦ — вне индекса целиком (TC_NOINDEX): отсюда же пропадает и

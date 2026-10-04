@@ -29,7 +29,9 @@ export const TC_TOPIC_HUB_SLUGS = [
   'metro',
   'belarusian',
 ];
-export const TC_TOPIC_HUB_MIN_CENTERS = 3;
+// Тематические /with/* индексируем с 1 ТЦ (владелец, 2026-10-04) — не как
+// format/улицы с порогом 3. Близнец: TC_TOPIC_HUB_MIN_CENTERS в tradeCenterHubs.ts.
+export const TC_TOPIC_HUB_MIN_CENTERS = 1;
 export const TC_NON_SHOPPING_FORMATS = ['мебельный центр', 'рынок', 'строительный центр', 'автоцентр'];
 
 export const TC_RAILWAY_STATION = { lat: 53.8907, lng: 27.551 };

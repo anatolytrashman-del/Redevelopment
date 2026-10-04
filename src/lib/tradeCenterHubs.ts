@@ -35,6 +35,9 @@ export interface TcTopicHub {
 /** Форматы, которые не отвечают на запрос «ТЦ с одеждой / для шопинга». */
 export const TC_NON_SHOPPING_FORMATS = ['мебельный центр', 'рынок', 'строительный центр', 'автоцентр'] as const;
 
+/** В индекс и перелинковку — любая непустая тематическая подборка, даже из 1–2 ТЦ (владелец, 2026-10-04). Пустая страница по-прежнему soft-404. Близнец — TC_TOPIC_HUB_MIN_CENTERS в scripts/_tcPaths.mjs. */
+export const TC_TOPIC_HUB_MIN_CENTERS = 1;
+
 /** ЖД вокзал Минск-Пассажирский — якорь подборки «у вокзала». */
 export const TC_RAILWAY_STATION = { lat: 53.8907, lng: 27.551 } as const;
 /** Пешком от вокзала до ТЦ (м): Galileo / Minsk City Mall / «Столица». */

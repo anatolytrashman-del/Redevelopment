@@ -11,6 +11,7 @@ import {
   TC_NON_SHOPPING_FORMATS,
   TC_RAILWAY_MAX_M as FRONT_RAIL_MAX,
   TC_RAILWAY_STATION as FRONT_RAIL_STATION,
+  TC_TOPIC_HUB_MIN_CENTERS as FRONT_TOPIC_MIN,
   TC_TOPIC_HUBS,
   tcTopicHubBySlug,
   tcTopicHubUrl,
@@ -98,7 +99,9 @@ function toRow(center: BusinessCenter) {
 describe('подборки /minsk/tc/with', () => {
   it('близнец в scripts/_tcPaths.mjs совпадает', () => {
     expect(TC_TOPIC_HUBS.map((h) => h.slug)).toEqual(TC_TOPIC_HUB_SLUGS);
-    expect(TC_TOPIC_HUB_MIN_CENTERS).toBe(MIN_INDEXABLE_HUB_CENTERS);
+    expect(TC_TOPIC_HUB_MIN_CENTERS).toBe(FRONT_TOPIC_MIN);
+    expect(FRONT_TOPIC_MIN).toBe(1);
+    expect(FRONT_TOPIC_MIN).toBeLessThan(MIN_INDEXABLE_HUB_CENTERS);
     expect(TC_NON_SHOPPING_FORMATS).toEqual(SCRIPT_NON_SHOPPING);
     expect(FRONT_RAIL_STATION).toEqual(TC_RAILWAY_STATION);
     expect(FRONT_RAIL_MAX).toBe(TC_RAILWAY_MAX_M);
