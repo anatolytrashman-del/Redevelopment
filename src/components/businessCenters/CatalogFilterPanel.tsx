@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -246,17 +246,25 @@ function MetroStationSelector({ stations, selected, counts, onChange }: MetroSta
 
 // «Магазин в ТЦ»: поле того же вида, что выпадающие списки ниже, и до шести
 // подсказок из названий арендаторов. В URL уходит с паузой, а не на каждую
-// букву — иначе история и счётчики дёргались бы при наборе.
+// букву — иначе история и счётчики дёргались бы при наборе. Одну букву в
+// фильтр не коммитим: includes("з") матчит почти всех и гоняет пересчёт.
 function StoreSearch({ value, suggest, onChange }: { value: string; suggest: (q: string) => string[]; onChange: (v: string) => void }) {
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
+  const deferredDraft = useDeferredValue(draft);
   useEffect(() => setDraft(value), [value]);
   useEffect(() => {
-    if (draft.trim() === value.trim()) return;
-    const id = window.setTimeout(() => onChange(draft.trim()), 350);
+    const next = draft.trim();
+    // 0 символов — сброс; 1 — ещё не ищем (и сбрасываем прежний store в URL);
+    // 2+ — коммит после паузы.
+    const commit = next.length <= 1 ? '' : next;
+    if (commit === value.trim()) return;
+    const id = window.setTimeout(() => onChange(commit), 400);
     return () => window.clearTimeout(id);
   }, [draft, value, onChange]);
-  const suggestions = focused ? suggest(draft).filter((s) => s.toLowerCase() !== draft.trim().toLowerCase()) : [];
+  const suggestions = focused
+    ? suggest(deferredDraft).filter((s) => s.toLowerCase() !== draft.trim().toLowerCase())
+    : [];
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Магазин в ТЦ</span>

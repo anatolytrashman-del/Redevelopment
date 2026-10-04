@@ -476,6 +476,10 @@ export function matchesCatalogFilter(
   state: CatalogFilterState,
   offers: CatalogOfferIndex,
   tcIndex?: TcFilterIndex | null,
+  // Предрасчитанные слаги ТЦ под state.store (matchingStoreSlugs). Без него
+  // каждый countWith снова сканирует brands[] у всех ТЦ — на проде это
+  // тысячи строк и заметный лаг при вводе «Магазин в ТЦ».
+  storeSlugs?: Set<string> | null,
 ): boolean {
   if (state.classes.length > 0) {
     if (center.businessClass === null || !state.classes.includes(center.businessClass)) return false;
@@ -495,7 +499,12 @@ export function matchesCatalogFilter(
   }
   if ((state.tcFeatures.length > 0 || state.store.trim()) && center.kind === 'tc') {
     // Выжимка ещё не загрузилась — не отсекаем, иначе список мигнул бы пустым.
-    if (tcIndex && !matchesTcFeatures(tcIndex.get(center.slug), state.tcFeatures, state.store)) return false;
+    if (tcIndex) {
+      if (storeSlugs != null && state.store.trim() && !storeSlugs.has(center.slug)) return false;
+      // store уже проверен через storeSlugs — в matchesTcFeatures не повторяем.
+      const storeArg = storeSlugs != null && state.store.trim() ? '' : state.store;
+      if (!matchesTcFeatures(tcIndex.get(center.slug), state.tcFeatures, storeArg)) return false;
+    }
   }
   if (state.districts !== null && (center.district === null || !state.districts.includes(center.district))) {
     return false;
