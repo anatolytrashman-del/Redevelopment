@@ -340,29 +340,55 @@ export const TC_TOPIC_HUB_MATCHERS = {
   'ice-rink': (row, tcFilters) => filterMatch('ice-rink', row, tcFilters),
 };
 
-/** Близнец collectTcStoreHubs: slug'и магазинов с ≥1 подходящим ТЦ. */
-export function collectTcStoreSlugs(rows, tcFilters) {
+/**
+ * Близнец collectTcStoreHubs (src/lib/tradeCenterStoreHubs.ts): подборки
+ * магазинов с ≥1 подходящим ТЦ — slug, ключ, подпись и число центров.
+ * Число нужно SEO-шеллам (scripts/generate-tc-store-seo-shells.mjs).
+ */
+export function collectTcStoreHubs(rows, tcFilters) {
   if (!tcFilters) return [];
   const byKey = new Map();
   for (const r of rows) {
     if (!isEligibleRow(r)) continue;
-    const { brands } = tcFilterFeatures(tcFilters[r.slug]);
-    for (const key of brands) {
-      if (!key || key.length < 2) continue;
-      byKey.set(key, (byKey.get(key) ?? 0) + 1);
+    const src = tcFilters[r.slug];
+    if (!src) continue;
+    const seen = new Set();
+    for (const name of expandBrandNames(src.brands)) {
+      const raw = normalizeBrand(name);
+      const key = raw ? canonicalBrandKey(raw) : '';
+      if (!key || key.length < 2 || seen.has(key)) continue;
+      seen.add(key);
+      const label = String(name).trim() || key;
+      const prev = byKey.get(key);
+      if (prev) prev.count += 1;
+      else byKey.set(key, { brandKey: key, label, count: 1 });
     }
   }
   const bySlug = new Map();
-  for (const [key, count] of byKey) {
-    if (count < TC_STORE_HUB_MIN_CENTERS) continue;
-    const slug = slugifyTcBrand(key);
+  for (const acc of byKey.values()) {
+    if (acc.count < TC_STORE_HUB_MIN_CENTERS) continue;
+    const slug = slugifyTcBrand(acc.brandKey);
     if (!slug || slug === 'brand') continue;
     const prev = bySlug.get(slug);
-    if (!prev || count > prev.count || (count === prev.count && key.length < prev.key.length)) {
-      bySlug.set(slug, { key, count });
+    if (
+      !prev ||
+      acc.count > prev.count ||
+      (acc.count === prev.count &&
+        (acc.brandKey.length < prev.brandKey.length || acc.label.length < prev.label.length))
+    ) {
+      bySlug.set(slug, { slug, brandKey: acc.brandKey, label: acc.label, count: acc.count });
     }
   }
-  return [...bySlug.keys()].sort();
+  return [...bySlug.values()].sort(
+    (a, b) => a.label.localeCompare(b.label, 'ru') || a.slug.localeCompare(b.slug),
+  );
+}
+
+/** Slug'и магазинов — для sitemap / tradeCenterPaths. */
+export function collectTcStoreSlugs(rows, tcFilters) {
+  return collectTcStoreHubs(rows, tcFilters)
+    .map((h) => h.slug)
+    .sort();
 }
 
 function formatHubMinCenters(slug) {
@@ -374,9 +400,8 @@ function formatHubMinCenters(slug) {
  * includeStores (по умолчанию true) — /minsk/tc/store/* для sitemap.
  * Пререндер передаёт false: магазинов сотни и будет ещё больше, каждый
  * headless-прогон раздувает деплой (2026-10-04: +237 store → 27+ мин вместо ~11).
- * В индекс они всё равно попадают через sitemap; HTML — SPA до первого
- * точечного пререндера (или пока страница не появится на проде и не
- * скопируется быстрым режимом).
+ * В индекс они попадают через sitemap; статический HTML с title/description/h1
+ * кладёт scripts/generate-tc-store-seo-shells.mjs (без headless).
  */
 export function tradeCenterPaths(
   rows,
