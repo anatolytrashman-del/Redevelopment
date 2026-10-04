@@ -489,6 +489,10 @@ function writeTcFilters() {
     const tenants = readJson(join(DIST_DATA, 'bc', `${slug}.extra.json`))?.tenants;
     const arr = (v) => (Array.isArray(v) ? v : []);
     const str = (v) => (typeof v === 'string' ? v : '');
+    const tenantNames = arr(tenants?.organizations).map((o) => str(o?.name)).filter(Boolean);
+    // Якоря retail_info — тоже бренды для /with/<бренд> (на проде tenants
+    // иногда пустые в снимке, а якоря уже в карточке).
+    const anchorNames = arr(r.anchors).map((a) => str(a?.name)).filter(Boolean);
     rows[slug] = {
       funKinds: arr(r.fun).map((f) => str(f?.kind)).filter(Boolean),
       foodZones: arr(r.food?.zones).length,
@@ -498,7 +502,7 @@ function writeTcFilters() {
         ? { summary: str(r.parking.summary), items: arr(r.parking.items).map((i) => ({ label: str(i?.label), value: str(i?.value) })) }
         : null,
       hours: arr(r.hours).map((h) => ({ zone: str(h?.zone), value: str(h?.value) })),
-      brands: arr(tenants?.organizations).map((o) => str(o?.name)).filter(Boolean),
+      brands: [...new Set([...tenantNames, ...anchorNames])],
     };
   }
   const json = JSON.stringify({ rows });

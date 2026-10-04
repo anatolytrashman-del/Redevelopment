@@ -72,10 +72,10 @@ const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
     { kind: 'link', to: '/minsk/bc/guide', label: 'Справочник' },
     { kind: 'link', to: '/minsk/tc', label: 'Торговые центры' },
   ],
-  // Рейтинги ТЦ (лучшие / самые большие) и подборка «с одеждой» — 2026-10-04.
+  // У ТЦ в шапке только рейтинги и соседний каталог БЦ — тематические
+  // подборки (/with/…) в верхнее меню не выносим (владелец, 2026-10-04).
   tc: [
     { kind: 'ratings' },
-    { kind: 'link', to: '/minsk/tc/with/shopping', label: 'С одеждой' },
     { kind: 'link', to: '/minsk/bc', label: 'Бизнес-центры' },
   ],
 };
@@ -95,8 +95,8 @@ const RATING_LINKS_BY_KIND: Record<CatalogKind, { to: string; label: string }[]>
     { to: '/minsk/bc/rating/affordable', label: 'Самые доступные' },
   ],
   tc: [
-    { to: '/minsk/tc/rating', label: 'Лучшие' },
-    { to: '/minsk/tc/rating/largest', label: 'Самые большие' },
+    { to: '/minsk/tc/rating', label: 'Лучшие ТЦ' },
+    { to: '/minsk/tc/rating/largest', label: 'Самые большие ТЦ' },
   ],
 };
 

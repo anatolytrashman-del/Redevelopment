@@ -1,23 +1,37 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — скрипт сборки без типов
-import { TC_FORMAT_HUB_MIN_CENTERS, TC_FORMAT_HUB_VALUES } from '../../scripts/_tcPaths.mjs';
+import { TC_FORMAT_HUB_MIN_CENTERS, TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG, TC_FORMAT_HUB_VALUES } from '../../scripts/_tcPaths.mjs';
 import { MIN_INDEXABLE_HUB_CENTERS } from './businessCenterHubs';
-import { brandSuggestions, buildTcFilterEntry, buildTcFilterIndex, isOpenAt, matchesTcFeatures, TC_FORMAT_HUBS, tcFormatChips, tcFormatHubOf, type TcFilterSource } from './tradeCenterCatalogFeatures';
+import {
+  brandSuggestions,
+  buildTcFilterEntry,
+  buildTcFilterIndex,
+  isOpenAt,
+  matchesTcFeatures,
+  TC_FORMAT_HUB_MIN_CENTERS as FRONT_FORMAT_MIN,
+  TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG as FRONT_FORMAT_MIN_BY_SLUG,
+  TC_FORMAT_HUBS,
+  tcFormatChips,
+  tcFormatHubMinCenters,
+  tcFormatHubOf,
+  type TcFilterSource,
+} from './tradeCenterCatalogFeatures';
 
 const base: TcFilterSource = { funKinds: [], foodZones: 0, foodcourtPlaces: 0, anchorCategories: [], parking: null, hours: [], brands: [] };
 
 describe('buildTcFilterEntry', () => {
   it('собирает признаки «что внутри»', () => {
     const e = buildTcFilterEntry({ ...base, funKinds: ['cinema', 'sport'], foodcourtPlaces: 3, anchorCategories: ['гипермаркет'] });
-    expect([...e.features].sort()).toEqual(['cinema', 'fitness', 'foodcourt', 'grocery']);
+    expect([...e.features].sort()).toEqual(['cinema', 'entertainment', 'fitness', 'foodcourt', 'grocery']);
   });
 
   it('парковка: «открытая» не крытая, «бесплатного периода нет» не бесплатная', () => {
     const paid = buildTcFilterEntry({ ...base, parking: { summary: 'Наземная открытая парковка', items: [{ label: 'Ночной тариф', value: '1,5 руб., бесплатного периода нет' }] } });
     expect(paid.features.has('park-covered')).toBe(false);
     expect(paid.features.has('park-free')).toBe(false);
+    expect(paid.features.has('parking')).toBe(true);
     const free = buildTcFilterEntry({ ...base, parking: { summary: 'Подземный паркинг', items: [{ label: 'Первые 3 часа', value: 'бесплатно' }, { label: 'Электрозарядки', value: 'есть' }] } });
-    expect([...free.features].sort()).toEqual(['ev', 'park-covered', 'park-free']);
+    expect([...free.features].sort()).toEqual(['ev', 'park-covered', 'park-free', 'parking']);
   });
 
   it('«после 22:00» по главной зоне режима, закрытие после полуночи тоже считается', () => {
@@ -73,6 +87,10 @@ describe('подборки по формату', () => {
   it('близнец в scripts/_tcPaths.mjs совпадает', () => {
     expect(Object.fromEntries(TC_FORMAT_HUBS.map((h) => [h.slug, h.values]))).toEqual(TC_FORMAT_HUB_VALUES);
     expect(TC_FORMAT_HUB_MIN_CENTERS).toBe(MIN_INDEXABLE_HUB_CENTERS);
+    expect(FRONT_FORMAT_MIN).toBe(TC_FORMAT_HUB_MIN_CENTERS);
+    expect(FRONT_FORMAT_MIN_BY_SLUG).toEqual(TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG);
+    expect(tcFormatHubMinCenters('outlets')).toBe(1);
+    expect(tcFormatHubMinCenters('markets')).toBe(3);
   });
 
   it('склоняет число и находит подборку по формату', () => {

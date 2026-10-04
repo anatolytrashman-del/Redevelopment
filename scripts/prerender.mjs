@@ -436,10 +436,13 @@ function tradeCenterCatalogPaths() {
     return [];
   }
   const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
+  const filtersPath = join(DIST_DIR, 'data', 'tc-filters.json');
+  const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
   return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
     districtSlugs: DISTRICT_HUB_SLUG_BY_NAME,
     metroSlugs: METRO_HUB_SLUG_BY_STATION,
     metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
+    tcFilters,
   });
 }
 

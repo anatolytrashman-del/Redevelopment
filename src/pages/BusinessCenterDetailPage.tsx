@@ -95,10 +95,9 @@ import {
   classHubUrl,
   districtHubUrl,
   microdistrictHubUrl,
-  MIN_INDEXABLE_HUB_CENTERS,
 } from '../lib/businessCenterHubs';
 import { fitsSerpTitle } from '../lib/serpTitleWidth';
-import { tcFormatHubOf, tcFormatHubUrl } from '../lib/tradeCenterCatalogFeatures';
+import { tcFormatHubMinCenters, tcFormatHubOf, tcFormatHubUrl } from '../lib/tradeCenterCatalogFeatures';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenter, fetchBusinessCenters, snapshotBusinessCenter, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
@@ -2261,7 +2260,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       setBreadcrumbJsonLd([
         { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
         { name: V.catalogTitle, url: V.siteUrl },
-        ...(formatHub && formatHubSize >= MIN_INDEXABLE_HUB_CENTERS
+        ...(formatHub && formatHubSize >= tcFormatHubMinCenters(formatHub.slug)
           ? [{ name: formatHub.label, url: `https://redevelopment.pro${tcFormatHubUrl(formatHub, V.basePath)}` }]
           : []),
         { name: shortName(center) },

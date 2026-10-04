@@ -278,10 +278,13 @@ function tradeCenterUrls() {
     return [];
   }
   const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
+  const filtersPath = resolve(process.cwd(), 'dist/data/tc-filters.json');
+  const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
   return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
     districtSlugs: DISTRICT_SLUGS,
     metroSlugs: METRO_HUB_SLUG_BY_STATION,
     metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
+    tcFilters,
   }).map((path) => `${SITE}/${path}`);
 }
 
