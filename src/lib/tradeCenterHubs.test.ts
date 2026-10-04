@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — скрипт сборки без типов
-import { TC_CENTER_METRO_MAX_M, TC_CENTER_METRO_STATIONS, TC_METRO_NEAR_MAX_M, TC_NON_SHOPPING_FORMATS as SCRIPT_NON_SHOPPING, TC_RAILWAY_MAX_M, TC_RAILWAY_STATION, TC_TOPIC_BRAND_KEYS, TC_TOPIC_HUB_MATCHERS, TC_TOPIC_HUB_MIN_CENTERS, TC_TOPIC_HUB_SLUGS, tcFilterFeatures } from '../../scripts/_tcPaths.mjs';
+import { TC_BUDGET_BRAND_KEYS as SCRIPT_BUDGET, TC_CENTER_METRO_MAX_M, TC_CENTER_METRO_STATIONS, TC_MENSWEAR_BRAND_KEYS as SCRIPT_MENS, TC_METRO_NEAR_MAX_M, TC_NON_SHOPPING_FORMATS as SCRIPT_NON_SHOPPING, TC_RAILWAY_MAX_M, TC_RAILWAY_STATION, TC_SHOE_BRAND_KEYS as SCRIPT_SHOES, TC_TOPIC_HUB_MATCHERS, TC_TOPIC_HUB_MIN_CENTERS, TC_TOPIC_HUB_SLUGS, tcFilterFeatures } from '../../scripts/_tcPaths.mjs';
 import type { BusinessCenter } from '../data/businessCenters';
 import { MIN_INDEXABLE_HUB_CENTERS } from './businessCenterHubs';
 import { buildTcFilterEntry, type TcFilterSource } from './tradeCenterCatalogFeatures';
 import {
   matchesTcTopicHub,
+  TC_BUDGET_BRAND_KEYS,
   TC_CENTER_METRO_MAX_M as FRONT_CENTER_MAX,
   TC_CENTER_METRO_STATIONS as FRONT_CENTER_STATIONS,
+  TC_MENSWEAR_BRAND_KEYS,
   TC_METRO_NEAR_MAX_M as FRONT_METRO_MAX,
   TC_NON_SHOPPING_FORMATS,
   TC_RAILWAY_MAX_M as FRONT_RAIL_MAX,
   TC_RAILWAY_STATION as FRONT_RAIL_STATION,
+  TC_SHOE_BRAND_KEYS,
   TC_TOPIC_HUB_MIN_CENTERS as FRONT_TOPIC_MIN,
   TC_TOPIC_HUBS,
   tcTopicHubBySlug,
@@ -115,6 +118,9 @@ describe('подборки /minsk/tc/with', () => {
     expect(FRONT_TOPIC_MIN).toBe(1);
     expect(FRONT_TOPIC_MIN).toBeLessThan(MIN_INDEXABLE_HUB_CENTERS);
     expect(TC_NON_SHOPPING_FORMATS).toEqual(SCRIPT_NON_SHOPPING);
+    expect([...TC_BUDGET_BRAND_KEYS]).toEqual([...SCRIPT_BUDGET]);
+    expect([...TC_SHOE_BRAND_KEYS]).toEqual([...SCRIPT_SHOES]);
+    expect([...TC_MENSWEAR_BRAND_KEYS]).toEqual([...SCRIPT_MENS]);
     expect(FRONT_RAIL_STATION).toEqual(TC_RAILWAY_STATION);
     expect(FRONT_RAIL_MAX).toBe(TC_RAILWAY_MAX_M);
     expect(FRONT_METRO_MAX).toBe(TC_METRO_NEAR_MAX_M);
@@ -122,9 +128,6 @@ describe('подборки /minsk/tc/with', () => {
     expect(FRONT_CENTER_MAX).toBe(TC_CENTER_METRO_MAX_M);
     for (const hub of TC_TOPIC_HUBS) {
       expect(typeof TC_TOPIC_HUB_MATCHERS[hub.slug]).toBe('function');
-      if (hub.match === 'brand') {
-        expect(TC_TOPIC_BRAND_KEYS[hub.slug]).toBe(hub.brandKey);
-      }
     }
   });
 
@@ -136,7 +139,7 @@ describe('подборки /minsk/tc/with', () => {
     }
   });
 
-  it('волна 3–5: кино / дети / фудкорт / парковка / развлечения / каток из tc-filters', () => {
+  it('кино / дети / фудкорт / парковка / бесплатная / развлечения / каток', () => {
     const center = tc({ slug: 'mall' });
     const cinema = buildTcFilterEntry({ ...emptyFilter, funKinds: ['cinema'] });
     const kids = buildTcFilterEntry({ ...emptyFilter, funKinds: ['kids'] });
@@ -145,34 +148,44 @@ describe('подборки /minsk/tc/with', () => {
       ...emptyFilter,
       parking: { summary: 'парковка', items: [] },
     });
+    const free = buildTcFilterEntry({
+      ...emptyFilter,
+      parking: { summary: 'Бесплатная парковка', items: [] },
+    });
     const games = buildTcFilterEntry({ ...emptyFilter, funKinds: ['games'] });
     const ice = buildTcFilterEntry({ ...emptyFilter, funKinds: ['ice'] });
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!, cinema)).toBe(true);
-    expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!, kids)).toBe(false);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('kids')!, kids)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('foodcourt')!, food)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('parking')!, park)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('free-parking')!, free)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('free-parking')!, park)).toBe(false);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('entertainment')!, games)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('ice-rink')!, ice)).toBe(true);
-    expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!)).toBe(false);
     expect(topicHubNeedsFilters(tcTopicHubBySlug('cinema')!)).toBe(true);
     expect(topicHubNeedsFilters(tcTopicHubBySlug('shopping')!)).toBe(false);
   });
 
-  it('волна 4: бренд по нормализованному имени арендатора/якоря', () => {
-    const hub = tcTopicHubBySlug('zara')!;
-    const withZara = buildTcFilterEntry({ ...emptyFilter, brands: ['Zara', 'Mango'] });
-    const without = buildTcFilterEntry({ ...emptyFilter, brands: ['Mango'] });
-    expect(matchesTcTopicHub(tc({ slug: 'a' }), hub, withZara)).toBe(true);
-    expect(matchesTcTopicHub(tc({ slug: 'b' }), hub, without)).toBe(false);
-    expect(tcTopicHubUrl(hub)).toBe('/minsk/tc/with/zara');
+  it('недорогие: аутлет или масс-маркет; обувь и мужская одежда — по брендам', () => {
+    const outlet = tc({ slug: 'out', retailFormat: 'аутлет' });
+    const mall = tc({ slug: 'mall' });
+    const budgetEntry = buildTcFilterEntry({ ...emptyFilter, brands: ['Familia', 'Zara'] });
+    const shoeEntry = buildTcFilterEntry({ ...emptyFilter, brands: ['Kari'] });
+    const menEntry = buildTcFilterEntry({ ...emptyFilter, brands: ['Ostin'] });
+    const empty = buildTcFilterEntry(emptyFilter);
+    expect(matchesTcTopicHub(outlet, tcTopicHubBySlug('budget')!, empty)).toBe(true);
+    expect(matchesTcTopicHub(mall, tcTopicHubBySlug('budget')!, budgetEntry)).toBe(true);
+    expect(matchesTcTopicHub(mall, tcTopicHubBySlug('budget')!, empty)).toBe(false);
+    expect(matchesTcTopicHub(mall, tcTopicHubBySlug('shoes')!, shoeEntry)).toBe(true);
+    expect(matchesTcTopicHub(mall, tcTopicHubBySlug('menswear')!, menEntry)).toBe(true);
+    expect(matchesTcTopicHub(mall, tcTopicHubBySlug('shoes')!, empty)).toBe(false);
   });
 
-  it('URL волны 2–3', () => {
+  it('URL тематических подборок — /with, не /store', () => {
     expect(tcTopicHubUrl(tcTopicHubBySlug('railway-station')!)).toBe('/minsk/tc/with/railway-station');
-    expect(tcTopicHubBySlug('underground')!.label).toBe('Подземные');
-    expect(tcTopicHubBySlug('cinema')!.label).toBe('С кинотеатром');
-    expect(tcTopicHubBySlug('gold-apple')!.label).toBe('Золотое яблоко');
+    expect(tcTopicHubUrl(tcTopicHubBySlug('free-parking')!)).toBe('/minsk/tc/with/free-parking');
+    expect(tcTopicHubUrl(tcTopicHubBySlug('budget')!)).toBe('/minsk/tc/with/budget');
+    expect(tcTopicHubBySlug('zara')).toBeNull();
   });
 
   it('правила в близнеце совпадают с фронтом', () => {
@@ -181,7 +194,10 @@ describe('подборки /minsk/tc/with', () => {
       kids: { ...emptyFilter, funKinds: ['kids'] },
       food: { ...emptyFilter, foodZones: 1 },
       park: { ...emptyFilter, parking: { summary: 'есть', items: [] } },
-      brand: { ...emptyFilter, brands: ['Zara', 'Спортмастер'] },
+      free: { ...emptyFilter, parking: { summary: 'Бесплатно первые 2 часа', items: [] } },
+      budget: { ...emptyFilter, brands: ['Sinsay'] },
+      shoes: { ...emptyFilter, brands: ['Belwest'] },
+      men: { ...emptyFilter, brands: ['Reserved'] },
       empty: emptyFilter,
     };
     const cases: BusinessCenter[] = [
@@ -201,7 +217,11 @@ describe('подборки /minsk/tc/with', () => {
       tc({ slug: 'kids' }),
       tc({ slug: 'food' }),
       tc({ slug: 'park' }),
-      tc({ slug: 'brand' }),
+      tc({ slug: 'free' }),
+      tc({ slug: 'budget' }),
+      tc({ slug: 'shoes' }),
+      tc({ slug: 'men' }),
+      tc({ slug: 'out', retailFormat: 'аутлет' }),
       tc({ slug: 'empty' }),
     ];
     for (const hub of TC_TOPIC_HUBS) {
@@ -219,14 +239,16 @@ describe('подборки /minsk/tc/with', () => {
       ...emptyFilter,
       funKinds: ['cinema', 'games'],
       foodcourtPlaces: 1,
-      parking: { summary: 'парковка', items: [] },
-      brands: ['Zara'],
+      parking: { summary: 'Бесплатная парковка', items: [] },
+      brands: ['Zara', 'Bershka, Pull&Bear'],
     };
     const entry = buildTcFilterEntry(src);
     const twin = tcFilterFeatures(src);
-    for (const id of ['cinema', 'entertainment', 'foodcourt', 'parking'] as const) {
+    for (const id of ['cinema', 'entertainment', 'foodcourt', 'parking', 'park-free'] as const) {
       expect(twin.features.has(id)).toBe(entry.features.has(id));
     }
     expect(twin.brands).toContain('zara');
+    expect(twin.brands).toContain('bershka');
+    expect(twin.brands).toContain('pull&bear');
   });
 });
