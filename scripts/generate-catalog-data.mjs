@@ -506,7 +506,47 @@ function writeTcFilters() {
   console.log(`[catalog-data] фильтры ТЦ: ${Object.keys(rows).length} ТЦ, ${Math.round(Buffer.byteLength(json) / 1024)} КБ`);
 }
 
-run().then(writeTcFilters).catch((err) => {
+// Рейтинги ТЦ с Яндекс.Карт для /minsk/tc/rating (2026-10-04). В списке
+// trade-centers.json звёзд нет (highlights — факты ресёрча); таблица
+// business_center_yandex_cards заполняется capture-yandex-reviews.mjs.
+// Нет файла — страница рейтинга сама сходит в базу (yandexCardsApi).
+async function writeTcRatings() {
+  const listPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(listPath)) return;
+  const tcSlugs = new Set(
+    JSON.parse(readFileSync(listPath, 'utf8')).rows.map((r) => r.slug).filter((s) => typeof s === 'string'),
+  );
+  try {
+    const res = await fetch(`${SITE_ORIGIN}/data/tc-ratings.json`, { signal: AbortSignal.timeout(20_000) });
+    if (res.ok && (res.headers.get('content-type') ?? '').includes('json')) {
+      const body = await res.text();
+      writeFileSync(join(DIST_DATA, 'tc-ratings.json'), body);
+      const n = JSON.parse(body).rows?.length ?? 0;
+      console.log(`[catalog-data] рейтинги ТЦ скопированы с прода: ${n}`);
+      return;
+    }
+  } catch {
+    // Продолжаем в базу / пропускаем.
+  }
+  try {
+    const rows = (
+      await selectAll(
+        'business_center_yandex_cards?select=business_center_slug,rating,rating_count&rating=not.is.null&order=business_center_slug.asc',
+        'рейтинги Яндекса',
+      )
+    ).filter((r) => tcSlugs.has(r.business_center_slug));
+    const json = JSON.stringify({ generatedAt: new Date().toISOString(), rows });
+    writeFileSync(join(DIST_DATA, 'tc-ratings.json'), json);
+    console.log(`[catalog-data] рейтинги ТЦ: ${rows.length}, ${Math.round(Buffer.byteLength(json) / 1024)} КБ`);
+  } catch (err) {
+    console.warn(`[catalog-data] рейтинги ТЦ не собраны: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+run()
+  .then(writeTcFilters)
+  .then(writeTcRatings)
+  .catch((err) => {
   // Без догружаемых файлов страницы работают как раньше — через запросы в
   // базу из браузера, — поэтому сборку не валим.
   console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);

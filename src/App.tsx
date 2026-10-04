@@ -17,6 +17,8 @@ import { BusinessCentersAffordablePage } from './pages/BusinessCentersAffordable
 import { BusinessCentersGuidePage } from './pages/BusinessCentersGuidePage';
 import { BusinessCentersAnalyticsPage } from './pages/BusinessCentersAnalyticsPage';
 import { BusinessCenterDetailPage } from './pages/BusinessCenterDetailPage';
+import { TradeCentersRankingPage } from './pages/TradeCentersRankingPage';
+import { TradeCentersBiggestPage } from './pages/TradeCentersBiggestPage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { MinskHub } from './pages/MinskHub';
 import { MarketAnalyticsHub } from './pages/MarketAnalyticsHub';
@@ -347,9 +349,14 @@ export default function App() {
       <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
       {/* Каталог торговых центров (2026-09-23) — те же компоненты, что у
           каталога БЦ, со словарём и корнем /minsk/tc (src/lib/catalogKind.tsx).
-          Оси только район и метро; классов, рейтингов, аналитики и
-          справочника у ТЦ нет. Пока идёт сбор данных — noindex. */}
+          Оси: район, метро, формат, тематические подборки /with/*; рейтинги
+          — отдельные страницы (2026-10-04). */}
       <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
+      <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
+      <Route
+        path="/minsk/tc/rating/largest"
+        element={<CatalogKindProvider kind="tc"><TradeCentersBiggestPage /></CatalogKindProvider>}
+      />
       <Route
         path="/minsk/tc/district/:districtSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
@@ -361,6 +368,11 @@ export default function App() {
       {/* Подборки по формату: «Рынки», «Мебельные центры», «Аутлеты» (2026-09-30), см. TC_FORMAT_HUBS. */}
       <Route
         path="/minsk/tc/format/:formatSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      {/* Тематические подборки: «с одеждой» и далее (2026-10-04), см. TC_TOPIC_HUBS. */}
+      <Route
+        path="/minsk/tc/with/:topicSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
       <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />

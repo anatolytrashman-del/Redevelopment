@@ -64,7 +64,7 @@ type TopNavEntry = { kind: 'link'; to: string; label: string } | { kind: 'rating
 // Каталоги БЦ и ТЦ — соседние вкладки шапки (владелец, 2026-09-23:
 // «каталоги БЦ и ТЦ будут разными вкладками»). Кнопка с выпадающим меню —
 // всегда каталог текущей страницы, второй каталог — обычная ссылка рядом.
-// Аналитика, рейтинги и справочник есть только у каталога БЦ.
+// Аналитика и справочник — только у БЦ; рейтинги есть у обоих каталогов.
 const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
   bc: [
     { kind: 'link', to: '/minsk/bc/analytics', label: 'Аналитика' },
@@ -72,7 +72,12 @@ const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
     { kind: 'link', to: '/minsk/bc/guide', label: 'Справочник' },
     { kind: 'link', to: '/minsk/tc', label: 'Торговые центры' },
   ],
-  tc: [{ kind: 'link', to: '/minsk/bc', label: 'Бизнес-центры' }],
+  // Рейтинги ТЦ (лучшие / самые большие) и подборка «с одеждой» — 2026-10-04.
+  tc: [
+    { kind: 'ratings' },
+    { kind: 'link', to: '/minsk/tc/with/shopping', label: 'С одеждой' },
+    { kind: 'link', to: '/minsk/bc', label: 'Бизнес-центры' },
+  ],
 };
 
 // «Рейтинги» — единственный пункт с подменю (владелец, 2026-09-22: «добавляй
@@ -81,13 +86,19 @@ const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
 // себя, без входа из шапки). Короткие подписи вместо H1 страниц (у «Лучших
 // бизнес-центров Минска» — просто «Класс A», у «Лучших…классов B и C» —
 // «Классы B и C»), чтобы список умещался в узкий выпадающий список.
-const RATING_LINKS: { to: string; label: string }[] = [
-  { to: '/minsk/bc/rating', label: 'Класс A' },
-  { to: '/minsk/bc/rating/class-b-plus', label: 'Класс B+' },
-  { to: '/minsk/bc/rating/class-b-c', label: 'Классы B и C' },
-  { to: '/minsk/bc/rating/largest', label: 'Самые большие' },
-  { to: '/minsk/bc/rating/affordable', label: 'Самые доступные' },
-];
+const RATING_LINKS_BY_KIND: Record<CatalogKind, { to: string; label: string }[]> = {
+  bc: [
+    { to: '/minsk/bc/rating', label: 'Класс A' },
+    { to: '/minsk/bc/rating/class-b-plus', label: 'Класс B+' },
+    { to: '/minsk/bc/rating/class-b-c', label: 'Классы B и C' },
+    { to: '/minsk/bc/rating/largest', label: 'Самые большие' },
+    { to: '/minsk/bc/rating/affordable', label: 'Самые доступные' },
+  ],
+  tc: [
+    { to: '/minsk/tc/rating', label: 'Лучшие' },
+    { to: '/minsk/tc/rating/largest', label: 'Самые большие' },
+  ],
+};
 
 // Ширина контейнера контента для каждого значения пропа `width` — ровно те
 // же величины, что стоят за классами Tailwind (max-w-3xl = 48rem и т.д.).
@@ -113,7 +124,7 @@ function rowLinkClass(active: boolean): string {
 // и т.п.) и держит собственное состояние открытия/раскрытых групп — здесь же
 // 5 фиксированных ссылок без данных, проще и безопаснее держать своим
 // компонентом со своим click-outside/Escape, чем вплетать в чужую разметку.
-function RatingsDropdown({ pathname }: { pathname: string }) {
+function RatingsDropdown({ pathname, links }: { pathname: string; links: { to: string; label: string }[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -137,7 +148,7 @@ function RatingsDropdown({ pathname }: { pathname: string }) {
     };
   }, [open]);
 
-  const active = RATING_LINKS.some((l) => l.to === pathname);
+  const active = links.some((l) => l.to === pathname);
 
   return (
     <div ref={ref} className="relative hidden md:block">
@@ -160,7 +171,7 @@ function RatingsDropdown({ pathname }: { pathname: string }) {
           className="absolute left-0 top-full z-50 mt-1 min-w-[210px] rounded-xl border border-border bg-bg py-2"
           style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
         >
-          {RATING_LINKS.map((link) => (
+          {links.map((link) => (
             <Link
               key={link.to}
               to={link.to}
@@ -237,10 +248,11 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
   }, [groups]);
 
   const topLinks = TOP_LINKS[V.kind];
+  const ratingLinks = RATING_LINKS_BY_KIND[V.kind];
   const activeTop = topLinks.find((l) => l.kind === 'link' && l.to === pathname) as
     | Extract<TopNavEntry, { kind: 'link' }>
     | undefined;
-  const ratingsActive = RATING_LINKS.some((l) => l.to === pathname);
+  const ratingsActive = ratingLinks.some((l) => l.to === pathname);
   // Всё остальное под /minsk/bc (каталог, хабы, карточки) плюс
   // избранное — это «Бизнес-центры». Страницы рейтингов тоже живут под
   // /minsk/bc/, поэтому явно исключены — иначе подсвечивались бы сразу
@@ -302,7 +314,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
           </button>
           {topLinks.map((entry) =>
             entry.kind === 'ratings' ? (
-              <RatingsDropdown key="ratings" pathname={pathname} />
+              <RatingsDropdown key="ratings" pathname={pathname} links={ratingLinks} />
             ) : (
               <Link
                 key={entry.to}
@@ -480,7 +492,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
                     />
                   </button>
                   <div className={cn('flex-col gap-0.5 pl-3', expandedGroup === 'Рейтинги' ? 'flex' : 'hidden')}>
-                    {RATING_LINKS.map((link) => (
+                    {ratingLinks.map((link) => (
                       <Link key={link.to} to={link.to} className={rowLinkClass(link.to === pathname)}>
                         {link.label}
                       </Link>
