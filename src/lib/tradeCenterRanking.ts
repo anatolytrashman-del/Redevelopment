@@ -21,15 +21,23 @@ export type { ExcludedCenter, RankedCenter };
 export const TC_RANKING_LIMIT = 10;
 export const TC_LARGEST_LIMIT = TC_RANKING_LIMIT;
 
+/** В рейтинг «Лучшие» только классические ТЦ/ТРЦ — без рынков, авто, мебели и т.п. (владелец, 2026-10-04). */
+export const TC_RANKING_FORMATS = ['ТЦ', 'ТРЦ'] as const;
+
 function isEligibleTc(center: BusinessCenter): boolean {
   return center.status !== 'under_construction' && !isOutsideMinsk(center);
+}
+
+/** Формат именно «ТЦ» или «ТРЦ» — не «районный ТЦ», не гипермаркет, не рынок. */
+export function isTcRankingFormat(center: BusinessCenter): boolean {
+  return center.retailFormat != null && (TC_RANKING_FORMATS as readonly string[]).includes(center.retailFormat);
 }
 
 function ratingLabel(value: number): string {
   return value.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
-/** Лучшие ТЦ: рейтинг Яндекс.Карт ≥ порога при достаточном числе оценок. */
+/** Лучшие ТЦ: только форматы ТЦ/ТРЦ, рейтинг Яндекс.Карт ≥ порога при достаточном числе оценок. */
 export function buildTcRanking(
   centers: BusinessCenter[],
   ratings: YandexCardRatingIndex,
@@ -37,7 +45,7 @@ export function buildTcRanking(
   minCount: number = MIN_RATING_COUNT,
 ): RankedCenter[] {
   return centers
-    .filter(isEligibleTc)
+    .filter((c) => isEligibleTc(c) && isTcRankingFormat(c))
     .map((c) => {
       const card = ratings.get(c.slug);
       if (!card) return null;
@@ -63,6 +71,12 @@ export function buildTcExcluded(
     .filter((c) => c.status !== 'under_construction')
     .map((center) => {
       if (isOutsideMinsk(center)) return { center, reason: 'не в черте Минска' };
+      if (!isTcRankingFormat(center)) {
+        return {
+          center,
+          reason: center.retailFormat ? `формат «${center.retailFormat}», не ТЦ/ТРЦ` : 'формат не ТЦ/ТРЦ',
+        };
+      }
       const card = ratings.get(center.slug);
       if (!card) return { center, reason: 'рейтинг на Яндекс.Картах не найден' };
       if (card.rating < threshold)
