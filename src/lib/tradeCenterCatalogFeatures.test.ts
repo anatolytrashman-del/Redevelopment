@@ -4,10 +4,12 @@ import { TC_FORMAT_HUB_MIN_CENTERS, TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG, TC_FORMAT
 import { MIN_INDEXABLE_HUB_CENTERS } from './businessCenterHubs';
 import {
   brandSuggestions,
+  buildTcBrandCatalog,
   buildTcFilterEntry,
   buildTcFilterIndex,
   isOpenAt,
   matchesTcFeatures,
+  matchingStoreSlugs,
   TC_FORMAT_HUB_MIN_CENTERS as FRONT_FORMAT_MIN,
   TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG as FRONT_FORMAT_MIN_BY_SLUG,
   TC_FORMAT_HUBS,
@@ -64,13 +66,31 @@ describe('matchesTcFeatures', () => {
 
 describe('brandSuggestions', () => {
   it('точное совпадение первым, названия как у источника', () => {
-    const idx = buildTcFilterIndex({
-      a: { ...base, brands: ['Zarina', 'Zara'] },
-      b: { ...base, brands: ['Zarina'] },
-    });
-    expect(brandSuggestions(idx, 'zara')).toEqual(['Zara']);
-    expect(brandSuggestions(idx, 'za')).toEqual(['Zara', 'Zarina']);
-    expect(brandSuggestions(idx, 'z')).toEqual([]);
+    const catalog = buildTcBrandCatalog(
+      buildTcFilterIndex({
+        a: { ...base, brands: ['Zarina', 'Zara'] },
+        b: { ...base, brands: ['Zarina'] },
+      }),
+    );
+    expect(brandSuggestions(catalog, 'zara')).toEqual(['Zara']);
+    expect(brandSuggestions(catalog, 'za')).toEqual(['Zara', 'Zarina']);
+    expect(brandSuggestions(catalog, 'z')).toEqual([]);
+  });
+});
+
+describe('matchingStoreSlugs', () => {
+  it('собирает слаги ТЦ с арендатором; пустой запрос — null', () => {
+    const catalog = buildTcBrandCatalog(
+      buildTcFilterIndex({
+        a: { ...base, brands: ['Zara', 'Milavitsa'] },
+        b: { ...base, brands: ['Zarina'] },
+        c: { ...base, brands: ['Nike'] },
+      }),
+    );
+    expect(matchingStoreSlugs(catalog, '')).toBeNull();
+    expect([...matchingStoreSlugs(catalog, 'zara')!].sort()).toEqual(['a']);
+    expect([...matchingStoreSlugs(catalog, 'za')!].sort()).toEqual(['a', 'b']);
+    expect(matchingStoreSlugs(catalog, 'nope')!.size).toBe(0);
   });
 });
 

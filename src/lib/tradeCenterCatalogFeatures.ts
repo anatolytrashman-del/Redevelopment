@@ -257,23 +257,73 @@ export function matchesTcFeatures(
   return true;
 }
 
-/** Подсказки под полем «Магазин в ТЦ»: точное совпадение, потом начинающиеся с запроса (короче — выше), потом содержащие его. */
-export function brandSuggestions(index: TcFilterIndex, query: string, limit = 6): string[] {
-  const q = normalizeBrand(query);
-  if (q.length < 2) return [];
-  const counts = new Map<string, { name: string; n: number }>();
-  for (const entry of index.values()) {
+/** Уникальный арендатор по всем ТЦ — для подсказок и быстрого отбора по «Магазин в ТЦ». */
+export interface TcBrandRecord {
+  key: string;
+  name: string;
+  count: number;
+  slugs: string[];
+}
+
+export interface TcBrandCatalog {
+  list: TcBrandRecord[];
+  byKey: Map<string, TcBrandRecord>;
+}
+
+/** Один проход по индексу: уникальные бренды + в каких ТЦ они есть. */
+export function buildTcBrandCatalog(index: TcFilterIndex): TcBrandCatalog {
+  const byKey = new Map<string, TcBrandRecord>();
+  for (const [slug, entry] of index) {
     entry.brands.forEach((key, i) => {
-      if (!key.includes(q)) return;
-      const hit = counts.get(key);
-      if (hit) hit.n += 1;
-      else counts.set(key, { name: entry.brandNames[i], n: 1 });
+      let rec = byKey.get(key);
+      if (!rec) {
+        rec = { key, name: entry.brandNames[i], count: 0, slugs: [] };
+        byKey.set(key, rec);
+      }
+      rec.count += 1;
+      rec.slugs.push(slug);
     });
   }
-  return Array.from(counts.entries())
-    .sort((a, b) => Number(a[0] !== q) - Number(b[0] !== q) || Number(!a[0].startsWith(q)) - Number(!b[0].startsWith(q)) || a[0].length - b[0].length || b[1].n - a[1].n || a[0].localeCompare(b[0], 'ru'))
-    .slice(0, limit)
-    .map(([, v]) => v.name);
+  return { list: Array.from(byKey.values()), byKey };
+}
+
+/**
+ * Подсказки под полем «Магазин в ТЦ»: точное совпадение, потом начинающиеся
+ * с запроса (короче — выше), потом содержащие его. Каталог — уникальные
+ * бренды (на проде ~7k), а не повторный обход всех упоминаний (~12k).
+ */
+export function brandSuggestions(catalog: TcBrandCatalog, query: string, limit = 6): string[] {
+  const q = normalizeBrand(query);
+  if (q.length < 2) return [];
+  const hits: TcBrandRecord[] = [];
+  for (const rec of catalog.list) {
+    if (rec.key.includes(q)) hits.push(rec);
+  }
+  hits.sort(
+    (a, b) =>
+      Number(a.key !== q) - Number(b.key !== q) ||
+      Number(!a.key.startsWith(q)) - Number(!b.key.startsWith(q)) ||
+      a.key.length - b.key.length ||
+      b.count - a.count ||
+      a.key.localeCompare(b.key, 'ru'),
+  );
+  return hits.slice(0, limit).map((rec) => rec.name);
+}
+
+/**
+ * Слаги ТЦ, где есть арендатор с подстрокой store. null — фильтра по
+ * магазину нет (пустой запрос). Пустой Set — совпадений нет.
+ */
+export function matchingStoreSlugs(catalog: TcBrandCatalog, store: string): Set<string> | null {
+  const q = normalizeBrand(store);
+  if (!q) return null;
+  const set = new Set<string>();
+  for (const rec of catalog.list) {
+    // Как matchesTcFeatures: подстрока, не только точное имя («za» → Zara).
+    if (!rec.key.includes(q)) continue;
+    for (const slug of rec.slugs) set.add(slug);
+  }
+  return set;
 }
 
 // Формат одной строкой (владелец, 2026-09-30): деление ТРЦ / ТЦ / районный /

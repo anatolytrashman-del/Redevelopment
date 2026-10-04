@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
@@ -85,7 +85,9 @@ import {
 } from '../lib/businessCenterCatalogFilter';
 import {
   brandSuggestions,
+  buildTcBrandCatalog,
   buildTcFilterIndex,
+  matchingStoreSlugs,
   tcFormatChips,
   tcFormatHubBySlug,
   tcFormatHubMinCenters,
@@ -477,6 +479,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     };
   }, [isTc]);
   const storeHubs = useMemo(() => (isTc ? collectTcStoreHubs(tcIndex) : []), [isTc, tcIndex]);
+  // Уникальные бренды + slug'и ТЦ — подсказки и быстрый store-фильтр без
+  // повторного скана brands[] на каждый countWith.
+  const brandCatalog = useMemo(() => (tcIndex ? buildTcBrandCatalog(tcIndex) : null), [tcIndex]);
   const storeHub = isTc && storeSlug ? storeHubs.find((h) => h.slug === storeSlug) ?? null : null;
   // Старые /with/zara… → /store/zara (волны 4–5 жили под with). Плюс любой
   // slug магазина, который ещё открывают по старому /with/*.
@@ -636,8 +641,17 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }),
     [queryFilter, classFilter, districtFilter, microdistrictFilter, isTc],
   );
-
-
+  // Пока React пересчитывает выдачу/счётчики после ?store=, поле ввода
+  // продолжает отвечать на набор (подсказки тоже на deferredDraft).
+  const deferredStore = useDeferredValue(filter.store);
+  const filterForList = useMemo(
+    () => (deferredStore === filter.store ? filter : { ...filter, store: deferredStore }),
+    [filter, deferredStore],
+  );
+  const storeMatchSlugs = useMemo(
+    () => (brandCatalog ? matchingStoreSlugs(brandCatalog, deferredStore) : null),
+    [brandCatalog, deferredStore],
+  );
 
   // Медианы и число объявлений по КОНКРЕТНОМУ зданию (Д3) — нужны и
   // тумблерам «есть аренда/продажа», и сортировке по ставке, и сводке.
@@ -690,8 +704,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   );
 
   const visibleCenters = useMemo(
-    () => routeScoped.filter((c) => matchesCatalogFilter(c, filter, offerIndex, tcIndex)),
-    [routeScoped, filter, offerIndex, tcIndex],
+    () => routeScoped.filter((c) => matchesCatalogFilter(c, filterForList, offerIndex, tcIndex, storeMatchSlugs)),
+    [routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs],
   );
 
   // Смежные подборки (Ш2 плана docs/bc-catalog-seo-plan.md). Аудит
@@ -1060,56 +1074,63 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // значение оси, сохранив остальные фильтры (nomads-стиль). Не «сколько
   // всего в районе» — такая цифра врала бы при любом другом активном
   // фильтре. 143 записи в памяти, пересчёт на каждый клик ничего не стоит.
+  // storeMatchSlugs общий для всех осей: countWith store не меняет.
   function countWith(next: Partial<CatalogFilterState>): number {
-    return routeScoped.filter((c) => matchesCatalogFilter(c, { ...filter, ...next }, offerIndex, tcIndex)).length;
+    return routeScoped.filter((c) =>
+      matchesCatalogFilter(c, { ...filterForList, ...next }, offerIndex, tcIndex, storeMatchSlugs),
+    ).length;
   }
   const classCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const cls of availableClasses) m[cls] = countWith({ classes: [cls] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableClasses, routeScoped, filter, offerIndex, tcIndex]);
+  }, [availableClasses, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const formatCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const format of availableFormats) m[format] = countWith({ formats: [format] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableFormats, routeScoped, filter, offerIndex, tcIndex]);
+  }, [availableFormats, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   // Формат у ТЦ — «торговый центр» плюс специализированные; чип несёт
   // несколько значений, и счётчик считается по всем сразу.
   const formatChips = useMemo(
     () => (isTc ? tcFormatChips(availableFormats).map((c) => ({ ...c, count: countWith({ formats: c.values }) })) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isTc, availableFormats, routeScoped, filter, offerIndex, tcIndex],
+    [isTc, availableFormats, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs],
   );
   const tcFeatureCounts = useMemo(() => {
     if (!isTc || !tcIndex) return null;
     const m: Record<string, number> = {};
     for (const group of TC_FEATURE_GROUPS) {
       for (const o of group.options) {
-        m[o.id] = countWith({ tcFeatures: filter.tcFeatures.includes(o.id) ? filter.tcFeatures : [...filter.tcFeatures, o.id] });
+        m[o.id] = countWith({
+          tcFeatures: filterForList.tcFeatures.includes(o.id)
+            ? filterForList.tcFeatures
+            : [...filterForList.tcFeatures, o.id],
+        });
       }
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTc, routeScoped, filter, offerIndex, tcIndex]);
+  }, [isTc, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const underConstructionCount = useMemo(
     () => (isTc ? countWith({ statuses: ['under_construction'] }) : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isTc, routeScoped, filter, offerIndex, tcIndex],
+    [isTc, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs],
   );
   const statusCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const status of availableStatuses) m[status] = countWith({ statuses: [status] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableStatuses, routeScoped, filter, offerIndex, tcIndex]);
+  }, [availableStatuses, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const districtCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const d of districts) m[d] = countWith({ districts: [d] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [districts, routeScoped, filter, offerIndex, tcIndex]);
+  }, [districts, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const microdistrictCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const microdistrict of filterMicrodistricts) {
@@ -1117,13 +1138,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMicrodistricts, routeScoped, filter, offerIndex, tcIndex]);
+  }, [filterMicrodistricts, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const metroCounts = useMemo(() => {
     const m: Record<number, number> = {};
     for (const o of METRO_WITHIN_OPTIONS) m[o.value] = countWith({ metroWithin: o.value });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeScoped, filter, offerIndex, tcIndex]);
+  }, [routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   // Список станций и счётчики по ним — фильтр «станция метро» с
   // множественным выбором (владелец, 2026-09-17).
   const metroStationList = useMemo(() => catalogMetroStations(routeScoped), [routeScoped]);
@@ -1131,12 +1152,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const m: Record<string, number> = {};
     for (const st of metroStationList) {
       m[st] = countWith({
-        metroStations: filter.metroStations.includes(st) ? filter.metroStations : [...filter.metroStations, st],
+        metroStations: filterForList.metroStations.includes(st)
+          ? filterForList.metroStations
+          : [...filterForList.metroStations, st],
       });
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metroStationList, routeScoped, filter, offerIndex, tcIndex]);
+  }, [metroStationList, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   // Сколько зданий нельзя проверить по применённому фильтру метро: у них
   // не разобрана ни одна станция. «Не знаем» ≠ «не подходит».
   const unverifiableCount = useMemo(
@@ -1550,7 +1573,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             formatCounts={formatCounts}
             formatChips={displayHub ? [] : formatChips}
             tcFeatureCounts={tcFeatureCounts}
-            storeSuggestions={isTc && tcIndex ? (q: string) => brandSuggestions(tcIndex, q) : undefined}
+            storeSuggestions={brandCatalog ? (q: string) => brandSuggestions(brandCatalog, q) : undefined}
             underConstructionCount={underConstructionCount}
             availableStatuses={availableStatuses}
             statusCounts={statusCounts}
