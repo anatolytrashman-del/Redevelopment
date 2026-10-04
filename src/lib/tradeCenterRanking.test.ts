@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessCenter } from '../data/businessCenters';
 import { buildTcExcluded, buildTcLargest, buildTcRanking } from './tradeCenterRanking';
+import type { YandexCardRatingIndex } from './yandexCardsApi';
 
 function tc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
   return {
@@ -64,33 +65,57 @@ function tc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
   };
 }
 
-function rating(value: string, count?: number): BusinessCenter['highlights'] {
-  return [{ icon: 'rating', label: 'Рейтинг', text: `Яндекс.Карты: **${value}** из 5${count == null ? '' : ` (${count} оценок)`}` }];
+function ratings(entries: [string, number, number][]): YandexCardRatingIndex {
+  return new Map(entries.map(([slug, rating, ratingCount]) => [slug, { slug, rating, ratingCount }]));
 }
 
 describe('buildTcRanking', () => {
-  it('берёт ТЦ с рейтингом и числом оценок, сортирует по рейтингу и числу оценок', () => {
+  it('берёт рейтинг из yandex cards, сортирует по рейтингу и числу оценок', () => {
     const list = [
-      tc({ slug: 'low', highlights: rating('4,6', 80) }),
-      tc({ slug: 'top', highlights: rating('4,9', 200) }),
-      tc({ slug: 'tie-more', highlights: rating('4,8', 500) }),
-      tc({ slug: 'tie-less', highlights: rating('4,8', 60) }),
-      tc({ slug: 'few', highlights: rating('5,0', 10) }),
-      tc({ slug: 'building', status: 'under_construction', highlights: rating('5,0', 1000) }),
-      tc({ slug: 'out', address: 'Минская область', highlights: rating('5,0', 1000) }),
+      tc({ slug: 'low' }),
+      tc({ slug: 'top' }),
+      tc({ slug: 'tie-more' }),
+      tc({ slug: 'tie-less' }),
+      tc({ slug: 'few' }),
+      tc({ slug: 'building', status: 'under_construction' }),
+      tc({ slug: 'out', address: 'Минская область' }),
+      tc({ slug: 'missing' }),
     ];
-    expect(buildTcRanking(list).map((r) => r.center.slug)).toEqual(['top', 'tie-more', 'tie-less', 'low']);
+    const cards = ratings([
+      ['low', 4.6, 80],
+      ['top', 4.9, 200],
+      ['tie-more', 4.8, 500],
+      ['tie-less', 4.8, 60],
+      ['few', 5.0, 10],
+      ['building', 5.0, 1000],
+      ['out', 5.0, 1000],
+    ]);
+    expect(buildTcRanking(list, cards).map((r) => r.center.slug)).toEqual(['top', 'tie-more', 'tie-less', 'low']);
+  });
+
+  it('обрезает топ до 10 карточек', () => {
+    const list = Array.from({ length: 15 }, (_, i) => tc({ slug: `tc-${i}` }));
+    const cards = ratings(list.map((c, i) => [c.slug, 5, 1000 - i] as [string, number, number]));
+    expect(buildTcRanking(list, cards)).toHaveLength(10);
+    expect(buildTcRanking(list, cards)[0].center.slug).toBe('tc-0');
   });
 
   it('excluded объясняет, почему не попали', () => {
     const list = [
-      tc({ slug: 'ok', highlights: rating('4,7', 100) }),
-      tc({ slug: 'low', highlights: rating('4,0', 100) }),
-      tc({ slug: 'out', address: 'Минская область', highlights: rating('5,0', 100) }),
+      tc({ slug: 'ok' }),
+      tc({ slug: 'low' }),
+      tc({ slug: 'out', address: 'Минская область' }),
+      tc({ slug: 'none' }),
     ];
-    const reasons = Object.fromEntries(buildTcExcluded(list).map((e) => [e.center.slug, e.reason]));
+    const cards = ratings([
+      ['ok', 4.7, 100],
+      ['low', 4.0, 100],
+      ['out', 5.0, 100],
+    ]);
+    const reasons = Object.fromEntries(buildTcExcluded(list, cards).map((e) => [e.center.slug, e.reason]));
     expect(reasons.low).toMatch(/ниже порога/);
     expect(reasons.out).toBe('не в черте Минска');
+    expect(reasons.none).toBe('рейтинг на Яндекс.Картах не найден');
     expect(reasons.ok).toBeUndefined();
   });
 });

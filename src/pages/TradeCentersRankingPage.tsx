@@ -15,20 +15,21 @@ import {
   RATING_THRESHOLD_LABEL,
   ratingsCount,
 } from '../lib/businessCenterRanking';
-import { buildTcExcluded, buildTcRanking, type RankedCenter } from '../lib/tradeCenterRanking';
+import { buildTcExcluded, buildTcRanking, TC_RANKING_LIMIT, type RankedCenter } from '../lib/tradeCenterRanking';
 import { CatalogMap } from '../components/businessCenters/CatalogMap';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { nearestMetroStation } from '../lib/metroStations';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { EMPTY_OFFER_INDEX } from '../lib/businessCenterCatalogFilter';
 import { tcTopicHubUrl, TC_TOPIC_HUBS } from '../lib/tradeCenterHubs';
+import { loadYandexCardRatings, type YandexCardRatingIndex } from '../lib/yandexCardsApi';
 
 const DATE_PUBLISHED = '2026-10-04';
 const PAGE_URL = 'https://redevelopment.pro/minsk/tc/rating';
 const PAGE_H1 = 'Лучшие торговые центры Минска';
-const TITLE = `Лучшие торговые центры Минска: рейтинг с оценкой от ${RATING_THRESHOLD_LABEL}`;
+const TITLE = `Лучшие торговые центры Минска: топ-${TC_RANKING_LIMIT} с оценкой от ${RATING_THRESHOLD_LABEL}`;
 const DESCRIPTION =
-  `Рейтинг торговых центров Минска: оценка на Яндекс.Картах от ${RATING_THRESHOLD_LABEL} из 5 ` +
+  `Топ-${TC_RANKING_LIMIT} торговых центров Минска: оценка на Яндекс.Картах от ${RATING_THRESHOLD_LABEL} из 5 ` +
   `при ${MIN_RATING_COUNT}+ отзывах. Открытая методика, площадь и метро по каждому ТЦ.`;
 
 function RatedRankingRow({ ranked, place }: { ranked: RankedCenter; place: number }) {
@@ -61,16 +62,20 @@ function RatedRankingRow({ ranked, place }: { ranked: RankedCenter; place: numbe
 
 export function TradeCentersRankingPage() {
   const [centers, setCenters] = useState<BusinessCenter[] | null>(() => snapshotBusinessCenters('tc'));
+  const [ratings, setRatings] = useState<YandexCardRatingIndex | null>(null);
   const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     fetchBusinessCenters('tc')
       .then(setCenters)
       .catch(() => setCenters((prev) => prev ?? []));
+    loadYandexCardRatings()
+      .then(setRatings)
+      .catch(() => setRatings(new Map()));
   }, []);
 
-  const ranking = useMemo(() => (centers ? buildTcRanking(centers) : []), [centers]);
-  const excluded = useMemo(() => (centers ? buildTcExcluded(centers) : []), [centers]);
+  const ranking = useMemo(() => (centers && ratings ? buildTcRanking(centers, ratings) : []), [centers, ratings]);
+  const excluded = useMemo(() => (centers && ratings ? buildTcExcluded(centers, ratings) : []), [centers, ratings]);
   const eligibleTotal = useMemo(
     () => (centers ?? []).filter((c) => c.status !== 'under_construction' && !isOutsideMinsk(c)).length,
     [centers],
@@ -89,8 +94,8 @@ export function TradeCentersRankingPage() {
       {
         question: 'По какой методике составлен рейтинг торговых центров Минска?',
         answer:
-          `Два проверяемых условия: рейтинг на Яндекс.Картах не ниже ${RATING_THRESHOLD_LABEL} из 5 и не менее ` +
-          `${MIN_RATING_COUNT} оценок здания. Внутри списка — по рейтингу, при равном рейтинге выше тот, у кого больше оценок. ` +
+          `Два проверяемых условия: рейтинг собственной карточки здания на Яндекс.Картах не ниже ${RATING_THRESHOLD_LABEL} из 5 и не менее ` +
+          `${MIN_RATING_COUNT} оценок. Среди прошедших порог берём топ-${TC_RANKING_LIMIT}: по рейтингу, при равном рейтинге выше тот, у кого больше оценок. ` +
           'Строящиеся объекты и здания вне черты Минска не участвуют. Субъективных оценок и скрытых весов нет.',
       },
       {
@@ -100,12 +105,10 @@ export function TradeCentersRankingPage() {
       {
         question: 'Сколько торговых центров попало в рейтинг?',
         answer:
-          `${ranking.length} из ${eligibleTotal} сданных торговых центров в черте Минска. ` +
-          (excluded.length > 0 && excluded.length <= 8
-            ? `Не попали: ${excluded.map((e) => `«${shortName(e.center)}» — ${e.reason}`).join('; ')}.`
-            : excluded.length > 8
-              ? `Не попали ${excluded.length} объектов: нет распознанного рейтинга, рейтинг ниже порога или мало оценок.`
-              : ''),
+          `В топ показываем не больше ${TC_RANKING_LIMIT} объектов из ${eligibleTotal} сданных торговых центров в черте Минска, которые проходят порог рейтинга и числа оценок. ` +
+          (excluded.length > 0
+            ? `Не прошли порог ${excluded.length} объектов: нет рейтинга на Яндекс.Картах, рейтинг ниже ${RATING_THRESHOLD_LABEL} или меньше ${MIN_RATING_COUNT} оценок.`
+            : ''),
       },
     ];
 
@@ -198,15 +201,15 @@ export function TradeCentersRankingPage() {
             <strong className="text-ink">Методика оценки:</strong>
             <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-4 text-ink">
               <li>Сданные торговые центры в черте Минска</li>
-              <li>Рейтинг от {RATING_THRESHOLD_LABEL} на Яндекс.Картах</li>
-              <li>Не менее {MIN_RATING_COUNT} оценок здания</li>
+              <li>Рейтинг собственной карточки здания на Яндекс.Картах от {RATING_THRESHOLD_LABEL}</li>
+              <li>Не менее {MIN_RATING_COUNT} оценок на этой карточке</li>
             </ol>
           </div>
         </div>
 
-        {centers === null && <p className="text-sm text-ink-muted">Загрузка…</p>}
+        {(centers === null || ratings === null) && <p className="text-sm text-ink-muted">Загрузка…</p>}
 
-        {centers !== null && (
+        {centers !== null && ratings !== null && (
           <div className="flex flex-col gap-3">
             {ranking.length === 0 && (
               <p className="p-4 text-sm text-ink-muted">

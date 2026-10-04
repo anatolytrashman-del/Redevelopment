@@ -20,9 +20,9 @@ import { tcTopicHubUrl, TC_TOPIC_HUBS } from '../lib/tradeCenterHubs';
 const DATE_PUBLISHED = '2026-10-04';
 const PAGE_URL = 'https://redevelopment.pro/minsk/tc/rating/largest';
 const PAGE_H1 = 'Самые большие торговые центры Минска';
-const TITLE = 'Самые большие торговые центры Минска: топ-20 по площади';
+const TITLE = 'Самые большие торговые центры Минска: топ-10 по площади';
 const DESCRIPTION =
-  'Топ-20 торговых центров Минска по общей площади здания: только сданные объекты в черте города. Площадь, формат, год и метро.';
+  'Топ-10 торговых центров Минска по общей площади здания: только сданные объекты в черте города. Площадь, формат, год и метро.';
 
 const nf = new Intl.NumberFormat('ru-RU');
 
@@ -44,7 +44,7 @@ export function TradeCentersBiggestPage() {
     const items: { question: string; answer: string }[] = [];
     items.push({
       question: 'Как составлен топ самых больших торговых центров Минска?',
-      answer: `Берём сданные торговые центры в черте Минска с заполненной общей площадью. Сортируем по убыванию общей площади, показываем не более ${TC_LARGEST_LIMIT}. В каталоге этим условиям отвечают ${eligible.length} объектов, показано ${displayed.length}. Оценки на картах на отбор не влияют.`,
+      answer: `Берём сданные торговые центры в черте Минска с заполненной общей площадью. Сортируем по убыванию общей площади, показываем топ-${TC_LARGEST_LIMIT}. В каталоге этим условиям отвечают ${eligible.length} объектов, в списке — ${displayed.length}. Оценки на картах на отбор не влияют.`,
     });
     const leader = displayed[0];
     if (leader) {
