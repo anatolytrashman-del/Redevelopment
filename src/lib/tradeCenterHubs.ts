@@ -24,7 +24,8 @@ export type TcTopicMatchId =
   | 'entertainment'
   | 'foodcourt'
   | 'parking'
-  | 'brand';
+  | 'ice-rink'
+  | 'brand'
 
 export interface TcTopicHub {
   slug: string;
@@ -63,6 +64,7 @@ export const TC_TOPIC_FILTER_MATCHES: readonly TcTopicMatchId[] = [
   'entertainment',
   'foodcourt',
   'parking',
+  'ice-rink',
   'brand',
 ];
 
@@ -247,7 +249,18 @@ export const TC_TOPIC_HUBS: TcTopicHub[] = [
     intro: (count) =>
       `${count} Минска с описанной парковкой. Адреса, площадь, режим парковки и часы работы.`,
   },
-  // --- волна 4: бренды (Wordstat; якоря + арендаторы в tc-filters) ---
+  // --- волна 5: хвост (каток, ещё бренды) ---
+  {
+    slug: 'ice-rink',
+    match: 'ice-rink',
+    title: 'Торговые центры Минска с катком',
+    label: 'С катком',
+    subjectGen: (n) => centersGen(n, 'Минска с катком'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска, где есть каток. Адреса, площадь, парковка и часы работы.`,
+  },
+  // --- волны 4–5: бренды (Wordstat; якоря + арендаторы в tc-filters) ---
   brandHub('zara', 'zara', 'Zara'),
   brandHub('gold-apple', 'золотое яблоко', 'Золотое яблоко'),
   brandHub('bershka', 'bershka', 'Bershka'),
@@ -261,6 +274,20 @@ export const TC_TOPIC_HUBS: TcTopicHub[] = [
   brandHub('lc-waikiki', 'lc waikiki', 'LC Waikiki'),
   brandHub('pull-and-bear', 'pull&bear', 'Pull&Bear'),
   brandHub('sportmaster', 'спортмастер', 'Спортмастер'),
+  brandHub('mango', 'mango', 'Mango'),
+  brandHub('reserved', 'reserved', 'Reserved'),
+  brandHub('cropp', 'cropp', 'Cropp'),
+  brandHub('house', 'house', 'House'),
+  brandHub('defacto', 'defacto', 'DeFacto'),
+  brandHub('mohito', 'mohito', 'Mohito'),
+  brandHub('oysho', 'oysho', 'Oysho'),
+  brandHub('familia', 'familia', 'Familia'),
+  brandHub('milavitsa', 'milavitsa', 'Milavitsa'),
+  brandHub('mark-formelle', 'mark formelle', 'Mark Formelle'),
+  brandHub('kari', 'kari', 'Kari'),
+  brandHub('detmir', 'детмир', 'Детмир'),
+  brandHub('5-element', '5 элемент', '5 элемент'),
+  brandHub('miniso', 'miniso', 'MINISO'),
 ];
 
 export function tcTopicHubBySlug(slug: string | undefined): TcTopicHub | null {
@@ -288,6 +315,8 @@ function matchesFilterTopic(hub: TcTopicHub, entry: TcFilterEntry | undefined): 
       return entry.features.has('parking');
     case 'entertainment':
       return entry.features.has('entertainment');
+    case 'ice-rink':
+      return entry.features.has('ice');
     case 'brand':
       return Boolean(hub.brandKey) && entry.brands.some((b) => b.includes(hub.brandKey!));
     default:

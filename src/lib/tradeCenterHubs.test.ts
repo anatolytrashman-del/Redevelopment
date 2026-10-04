@@ -136,7 +136,7 @@ describe('подборки /minsk/tc/with', () => {
     }
   });
 
-  it('волна 3: кино / дети / фудкорт / парковка / развлечения из tc-filters', () => {
+  it('волна 3–5: кино / дети / фудкорт / парковка / развлечения / каток из tc-filters', () => {
     const center = tc({ slug: 'mall' });
     const cinema = buildTcFilterEntry({ ...emptyFilter, funKinds: ['cinema'] });
     const kids = buildTcFilterEntry({ ...emptyFilter, funKinds: ['kids'] });
@@ -146,12 +146,14 @@ describe('подборки /minsk/tc/with', () => {
       parking: { summary: 'парковка', items: [] },
     });
     const games = buildTcFilterEntry({ ...emptyFilter, funKinds: ['games'] });
+    const ice = buildTcFilterEntry({ ...emptyFilter, funKinds: ['ice'] });
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!, cinema)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!, kids)).toBe(false);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('kids')!, kids)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('foodcourt')!, food)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('parking')!, park)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('entertainment')!, games)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('ice-rink')!, ice)).toBe(true);
     expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!)).toBe(false);
     expect(topicHubNeedsFilters(tcTopicHubBySlug('cinema')!)).toBe(true);
     expect(topicHubNeedsFilters(tcTopicHubBySlug('shopping')!)).toBe(false);

@@ -88,6 +88,7 @@ import {
   buildTcFilterIndex,
   tcFormatChips,
   tcFormatHubBySlug,
+  tcFormatHubMinCenters,
   tcFormatHubUrl,
   TC_FEATURE_GROUPS,
   TC_FORMAT_HUBS,
@@ -725,7 +726,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       const formatLinks = TC_FORMAT_HUBS.flatMap((hub) => {
         if (hub === formatHub) return [];
         const n = all.filter((c) => c.status !== 'under_construction' && c.retailFormat != null && hub.values.includes(c.retailFormat)).length;
-        return big(n) ? [{ label: `${hub.label} (${n})`, url: tcFormatHubUrl(hub, V.basePath) }] : [];
+        return n >= tcFormatHubMinCenters(hub.slug)
+          ? [{ label: `${hub.label} (${n})`, url: tcFormatHubUrl(hub, V.basePath) }]
+          : [];
       });
       const topicLinks = TC_TOPIC_HUBS.flatMap((hub) => {
         if (hub === topicHub) return [];
@@ -766,8 +769,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     !topicFiltersPending &&
     hubCount !== null &&
     ((Boolean(topicHub) && hubCount < TC_TOPIC_HUB_MIN_CENTERS) ||
+      (formatHub !== null && hubCount < tcFormatHubMinCenters(formatHub.slug)) ||
       (hubCount < MIN_INDEXABLE_HUB_CENTERS &&
-        Boolean(streetFilter || microdistrictFilter || formatHub || (classFilter && districtFilter))));
+        Boolean(streetFilter || microdistrictFilter || (classFilter && districtFilter))));
   // Единственный ответ на вопрос «эту страницу индексируем?»: и мета, и FAQ,
   // и ItemList смотрят сюда.
   // Каталог ТЦ — вне индекса целиком (TC_NOINDEX): отсюда же пропадает и

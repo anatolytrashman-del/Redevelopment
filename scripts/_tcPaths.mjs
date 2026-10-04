@@ -21,6 +21,8 @@ export const TC_FORMAT_HUB_VALUES = {
   outlets: ['аутлет'],
 };
 export const TC_FORMAT_HUB_MIN_CENTERS = 3;
+/** Аутлетов мало — индексируем format/outlets с 1 ТЦ (хвост волны 5, 2026-10-04). */
+export const TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG = { outlets: 1 };
 
 export const TC_TOPIC_HUB_SLUGS = [
   'shopping',
@@ -34,6 +36,7 @@ export const TC_TOPIC_HUB_SLUGS = [
   'entertainment',
   'foodcourt',
   'parking',
+  'ice-rink',
   'zara',
   'gold-apple',
   'bershka',
@@ -47,6 +50,20 @@ export const TC_TOPIC_HUB_SLUGS = [
   'lc-waikiki',
   'pull-and-bear',
   'sportmaster',
+  'mango',
+  'reserved',
+  'cropp',
+  'house',
+  'defacto',
+  'mohito',
+  'oysho',
+  'familia',
+  'milavitsa',
+  'mark-formelle',
+  'kari',
+  'detmir',
+  '5-element',
+  'miniso',
 ];
 // Тематические /with/* индексируем с 1 ТЦ (владелец, 2026-10-04) — не как
 // format/улицы с порогом 3. Близнец: TC_TOPIC_HUB_MIN_CENTERS в tradeCenterHubs.ts.
@@ -75,6 +92,20 @@ export const TC_TOPIC_BRAND_KEYS = {
   'lc-waikiki': 'lc waikiki',
   'pull-and-bear': 'pull&bear',
   sportmaster: 'спортмастер',
+  mango: 'mango',
+  reserved: 'reserved',
+  cropp: 'cropp',
+  house: 'house',
+  defacto: 'defacto',
+  mohito: 'mohito',
+  oysho: 'oysho',
+  familia: 'familia',
+  milavitsa: 'milavitsa',
+  'mark-formelle': 'mark formelle',
+  kari: 'kari',
+  detmir: 'детмир',
+  '5-element': '5 элемент',
+  miniso: 'miniso',
 };
 
 // Кириллица: \w не работает — буквы через \p{L} (близнец src/lib/tradeCenterHubs.ts).
@@ -140,6 +171,7 @@ export function tcFilterFeatures(src) {
   const funKinds = Array.isArray(src.funKinds) ? src.funKinds : [];
   if (funKinds.includes('cinema')) features.add('cinema');
   if (funKinds.includes('kids')) features.add('kids');
+  if (funKinds.includes('ice')) features.add('ice');
   if ((src.foodZones ?? 0) > 0 || (src.foodcourtPlaces ?? 0) > 0) features.add('foodcourt');
   if (funKinds.some((k) => TC_ENTERTAINMENT_FUN_KINDS.includes(k))) features.add('entertainment');
   if (src.parking) features.add('parking');
@@ -163,6 +195,7 @@ function filterMatch(slug, row, tcFilters) {
   if (slug === 'foodcourt') return features.has('foodcourt');
   if (slug === 'parking') return features.has('parking');
   if (slug === 'entertainment') return features.has('entertainment');
+  if (slug === 'ice-rink') return features.has('ice');
   const brandKey = TC_TOPIC_BRAND_KEYS[slug];
   if (brandKey) return brands.some((b) => b.includes(brandKey));
   return false;
@@ -197,10 +230,15 @@ export const TC_TOPIC_HUB_MATCHERS = {
   entertainment: (row, tcFilters) => filterMatch('entertainment', row, tcFilters),
   foodcourt: (row, tcFilters) => filterMatch('foodcourt', row, tcFilters),
   parking: (row, tcFilters) => filterMatch('parking', row, tcFilters),
+  'ice-rink': (row, tcFilters) => filterMatch('ice-rink', row, tcFilters),
   ...Object.fromEntries(
     Object.keys(TC_TOPIC_BRAND_KEYS).map((slug) => [slug, (row, tcFilters) => filterMatch(slug, row, tcFilters)]),
   ),
 };
+
+function formatHubMinCenters(slug) {
+  return TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG[slug] ?? TC_FORMAT_HUB_MIN_CENTERS;
+}
 
 export function tradeCenterPaths(rows, { districtSlugs, metroSlugs, metroMaxDistance, tcFilters = null }) {
   const cards = [];
@@ -231,7 +269,7 @@ export function tradeCenterPaths(rows, { districtSlugs, metroSlugs, metroMaxDist
     ...[...districts].sort().map((s) => `minsk/tc/district/${s}`),
     ...[...stations].sort().map((s) => `minsk/tc/metro/${s}`),
     ...Object.keys(TC_FORMAT_HUB_VALUES)
-      .filter((slug) => (formatCounts[slug] ?? 0) >= TC_FORMAT_HUB_MIN_CENTERS)
+      .filter((slug) => (formatCounts[slug] ?? 0) >= formatHubMinCenters(slug))
       .map((slug) => `minsk/tc/format/${slug}`),
     ...TC_TOPIC_HUB_SLUGS.filter((slug) => (topicCounts[slug] ?? 0) >= TC_TOPIC_HUB_MIN_CENTERS).map(
       (slug) => `minsk/tc/with/${slug}`,

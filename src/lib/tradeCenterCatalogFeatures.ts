@@ -94,6 +94,7 @@ export function buildTcFilterEntry(src: TcFilterSource): TcFilterEntry {
   const features = new Set<string>();
   if (src.funKinds.includes('cinema')) features.add('cinema');
   if (src.funKinds.includes('kids')) features.add('kids');
+  if (src.funKinds.includes('ice')) features.add('ice');
   if (src.funKinds.some((k) => k === 'fitness' || k === 'sport')) features.add('fitness');
   if (src.foodZones > 0 || src.foodcourtPlaces > 0) features.add('foodcourt');
   if (src.anchorCategories.includes('гипермаркет')) features.add('grocery');
@@ -197,9 +198,8 @@ export function tcFormatChips(available: string[]): { label: string; values: str
 
 // Подборки по формату (владелец, 2026-09-30: «Рынки», «Мебельные центры»,
 // «Аутлеты»): отдельные адреса /minsk/tc/format/<slug> с тем же каталогом,
-// ограниченным форматом. В индекс и sitemap подборка идёт, только когда в
-// ней не меньше MIN_INDEXABLE_HUB_CENTERS видимых ТЦ: подборка из одного
-// аутлета повторяла бы его карточку. ФАЙЛ-БЛИЗНЕЦ: slug и значения формата
+// ограниченным форматом. В индекс — не меньше TC_FORMAT_HUB_MIN_CENTERS
+// (для аутлетов — 1, хвост волны 5). ФАЙЛ-БЛИЗНЕЦ: slug и значения формата
 // повторены в scripts/_tcPaths.mjs (TC_FORMAT_HUB_VALUES), сверяет тест.
 export interface TcFormatHub {
   slug: string;
@@ -214,6 +214,15 @@ export interface TcFormatHub {
   plural: (n: number) => string;
   /** Подзаголовок hero с числом объектов в начале. */
   intro: (countLabel: string) => string;
+}
+
+/** Обычный порог индексации format-хабов. Близнец — TC_FORMAT_HUB_MIN_CENTERS в _tcPaths.mjs. */
+export const TC_FORMAT_HUB_MIN_CENTERS = 3;
+/** Аутлетов мало — индексируем с 1 (владелец, хвост волны 5). */
+export const TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG: Record<string, number> = { outlets: 1 };
+
+export function tcFormatHubMinCenters(slug: string): number {
+  return TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG[slug] ?? TC_FORMAT_HUB_MIN_CENTERS;
 }
 
 export const TC_FORMAT_HUBS: TcFormatHub[] = [
