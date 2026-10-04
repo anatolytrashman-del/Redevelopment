@@ -632,9 +632,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             metroHubIncludesMicrodistrict(c, metroFilter)) &&
           (streetFilter === null || streetOfAddress(c.address) === streetFilter) &&
           (formatHub === null || (c.retailFormat != null && formatHub.values.includes(c.retailFormat))) &&
+          // Пока tc-filters не приехали — никого не показываем (не весь каталог):
+          // иначе пререндер снимал «127 ТЦ» у /with/cinema|zara|… (баг 2026-10-04).
           (topicHub === null ||
-            topicFiltersPending ||
-            matchesTcTopicHub(c, topicHub, tcIndex?.get(c.slug))),
+            (!topicFiltersPending && matchesTcTopicHub(c, topicHub, tcIndex?.get(c.slug)))),
       ),
     [
       centers,
