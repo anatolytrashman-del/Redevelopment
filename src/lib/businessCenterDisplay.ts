@@ -247,7 +247,7 @@ export function shortMetro(metro: string): string {
 // JPEG остаётся для og:image (соцсети/мессенджеры не все понимают WebP в
 // превью) и как источник. Пути НЕ из этой папки (например, загруженные
 // через админку в Supabase Storage) возвращаются как есть.
-const LOCAL_BC_PHOTO_RE = /^\/images\/business-centers\/([^/]+)\.jpe?g$/i;
+const LOCAL_BC_PHOTO_RE = /^\/images\/business-centers\/([^/]+)\.(jpe?g|webp)$/i;
 
 // Фото БЦ лежат по ПОСТОЯННЫМ именам (`<slug>.jpg`), а `/images/(.*)` отдаётся
 // с `Cache-Control: public, max-age=2592000` (vercel.json) — тридцать дней.
@@ -258,17 +258,25 @@ const LOCAL_BC_PHOTO_RE = /^\/images\/business-centers\/([^/]+)\.jpe?g$/i;
 // адрес — другая запись в кэше, а пути в `business_centers.photos` трогать не
 // надо. ПОДНИМАТЬ ПРИ КАЖДОЙ ЗАМЕНЕ ПАКЕТА ФОТО — иначе правка не доедет до
 // тех, кто уже был на сайте.
-export const BC_PHOTO_VERSION = '8';
+export const BC_PHOTO_VERSION = '9';
 
 // Версия дописывается только к нашим закоммиченным файлам. Пути из Supabase
 // Storage (загрузки через админку) приходят с собственными query и именами —
-// их не трогаем.
+// их не трогаем. Исключение: tc-catalog — локализованы в репозиторий
+// (2026-10-04), см. localize ниже.
 export function withBcPhotoVersion(path: string): string {
   return LOCAL_BC_PHOTO_RE.test(path) ? `${path}?v=${BC_PHOTO_VERSION}` : path;
 }
 
+/** Обложка ТЦ из Storage → локальный путь `tc-<slug>.jpg`, если файл нарезан. */
+function localizeTcStoragePhoto(path: string): string {
+  const m = path.match(/\/object-photos\/tc-catalog\/([a-z0-9-]+)\.webp(?:\?|$)/i);
+  return m ? `/images/business-centers/tc-${m[1]}.jpg` : path;
+}
+
 export function businessCenterPhotoSrc(path: string, variant: 'card' | 'detail'): string {
-  const m = path.match(LOCAL_BC_PHOTO_RE);
+  const local = localizeTcStoragePhoto(path);
+  const m = local.match(LOCAL_BC_PHOTO_RE);
   if (!m) return path;
   return `/images/business-centers/${m[1]}${variant === 'card' ? '-card' : ''}.webp?v=${BC_PHOTO_VERSION}`;
 }
@@ -308,7 +316,7 @@ const TC_HERO_CUTOUTS = new Set([
 ]);
 
 export function tcCoverCutoutSrc(path: string | undefined): { src: string; srcSet: string } | null {
-  const m = path?.match(LOCAL_BC_PHOTO_RE);
+  const m = path ? localizeTcStoragePhoto(path).match(LOCAL_BC_PHOTO_RE) : null;
   if (!m || !TC_HERO_CUTOUTS.has(m[1])) return null;
   const base = `/images/business-centers/${m[1]}-cutout`;
   const v = `?v=${BC_PHOTO_VERSION}`;
@@ -342,7 +350,7 @@ export const BC_DETAIL_PHOTO_WIDTHS = [480, 720] as const;
 export const BC_DETAIL_PHOTO_SIZES = '(min-width: 1024px) 480px, (min-width: 768px) calc(100vw - 66px), calc(100vw - 34px)';
 
 export function businessCenterDetailPhotoSrcSet(path: string): string | undefined {
-  const m = path.match(LOCAL_BC_PHOTO_RE);
+  const m = localizeTcStoragePhoto(path).match(LOCAL_BC_PHOTO_RE);
   if (!m) return undefined;
   const base = `/images/business-centers/${m[1]}`;
   return [
@@ -353,8 +361,9 @@ export function businessCenterDetailPhotoSrcSet(path: string): string | undefine
 
 // srcset только для наших закоммиченных фото: у путей из Supabase Storage
 // уменьшенных копий нет, и подсовывать несуществующие адреса нельзя.
+// Исключение: tc-catalog локализован в репозиторий (2026-10-04).
 export function businessCenterCardPhotoSrcSet(path: string): string | undefined {
-  const m = path.match(LOCAL_BC_PHOTO_RE);
+  const m = localizeTcStoragePhoto(path).match(LOCAL_BC_PHOTO_RE);
   if (!m) return undefined;
   const base = `/images/business-centers/${m[1]}-card`;
   return [

@@ -15,7 +15,7 @@ export function TradeCenterFactCards({ facts }: { facts: NonNullable<RetailInfo[
         <span className="rounded-lg bg-icon-bg p-1"><Lightbulb className="h-5 w-5 text-icon" /></span>
         Интересные факты
       </h2>
-      <div className="grid gap-x-7 rounded-[20px] border border-border bg-white px-5 sm:grid-cols-2 sm:px-6">
+      <div className="grid gap-x-7 sm:grid-cols-2">
         {visible.map((fact, index) => (
           <div key={index} className="border-b border-border py-5 last:border-b-0 sm:[&:nth-child(2n+1):nth-last-child(2)]:border-b-0">
             <h3 className="text-base font-bold leading-snug text-ink sm:text-lg">{fact.headline}</h3>

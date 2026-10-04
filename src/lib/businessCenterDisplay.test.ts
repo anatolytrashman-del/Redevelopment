@@ -51,6 +51,15 @@ describe('версия в адресе фото БЦ', () => {
     );
   });
 
+  it('локализует обложку ТЦ из Supabase Storage в card/detail WebP', () => {
+    const storage =
+      'https://iohcdylttyuhwovztrbk.supabase.co/storage/v1/object/public/object-photos/tc-catalog/diana.webp';
+    expect(businessCenterPhotoSrc(storage, 'card')).toBe(
+      `/images/business-centers/tc-diana-card.webp?v=${BC_PHOTO_VERSION}`,
+    );
+    expect(businessCenterCardPhotoSrcSet(storage)).toContain('tc-diana-card-320.webp');
+  });
+
   it('не трогает чужие пути — загрузки из Supabase Storage', () => {
     const external = 'https://iohcdylttyuhwovztrbk.supabase.co/storage/v1/object/public/object-photos/x.jpg';
     expect(withBcPhotoVersion(external)).toBe(external);
