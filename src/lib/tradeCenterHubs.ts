@@ -1,7 +1,6 @@
 // Тематические подборки каталога ТЦ (/minsk/tc/with/<slug>): «с одеждой»,
-// у вокзала, подземные, в центре, у метро, белорусские товары и далее.
-// Тот же шаблон каталога, что у /format/*, но отбор не по retail_format,
-// а по правилу match.
+// локации, «что внутри», бренды. Тот же шаблон каталога, что у /format/*,
+// но отбор по правилу match (часть — из /data/tc-filters.json).
 //
 // ФАЙЛ-БЛИЗНЕЦ правил отбора — scripts/_tcPaths.mjs (TC_TOPIC_HUB_MATCHERS),
 // сверяет тест. Новые подборки добавлять сюда и в близнец одной правкой.
@@ -9,8 +8,9 @@
 // В верхнее меню (/CatalogTopNav) эти URL не выносим (владелец, 2026-10-04).
 import type { BusinessCenter, HighlightSection } from '../data/businessCenters';
 import { haversineMeters } from './businessCenterMarketPosition';
-import { pluralRu } from './pluralRu';
 import { isOutsideMinsk } from './businessCenterRanking';
+import { pluralRu } from './pluralRu';
+import type { TcFilterEntry } from './tradeCenterCatalogFeatures';
 
 export type TcTopicMatchId =
   | 'shopping'
@@ -18,11 +18,19 @@ export type TcTopicMatchId =
   | 'underground'
   | 'center'
   | 'metro'
-  | 'belarusian';
+  | 'belarusian'
+  | 'cinema'
+  | 'kids'
+  | 'entertainment'
+  | 'foodcourt'
+  | 'parking'
+  | 'brand';
 
 export interface TcTopicHub {
   slug: string;
   match: TcTopicMatchId;
+  /** Нормализованный ключ бренда для match: 'brand' (см. normalizeBrand). */
+  brandKey?: string;
   /** «Торговые центры Минска с одеждой» — заголовок подборки. */
   title: string;
   /** «С одеждой» — крошки и ссылка. */
@@ -48,6 +56,16 @@ export const TC_METRO_NEAR_MAX_M = 500;
 export const TC_CENTER_METRO_STATIONS = ['Немига', 'Площадь Ленина', 'Вокзальная', 'Купаловская'] as const;
 export const TC_CENTER_METRO_MAX_M = 700;
 
+/** Матчи, которым нужна выжимка /data/tc-filters.json. */
+export const TC_TOPIC_FILTER_MATCHES: readonly TcTopicMatchId[] = [
+  'cinema',
+  'kids',
+  'entertainment',
+  'foodcourt',
+  'parking',
+  'brand',
+];
+
 // Кириллица: \w и \b не работают — буквы через \p{L}, конец слова lookahead'ом.
 const UNDERGROUND_NAME_RE = /подземн/iu;
 const UNDERGROUND_DESC_RE =
@@ -59,9 +77,7 @@ const BELARUSIAN_NATIONAL_RE = /нацыянальн|национальн\p{L}*\
 
 function highlightText(sections: HighlightSection[] | null | undefined): string {
   if (!Array.isArray(sections)) return '';
-  return sections
-    .map((h) => `${h.label ?? ''} ${h.text ?? ''}`)
-    .join('\n');
+  return sections.map((h) => `${h.label ?? ''} ${h.text ?? ''}`).join('\n');
 }
 
 /** Имя, описание и факты ресёрча — единый текст для текстовых матчеров. */
@@ -93,26 +109,49 @@ function nearestMetroWithin(center: BusinessCenter, maxMeters: number, names?: r
   });
 }
 
+function centersWord(n: number): string {
+  return pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров');
+}
+
+function centersGen(n: number, tail: string): string {
+  const head = n % 10 === 1 && n % 100 !== 11 ? 'торгового центра' : 'торговых центров';
+  return `${head} ${tail}`;
+}
+
+function brandHub(slug: string, brandKey: string, label: string): TcTopicHub {
+  return {
+    slug,
+    match: 'brand',
+    brandKey,
+    title: `Торговые центры Минска с ${label}`,
+    label,
+    subjectGen: (n) => centersGen(n, `Минска с ${label}`),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска, где есть магазин ${label}. Адреса, площадь, парковка, часы работы и другие арендаторы.`,
+  };
+}
+
 export const TC_TOPIC_HUBS: TcTopicHub[] = [
+  // --- волна 1 ---
   {
     slug: 'shopping',
     match: 'shopping',
     title: 'Торговые центры Минска с одеждой',
     label: 'С одеждой',
-    subjectGen: (n) =>
-      `${n % 10 === 1 && n % 100 !== 11 ? 'торгового центра' : 'торговых центров'} Минска с одеждой`,
-    plural: (n) => pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров'),
+    subjectGen: (n) => centersGen(n, 'Минска с одеждой'),
+    plural: centersWord,
     intro: (count) =>
       `${count} Минска, где можно купить одежду. Адреса, площадь, парковка, часы работы и бренды внутри.`,
   },
+  // --- волна 2: локации и типы ---
   {
     slug: 'railway-station',
     match: 'railway-station',
     title: 'Торговые центры у вокзала в Минске',
     label: 'У вокзала',
-    subjectGen: (n) =>
-      `${n % 10 === 1 && n % 100 !== 11 ? 'торгового центра' : 'торговых центров'} у вокзала в Минске`,
-    plural: (n) => pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров'),
+    subjectGen: (n) => centersGen(n, 'у вокзала в Минске'),
+    plural: centersWord,
     intro: (count) =>
       `${count} в пешей доступности от железнодорожного вокзала Минск-Пассажирский. Адреса, площадь, парковка и часы работы.`,
   },
@@ -132,9 +171,8 @@ export const TC_TOPIC_HUBS: TcTopicHub[] = [
     match: 'center',
     title: 'Торговые центры в центре Минска',
     label: 'В центре',
-    subjectGen: (n) =>
-      `${n % 10 === 1 && n % 100 !== 11 ? 'торгового центра' : 'торговых центров'} в центре Минска`,
-    plural: (n) => pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров'),
+    subjectGen: (n) => centersGen(n, 'в центре Минска'),
+    plural: centersWord,
     intro: (count) =>
       `${count} у Немиги, площади Независимости и вокзала. Адреса, площадь, парковка и часы работы.`,
   },
@@ -143,9 +181,8 @@ export const TC_TOPIC_HUBS: TcTopicHub[] = [
     match: 'metro',
     title: 'Торговые центры рядом с метро в Минске',
     label: 'У метро',
-    subjectGen: (n) =>
-      `${n % 10 === 1 && n % 100 !== 11 ? 'торгового центра' : 'торговых центров'} рядом с метро в Минске`,
-    plural: (n) => pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров'),
+    subjectGen: (n) => centersGen(n, 'рядом с метро в Минске'),
+    plural: centersWord,
     intro: (count) =>
       `${count} в ${TC_METRO_NEAR_MAX_M} м от ближайшей станции метро. Адреса, площадь, парковка и часы работы.`,
   },
@@ -154,12 +191,76 @@ export const TC_TOPIC_HUBS: TcTopicHub[] = [
     match: 'belarusian',
     title: 'Торговые центры Минска с белорусскими товарами',
     label: 'Белорусские товары',
-    subjectGen: (n) =>
-      `${n % 10 === 1 && n % 100 !== 11 ? 'торгового центра' : 'торговых центров'} Минска с белорусскими товарами`,
-    plural: (n) => pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров'),
+    subjectGen: (n) => centersGen(n, 'Минска с белорусскими товарами'),
+    plural: centersWord,
     intro: (count) =>
       `${count} Минска, где продают товары белорусских производителей и брендов. Адреса, площадь, парковка и часы работы.`,
   },
+  // --- волна 3: что внутри ---
+  {
+    slug: 'cinema',
+    match: 'cinema',
+    title: 'Торговые центры Минска с кинотеатром',
+    label: 'С кинотеатром',
+    subjectGen: (n) => centersGen(n, 'Минска с кинотеатром'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска, где есть кинотеатр. Адреса, площадь, парковка, часы работы и другие развлечения.`,
+  },
+  {
+    slug: 'kids',
+    match: 'kids',
+    title: 'Торговые центры Минска для детей',
+    label: 'Для детей',
+    subjectGen: (n) => centersGen(n, 'Минска для детей'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска с детскими зонами и развлечениями. Адреса, площадь, парковка и часы работы.`,
+  },
+  {
+    slug: 'entertainment',
+    match: 'entertainment',
+    title: 'Торговые центры Минска с развлечениями',
+    label: 'С развлечениями',
+    subjectGen: (n) => centersGen(n, 'Минска с развлечениями'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска с кино, играми, катком или другими развлечениями. Адреса, площадь, парковка и часы работы.`,
+  },
+  {
+    slug: 'foodcourt',
+    match: 'foodcourt',
+    title: 'Торговые центры Минска с фудкортом',
+    label: 'С фудкортом',
+    subjectGen: (n) => centersGen(n, 'Минска с фудкортом'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска с фудкортом или ресторанной зоной. Адреса, площадь, парковка и часы работы.`,
+  },
+  {
+    slug: 'parking',
+    match: 'parking',
+    title: 'Торговые центры Минска с парковкой',
+    label: 'С парковкой',
+    subjectGen: (n) => centersGen(n, 'Минска с парковкой'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска с описанной парковкой. Адреса, площадь, режим парковки и часы работы.`,
+  },
+  // --- волна 4: бренды (Wordstat; якоря + арендаторы в tc-filters) ---
+  brandHub('zara', 'zara', 'Zara'),
+  brandHub('gold-apple', 'золотое яблоко', 'Золотое яблоко'),
+  brandHub('bershka', 'bershka', 'Bershka'),
+  brandHub('nike', 'nike', 'Nike'),
+  brandHub('adidas', 'adidas', 'Adidas'),
+  brandHub('massimo-dutti', 'massimo dutti', 'Massimo Dutti'),
+  brandHub('stradivarius', 'stradivarius', 'Stradivarius'),
+  brandHub('gloria-jeans', 'gloria jeans', 'Gloria Jeans'),
+  brandHub('sinsay', 'sinsay', 'Sinsay'),
+  brandHub('new-yorker', 'new yorker', 'New Yorker'),
+  brandHub('lc-waikiki', 'lc waikiki', 'LC Waikiki'),
+  brandHub('pull-and-bear', 'pull&bear', 'Pull&Bear'),
+  brandHub('sportmaster', 'спортмастер', 'Спортмастер'),
 ];
 
 export function tcTopicHubBySlug(slug: string | undefined): TcTopicHub | null {
@@ -170,8 +271,37 @@ export function tcTopicHubUrl(hub: TcTopicHub, basePath = '/minsk/tc'): string {
   return `${basePath}/with/${hub.slug}`;
 }
 
-export function matchesTcTopicHub(center: BusinessCenter, hub: TcTopicHub): boolean {
+export function topicHubNeedsFilters(hub: TcTopicHub): boolean {
+  return (TC_TOPIC_FILTER_MATCHES as readonly string[]).includes(hub.match);
+}
+
+function matchesFilterTopic(hub: TcTopicHub, entry: TcFilterEntry | undefined): boolean {
+  if (!entry) return false;
+  switch (hub.match) {
+    case 'cinema':
+      return entry.features.has('cinema');
+    case 'kids':
+      return entry.features.has('kids');
+    case 'foodcourt':
+      return entry.features.has('foodcourt');
+    case 'parking':
+      return entry.features.has('parking');
+    case 'entertainment':
+      return entry.features.has('entertainment');
+    case 'brand':
+      return Boolean(hub.brandKey) && entry.brands.some((b) => b.includes(hub.brandKey!));
+    default:
+      return false;
+  }
+}
+
+export function matchesTcTopicHub(
+  center: BusinessCenter,
+  hub: TcTopicHub,
+  filterEntry?: TcFilterEntry | null,
+): boolean {
   if (!isEligibleTc(center)) return false;
+  if (topicHubNeedsFilters(hub)) return matchesFilterTopic(hub, filterEntry ?? undefined);
   switch (hub.match) {
     case 'shopping':
       return center.retailFormat == null || !(TC_NON_SHOPPING_FORMATS as readonly string[]).includes(center.retailFormat);

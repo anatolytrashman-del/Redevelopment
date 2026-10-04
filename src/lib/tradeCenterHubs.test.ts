@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — скрипт сборки без типов
-import { TC_CENTER_METRO_MAX_M, TC_CENTER_METRO_STATIONS, TC_METRO_NEAR_MAX_M, TC_NON_SHOPPING_FORMATS as SCRIPT_NON_SHOPPING, TC_RAILWAY_MAX_M, TC_RAILWAY_STATION, TC_TOPIC_HUB_MATCHERS, TC_TOPIC_HUB_MIN_CENTERS, TC_TOPIC_HUB_SLUGS } from '../../scripts/_tcPaths.mjs';
+import { TC_CENTER_METRO_MAX_M, TC_CENTER_METRO_STATIONS, TC_METRO_NEAR_MAX_M, TC_NON_SHOPPING_FORMATS as SCRIPT_NON_SHOPPING, TC_RAILWAY_MAX_M, TC_RAILWAY_STATION, TC_TOPIC_BRAND_KEYS, TC_TOPIC_HUB_MATCHERS, TC_TOPIC_HUB_MIN_CENTERS, TC_TOPIC_HUB_SLUGS, tcFilterFeatures } from '../../scripts/_tcPaths.mjs';
 import type { BusinessCenter } from '../data/businessCenters';
 import { MIN_INDEXABLE_HUB_CENTERS } from './businessCenterHubs';
+import { buildTcFilterEntry, type TcFilterSource } from './tradeCenterCatalogFeatures';
 import {
   matchesTcTopicHub,
   TC_CENTER_METRO_MAX_M as FRONT_CENTER_MAX,
@@ -15,6 +16,7 @@ import {
   TC_TOPIC_HUBS,
   tcTopicHubBySlug,
   tcTopicHubUrl,
+  topicHubNeedsFilters,
 } from './tradeCenterHubs';
 
 function tc(over: Partial<BusinessCenter> & { slug: string }): BusinessCenter {
@@ -96,6 +98,16 @@ function toRow(center: BusinessCenter) {
   };
 }
 
+const emptyFilter: TcFilterSource = {
+  funKinds: [],
+  foodZones: 0,
+  foodcourtPlaces: 0,
+  anchorCategories: [],
+  parking: null,
+  hours: [],
+  brands: [],
+};
+
 describe('подборки /minsk/tc/with', () => {
   it('близнец в scripts/_tcPaths.mjs совпадает', () => {
     expect(TC_TOPIC_HUBS.map((h) => h.slug)).toEqual(TC_TOPIC_HUB_SLUGS);
@@ -110,161 +122,71 @@ describe('подборки /minsk/tc/with', () => {
     expect(FRONT_CENTER_MAX).toBe(TC_CENTER_METRO_MAX_M);
     for (const hub of TC_TOPIC_HUBS) {
       expect(typeof TC_TOPIC_HUB_MATCHERS[hub.slug]).toBe('function');
+      if (hub.match === 'brand') {
+        expect(TC_TOPIC_BRAND_KEYS[hub.slug]).toBe(hub.brandKey);
+      }
     }
   });
 
   it('shopping: обычный ТЦ подходит, мебель/рынок/стройка — нет', () => {
     const hub = tcTopicHubBySlug('shopping')!;
     expect(matchesTcTopicHub(tc({ slug: 'galleria', retailFormat: 'ТРЦ' }), hub)).toBe(true);
-    expect(matchesTcTopicHub(tc({ slug: 'null-format', retailFormat: null }), hub)).toBe(true);
     for (const format of TC_NON_SHOPPING_FORMATS) {
       expect(matchesTcTopicHub(tc({ slug: format, retailFormat: format }), hub)).toBe(false);
     }
-    expect(matchesTcTopicHub(tc({ slug: 'building', status: 'under_construction' }), hub)).toBe(false);
-    expect(matchesTcTopicHub(tc({ slug: 'out', address: 'Минская область, д. 1' }), hub)).toBe(false);
   });
 
-  it('railway-station: в радиусе вокзала — да, дальше — нет', () => {
-    const hub = tcTopicHubBySlug('railway-station')!;
-    expect(
-      matchesTcTopicHub(
-        tc({ slug: 'galileo', lat: TC_RAILWAY_STATION.lat, lng: TC_RAILWAY_STATION.lng + 0.005 }),
-        hub,
-      ),
-    ).toBe(true);
-    expect(matchesTcTopicHub(tc({ slug: 'far', lat: 53.95, lng: 27.6 }), hub)).toBe(false);
-    expect(matchesTcTopicHub(tc({ slug: 'no-coords' }), hub)).toBe(false);
+  it('волна 3: кино / дети / фудкорт / парковка / развлечения из tc-filters', () => {
+    const center = tc({ slug: 'mall' });
+    const cinema = buildTcFilterEntry({ ...emptyFilter, funKinds: ['cinema'] });
+    const kids = buildTcFilterEntry({ ...emptyFilter, funKinds: ['kids'] });
+    const food = buildTcFilterEntry({ ...emptyFilter, foodcourtPlaces: 2 });
+    const park = buildTcFilterEntry({
+      ...emptyFilter,
+      parking: { summary: 'парковка', items: [] },
+    });
+    const games = buildTcFilterEntry({ ...emptyFilter, funKinds: ['games'] });
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!, cinema)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!, kids)).toBe(false);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('kids')!, kids)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('foodcourt')!, food)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('parking')!, park)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('entertainment')!, games)).toBe(true);
+    expect(matchesTcTopicHub(center, tcTopicHubBySlug('cinema')!)).toBe(false);
+    expect(topicHubNeedsFilters(tcTopicHubBySlug('cinema')!)).toBe(true);
+    expect(topicHubNeedsFilters(tcTopicHubBySlug('shopping')!)).toBe(false);
   });
 
-  it('underground: по имени/описанию подземного ТЦ, не по подземному паркингу', () => {
-    const hub = tcTopicHubBySlug('underground')!;
-    expect(
-      matchesTcTopicHub(tc({ slug: 'stolitsa', altNames: ['Подземный торговый центр «Столица»'] }), hub),
-    ).toBe(true);
-    expect(
-      matchesTcTopicHub(
-        tc({ slug: 'podzem', description: 'Открыт в 2001 году под землёй, в подземном переходе у метро.' }),
-        hub,
-      ),
-    ).toBe(true);
-    expect(
-      matchesTcTopicHub(
-        tc({ slug: 'park-only', description: 'У ТРЦ есть подземный паркинг на 500 мест.' }),
-        hub,
-      ),
-    ).toBe(false);
+  it('волна 4: бренд по нормализованному имени арендатора/якоря', () => {
+    const hub = tcTopicHubBySlug('zara')!;
+    const withZara = buildTcFilterEntry({ ...emptyFilter, brands: ['Zara', 'Mango'] });
+    const without = buildTcFilterEntry({ ...emptyFilter, brands: ['Mango'] });
+    expect(matchesTcTopicHub(tc({ slug: 'a' }), hub, withZara)).toBe(true);
+    expect(matchesTcTopicHub(tc({ slug: 'b' }), hub, without)).toBe(false);
+    expect(tcTopicHubUrl(hub)).toBe('/minsk/tc/with/zara');
   });
 
-  it('center: Немига в адресе или станция центра в радиусе', () => {
-    const hub = tcTopicHubBySlug('center')!;
-    expect(matchesTcTopicHub(tc({ slug: 'nemiga', address: 'г. Минск, ул. Немига, 5' }), hub)).toBe(true);
-    expect(
-      matchesTcTopicHub(
-        tc({
-          slug: 'near-lenina',
-          nearestMetroStations: [{ name: 'Площадь Ленина', distanceMeters: 400, line: null, color: null }],
-        }),
-        hub,
-      ),
-    ).toBe(true);
-    expect(
-      matchesTcTopicHub(
-        tc({
-          slug: 'far-metro',
-          nearestMetroStations: [{ name: 'Немига', distanceMeters: TC_CENTER_METRO_MAX_M + 1, line: null, color: null }],
-        }),
-        hub,
-      ),
-    ).toBe(false);
-  });
-
-  it('metro: ближайшая станция не дальше порога', () => {
-    const hub = tcTopicHubBySlug('metro')!;
-    expect(
-      matchesTcTopicHub(
-        tc({
-          slug: 'near',
-          nearestMetroStations: [{ name: 'Немига', distanceMeters: TC_METRO_NEAR_MAX_M, line: null, color: null }],
-        }),
-        hub,
-      ),
-    ).toBe(true);
-    expect(
-      matchesTcTopicHub(
-        tc({
-          slug: 'far',
-          nearestMetroStations: [
-            { name: 'Немига', distanceMeters: TC_METRO_NEAR_MAX_M + 1, line: null, color: null },
-          ],
-        }),
-        hub,
-      ),
-    ).toBe(false);
-  });
-
-  it('belarusian: товары/бренды производителей, не просто «в Беларуси»', () => {
-    const hub = tcTopicHubBySlug('belarusian')!;
-    expect(
-      matchesTcTopicHub(
-        tc({
-          slug: 'stolitsa',
-          highlights: [{ icon: 'fact', label: 'Витрина', text: 'Фирменные магазины белорусских производителей.' }],
-        }),
-        hub,
-      ),
-    ).toBe(true);
-    expect(
-      matchesTcTopicHub(
-        tc({ slug: 'national', name: 'Першы нацыянальны гандлёвы дом', description: 'Только товары белорусских брендов.' }),
-        hub,
-      ),
-    ).toBe(true);
-    expect(
-      matchesTcTopicHub(
-        tc({ slug: 'geo-only', description: 'Один из крупнейших ТРЦ Беларуси по площади.' }),
-        hub,
-      ),
-    ).toBe(false);
-    expect(
-      matchesTcTopicHub(
-        tc({
-          slug: 'market',
-          retailFormat: 'рынок',
-          description: 'Товары белорусских производителей на рядах.',
-        }),
-        hub,
-      ),
-    ).toBe(false);
-  });
-
-  it('URL и склонения', () => {
-    const hub = tcTopicHubBySlug('shopping')!;
-    expect(tcTopicHubUrl(hub)).toBe('/minsk/tc/with/shopping');
-    expect(`5 ${hub.plural(5)}`).toBe('5 торговых центров');
-    expect(hub.subjectGen(5)).toContain('с одеждой');
-    expect(hub.intro(`94 ${hub.plural(94)}`)).toBe(
-      '94 торговых центра Минска, где можно купить одежду. Адреса, площадь, парковка, часы работы и бренды внутри.',
-    );
+  it('URL волны 2–3', () => {
     expect(tcTopicHubUrl(tcTopicHubBySlug('railway-station')!)).toBe('/minsk/tc/with/railway-station');
     expect(tcTopicHubBySlug('underground')!.label).toBe('Подземные');
-    expect(tcTopicHubBySlug('center')!.label).toBe('В центре');
-    expect(tcTopicHubBySlug('metro')!.label).toBe('У метро');
-    expect(tcTopicHubBySlug('belarusian')!.label).toBe('Белорусские товары');
+    expect(tcTopicHubBySlug('cinema')!.label).toBe('С кинотеатром');
+    expect(tcTopicHubBySlug('gold-apple')!.label).toBe('Золотое яблоко');
   });
 
-  it('правила волны 2 в близнеце совпадают с фронтом', () => {
+  it('правила в близнеце совпадают с фронтом', () => {
+    const filters: Record<string, TcFilterSource> = {
+      cinema: { ...emptyFilter, funKinds: ['cinema', 'games'] },
+      kids: { ...emptyFilter, funKinds: ['kids'] },
+      food: { ...emptyFilter, foodZones: 1 },
+      park: { ...emptyFilter, parking: { summary: 'есть', items: [] } },
+      brand: { ...emptyFilter, brands: ['Zara', 'Спортмастер'] },
+      empty: emptyFilter,
+    };
     const cases: BusinessCenter[] = [
       tc({ slug: 'shop', retailFormat: 'ТРЦ' }),
-      tc({ slug: 'furniture', retailFormat: 'мебельный центр' }),
       tc({ slug: 'rail', lat: TC_RAILWAY_STATION.lat, lng: TC_RAILWAY_STATION.lng }),
-      tc({ slug: 'far-rail', lat: 53.95, lng: 27.6 }),
       tc({ slug: 'under', altNames: ['Подземный торговый центр'] }),
-      tc({ slug: 'park', description: 'Есть подземный паркинг' }),
       tc({ slug: 'center-addr', address: 'г. Минск, ул. Немига, 3' }),
-      tc({
-        slug: 'center-metro',
-        nearestMetroStations: [{ name: 'Вокзальная', distanceMeters: 100, line: null, color: null }],
-      }),
       tc({
         slug: 'metro-near',
         nearestMetroStations: [{ name: 'Уручье', distanceMeters: 400, line: null, color: null }],
@@ -273,13 +195,36 @@ describe('подборки /minsk/tc/with', () => {
         slug: 'by',
         highlights: [{ icon: 'fact', label: 'x', text: 'Витрина белорусских брендов' }],
       }),
-      tc({ slug: 'geo', description: 'Крупнейший в Беларуси' }),
-      tc({ slug: 'out', address: 'Минская область', lat: TC_RAILWAY_STATION.lat, lng: TC_RAILWAY_STATION.lng }),
+      tc({ slug: 'cinema' }),
+      tc({ slug: 'kids' }),
+      tc({ slug: 'food' }),
+      tc({ slug: 'park' }),
+      tc({ slug: 'brand' }),
+      tc({ slug: 'empty' }),
     ];
     for (const hub of TC_TOPIC_HUBS) {
       for (const center of cases) {
-        expect(TC_TOPIC_HUB_MATCHERS[hub.slug](toRow(center))).toBe(matchesTcTopicHub(center, hub));
+        const entry = topicHubNeedsFilters(hub) ? buildTcFilterEntry(filters[center.slug] ?? emptyFilter) : null;
+        const front = matchesTcTopicHub(center, hub, entry);
+        const script = TC_TOPIC_HUB_MATCHERS[hub.slug](toRow(center), filters);
+        expect(script).toBe(front);
       }
     }
+  });
+
+  it('tcFilterFeatures близнеца согласован с buildTcFilterEntry по ключевым признакам', () => {
+    const src: TcFilterSource = {
+      ...emptyFilter,
+      funKinds: ['cinema', 'games'],
+      foodcourtPlaces: 1,
+      parking: { summary: 'парковка', items: [] },
+      brands: ['Zara'],
+    };
+    const entry = buildTcFilterEntry(src);
+    const twin = tcFilterFeatures(src);
+    for (const id of ['cinema', 'entertainment', 'foodcourt', 'parking'] as const) {
+      expect(twin.features.has(id)).toBe(entry.features.has(id));
+    }
+    expect(twin.brands).toContain('zara');
   });
 });

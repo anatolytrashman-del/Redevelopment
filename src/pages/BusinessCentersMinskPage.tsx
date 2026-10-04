@@ -92,16 +92,19 @@ import {
   TC_FEATURE_GROUPS,
   TC_FORMAT_HUBS,
   type TcFilterIndex,
+  type TcFilterSource,
   type TcFormatHub,
 } from '../lib/tradeCenterCatalogFeatures';
 import {
   matchesTcTopicHub,
   tcTopicHubBySlug,
   tcTopicHubUrl,
+  topicHubNeedsFilters,
   TC_TOPIC_HUB_MIN_CENTERS,
   TC_TOPIC_HUBS,
   type TcTopicHub,
 } from '../lib/tradeCenterHubs';
+import { loadBuildData, peekBuildData } from '../lib/buildData';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -446,14 +449,36 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // intro для meta и hero (формат и тема не пересекаются в URL).
   const topicHub = isTc ? tcTopicHubBySlug(topicSlug) : null;
   const badTopicSlug = Boolean(topicSlug) && topicHub === null;
-  const topicEmpty =
-    topicHub !== null && centers !== null && !centers.some((c) => matchesTcTopicHub(c, topicHub));
   const displayHub: TcFormatHub | TcTopicHub | null = formatHub ?? topicHub;
   const displayHubUrl = formatHub
     ? tcFormatHubUrl(formatHub, V.basePath)
     : topicHub
       ? tcTopicHubUrl(topicHub, V.basePath)
       : null;
+  // Выжимка tc-filters нужна и чипам каталога, и тематическим /with/*
+  // (кино, бренды…). Читаем peek синхронно — иначе пререндер хаба успевает
+  // снять soft-404 до прихода файла.
+  const [tcIndex, setTcIndex] = useState<TcFilterIndex | null>(() => {
+    if (!isTc) return null;
+    const data = peekBuildData<{ rows: Record<string, TcFilterSource> }>('tc-filters.json');
+    return data?.rows ? buildTcFilterIndex(data.rows) : null;
+  });
+  useEffect(() => {
+    if (!isTc) return;
+    let cancelled = false;
+    loadBuildData<{ rows: Record<string, TcFilterSource> }>('tc-filters.json').then((data) => {
+      if (!cancelled && data?.rows) setTcIndex(buildTcFilterIndex(data.rows));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTc]);
+  const topicFiltersPending = Boolean(topicHub && topicHubNeedsFilters(topicHub) && tcIndex === null);
+  const topicEmpty =
+    topicHub !== null &&
+    centers !== null &&
+    !topicFiltersPending &&
+    !centers.some((c) => matchesTcTopicHub(c, topicHub, tcIndex?.get(c.slug)));
   // Пересечение класс×район без единого БЦ (владелец, 2026-09-06: "делай
   // структуру урлов [дерево пересечений]") — тот же soft-404, что и у
   // невалидного slug: сам план (`BCMINSK_SEO_PLAN.md`) явно предупреждал не
@@ -585,23 +610,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     () => (isTc ? buildOfferIndex(null, null) : buildOfferIndex(officeSnapshots, lotSizes)),
     [officeSnapshots, lotSizes, isTc],
   );
-  // Выжимка для фильтров каталога ТЦ (магазин, что внутри, парковка, часы) —
-  // отдельный файл сборки, качается только на страницах ТЦ. Нет файла —
-  // строки этих фильтров просто не показываются.
-  const [tcIndex, setTcIndex] = useState<TcFilterIndex | null>(null);
-  useEffect(() => {
-    if (!isTc || tcIndex) return;
-    let cancelled = false;
-    fetch('/data/tc-filters.json')
-      .then((res) => (res.ok && (res.headers.get('content-type') ?? '').includes('json') ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data?.rows) setTcIndex(buildTcFilterIndex(data.rows));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [isTc, tcIndex]);
   // Любая смена фильтра, сортировки или маршрута начинает список заново:
   // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
   useEffect(() => {
@@ -623,9 +631,21 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             metroHubIncludesMicrodistrict(c, metroFilter)) &&
           (streetFilter === null || streetOfAddress(c.address) === streetFilter) &&
           (formatHub === null || (c.retailFormat != null && formatHub.values.includes(c.retailFormat))) &&
-          (topicHub === null || matchesTcTopicHub(c, topicHub)),
+          (topicHub === null ||
+            topicFiltersPending ||
+            matchesTcTopicHub(c, topicHub, tcIndex?.get(c.slug))),
       ),
-    [centers, microdistrictFilter, underConstruction, metroFilter, streetFilter, formatHub, topicHub],
+    [
+      centers,
+      microdistrictFilter,
+      underConstruction,
+      metroFilter,
+      streetFilter,
+      formatHub,
+      topicHub,
+      topicFiltersPending,
+      tcIndex,
+    ],
   );
 
   const visibleCenters = useMemo(
@@ -709,7 +729,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       });
       const topicLinks = TC_TOPIC_HUBS.flatMap((hub) => {
         if (hub === topicHub) return [];
-        const n = all.filter((c) => matchesTcTopicHub(c, hub)).length;
+        if (topicHubNeedsFilters(hub) && !tcIndex) return [];
+        const n = all.filter((c) => matchesTcTopicHub(c, hub, tcIndex?.get(c.slug))).length;
         // Тематические /with/* — с 1 ТЦ (TC_TOPIC_HUB_MIN_CENTERS), не общий порог 3.
         return n >= TC_TOPIC_HUB_MIN_CENTERS
           ? [{ label: `${hub.label} (${n})`, url: tcTopicHubUrl(hub, V.basePath) }]
@@ -725,7 +746,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
 
     return groups;
-  }, [centers, districtFilter, classFilter, microdistrictFilter, metroFilter, streetFilter, underConstruction, formatHub, topicHub, isTc, V.basePath]);
+  }, [centers, districtFilter, classFilter, microdistrictFilter, metroFilter, streetFilter, underConstruction, formatHub, topicHub, isTc, V.basePath, tcIndex]);
 
   // Число зданий в разделе и порог индексации производных срезов (Ш2 плана
   // docs/bc-catalog-seo-plan.md). Считается при рендере, а не внутри
@@ -742,6 +763,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // MIN_INDEXABLE_HUB_CENTERS). Тематические /with/* — исключение: индексируем
   // даже с 1–2 ТЦ (владелец, 2026-10-04), порог TC_TOPIC_HUB_MIN_CENTERS.
   const thinDerivedHub =
+    !topicFiltersPending &&
     hubCount !== null &&
     ((Boolean(topicHub) && hubCount < TC_TOPIC_HUB_MIN_CENTERS) ||
       (hubCount < MIN_INDEXABLE_HUB_CENTERS &&

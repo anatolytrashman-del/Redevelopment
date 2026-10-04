@@ -87,6 +87,9 @@ export function normalizeBrand(value: string): string {
     .trim();
 }
 
+/** Развлечения для подборки /with/entertainment — не только кино/дети/фитнес. */
+export const TC_ENTERTAINMENT_FUN_KINDS = ['cinema', 'games', 'ice', 'quest', 'concert', 'other'] as const;
+
 export function buildTcFilterEntry(src: TcFilterSource): TcFilterEntry {
   const features = new Set<string>();
   if (src.funKinds.includes('cinema')) features.add('cinema');
@@ -94,6 +97,11 @@ export function buildTcFilterEntry(src: TcFilterSource): TcFilterEntry {
   if (src.funKinds.some((k) => k === 'fitness' || k === 'sport')) features.add('fitness');
   if (src.foodZones > 0 || src.foodcourtPlaces > 0) features.add('foodcourt');
   if (src.anchorCategories.includes('гипермаркет')) features.add('grocery');
+  if (src.funKinds.some((k) => (TC_ENTERTAINMENT_FUN_KINDS as readonly string[]).includes(k))) {
+    features.add('entertainment');
+  }
+  // Есть описание парковки — для подборки /with/parking (не чип фильтра).
+  if (src.parking) features.add('parking');
   for (const f of parkingFeatures(src.parking)) features.add(f);
   const main = pickMainHoursZone(src.hours.map((h) => ({ ...h, note: null, source: null, sourceUrl: null })));
   const hours = main ? parseDailyHours(main.value) : null;

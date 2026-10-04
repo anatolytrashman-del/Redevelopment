@@ -9,15 +9,16 @@ const base: TcFilterSource = { funKinds: [], foodZones: 0, foodcourtPlaces: 0, a
 describe('buildTcFilterEntry', () => {
   it('собирает признаки «что внутри»', () => {
     const e = buildTcFilterEntry({ ...base, funKinds: ['cinema', 'sport'], foodcourtPlaces: 3, anchorCategories: ['гипермаркет'] });
-    expect([...e.features].sort()).toEqual(['cinema', 'fitness', 'foodcourt', 'grocery']);
+    expect([...e.features].sort()).toEqual(['cinema', 'entertainment', 'fitness', 'foodcourt', 'grocery']);
   });
 
   it('парковка: «открытая» не крытая, «бесплатного периода нет» не бесплатная', () => {
     const paid = buildTcFilterEntry({ ...base, parking: { summary: 'Наземная открытая парковка', items: [{ label: 'Ночной тариф', value: '1,5 руб., бесплатного периода нет' }] } });
     expect(paid.features.has('park-covered')).toBe(false);
     expect(paid.features.has('park-free')).toBe(false);
+    expect(paid.features.has('parking')).toBe(true);
     const free = buildTcFilterEntry({ ...base, parking: { summary: 'Подземный паркинг', items: [{ label: 'Первые 3 часа', value: 'бесплатно' }, { label: 'Электрозарядки', value: 'есть' }] } });
-    expect([...free.features].sort()).toEqual(['ev', 'park-covered', 'park-free']);
+    expect([...free.features].sort()).toEqual(['ev', 'park-covered', 'park-free', 'parking']);
   });
 
   it('«после 22:00» по главной зоне режима, закрытие после полуночи тоже считается', () => {
