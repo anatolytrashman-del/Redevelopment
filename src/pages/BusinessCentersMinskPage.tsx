@@ -708,8 +708,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       const collectionLinks = [
         ...topicLinks,
         ...formatLinks,
-        { label: 'Лучшие', url: `${V.basePath}/rating` },
-        { label: 'Самые большие', url: `${V.basePath}/rating/largest` },
+        { label: 'Лучшие ТЦ', url: `${V.basePath}/rating` },
+        { label: 'Самые большие ТЦ', url: `${V.basePath}/rating/largest` },
       ];
       if (collectionLinks.length) groups.push({ title: 'Подборки', links: collectionLinks });
     }

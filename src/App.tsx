@@ -370,7 +370,7 @@ export default function App() {
         path="/minsk/tc/format/:formatSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
-      {/* Тематические подборки: «с одеждой» и далее (2026-10-04), см. TC_TOPIC_HUBS. */}
+      {/* Тематические подборки /with/* (волны 1–2, 2026-10-04), см. TC_TOPIC_HUBS. */}
       <Route
         path="/minsk/tc/with/:topicSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
