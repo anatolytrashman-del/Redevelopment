@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — скрипт сборки без типов
-import { collectTcStoreSlugs, slugifyTcBrand as scriptSlugify, TC_STORE_HUB_MIN_CENTERS as SCRIPT_STORE_MIN } from '../../scripts/_tcPaths.mjs';
+import { collectTcStoreHubs as collectTcStoreHubsScript, collectTcStoreSlugs, slugifyTcBrand as scriptSlugify, TC_STORE_HUB_MIN_CENTERS as SCRIPT_STORE_MIN } from '../../scripts/_tcPaths.mjs';
 import { buildTcFilterEntry, slugifyTcBrand, type TcFilterSource } from './tradeCenterCatalogFeatures';
 import {
   collectTcStoreHubs,
@@ -131,6 +131,25 @@ describe('/minsk/tc/store', () => {
       new Map(Object.entries(filters).map(([k, v]) => [k, buildTcFilterEntry(v)])),
     ).map((h) => h.slug);
     expect(script.sort()).toEqual(front.sort());
+  });
+
+  it('близнец collectTcStoreHubs отдаёт label и count', () => {
+    const filters = {
+      a: { ...empty, brands: ['Zara'] },
+      b: { ...empty, brands: ['Zara', 'Bershka'] },
+    };
+    const rows = [
+      { slug: 'a', status: 'built', address: 'г. Минск' },
+      { slug: 'b', status: 'built', address: 'г. Минск' },
+    ];
+    const hubs = collectTcStoreHubsScript(rows, filters) as Array<{
+      slug: string;
+      label: string;
+      count: number;
+    }>;
+    const zara = hubs.find((h) => h.slug === 'zara');
+    expect(zara).toMatchObject({ label: 'Zara', count: 2 });
+    expect(hubs.find((h) => h.slug === 'bershka')).toMatchObject({ label: 'Bershka', count: 1 });
   });
 
   it('legacy /with brand slugs', () => {
