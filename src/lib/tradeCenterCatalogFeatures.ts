@@ -87,6 +87,107 @@ export function normalizeBrand(value: string): string {
     .trim();
 }
 
+
+/**
+ * Яндекс иногда склеивает несколько брендов в одну строку через запятую
+ * («Bershka, Pull&Bear, …»). Для поиска и /store/* режем на отдельные имена.
+ */
+export function expandBrandNames(names: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const raw of names) {
+    const text = String(raw ?? '').trim();
+    if (!text) continue;
+    if (text.includes(',')) {
+      for (const part of text.split(',')) {
+        const piece = part.trim();
+        if (piece) out.push(piece);
+      }
+    } else {
+      out.push(text);
+    }
+  }
+  return out;
+}
+
+/** Синонимы арендаторов → канонический ключ (после normalizeBrand). */
+export const TC_STORE_BRAND_CANONICAL: Record<string, string> = {
+  'd&f (бывший defacto)': 'defacto',
+  'defacto outlet (d&f)': 'defacto',
+  'магазин марко': 'марко',
+};
+
+export function canonicalBrandKey(normalized: string): string {
+  return TC_STORE_BRAND_CANONICAL[normalized] ?? normalized;
+}
+
+/** Стабильные латинские slug'и для уже залитых /with/<бренд> → /store/<slug>. */
+export const TC_STORE_SLUG_OVERRIDES: Record<string, string> = {
+  'золотое яблоко': 'gold-apple',
+  'спортмастер': 'sportmaster',
+  'детмир': 'detmir',
+  '5 элемент': '5-element',
+  'mark formelle': 'mark-formelle',
+  'pull&bear': 'pull-and-bear',
+  'gloria jeans': 'gloria-jeans',
+  'massimo dutti': 'massimo-dutti',
+  'new yorker': 'new-yorker',
+  'lc waikiki': 'lc-waikiki',
+};
+
+const CYR_TO_LAT: Record<string, string> = {
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'g',
+  д: 'd',
+  е: 'e',
+  ж: 'zh',
+  з: 'z',
+  и: 'i',
+  й: 'y',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'h',
+  ц: 'ts',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'sch',
+  ъ: '',
+  ы: 'y',
+  ь: '',
+  э: 'e',
+  ю: 'yu',
+  я: 'ya',
+};
+
+/** slug для /minsk/tc/store/<slug> — близнец slugifyTcBrand в scripts/_tcPaths.mjs. */
+export function slugifyTcBrand(normalizedKey: string): string {
+  const key = canonicalBrandKey(normalizedKey);
+  const override = TC_STORE_SLUG_OVERRIDES[key];
+  if (override) return override;
+  let out = '';
+  for (const ch of key) {
+    if (CYR_TO_LAT[ch] !== undefined) out += CYR_TO_LAT[ch];
+    else out += ch;
+  }
+  return (
+    out
+      .replace(/&/g, '-and-')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-{2,}/g, '-') || 'brand'
+  );
+}
+
 /** Развлечения для подборки /with/entertainment — не только кино/дети/фитнес. */
 export const TC_ENTERTAINMENT_FUN_KINDS = ['cinema', 'games', 'ice', 'quest', 'concert', 'other'] as const;
 
@@ -108,8 +209,9 @@ export function buildTcFilterEntry(src: TcFilterSource): TcFilterEntry {
   const hours = main ? parseDailyHours(main.value) : null;
   if (hours === 'always' || (hours && closesAtOrAfter(hours, 22 * 60))) features.add('late');
   const byKey = new Map<string, string>();
-  for (const name of src.brands) {
-    const key = normalizeBrand(name);
+  for (const name of expandBrandNames(src.brands)) {
+    const rawKey = normalizeBrand(name);
+    const key = rawKey ? canonicalBrandKey(rawKey) : '';
     if (key && !byKey.has(key)) byKey.set(key, name.trim());
   }
   return { features, hours, brands: [...byKey.keys()], brandNames: [...byKey.values()] };

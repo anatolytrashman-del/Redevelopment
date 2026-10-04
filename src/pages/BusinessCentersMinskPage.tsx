@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   BadgeCheck,
@@ -105,6 +105,14 @@ import {
   TC_TOPIC_HUBS,
   type TcTopicHub,
 } from '../lib/tradeCenterHubs';
+import {
+  collectTcStoreHubs,
+  isLegacyWithBrandSlug,
+  matchesTcStoreHub,
+  tcStoreHubUrl,
+  TC_STORE_HUB_MIN_CENTERS,
+  type TcStoreHub,
+} from '../lib/tradeCenterStoreHubs';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
@@ -372,9 +380,10 @@ function orderRetailFormats(values: string[]): string[] {
 }
 
 export function BusinessCentersMinskPage({ underConstruction = false }: { underConstruction?: boolean } = {}) {
-  const { classSlug, districtSlug, microdistrictSlug, metroSlug, streetSlug, formatSlug, topicSlug } = useParams<{
+  const { classSlug, districtSlug, microdistrictSlug, metroSlug, streetSlug, formatSlug, topicSlug, storeSlug } = useParams<{
     formatSlug?: string;
     topicSlug?: string;
+    storeSlug?: string;
     classSlug?: string;
     districtSlug?: string;
     microdistrictSlug?: string;
@@ -446,16 +455,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const formatEmpty =
     formatHub !== null && centers !== null && !centers.some((c) => c.retailFormat != null && formatHub.values.includes(c.retailFormat));
   // Тематическая подборка (/with/shopping и далее, 2026-10-04) — тот же
-  // шаблон, отбор по matchesTcTopicHub. displayHub — общие поля title/
-  // intro для meta и hero (формат и тема не пересекаются в URL).
+  // шаблон, отбор по matchesTcTopicHub. Магазины — /store/<slug> (ниже,
+  // после tcIndex). displayHub собираем после storeHub.
   const topicHub = isTc ? tcTopicHubBySlug(topicSlug) : null;
-  const badTopicSlug = Boolean(topicSlug) && topicHub === null;
-  const displayHub: TcFormatHub | TcTopicHub | null = formatHub ?? topicHub;
-  const displayHubUrl = formatHub
-    ? tcFormatHubUrl(formatHub, V.basePath)
-    : topicHub
-      ? tcTopicHubUrl(topicHub, V.basePath)
-      : null;
   // Выжимка tc-filters нужна и чипам каталога, и тематическим /with/*
   // (кино, бренды…). Читаем peek синхронно — иначе пререндер хаба успевает
   // снять soft-404 до прихода файла.
@@ -474,12 +476,44 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       cancelled = true;
     };
   }, [isTc]);
-  const topicFiltersPending = Boolean(topicHub && topicHubNeedsFilters(topicHub) && tcIndex === null);
+  const storeHubs = useMemo(() => (isTc ? collectTcStoreHubs(tcIndex) : []), [isTc, tcIndex]);
+  const storeHub = isTc && storeSlug ? storeHubs.find((h) => h.slug === storeSlug) ?? null : null;
+  // Старые /with/zara… → /store/zara (волны 4–5 жили под with). Плюс любой
+  // slug магазина, который ещё открывают по старому /with/*.
+  const legacyBrandRedirectSlug =
+    isTc && topicSlug && !topicHub && (isLegacyWithBrandSlug(topicSlug) || storeHubs.some((h) => h.slug === topicSlug))
+      ? topicSlug
+      : null;
+  // Пока tc-filters не приехали — не 404-им /with/<магазин>: slug может оказаться store.
+  const topicAwaitingStoreLookup = Boolean(topicSlug) && !topicHub && !isLegacyWithBrandSlug(topicSlug) && tcIndex === null;
+  const badTopicSlug =
+    Boolean(topicSlug) && topicHub === null && !legacyBrandRedirectSlug && !topicAwaitingStoreLookup;
+  const badStoreSlug = Boolean(storeSlug) && storeHub === null && tcIndex !== null;
+  const displayHub: TcFormatHub | TcTopicHub | TcStoreHub | null = formatHub ?? topicHub ?? storeHub;
+  const displayHubUrl = formatHub
+    ? tcFormatHubUrl(formatHub, V.basePath)
+    : topicHub
+      ? tcTopicHubUrl(topicHub, V.basePath)
+      : storeHub
+        ? tcStoreHubUrl(storeHub, V.basePath)
+        : null;
+  const topicFiltersPending = Boolean(
+    ((topicHub && topicHubNeedsFilters(topicHub)) ||
+      Boolean(storeHub) ||
+      Boolean(storeSlug) ||
+      topicAwaitingStoreLookup) &&
+      tcIndex === null,
+  );
   const topicEmpty =
     topicHub !== null &&
     centers !== null &&
     !topicFiltersPending &&
     !centers.some((c) => matchesTcTopicHub(c, topicHub, tcIndex?.get(c.slug)));
+  const storeEmpty =
+    storeHub !== null &&
+    centers !== null &&
+    !topicFiltersPending &&
+    !centers.some((c) => matchesTcStoreHub(c, storeHub, tcIndex?.get(c.slug)));
   // Пересечение класс×район без единого БЦ (владелец, 2026-09-06: "делай
   // структуру урлов [дерево пересечений]") — тот же soft-404, что и у
   // невалидного slug: сам план (`BCMINSK_SEO_PLAN.md`) явно предупреждал не
@@ -501,7 +535,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     badFormatSlug ||
     formatEmpty ||
     badTopicSlug ||
-    topicEmpty;
+    topicEmpty ||
+    badStoreSlug ||
+    storeEmpty;
 
   useEffect(() => {
     const kind = V.kind;
@@ -615,7 +651,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // иначе «показать ещё» с прошлой выборки тихо переносился бы на новую.
   useEffect(() => {
     setVisibleCount(CARDS_PAGE_SIZE);
-  }, [searchParams, classSlug, districtSlug, microdistrictSlug, metroSlug, streetSlug, formatSlug, topicSlug, underConstruction]);
+  }, [searchParams, classSlug, districtSlug, microdistrictSlug, metroSlug, streetSlug, formatSlug, topicSlug, storeSlug, underConstruction]);
 
   // Вселенная страницы: то, что отсекается САМИМ МАРШРУТОМ (микрорайон,
   // улица, станция метро, «строящиеся»). Панель чипов работает уже внутри
@@ -635,7 +671,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           // Пока tc-filters не приехали — никого не показываем (не весь каталог):
           // иначе пререндер снимал «127 ТЦ» у /with/cinema|zara|… (баг 2026-10-04).
           (topicHub === null ||
-            (!topicFiltersPending && matchesTcTopicHub(c, topicHub, tcIndex?.get(c.slug)))),
+            (!topicFiltersPending && matchesTcTopicHub(c, topicHub, tcIndex?.get(c.slug)))) &&
+          (storeHub === null ||
+            (!topicFiltersPending && matchesTcStoreHub(c, storeHub, tcIndex?.get(c.slug)))),
       ),
     [
       centers,
@@ -645,6 +683,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       streetFilter,
       formatHub,
       topicHub,
+      storeHub,
       topicFiltersPending,
       tcIndex,
     ],
@@ -750,7 +789,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
 
     return groups;
-  }, [centers, districtFilter, classFilter, microdistrictFilter, metroFilter, streetFilter, underConstruction, formatHub, topicHub, isTc, V.basePath, tcIndex]);
+  }, [centers, districtFilter, classFilter, microdistrictFilter, metroFilter, streetFilter, underConstruction, formatHub, topicHub, storeHub, isTc, V.basePath, tcIndex]);
 
   // Число зданий в разделе и порог индексации производных срезов (Ш2 плана
   // docs/bc-catalog-seo-plan.md). Считается при рендере, а не внутри
@@ -770,6 +809,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     !topicFiltersPending &&
     hubCount !== null &&
     ((Boolean(topicHub) && hubCount < TC_TOPIC_HUB_MIN_CENTERS) ||
+      (Boolean(storeHub) && hubCount < TC_STORE_HUB_MIN_CENTERS) ||
       (formatHub !== null && hubCount < tcFormatHubMinCenters(formatHub.slug)) ||
       (hubCount < MIN_INDEXABLE_HUB_CENTERS &&
         Boolean(streetFilter || microdistrictFilter || (classFilter && districtFilter))));
@@ -1358,8 +1398,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return () => setItemListJsonLd(null);
   }, [orderedCenters, visibleCount, pageIsIndexable, V.siteUrl]);
 
+  if (legacyBrandRedirectSlug) {
+    return <Navigate to={`${V.basePath}/store/${legacyBrandRedirectSlug}`} replace />;
+  }
+
   if (notFound) {
     return (
+
       <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink-muted">Такой раздел каталога не найден.</p>
         <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">

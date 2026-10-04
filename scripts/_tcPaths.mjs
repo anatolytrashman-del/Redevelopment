@@ -13,7 +13,8 @@
 //
 // Тематические подборки (/minsk/tc/with/<slug>) и рейтинги (/minsk/tc/rating*)
 // — 2026-10-04. Правила отбора with/* — близнец TC_TOPIC_HUBS /
-// matchesTcTopicHub в src/lib/tradeCenterHubs.ts. Часть матчей читает
+// matchesTcTopicHub в src/lib/tradeCenterHubs.ts. Магазины — /minsk/tc/store/*
+// (близнец collectTcStoreHubs в tradeCenterStoreHubs.ts). Часть матчей читает
 // tcFilters (выжимка /data/tc-filters.json).
 export const TC_FORMAT_HUB_VALUES = {
   markets: ['рынок'],
@@ -36,38 +37,16 @@ export const TC_TOPIC_HUB_SLUGS = [
   'entertainment',
   'foodcourt',
   'parking',
+  'free-parking',
+  'budget',
+  'shoes',
+  'menswear',
   'ice-rink',
-  'zara',
-  'gold-apple',
-  'bershka',
-  'nike',
-  'adidas',
-  'massimo-dutti',
-  'stradivarius',
-  'gloria-jeans',
-  'sinsay',
-  'new-yorker',
-  'lc-waikiki',
-  'pull-and-bear',
-  'sportmaster',
-  'mango',
-  'reserved',
-  'cropp',
-  'house',
-  'defacto',
-  'mohito',
-  'oysho',
-  'familia',
-  'milavitsa',
-  'mark-formelle',
-  'kari',
-  'detmir',
-  '5-element',
-  'miniso',
 ];
 // Тематические /with/* индексируем с 1 ТЦ (владелец, 2026-10-04) — не как
 // format/улицы с порогом 3. Близнец: TC_TOPIC_HUB_MIN_CENTERS в tradeCenterHubs.ts.
 export const TC_TOPIC_HUB_MIN_CENTERS = 1;
+export const TC_STORE_HUB_MIN_CENTERS = 1;
 export const TC_NON_SHOPPING_FORMATS = ['мебельный центр', 'рынок', 'строительный центр', 'автоцентр'];
 
 export const TC_RAILWAY_STATION = { lat: 53.8907, lng: 27.551 };
@@ -77,35 +56,91 @@ export const TC_CENTER_METRO_STATIONS = ['Немига', 'Площадь Лен�
 export const TC_CENTER_METRO_MAX_M = 700;
 export const TC_ENTERTAINMENT_FUN_KINDS = ['cinema', 'games', 'ice', 'quest', 'concert', 'other'];
 
-/** slug → нормализованный brandKey (близнец brandHub в tradeCenterHubs.ts). */
-export const TC_TOPIC_BRAND_KEYS = {
-  zara: 'zara',
-  'gold-apple': 'золотое яблоко',
-  bershka: 'bershka',
-  nike: 'nike',
-  adidas: 'adidas',
-  'massimo-dutti': 'massimo dutti',
-  stradivarius: 'stradivarius',
-  'gloria-jeans': 'gloria jeans',
-  sinsay: 'sinsay',
-  'new-yorker': 'new yorker',
-  'lc-waikiki': 'lc waikiki',
-  'pull-and-bear': 'pull&bear',
-  sportmaster: 'спортмастер',
-  mango: 'mango',
-  reserved: 'reserved',
-  cropp: 'cropp',
-  house: 'house',
-  defacto: 'defacto',
-  mohito: 'mohito',
-  oysho: 'oysho',
-  familia: 'familia',
-  milavitsa: 'milavitsa',
-  'mark-formelle': 'mark formelle',
-  kari: 'kari',
-  detmir: 'детмир',
-  '5-element': '5 элемент',
-  miniso: 'miniso',
+/** Близнец TC_BUDGET_BRAND_KEYS / TC_SHOE_BRAND_KEYS / TC_MENSWEAR_BRAND_KEYS. */
+export const TC_BUDGET_BRAND_KEYS = [
+  'familia',
+  'sinsay',
+  'fix price',
+  'три цены',
+  'галамарт',
+  'defacto',
+  'lc waikiki',
+  'gloria jeans',
+  'new yorker',
+  'cropp',
+  'house',
+  'reserved',
+  'kari',
+];
+export const TC_SHOE_BRAND_KEYS = ['kari', 'belwest', 'ecco', 'megatop', 'marko', 'марко'];
+export const TC_MENSWEAR_BRAND_KEYS = [
+  'ostin',
+  'reserved',
+  'cropp',
+  'house',
+  'pull&bear',
+  'bershka',
+  'zara',
+  'massimo dutti',
+  'defacto',
+  'lc waikiki',
+  'gloria jeans',
+  'new yorker',
+  'mango',
+  'все для мужчин',
+];
+
+export const TC_STORE_BRAND_CANONICAL = {
+  'd&f (бывший defacto)': 'defacto',
+  'defacto outlet (d&f)': 'defacto',
+  'магазин марко': 'марко',
+};
+export const TC_STORE_SLUG_OVERRIDES = {
+  'золотое яблоко': 'gold-apple',
+  'спортмастер': 'sportmaster',
+  'детмир': 'detmir',
+  '5 элемент': '5-element',
+  'mark formelle': 'mark-formelle',
+  'pull&bear': 'pull-and-bear',
+  'gloria jeans': 'gloria-jeans',
+  'massimo dutti': 'massimo-dutti',
+  'new yorker': 'new-yorker',
+  'lc waikiki': 'lc-waikiki',
+};
+
+const CYR_TO_LAT = {
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'g',
+  д: 'd',
+  е: 'e',
+  ж: 'zh',
+  з: 'z',
+  и: 'i',
+  й: 'y',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'h',
+  ц: 'ts',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'sch',
+  ъ: '',
+  ы: 'y',
+  ь: '',
+  э: 'e',
+  ю: 'yu',
+  я: 'ya',
 };
 
 // Кириллица: \w не работает — буквы через \p{L} (близнец src/lib/tradeCenterHubs.ts).
@@ -116,6 +151,11 @@ const CENTER_ADDRESS_RE = /Немига|площад\p{L}*\s+Независим�
 const BELARUSIAN_GOODS_RE =
   /(?:магазин\p{L}*|товар\p{L}*|бренд\p{L}*|производител\p{L}*)\s+белорусск|белорусск\p{L}*\s+(?:магазин\p{L}*|товар\p{L}*|бренд\p{L}*|производител\p{L}*)|только\s+товар\p{L}*\s+белорусск|витрин\p{L}*\s+белорусск/iu;
 const BELARUSIAN_NATIONAL_RE = /нацыянальн|национальн\p{L}*\s+(?:гандл|торгов)/iu;
+
+const COVERED_RE = /(?<![\p{L}])крыт|подземн|многоуровн|многоэтажн/iu;
+const EV_RE = /электрозаряд|зарядк|зарядн|электромобил/iu;
+const FREE_RE = /(?<![\p{L}])бесплатн/iu;
+const NOT_FREE_RE = /(?:нет|без)\s+бесплатн|бесплатн\p{L}*\s+(?:период\p{L}*\s+)?нет/iu;
 
 function isOutsideMinskRow(row) {
   return /Минская область|Минский район|Смолевичск|Великий камень/i.test(`${row.address ?? ''} ${row.district ?? ''}`);
@@ -155,13 +195,62 @@ function topicTextBlob(row) {
   ].join('\n');
 }
 
-function normalizeBrand(value) {
+export function normalizeBrand(value) {
   return String(value ?? '')
     .toLowerCase()
     .replace(/ё/g, 'е')
-    .replace(/[«»"'`’]/g, '')
+    .replace(/[«»"'`’']/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function expandBrandNames(names) {
+  const out = [];
+  for (const raw of Array.isArray(names) ? names : []) {
+    const text = String(raw ?? '').trim();
+    if (!text) continue;
+    if (text.includes(',')) {
+      for (const part of text.split(',')) {
+        const piece = part.trim();
+        if (piece) out.push(piece);
+      }
+    } else {
+      out.push(text);
+    }
+  }
+  return out;
+}
+
+export function canonicalBrandKey(normalized) {
+  return TC_STORE_BRAND_CANONICAL[normalized] ?? normalized;
+}
+
+export function slugifyTcBrand(normalizedKey) {
+  const key = canonicalBrandKey(normalizedKey);
+  const override = TC_STORE_SLUG_OVERRIDES[key];
+  if (override) return override;
+  let out = '';
+  for (const ch of key) {
+    if (CYR_TO_LAT[ch] !== undefined) out += CYR_TO_LAT[ch];
+    else out += ch;
+  }
+  return (
+    out
+      .replace(/&/g, '-and-')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-{2,}/g, '-') || 'brand'
+  );
+}
+
+function parkingFeatureIds(parking) {
+  if (!parking) return [];
+  const parts = [parking.summary, ...(Array.isArray(parking.items) ? parking.items.map((i) => `${i?.label}: ${i?.value}`) : [])];
+  const out = [];
+  if (parts.some((p) => FREE_RE.test(String(p ?? '')) && !NOT_FREE_RE.test(String(p ?? '')))) out.push('park-free');
+  if (parts.some((p) => COVERED_RE.test(String(p ?? '')))) out.push('park-covered');
+  if (parts.some((p) => EV_RE.test(String(p ?? '')))) out.push('ev');
+  return out;
 }
 
 /** Признаки из сырой выжимки tc-filters — близнец buildTcFilterEntry. */
@@ -175,16 +264,22 @@ export function tcFilterFeatures(src) {
   if ((src.foodZones ?? 0) > 0 || (src.foodcourtPlaces ?? 0) > 0) features.add('foodcourt');
   if (funKinds.some((k) => TC_ENTERTAINMENT_FUN_KINDS.includes(k))) features.add('entertainment');
   if (src.parking) features.add('parking');
+  for (const f of parkingFeatureIds(src.parking)) features.add(f);
   const brands = [];
   const seen = new Set();
-  for (const name of Array.isArray(src.brands) ? src.brands : []) {
-    const key = normalizeBrand(name);
+  for (const name of expandBrandNames(src.brands)) {
+    const raw = normalizeBrand(name);
+    const key = raw ? canonicalBrandKey(raw) : '';
     if (key && !seen.has(key)) {
       seen.add(key);
       brands.push(key);
     }
   }
   return { features, brands };
+}
+
+function hasAnyBrand(brands, keys) {
+  return keys.some((k) => brands.includes(k));
 }
 
 function filterMatch(slug, row, tcFilters) {
@@ -194,10 +289,18 @@ function filterMatch(slug, row, tcFilters) {
   if (slug === 'kids') return features.has('kids');
   if (slug === 'foodcourt') return features.has('foodcourt');
   if (slug === 'parking') return features.has('parking');
+  if (slug === 'free-parking') return features.has('park-free');
   if (slug === 'entertainment') return features.has('entertainment');
   if (slug === 'ice-rink') return features.has('ice');
-  const brandKey = TC_TOPIC_BRAND_KEYS[slug];
-  if (brandKey) return brands.some((b) => b.includes(brandKey));
+  if (slug === 'budget') {
+    if (row.retail_format === 'аутлет') return true;
+    return hasAnyBrand(brands, TC_BUDGET_BRAND_KEYS);
+  }
+  if (slug === 'shoes') {
+    if (hasAnyBrand(brands, TC_SHOE_BRAND_KEYS)) return true;
+    return brands.some((b) => b.includes('обув'));
+  }
+  if (slug === 'menswear') return hasAnyBrand(brands, TC_MENSWEAR_BRAND_KEYS);
   return false;
 }
 
@@ -230,11 +333,37 @@ export const TC_TOPIC_HUB_MATCHERS = {
   entertainment: (row, tcFilters) => filterMatch('entertainment', row, tcFilters),
   foodcourt: (row, tcFilters) => filterMatch('foodcourt', row, tcFilters),
   parking: (row, tcFilters) => filterMatch('parking', row, tcFilters),
+  'free-parking': (row, tcFilters) => filterMatch('free-parking', row, tcFilters),
+  budget: (row, tcFilters) => filterMatch('budget', row, tcFilters),
+  shoes: (row, tcFilters) => filterMatch('shoes', row, tcFilters),
+  menswear: (row, tcFilters) => filterMatch('menswear', row, tcFilters),
   'ice-rink': (row, tcFilters) => filterMatch('ice-rink', row, tcFilters),
-  ...Object.fromEntries(
-    Object.keys(TC_TOPIC_BRAND_KEYS).map((slug) => [slug, (row, tcFilters) => filterMatch(slug, row, tcFilters)]),
-  ),
 };
+
+/** Близнец collectTcStoreHubs: slug'и магазинов с ≥1 подходящим ТЦ. */
+export function collectTcStoreSlugs(rows, tcFilters) {
+  if (!tcFilters) return [];
+  const byKey = new Map();
+  for (const r of rows) {
+    if (!isEligibleRow(r)) continue;
+    const { brands } = tcFilterFeatures(tcFilters[r.slug]);
+    for (const key of brands) {
+      if (!key || key.length < 2) continue;
+      byKey.set(key, (byKey.get(key) ?? 0) + 1);
+    }
+  }
+  const bySlug = new Map();
+  for (const [key, count] of byKey) {
+    if (count < TC_STORE_HUB_MIN_CENTERS) continue;
+    const slug = slugifyTcBrand(key);
+    if (!slug || slug === 'brand') continue;
+    const prev = bySlug.get(slug);
+    if (!prev || count > prev.count || (count === prev.count && key.length < prev.key.length)) {
+      bySlug.set(slug, { key, count });
+    }
+  }
+  return [...bySlug.keys()].sort();
+}
 
 function formatHubMinCenters(slug) {
   return TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG[slug] ?? TC_FORMAT_HUB_MIN_CENTERS;
@@ -262,6 +391,7 @@ export function tradeCenterPaths(rows, { districtSlugs, metroSlugs, metroMaxDist
       if (slug && typeof s.distanceMeters === 'number' && s.distanceMeters <= metroMaxDistance) stations.add(slug);
     }
   }
+  const storeSlugs = collectTcStoreSlugs(rows, tcFilters);
   return [
     'minsk/tc',
     'minsk/tc/rating',
@@ -274,6 +404,7 @@ export function tradeCenterPaths(rows, { districtSlugs, metroSlugs, metroMaxDist
     ...TC_TOPIC_HUB_SLUGS.filter((slug) => (topicCounts[slug] ?? 0) >= TC_TOPIC_HUB_MIN_CENTERS).map(
       (slug) => `minsk/tc/with/${slug}`,
     ),
+    ...storeSlugs.map((slug) => `minsk/tc/store/${slug}`),
     ...cards.sort(),
   ];
 }

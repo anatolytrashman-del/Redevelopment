@@ -1,6 +1,7 @@
 // Тематические подборки каталога ТЦ (/minsk/tc/with/<slug>): «с одеждой»,
-// локации, «что внутри», бренды. Тот же шаблон каталога, что у /format/*,
-// но отбор по правилу match (часть — из /data/tc-filters.json).
+// локации, «что внутри», недорогие, обувь… Тот же шаблон каталога, что у
+// /format/*, но отбор по правилу match (часть — из /data/tc-filters.json).
+// Бренды магазинов — отдельно: /minsk/tc/store/<slug> (tradeCenterStoreHubs).
 //
 // ФАЙЛ-БЛИЗНЕЦ правил отбора — scripts/_tcPaths.mjs (TC_TOPIC_HUB_MATCHERS),
 // сверяет тест. Новые подборки добавлять сюда и в близнец одной правкой.
@@ -24,14 +25,15 @@ export type TcTopicMatchId =
   | 'entertainment'
   | 'foodcourt'
   | 'parking'
+  | 'free-parking'
   | 'ice-rink'
-  | 'brand'
+  | 'budget'
+  | 'shoes'
+  | 'menswear'
 
 export interface TcTopicHub {
   slug: string;
   match: TcTopicMatchId;
-  /** Нормализованный ключ бренда для match: 'brand' (см. normalizeBrand). */
-  brandKey?: string;
   /** «Торговые центры Минска с одеждой» — заголовок подборки. */
   title: string;
   /** «С одеждой» — крошки и ссылка. */
@@ -64,9 +66,61 @@ export const TC_TOPIC_FILTER_MATCHES: readonly TcTopicMatchId[] = [
   'entertainment',
   'foodcourt',
   'parking',
+  'free-parking',
   'ice-rink',
-  'brand',
+  'budget',
+  'shoes',
+  'menswear',
 ];
+
+/**
+ * Недорогие ТЦ: формат «аутлет» или масс-маркет/дискаунтер среди арендаторов.
+ * Честный критерий без выдуманных цен — по фактическому миксу магазинов.
+ * Близнец — TC_BUDGET_BRAND_KEYS в scripts/_tcPaths.mjs.
+ */
+export const TC_BUDGET_BRAND_KEYS = [
+  'familia',
+  'sinsay',
+  'fix price',
+  'три цены',
+  'галамарт',
+  'defacto',
+  'lc waikiki',
+  'gloria jeans',
+  'new yorker',
+  'cropp',
+  'house',
+  'reserved',
+  'kari',
+] as const;
+
+/** Обувные сети/бренды в снимках арендаторов (+ имена с «обув»). */
+export const TC_SHOE_BRAND_KEYS = [
+  'kari',
+  'belwest',
+  'ecco',
+  'megatop',
+  'marko',
+  'марко',
+] as const;
+
+/** Мужская / унисекс одежда — бренды, которые реально есть в tc-filters. */
+export const TC_MENSWEAR_BRAND_KEYS = [
+  'ostin',
+  'reserved',
+  'cropp',
+  'house',
+  'pull&bear',
+  'bershka',
+  'zara',
+  'massimo dutti',
+  'defacto',
+  'lc waikiki',
+  'gloria jeans',
+  'new yorker',
+  'mango',
+  'все для мужчин',
+] as const;
 
 // Кириллица: \w и \b не работают — буквы через \p{L}, конец слова lookahead'ом.
 const UNDERGROUND_NAME_RE = /подземн/iu;
@@ -118,20 +172,6 @@ function centersWord(n: number): string {
 function centersGen(n: number, tail: string): string {
   const head = n % 10 === 1 && n % 100 !== 11 ? 'торгового центра' : 'торговых центров';
   return `${head} ${tail}`;
-}
-
-function brandHub(slug: string, brandKey: string, label: string): TcTopicHub {
-  return {
-    slug,
-    match: 'brand',
-    brandKey,
-    title: `Торговые центры Минска с ${label}`,
-    label,
-    subjectGen: (n) => centersGen(n, `Минска с ${label}`),
-    plural: centersWord,
-    intro: (count) =>
-      `${count} Минска, где есть магазин ${label}. Адреса, площадь, парковка, часы работы и другие арендаторы.`,
-  };
 }
 
 export const TC_TOPIC_HUBS: TcTopicHub[] = [
@@ -249,7 +289,47 @@ export const TC_TOPIC_HUBS: TcTopicHub[] = [
     intro: (count) =>
       `${count} Минска с описанной парковкой. Адреса, площадь, режим парковки и часы работы.`,
   },
-  // --- волна 5: хвост (каток, ещё бренды) ---
+  {
+    slug: 'free-parking',
+    match: 'free-parking',
+    title: 'Торговые центры Минска с бесплатной парковкой',
+    label: 'Бесплатная парковка',
+    subjectGen: (n) => centersGen(n, 'Минска с бесплатной парковкой'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска, где в описании парковки есть бесплатный режим. Адреса, площадь и часы работы.`,
+  },
+  {
+    slug: 'budget',
+    match: 'budget',
+    title: 'Недорогие торговые центры Минска',
+    label: 'Недорогие',
+    subjectGen: (n) => centersGen(n, 'Минска из недорогих'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска с аутлетом или масс-маркет/дискаунтерами среди арендаторов. Адреса, площадь, парковка и часы работы.`,
+  },
+  {
+    slug: 'shoes',
+    match: 'shoes',
+    title: 'Торговые центры Минска с обувью',
+    label: 'С обувью',
+    subjectGen: (n) => centersGen(n, 'Минска с обувью'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска, где есть обувные магазины. Адреса, площадь, парковка и часы работы.`,
+  },
+  {
+    slug: 'menswear',
+    match: 'menswear',
+    title: 'Торговые центры Минска с мужской одеждой',
+    label: 'Мужская одежда',
+    subjectGen: (n) => centersGen(n, 'Минска с мужской одеждой'),
+    plural: centersWord,
+    intro: (count) =>
+      `${count} Минска, где продают мужскую одежду. Адреса, площадь, парковка и часы работы.`,
+  },
+  // --- волна 5: хвост ---
   {
     slug: 'ice-rink',
     match: 'ice-rink',
@@ -260,34 +340,6 @@ export const TC_TOPIC_HUBS: TcTopicHub[] = [
     intro: (count) =>
       `${count} Минска, где есть каток. Адреса, площадь, парковка и часы работы.`,
   },
-  // --- волны 4–5: бренды (Wordstat; якоря + арендаторы в tc-filters) ---
-  brandHub('zara', 'zara', 'Zara'),
-  brandHub('gold-apple', 'золотое яблоко', 'Золотое яблоко'),
-  brandHub('bershka', 'bershka', 'Bershka'),
-  brandHub('nike', 'nike', 'Nike'),
-  brandHub('adidas', 'adidas', 'Adidas'),
-  brandHub('massimo-dutti', 'massimo dutti', 'Massimo Dutti'),
-  brandHub('stradivarius', 'stradivarius', 'Stradivarius'),
-  brandHub('gloria-jeans', 'gloria jeans', 'Gloria Jeans'),
-  brandHub('sinsay', 'sinsay', 'Sinsay'),
-  brandHub('new-yorker', 'new yorker', 'New Yorker'),
-  brandHub('lc-waikiki', 'lc waikiki', 'LC Waikiki'),
-  brandHub('pull-and-bear', 'pull&bear', 'Pull&Bear'),
-  brandHub('sportmaster', 'спортмастер', 'Спортмастер'),
-  brandHub('mango', 'mango', 'Mango'),
-  brandHub('reserved', 'reserved', 'Reserved'),
-  brandHub('cropp', 'cropp', 'Cropp'),
-  brandHub('house', 'house', 'House'),
-  brandHub('defacto', 'defacto', 'DeFacto'),
-  brandHub('mohito', 'mohito', 'Mohito'),
-  brandHub('oysho', 'oysho', 'Oysho'),
-  brandHub('familia', 'familia', 'Familia'),
-  brandHub('milavitsa', 'milavitsa', 'Milavitsa'),
-  brandHub('mark-formelle', 'mark formelle', 'Mark Formelle'),
-  brandHub('kari', 'kari', 'Kari'),
-  brandHub('detmir', 'детмир', 'Детмир'),
-  brandHub('5-element', '5 элемент', '5 элемент'),
-  brandHub('miniso', 'miniso', 'MINISO'),
 ];
 
 export function tcTopicHubBySlug(slug: string | undefined): TcTopicHub | null {
@@ -302,23 +354,42 @@ export function topicHubNeedsFilters(hub: TcTopicHub): boolean {
   return (TC_TOPIC_FILTER_MATCHES as readonly string[]).includes(hub.match);
 }
 
-function matchesFilterTopic(hub: TcTopicHub, entry: TcFilterEntry | undefined): boolean {
-  if (!entry) return false;
+function hasAnyBrand(entry: TcFilterEntry, keys: readonly string[]): boolean {
+  return keys.some((k) => entry.brands.includes(k));
+}
+
+function matchesFilterTopic(
+  hub: TcTopicHub,
+  entry: TcFilterEntry | undefined,
+  center?: BusinessCenter,
+): boolean {
+  if (!entry && hub.match !== 'budget') return false;
   switch (hub.match) {
     case 'cinema':
-      return entry.features.has('cinema');
+      return Boolean(entry?.features.has('cinema'));
     case 'kids':
-      return entry.features.has('kids');
+      return Boolean(entry?.features.has('kids'));
     case 'foodcourt':
-      return entry.features.has('foodcourt');
+      return Boolean(entry?.features.has('foodcourt'));
     case 'parking':
-      return entry.features.has('parking');
+      return Boolean(entry?.features.has('parking'));
+    case 'free-parking':
+      return Boolean(entry?.features.has('park-free'));
     case 'entertainment':
-      return entry.features.has('entertainment');
+      return Boolean(entry?.features.has('entertainment'));
     case 'ice-rink':
-      return entry.features.has('ice');
-    case 'brand':
-      return Boolean(hub.brandKey) && entry.brands.some((b) => b.includes(hub.brandKey!));
+      return Boolean(entry?.features.has('ice'));
+    case 'budget': {
+      if (center?.retailFormat === 'аутлет') return true;
+      return Boolean(entry && hasAnyBrand(entry, TC_BUDGET_BRAND_KEYS));
+    }
+    case 'shoes': {
+      if (!entry) return false;
+      if (hasAnyBrand(entry, TC_SHOE_BRAND_KEYS)) return true;
+      return entry.brands.some((b) => b.includes('обув'));
+    }
+    case 'menswear':
+      return Boolean(entry && hasAnyBrand(entry, TC_MENSWEAR_BRAND_KEYS));
     default:
       return false;
   }
@@ -330,7 +401,7 @@ export function matchesTcTopicHub(
   filterEntry?: TcFilterEntry | null,
 ): boolean {
   if (!isEligibleTc(center)) return false;
-  if (topicHubNeedsFilters(hub)) return matchesFilterTopic(hub, filterEntry ?? undefined);
+  if (topicHubNeedsFilters(hub)) return matchesFilterTopic(hub, filterEntry ?? undefined, center);
   switch (hub.match) {
     case 'shopping':
       return center.retailFormat == null || !(TC_NON_SHOPPING_FORMATS as readonly string[]).includes(center.retailFormat);

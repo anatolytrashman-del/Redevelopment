@@ -349,7 +349,7 @@ export default function App() {
       <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
       {/* Каталог торговых центров (2026-09-23) — те же компоненты, что у
           каталога БЦ, со словарём и корнем /minsk/tc (src/lib/catalogKind.tsx).
-          Оси: район, метро, формат, тематические подборки /with/*; рейтинги
+          Оси: район, метро, формат, тематические /with/*, магазины /store/*; рейтинги
           — отдельные страницы (2026-10-04). */}
       <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
       <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
@@ -370,9 +370,14 @@ export default function App() {
         path="/minsk/tc/format/:formatSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
-      {/* Тематические подборки /with/* (волны 1–2, 2026-10-04), см. TC_TOPIC_HUBS. */}
+      {/* Тематические подборки /with/* (2026-10-04), см. TC_TOPIC_HUBS. */}
       <Route
         path="/minsk/tc/with/:topicSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      {/* Магазины /store/* — все бренды из tc-filters (2026-10-04). */}
+      <Route
+        path="/minsk/tc/store/:storeSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
       <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
