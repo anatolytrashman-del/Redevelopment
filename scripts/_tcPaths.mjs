@@ -369,7 +369,19 @@ function formatHubMinCenters(slug) {
   return TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG[slug] ?? TC_FORMAT_HUB_MIN_CENTERS;
 }
 
-export function tradeCenterPaths(rows, { districtSlugs, metroSlugs, metroMaxDistance, tcFilters = null }) {
+/**
+ * Пути каталога ТЦ.
+ * includeStores (по умолчанию true) — /minsk/tc/store/* для sitemap.
+ * Пререндер передаёт false: магазинов сотни и будет ещё больше, каждый
+ * headless-прогон раздувает деплой (2026-10-04: +237 store → 27+ мин вместо ~11).
+ * В индекс они всё равно попадают через sitemap; HTML — SPA до первого
+ * точечного пререндера (или пока страница не появится на проде и не
+ * скопируется быстрым режимом).
+ */
+export function tradeCenterPaths(
+  rows,
+  { districtSlugs, metroSlugs, metroMaxDistance, tcFilters = null, includeStores = true } = {},
+) {
   const cards = [];
   const formatCounts = {};
   const topicCounts = Object.fromEntries(TC_TOPIC_HUB_SLUGS.map((s) => [s, 0]));
@@ -391,7 +403,7 @@ export function tradeCenterPaths(rows, { districtSlugs, metroSlugs, metroMaxDist
       if (slug && typeof s.distanceMeters === 'number' && s.distanceMeters <= metroMaxDistance) stations.add(slug);
     }
   }
-  const storeSlugs = collectTcStoreSlugs(rows, tcFilters);
+  const storeSlugs = includeStores ? collectTcStoreSlugs(rows, tcFilters) : [];
   return [
     'minsk/tc',
     'minsk/tc/rating',

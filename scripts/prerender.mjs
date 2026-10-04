@@ -438,11 +438,14 @@ function tradeCenterCatalogPaths() {
   const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
   const filtersPath = join(DIST_DIR, 'data', 'tc-filters.json');
   const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
+  // /store/* — только sitemap (см. includeStores в _tcPaths.mjs): сотни URL
+  // и растущий хвост, полный headless на каждый раздувает деплой.
   return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
     districtSlugs: DISTRICT_HUB_SLUG_BY_NAME,
     metroSlugs: METRO_HUB_SLUG_BY_STATION,
     metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
     tcFilters,
+    includeStores: false,
   });
 }
 
@@ -807,6 +810,31 @@ function isBusinessCenterSectionPath(path) {
   return path === 'minsk/bc' || path.startsWith('minsk/bc/');
 }
 
+/** Карточка ТЦ (/minsk/tc/:slug), не хаб with/format/rating/district/metro. */
+function isTradeCenterCardPath(path) {
+  if (!path.startsWith('minsk/tc/')) return false;
+  const rest = path.slice('minsk/tc/'.length);
+  if (!rest || rest.includes('/')) return false;
+  return true;
+}
+
+/**
+ * В режиме public-refresh (сменился отпечаток публичного кода) честно
+ * рендерим только то, что могло поменять разметку из-за правок каталога ТЦ /
+ * лендингов / статики. Раздел БЦ и карточки ТЦ — копия с прода: их сотни,
+ * а правки подборок /store|/with их HTML не трогают (владелец, 2026-10-04).
+ */
+function needsHonestPublicRefresh(path, landingPathSet) {
+  if (isBusinessCenterSectionPath(path)) return false;
+  if (isTradeCenterCardPath(path)) return false;
+  if (path.startsWith('minsk/tc/store/')) return false;
+  if (path === 'minsk/tc' || path.startsWith('minsk/tc/')) return true;
+  if (ALWAYS_FULL_RENDER_PATHS.has(path)) return true;
+  if (landingPathSet.has(path)) return true;
+  if (path === 'minsk' || STATIC_PATHS.includes(path)) return true;
+  return false;
+}
+
 const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел БЦ рендерится из файлов сборки, остальное копируется с прода';
 
 async function decidePrerenderMode() {
@@ -851,10 +879,13 @@ async function decidePrerenderMode() {
     console.warn('[prerender] не удалось проверить/потребить deploy_debounce — полный режим на всякий случай:', err);
     return { full: true, scope: 'all', reason: 'deploy_debounce недоступен' };
   }
-  // Код публичных страниц менялся? Проверяем ВСЕГДА: частичный режим и быстрый
-  // режим одинаково опираются на копии с прода, а те годятся только при
-  // неизменном коде.
-  if (await publicCodeChangedSinceLive()) return { full: true, scope: 'all', reason: 'код публичных страниц изменился' };
+  // Код публичных страниц менялся? Раньше это включало ПОЛНЫЙ рендер всех
+  // ~300+ путей, включая нетронутый раздел БЦ. С ростом /minsk/tc/* это
+  // стало 20+ минут (2026-10-04). Теперь — scope public-refresh: честно
+  // только хабы ТЦ / статика / лендинги, БЦ и карточки ТЦ копируем с прода.
+  if (await publicCodeChangedSinceLive()) {
+    return { full: true, scope: 'public-refresh', reason: 'код публичных страниц изменился' };
+  }
   if (consumed) {
     return consumed.scope === 'objects'
       ? { full: true, scope: 'objects', reason: 'сохранён объект в админке' }
@@ -1072,8 +1103,10 @@ async function main() {
 
   const decision = await decidePrerenderMode();
   let fullMode = decision.full;
-  let fullScope = decision.scope; // 'objects' — частичный полный режим, 'all' — весь сайт
+  // 'objects' | 'public-refresh' | 'all'
+  let fullScope = decision.scope;
   const outage = decision.outage === true;
+  const landingPathSet = new Set(landingPaths);
   // В аварии раздел БЦ рендерится честно, только если код публичных
   // страниц (или снимок данных — он в отпечатке) изменился с прода. Иначе
   // копии с прода уже честные — их и берём: на сборке из-за правки одной
@@ -1091,7 +1124,8 @@ async function main() {
   // Частичный режим: честный рендер только зависимых от объектов страниц,
   // остальное — копии с прода (см. decidePrerenderMode).
   const partialRenderPaths = new Set([...landingPaths, 'minsk', ...ALWAYS_FULL_RENDER_PATHS]);
-  const copiesAllowed = () => !fullMode || fullScope === 'objects';
+  const publicRefreshPaths = new Set(paths.filter((p) => needsHonestPublicRefresh(p, landingPathSet)));
+  const copiesAllowed = () => !fullMode || fullScope === 'objects' || fullScope === 'public-refresh';
   if (copiesAllowed()) {
     try {
       currentBuildBlocks();
@@ -1105,12 +1139,15 @@ async function main() {
     }
   }
   const partialCount = paths.filter((p) => partialRenderPaths.has(p)).length;
+  const publicRefreshCount = publicRefreshPaths.size;
   console.log(
     !fullMode
       ? `[prerender] БЫСТРЫЙ режим (${decision.reason}) — копирую уже живые страницы с прода, рендерю только то, чего там ещё нет`
       : fullScope === 'objects'
         ? `[prerender] ЧАСТИЧНЫЙ режим (${decision.reason}) — заново рендерю ${partialCount} путей, зависящих от объектов, остальные ${paths.length - partialCount} копирую с прода`
-        : `[prerender] ПОЛНЫЙ режим (${decision.reason}) — рендерю каждый путь headless-браузером`,
+        : fullScope === 'public-refresh'
+          ? `[prerender] ТОЧЕЧНЫЙ режим (${decision.reason}) — заново рендерю ${publicRefreshCount} путей (хабы ТЦ/статика/лендинги), раздел БЦ и карточки ТЦ копирую с прода; /store/* в пререндер не входят`
+          : `[prerender] ПОЛНЫЙ режим (${decision.reason}) — рендерю каждый путь headless-браузером`,
   );
   if (fullMode && fullScope === 'all' && !process.env.VERCEL) {
     console.warn(
@@ -1301,11 +1338,17 @@ async function main() {
     async function worker(workerId) {
       while (cursor < paths.length) {
         const path = paths[cursor++];
-        const honest = fullMode && (fullScope !== 'objects' || partialRenderPaths.has(path));
+        const honest =
+          fullMode &&
+          (fullScope === 'all' ||
+            (fullScope === 'objects' && partialRenderPaths.has(path)) ||
+            (fullScope === 'public-refresh' && publicRefreshPaths.has(path)));
         await (honest ? renderPath(path, workerId) : processPathFast(path, workerId));
       }
     }
-    await Promise.all(Array.from({ length: fullMode && fullScope === 'all' ? WORKER_COUNT : FAST_WORKER_COUNT }, (_, i) => worker(i)));
+    // full/public-refresh/objects — есть честные headless-рендеры; быстрый — только HTTP.
+    const parallel = fullMode ? WORKER_COUNT : FAST_WORKER_COUNT;
+    await Promise.all(Array.from({ length: parallel }, (_, i) => worker(i)));
   } finally {
     server.close();
     if (sharedBrowserPromise) {
@@ -1331,9 +1374,14 @@ async function main() {
   // путь (как 2026-09-11 и дважды 2026-09-12), и причины напечатаны ниже.
   if (copiesAllowed()) {
     const rerendered = paths.length - copiedFromProd.length;
-    const planned = fullMode ? partialCount : alwaysFullCount + outageSectionCount; // сколько рендеров было запланировано, а не вынуждено
+    const planned = fullMode
+      ? fullScope === 'public-refresh'
+        ? publicRefreshCount
+        : partialCount
+      : alwaysFullCount + outageSectionCount; // сколько рендеров было запланировано, а не вынуждено
+    const modeLabel = !fullMode ? 'быстрого' : fullScope === 'public-refresh' ? 'точечного' : 'частичного';
     console.log(
-      `[prerender] ИТОГ ${fullMode ? 'частичного' : 'быстрого'} режима: путей ${paths.length}, скопировано с прода ${copiedFromProd.length}, ` +
+      `[prerender] ИТОГ ${modeLabel} режима: путей ${paths.length}, скопировано с прода ${copiedFromProd.length}, ` +
         `отрендерено браузером ${rerendered} (запланировано: ${planned}, ` +
         `из-за непригодной копии: ${Math.max(0, rerendered - planned)})` +
         (outageSectionCount ? `; раздел БЦ отрендерен из файлов сборки, пока Supabase закрыт: ${outageSectionCount}` : ''),
