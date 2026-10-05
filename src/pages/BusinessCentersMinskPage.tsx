@@ -203,7 +203,7 @@ function pickHeroCenter(list: BusinessCenter[]): BusinessCenter | null {
 // Только дата последнего пересмотра фактов/добавления зданий — держать в
 // одном месте. Для ТЦ после финализации списка (2026-10-04) бейдж и
 // dateModified совпадают с этой константой, а не с календарным «сейчас».
-const DATE_MODIFIED = '2026-10-04';
+const DATE_MODIFIED = '2026-10-05';
 
 const MONTH_NAMES = [
   'январь',
