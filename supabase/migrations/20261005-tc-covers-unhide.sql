@@ -8,6 +8,6 @@ set
   photos = array['/images/business-centers/tc-' || slug || '.jpg'],
   is_hidden = false
 where kind = 'tc'
-  and slug in ('globus-park', 'green-time', 'korona-siti', 'talisman-tc');
+  and slug in ('globus-park', 'green-time', 'korona-siti', 'kupalovskiy', 'talisman-tc');
 
 NOTIFY pgrst, 'reload schema';
