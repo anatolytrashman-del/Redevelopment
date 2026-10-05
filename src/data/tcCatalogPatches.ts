@@ -1,7 +1,7 @@
 // Патчи каталога ТЦ поверх строк Supabase.
 // 2026-10-04 — финализация списка; 2026-10-05 — открытие 4 скрытых с обложками
-// (radzivillovskiy, schaste, sudmalisa-1g, very-horuzhey-25). SQL-зеркало:
-// supabase/migrations/20261005-tc-unhide-four.sql.
+// (radzivillovskiy, schaste, sudmalisa-1g, very-horuzhey-25); уточнения ресерча —
+// supabase/migrations/20261005-tc-four-research-corrections.sql.
 //
 // Остальные скрытые ТЦ (is_hidden): без обложки — оставляем скрытыми.
 
@@ -64,11 +64,11 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
   'oma-shabany': { retailFormat: 'строительный центр' },
   'vitalyur-na-rafieva': { retailFormat: 'ТЦ' },
 
-  // --- открытие 4 скрытых ТЦ с обложками (2026-10-05) ---
+  // --- открытие 4 скрытых ТЦ + правки ресерча (2026-10-05) ---
   radzivillovskiy: {
     district: 'Центральный',
     totalArea: 8612,
-    yearBuilt: 2003,
+    yearBuilt: 1986,
     floors: 3,
     retailFormat: 'районный ТЦ',
     retailInfo: {
@@ -81,6 +81,17 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
           sourceUrl: 'https://money.onliner.by/2024/11/03/magazin-v-vesnyanke',
         },
       ],
+      parking: {
+        summary:
+          'Наземная бесплатная парковка у дома; оценка 2ГИС ≈20 и ≈24 места. Цифра «более 1000» из отраслевого справочника относится к сети, не к этой площадке.',
+        items: [
+          { label: 'У здания', value: '≈20 мест, бесплатно' },
+          { label: 'Доп. у здания', value: '≈24 места, бесплатно' },
+        ],
+        date: '2026',
+        source: '2ГИС',
+        sourceUrl: 'https://2gis.by/minsk/geo/70030076196221465',
+      },
       transport: [
         {
           mode: 'bus',
@@ -95,7 +106,7 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
     district: 'Первомайский',
     totalArea: 1997,
     yearBuilt: 1979,
-    floors: 3,
+    floors: 2,
     retailFormat: 'районный ТЦ',
     retailInfo: {
       hours: [
@@ -112,6 +123,12 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
   'sudmalisa-1g': {
     district: 'Ленинский',
     yearBuilt: 2021,
+    floors: 1,
+    metro: '«Пролетарская», ~90 м',
+    nearestMetroStations: [
+      { name: 'Пролетарская', distanceMeters: 90, line: 'Автозаводская линия', color: '#E90101' },
+      { name: 'Первомайская', distanceMeters: 1100, line: 'Автозаводская линия', color: '#E90101' },
+    ],
     retailFormat: 'районный ТЦ',
     retailInfo: {
       hours: [
@@ -141,7 +158,7 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
           floor: '1',
           area: null,
           since: null,
-          text: 'Магазин низких цен; в части каталогов указан адрес Судмалиса, 1Б рядом с 1Г.',
+          text: 'Магазин низких цен по адресу Судмалиса, 1Б (соседний корпус, не 1Г).',
           yandexUrl: null,
           source: 'Отраслевой справочник; 2ГИС',
           sourceUrl: 'https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html',
@@ -152,7 +169,7 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
           floor: null,
           area: null,
           since: null,
-          text: 'Зоомагазин в торговом узле у метро «Пролетарская».',
+          text: 'Зоомагазин по адресу Судмалиса, 1В (соседний корпус, не 1Г).',
           yandexUrl: null,
           source: 'Отраслевой справочник',
           sourceUrl: 'https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html',
@@ -166,6 +183,28 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
     yearBuilt: 1978,
     floors: 4,
     retailFormat: 'районный ТЦ',
+    retailInfo: {
+      transport: [
+        {
+          mode: 'bus',
+          text: 'Остановка «Веры Хоружей»: автобусы 19, 25, 29, 46.',
+          source: 'minsk.btrans.by',
+          sourceUrl: 'https://minsk.btrans.by/ostanovka/very-horuzhej',
+        },
+        {
+          mode: 'trolleybus',
+          text: 'Остановка «Веры Хоружей»: троллейбусы 22, 37, 40, 40а, 46, 53.',
+          source: 'minsk.btrans.by',
+          sourceUrl: 'https://minsk.btrans.by/ostanovka/very-horuzhej',
+        },
+        {
+          mode: 'walk',
+          text: 'Ближайшие действующие станции метро дальше 1,5 км (Яндекс: «Площадь Якуба Коласа» ≈1,8 км). На сайте центра заявлены будущие «Комаровская» и «Парк Дружбы Народов».',
+          source: 'Яндекс Карты; discounterminsk.by',
+          sourceUrl: 'https://yandex.by/maps/org/diskaunter/71375222166/',
+        },
+      ],
+    },
   },
 
   // --- тонкие карточки без повторного Яндекса ---

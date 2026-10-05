@@ -110,8 +110,11 @@ describe('tcCatalogPatches', () => {
 
   it('открывает ресерч четырёх бывших скрытых ТЦ', () => {
     expect(applyTcCatalogPatch(tc({ slug: 'radzivillovskiy' })).totalArea).toBe(8612);
+    expect(applyTcCatalogPatch(tc({ slug: 'radzivillovskiy' })).yearBuilt).toBe(1986);
     expect(applyTcCatalogPatch(tc({ slug: 'schaste' })).yearBuilt).toBe(1979);
+    expect(applyTcCatalogPatch(tc({ slug: 'schaste' })).floors).toBe(2);
     expect(applyTcCatalogPatch(tc({ slug: 'sudmalisa-1g' })).retailFormat).toBe('районный ТЦ');
+    expect(applyTcCatalogPatch(tc({ slug: 'sudmalisa-1g' })).floors).toBe(1);
     expect(applyTcCatalogPatch(tc({ slug: 'very-horuzhey-25' })).floors).toBe(4);
     expect(TC_LOCALIZED_STORAGE_PHOTO_SLUGS).toEqual(
       expect.arrayContaining(['radzivillovskiy', 'schaste', 'sudmalisa-1g', 'very-horuzhey-25']),
