@@ -5,6 +5,7 @@ import { triggerPublicRebuild } from './publicRebuild';
 import { CATALOG_VOCABULARY, type CatalogKind } from './catalogKind';
 import { normalizeRetailInfo } from './tradeCenterRetail';
 import { normalizeDeveloperInfo } from './developerProfile';
+import { applyTcCatalogPatch } from '../data/tcCatalogPatches';
 import type {
   BusinessCenter,
   BusinessCenterDerivedField,
@@ -13,7 +14,7 @@ import type {
 } from '../data/businessCenters';
 
 function fromRow(row: BusinessCenterRow): BusinessCenter {
-  return {
+  const center: BusinessCenter = {
     id: row.id,
     slug: row.slug,
     name: row.name,
@@ -74,6 +75,7 @@ function fromRow(row: BusinessCenterRow): BusinessCenter {
     sortOrder: row.sort_order,
     createdAt: row.created_at,
   };
+  return applyTcCatalogPatch(center);
 }
 
 // Колонки для СПИСКА зданий (замер 2026-09-22, Ш3 плана

@@ -90,6 +90,8 @@ async function main(columns) {
     `business_centers?select=${columns}&kind=eq.tc&is_hidden=eq.false&order=sort_order.asc`,
     'business_centers (список торговых центров)',
   );
+  // Патчи и урезание списка — в finalizeTcCatalogArtifacts (после любого
+  // источника: база или копия с прода).
   writeFileSync(join(DIST_DATA, 'trade-centers.json'), JSON.stringify({ generatedAt, rows: tcRows }));
 
   // Полные ряды по одному файлу на здание — их читает карточка БЦ, которой
@@ -332,12 +334,15 @@ async function writeExtras() {
       .map((org) => ({ name: org.name, rubric: typeof org.category === 'string' ? org.category : null, reviewCount: typeof org.reviewCount === 'number' ? org.reviewCount : null })),
   })));
   for (const slug of slugs) {
+    // У ТЦ на странице с 2026-09-30 только сводка тем отзывов из retail_info;
+    // полный массив review_snapshots (сотни КБ у Galleria) в .extra не кладём.
+    const isTc = tcSlugs.has(slug);
     writeFileSync(
       join(DIST_DATA, 'bc', `${slug}.extra.json`),
       JSON.stringify({
         generatedAt,
         offers: offersBy.get(slug) ?? [],
-        reviews: reviewsBy.get(slug) ?? [],
+        reviews: isTc ? [] : (reviewsBy.get(slug) ?? []),
         nearby: nearbyBy.get(slug) ?? [],
         gis2: gis2By.get(slug)?.[0] ?? null,
         tenants: tenantsBy.get(slug)?.[0] ?? null,
@@ -547,7 +552,74 @@ async function writeTcRatings() {
   }
 }
 
+// --- Пост-обработка ТЦ (2026-10-04) ----------------------------------------
+// Бежит после любого источника данных (база / копия с прода / fallback):
+// патчи районов-площадей-фото, урезание списка, пустые reviews в .extra у ТЦ.
+async function loadTcPatchRow() {
+  try {
+    const patchSource = readFileSync(new URL('../src/data/tcCatalogPatches.ts', import.meta.url), 'utf8');
+    const patchModule = ts.transpileModule(patchSource, {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
+    }).outputText;
+    const slim = patchModule
+      .replace(/import\s*\{[^}]*normalizeRetailInfo[^}]*\}\s*from\s*[^;]+;?\n?/, '')
+      .replace(/import\s+type\s*\{[^}]+\}\s*from\s*[^;]+;?\n?/g, '')
+      .replace(/export function mergeRetailInfoPatch[\s\S]*?\n\}\n\n/, '')
+      .replace(/export function applyTcCatalogPatch[\s\S]*?\n\}\n\n/, '');
+    const loaded = await import(`data:text/javascript;base64,${Buffer.from(slim).toString('base64')}`);
+    if (typeof loaded.applyTcCatalogPatchToRow === 'function') return loaded.applyTcCatalogPatchToRow;
+  } catch (err) {
+    console.warn('[catalog-data] tc patches недоступны:', err?.message ?? err);
+  }
+  return (row) => row;
+}
+
+async function finalizeTcCatalogArtifacts() {
+  const listPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(listPath)) return;
+  const patchRow = await loadTcPatchRow();
+  const list = JSON.parse(readFileSync(listPath, 'utf8'));
+  const tcRows = (list.rows ?? []).map((row) => {
+    const patched = patchRow(row);
+    const highlights = Array.isArray(patched.highlights)
+      ? patched.highlights.filter((h) => h && h.icon === 'rating')
+      : [];
+    return { ...patched, description: null, highlights };
+  });
+  writeFileSync(listPath, JSON.stringify({ ...list, rows: tcRows }));
+
+  const bcDir = join(DIST_DATA, 'bc');
+  let patchedCards = 0;
+  let clearedReviews = 0;
+  for (const row of tcRows) {
+    const slug = row.slug;
+    if (typeof slug !== 'string' || !/^[a-z0-9-]+$/.test(slug)) continue;
+    const cardPath = join(bcDir, `${slug}.json`);
+    if (existsSync(cardPath)) {
+      const card = JSON.parse(readFileSync(cardPath, 'utf8'));
+      if (card.row) {
+        card.row = patchRow(card.row);
+        writeFileSync(cardPath, JSON.stringify(card));
+        patchedCards += 1;
+      }
+    }
+    const extraPath = join(bcDir, `${slug}.extra.json`);
+    if (existsSync(extraPath)) {
+      const extra = JSON.parse(readFileSync(extraPath, 'utf8'));
+      if (Array.isArray(extra.reviews) && extra.reviews.length > 0) {
+        extra.reviews = [];
+        writeFileSync(extraPath, JSON.stringify(extra));
+        clearedReviews += 1;
+      }
+    }
+  }
+  console.log(
+    `[catalog-data] финализация ТЦ: список ${tcRows.length}, карточек ${patchedCards}, .extra без отзывов ${clearedReviews}`,
+  );
+}
+
 run()
+  .then(finalizeTcCatalogArtifacts)
   .then(writeTcFilters)
   .then(writeTcRatings)
   .catch((err) => {

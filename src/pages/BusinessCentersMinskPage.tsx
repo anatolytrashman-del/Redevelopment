@@ -200,9 +200,10 @@ function pickHeroCenter(list: BusinessCenter[]): BusinessCenter | null {
 // Карта каталога и переключатель вида сняты с первого экрана 2026-09-17:
 // владелец оставил единый карточный режим и компактные фильтры в сайдбаре.
 
-// Только дата последнего пересмотра фактов/добавления БЦ — держать в одном
-// месте, тот же принцип, что и DATE_MODIFIED в DistrictGuidePage.tsx.
-const DATE_MODIFIED = '2026-09-06';
+// Только дата последнего пересмотра фактов/добавления зданий — держать в
+// одном месте. Для ТЦ после финализации списка (2026-10-04) бейдж и
+// dateModified совпадают с этой константой, а не с календарным «сейчас».
+const DATE_MODIFIED = '2026-10-05';
 
 const MONTH_NAMES = [
   'январь',
@@ -219,11 +220,10 @@ const MONTH_NAMES = [
   'декабрь',
 ];
 
-// Тот же принцип, что и в DistrictGuidePage.tsx — не фейковая дата, а честный
-// месяц пересмотра, считается от текущей даты на каждый рендер.
+// Честный месяц пересмотра данных каталога (не «сегодняшний» календарь).
 const UPDATED_BADGE_LABEL = (() => {
-  const now = new Date();
-  return `Обновлено: ${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+  const [y, m] = DATE_MODIFIED.split('-').map(Number);
+  return `Обновлено: ${MONTH_NAMES[m - 1]} ${y}`;
 })();
 
 // Значение district вне обычных городских районов (сейчас — только "Аден" в
@@ -268,6 +268,14 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
   const kind = kindOf(center);
   // У ТЦ вместо делового класса — формат (ТРЦ, универмаг, рынок…).
   const badge = kind === 'tc' ? center.retailFormat : center.businessClass ? `Класс ${center.businessClass}` : null;
+  const areaLabel =
+    kind === 'tc' && center.totalArea != null
+      ? `${center.totalArea.toLocaleString('ru-RU')} м²`
+      : null;
+  const hoursLabel =
+    kind === 'tc' && center.retailInfo?.hours?.[0]?.value
+      ? center.retailInfo.hours[0].value.replace(/^ежедневно\s+/i, '')
+      : null;
   return (
     <Link
       to={`${CATALOG_VOCABULARY[kind].basePath}/${center.slug}`}
@@ -341,6 +349,13 @@ export function BusinessCenterCard({ center }: { center: BusinessCenter }) {
               <span className="truncate sm:whitespace-normal sm:text-balance">{center.metro}</span>
             </div>
           )
+        )}
+        {(areaLabel || hoursLabel) && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-ink-muted sm:text-xs">
+            {areaLabel && <span className="font-semibold text-ink">{areaLabel}</span>}
+            {areaLabel && hoursLabel && <span className="text-ink-faint">·</span>}
+            {hoursLabel && <span className="truncate">{hoursLabel}</span>}
+          </div>
         )}
         <div className="mt-auto hidden justify-start pt-1 sm:flex">
           <span className="flex items-center gap-1 rounded-full bg-ink-muted/10 px-3 py-1.5 text-xs font-bold text-ink-muted transition-colors group-hover:bg-ink-muted group-hover:text-white">
