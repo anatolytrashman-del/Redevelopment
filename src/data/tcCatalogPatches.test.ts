@@ -95,6 +95,19 @@ describe('tcCatalogPatches', () => {
     expect(patched.photos).toEqual([localizedTcPhotoPath(slug)]);
   });
 
+  it('патчит сырую строку списка', () => {
+    const row = applyTcCatalogPatchToRow({
+      kind: 'tc',
+      slug: 'diamond-city',
+      district: null,
+      nearest_metro_stations: [] as { name: string; distanceMeters: number; line: string | null; color: string | null }[],
+      retail_format: 'ТРЦ',
+    });
+    const stations = row.nearest_metro_stations as { name: string }[];
+    expect(stations).toHaveLength(1);
+    expect(stations[0].name).toBe('Малиновка');
+  });
+
   it('открывает ресерч четырёх бывших скрытых ТЦ', () => {
     expect(applyTcCatalogPatch(tc({ slug: 'radzivillovskiy' })).totalArea).toBe(8612);
     expect(applyTcCatalogPatch(tc({ slug: 'schaste' })).yearBuilt).toBe(1979);

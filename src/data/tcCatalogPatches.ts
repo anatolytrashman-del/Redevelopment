@@ -126,7 +126,7 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
       anchors: [
         {
           name: 'Мила',
-          category: 'красота',
+          category: 'другое',
           floor: null,
           area: null,
           since: null,
