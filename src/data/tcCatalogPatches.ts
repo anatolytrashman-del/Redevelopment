@@ -1,7 +1,9 @@
 // Патчи каталога ТЦ поверх строк Supabase.
 // 2026-10-04 — финализация списка; 2026-10-05 — открытие 4 скрытых с обложками
 // (radzivillovskiy, schaste, sudmalisa-1g, very-horuzhey-25); уточнения ресерча —
-// supabase/migrations/20261005-tc-four-research-corrections.sql.
+// supabase/migrations/20261005-tc-four-research-corrections.sql;
+// добор тонких (globus-park, pole-chudes, lobanka-26, stepyanka, talisman-tc) —
+// supabase/migrations/20261005-tc-eight-research-fill.sql.
 //
 // Остальные скрытые ТЦ (is_hidden): без обложки — оставляем скрытыми.
 
@@ -207,6 +209,235 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
     },
   },
 
+  // --- добор тонких после открытия 8 с обложками (2026-10-05) ---
+  // green-time / korona-siti / kupalovskiy — ресерч уже полный (только фото+unhide).
+  'globus-park': {
+    totalArea: 24247,
+    yearBuilt: 2015,
+    retailFormat: 'ТЦ',
+    retailInfo: {
+      hours: [
+        {
+          zone: 'Торговый центр',
+          value: 'ежедневно 09:00–22:00',
+          note: 'по справочникам; отдельные операторы могут отличаться',
+          source: 'dir.by / dosug.by',
+          sourceUrl: 'https://dir.by/belarus/minskaya_oblast/globus_park/',
+        },
+      ],
+      parking: {
+        summary: 'Парковка торгового центра — 1 500 машиномест (официальный сайт).',
+        items: [{ label: 'Мест', value: '1 500' }],
+        date: '2026',
+        source: 'Сайт комплекса',
+        sourceUrl: 'https://globuspark.com/about/',
+      },
+      anchors: [
+        {
+          name: 'OZ.by',
+          category: 'другое',
+          floor: null,
+          area: null,
+          since: null,
+          text: 'Пункт выдачи интернет-магазина OZ.by.',
+          yandexUrl: null,
+          source: 'Сайт комплекса',
+          sourceUrl: 'https://globuspark.com/category/arendatori/',
+        },
+        {
+          name: 'MEGATOP',
+          category: 'fashion',
+          floor: null,
+          area: null,
+          since: null,
+          text: 'Сеть магазинов обуви.',
+          yandexUrl: null,
+          source: 'Сайт комплекса',
+          sourceUrl: 'https://globuspark.com/category/arendatori/',
+        },
+        {
+          name: 'Мой',
+          category: 'дом и интерьер',
+          floor: null,
+          area: null,
+          since: null,
+          text: 'Магазин бытовой химии и товаров для дома (Cash and Carry).',
+          yandexUrl: null,
+          source: 'Сайт комплекса',
+          sourceUrl: 'https://globuspark.com/category/arendatori/',
+        },
+        {
+          name: 'DOMO техника',
+          category: 'электроника',
+          floor: null,
+          area: null,
+          since: null,
+          text: 'Дистрибьютор бытовой техники / пункт выдачи.',
+          yandexUrl: null,
+          source: 'Сайт комплекса',
+          sourceUrl: 'https://globuspark.com/category/arendatori/',
+        },
+      ],
+      transport: [
+        {
+          mode: 'car',
+          text: 'Агрогородок Щомыслица, около 3 км от МКАД по трассе Р1 (Минск — Брест).',
+          source: 'Сайт комплекса',
+          sourceUrl: 'https://globuspark.com/',
+        },
+      ],
+      factCards: [
+        {
+          headline: 'Торгово-логистический комплекс',
+          text: 'Кроме галереи — склады класса A (22 тыс. м²), офисы и пункт таможенного декларирования.',
+        },
+        {
+          headline: 'GLA около 24 тыс. м²',
+          text: 'Официальные цифры: GBA 31 934 м², GLA 24 247 м², парковка на 1 500 мест.',
+        },
+      ],
+    },
+  },
+  'pole-chudes': {
+    retailInfo: {
+      anchors: [
+        {
+          name: 'Блошиный рынок',
+          category: 'другое',
+          floor: null,
+          area: null,
+          since: null,
+          text: 'Единственный в Минске рынок подержанных товаров на территории ТГ «Ждановичи».',
+          yandexUrl: 'https://yandex.by/maps/org/pole_chudes/131608552826/',
+          source: 'ТГ «Ждановичи»; Megapolis',
+          sourceUrl: 'https://zhdanovichi.by/area/rynok-pole-chudes',
+        },
+      ],
+    },
+  },
+  'lobanka-26': {
+    yearBuilt: 2008,
+    retailInfo: {
+      hours: [
+        {
+          zone: '«Соседи Экспресс»',
+          value: 'ежедневно 07:00–23:00',
+          note: null,
+          source: 'Pakupnik / сеть «Соседи»',
+          sourceUrl: 'https://pakupnik.by/sosedi/shops/15517/',
+        },
+        {
+          zone: '«Точка»',
+          value: 'пн–чт 11:00–23:00, пт 11:00–00:00, сб–вс 10:00–00:00',
+          note: null,
+          source: 'tochca.by / каталоги',
+          sourceUrl: 'https://your.beer/place/tochka-lobanka/about',
+        },
+      ],
+      parking: {
+        summary: 'У адреса ул. Лобанка, 26 указана круглосуточная парковка.',
+        items: [
+          { label: 'Режим', value: 'круглосуточно' },
+          { label: 'Тип', value: 'у здания' },
+        ],
+        date: '2026',
+        source: 'Справочники',
+        sourceUrl: 'https://minsk.jsprav.ru/avtostoyanki-parkingi/parkovka-413/',
+      },
+      anchors: [
+        {
+          name: 'Соседи Экспресс',
+          category: 'гипермаркет',
+          floor: '1',
+          area: null,
+          since: null,
+          text: 'Супермаркет сети «Соседи» — продуктовый якорь здания.',
+          yandexUrl: null,
+          source: '2ГИС / Pakupnik',
+          sourceUrl: 'https://2gis.by/minsk/firm/70000001083500482',
+        },
+        {
+          name: 'Зообазар',
+          category: 'другое',
+          floor: '1',
+          area: null,
+          since: null,
+          text: 'Зоомагазин Zoobazar с ветеринарной аптекой.',
+          yandexUrl: null,
+          source: 'Отраслевой справочник',
+          sourceUrl: 'https://megapolis-real.by/torgovyie-czentryi/lobanka-26.html',
+        },
+        {
+          name: 'Точка',
+          category: 'другое',
+          floor: '1',
+          area: null,
+          since: null,
+          text: 'Магазин разливного пива сети «Точка».',
+          yandexUrl: null,
+          source: 'Яндекс / tochca.by',
+          sourceUrl: 'https://your.beer/place/tochka-lobanka/about',
+        },
+      ],
+      factCards: [
+        {
+          headline: 'Якорь — «Соседи Экспресс»',
+          text: 'Супермаркет сети работает ежедневно с 7:00 до 23:00; рядом Zoobazar, «Точка», пекарня и кафе.',
+        },
+        {
+          headline: 'У метро «Каменная горка»',
+          text: 'Около 800 м пешком до станции.',
+        },
+      ],
+    },
+  },
+  stepyanka: {
+    retailInfo: {
+      parking: {
+        summary: 'Рядом с ТЦ указана автомобильная парковка по адресу Карвата, 4/2, круглосуточно.',
+        items: [
+          { label: 'Адрес стоянки', value: 'ул. Карвата, 4/2' },
+          { label: 'Режим', value: 'круглосуточно' },
+        ],
+        date: '2026',
+        source: 'Справочники',
+        sourceUrl: 'https://minsk.jsprav.ru/avtostoyanki-parkingi/avtomobilnaia-parkovka-1237/',
+      },
+      factCards: [
+        {
+          headline: 'Районный ТЦ 2004 года',
+          text: 'Построен в 2004-м в микрорайоне Степянка (Партизанский район).',
+        },
+        {
+          headline: 'Якорь Fix Price',
+          text: 'Среди арендаторов — Fix Price, кафе Kebab Town, «Рыбка моя» и ателье.',
+        },
+        {
+          headline: 'Часы галереи',
+          text: 'По справочникам центр работает ежедневно 9:00–20:00; магазины могут закрываться позже.',
+        },
+      ],
+    },
+  },
+  'talisman-tc': {
+    retailInfo: {
+      factCards: [
+        {
+          headline: 'Супермаркет 658 м²',
+          text: 'На 1 этаже — помещение под супермаркет 658,6 м² (план talisman.by); якорь — «Евроопт Market».',
+        },
+        {
+          headline: '3 этажа + цоколь',
+          text: 'Цоколь — услуги и склады; 2–3 этажи — торговые и сервисные помещения группы TALISMAN.',
+        },
+        {
+          headline: 'Группа TALISMAN',
+          text: 'Второй объект группы — бизнес-центр на ул. Чапаева, 4А (2021).',
+        },
+      ],
+    },
+  },
+
   // --- тонкие карточки без повторного Яндекса ---
   'evropa-tc': {
     retailInfo: {
@@ -307,11 +538,16 @@ export const TC_LOCALIZED_STORAGE_PHOTO_SLUGS = [
   'gippo-na-igumenskom-trakte',
   'gippo-na-rokossovskogo',
   'gippo-na-goretskogo',
+  'globus-park',
   'green-na-uborevicha',
   'green-na-partizanskom',
+  'green-time',
   'komarovskiy-rynok',
+  'korona-siti',
   'kupets',
+  'kupalovskiy',
   'kurasovschinskiy-rynok',
+  'lobanka-26',
   'lukyanovicha-4b',
   'magnit-suharevo',
   'makaenka-11',
@@ -326,10 +562,13 @@ export const TC_LOCALIZED_STORAGE_PHOTO_SLUGS = [
   'oma-brilevichi',
   'oma-shabany',
   'pervomayskiy',
+  'pole-chudes',
   'radzivillovskiy',
   'ramonak',
   'schaste',
+  'stepyanka',
   'sudmalisa-1g',
+  'talisman-tc',
   'tuteyshy',
   'serebryanka',
   'simax',
@@ -417,9 +656,9 @@ export function applyTcCatalogPatchToRow<T extends Record<string, unknown>>(row:
   const patch = TC_CATALOG_PATCHES[row.slug];
   const out: Record<string, unknown> = { ...row };
   if (patch?.district && !out.district) out.district = patch.district;
-  if (patch?.totalArea != null && out.total_area == null) out.total_area = patch.totalArea;
-  if (patch?.floors != null && out.floors == null) out.floors = patch.floors;
-  if (patch?.yearBuilt != null && out.year_built == null) out.year_built = patch.yearBuilt;
+  if (patch?.totalArea != null) out.total_area = patch.totalArea;
+  if (patch?.floors != null) out.floors = patch.floors;
+  if (patch?.yearBuilt != null) out.year_built = patch.yearBuilt;
   if (patch?.metro && !out.metro) out.metro = patch.metro;
   const stations = out.nearest_metro_stations;
   if (patch?.nearestMetroStations && (!Array.isArray(stations) || stations.length === 0)) {

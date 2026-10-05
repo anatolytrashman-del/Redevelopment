@@ -120,4 +120,33 @@ describe('tcCatalogPatches', () => {
       expect.arrayContaining(['radzivillovskiy', 'schaste', 'sudmalisa-1g', 'very-horuzhey-25']),
     );
   });
+
+  it('добирает тонкий Глобус Парк (GLA и retail)', () => {
+    const patched = applyTcCatalogPatch(
+      tc({
+        slug: 'globus-park',
+        totalArea: 30000,
+        retailInfo: null,
+      }),
+    );
+    expect(patched.totalArea).toBe(24247);
+    expect(patched.retailInfo?.hours?.length).toBeGreaterThan(0);
+    expect(patched.retailInfo?.parking?.items?.length).toBeGreaterThan(0);
+    expect(patched.retailInfo?.anchors?.some((a) => a.name === 'OZ.by')).toBe(true);
+  });
+
+  it('локализованные обложки восьми открытых ТЦ есть в списке', () => {
+    expect(TC_LOCALIZED_STORAGE_PHOTO_SLUGS).toEqual(
+      expect.arrayContaining([
+        'globus-park',
+        'green-time',
+        'korona-siti',
+        'kupalovskiy',
+        'lobanka-26',
+        'pole-chudes',
+        'stepyanka',
+        'talisman-tc',
+      ]),
+    );
+  });
 });
