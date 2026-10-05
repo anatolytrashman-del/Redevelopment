@@ -1,12 +1,9 @@
-// Патчи каталога ТЦ поверх строк Supabase (2026-10-04, финализация списка).
-// Применяются в fromRow и при сборке trade-centers.json — пока нет
-// Management API в этой сессии, живая база не правится; SQL-зеркало —
-// supabase/migrations/20261004-tc-catalog-finalize.sql (применить завтра
-// вместе с прогоном Яндекса, если нужен).
+// Патчи каталога ТЦ поверх строк Supabase.
+// 2026-10-04 — финализация списка; 2026-10-05 — открытие 4 скрытых с обложками
+// (radzivillovskiy, schaste, sudmalisa-1g, very-horuzhey-25). SQL-зеркало:
+// supabase/migrations/20261005-tc-unhide-four.sql.
 //
-// Скрытые ТЦ (is_hidden): бывшие / без обложки / «Мила» без подтверждённого
-// ТЦ — оставляем скрытыми, пока нет нормальной обложки. Правило то же, что
-// при заведении каталога 2026-09-29.
+// Остальные скрытые ТЦ (is_hidden): без обложки — оставляем скрытыми.
 
 import type { BusinessCenter, NearestMetroStation, RetailInfo } from './businessCenters';
 import { normalizeRetailInfo } from '../lib/tradeCenterRetail';
@@ -32,6 +29,8 @@ export const TC_FORMAT_ALIASES: Record<string, string> = {
   'торговая часть бывшего универсама': 'районный ТЦ',
   'строительный гипермаркет': 'строительный центр',
   'торговый комплекс': 'ТЦ',
+  'бывший торговый центр': 'районный ТЦ',
+  'магазин «Мила»; отдельный ТЦ не подтверждён': 'районный ТЦ',
 };
 
 export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
@@ -64,6 +63,110 @@ export const TC_CATALOG_PATCHES: Record<string, TcCatalogPatch> = {
   'mayakovskogo-146': { retailFormat: 'районный ТЦ' },
   'oma-shabany': { retailFormat: 'строительный центр' },
   'vitalyur-na-rafieva': { retailFormat: 'ТЦ' },
+
+  // --- открытие 4 скрытых ТЦ с обложками (2026-10-05) ---
+  radzivillovskiy: {
+    district: 'Центральный',
+    totalArea: 8612,
+    yearBuilt: 2003,
+    floors: 3,
+    retailFormat: 'районный ТЦ',
+    retailInfo: {
+      hours: [
+        {
+          zone: 'Супермаркет «Санта»',
+          value: 'ежедневно 09:00–23:00',
+          note: null,
+          source: 'Onliner / 2ГИС',
+          sourceUrl: 'https://money.onliner.by/2024/11/03/magazin-v-vesnyanke',
+        },
+      ],
+      transport: [
+        {
+          mode: 'bus',
+          text: 'Остановка «Леси Украинки» / «Веснянка»: автобусы 73, 130, 151с, 190э; троллейбусы 14, 58.',
+          source: 'Расписание транспорта Минска',
+          sourceUrl: 'https://minsk.btrans.by/ostanovka/lesi-ukrainki',
+        },
+      ],
+    },
+  },
+  schaste: {
+    district: 'Первомайский',
+    totalArea: 1997,
+    yearBuilt: 1979,
+    floors: 3,
+    retailFormat: 'районный ТЦ',
+    retailInfo: {
+      hours: [
+        {
+          zone: 'Супермаркет «Санта»',
+          value: 'ежедневно 09:00–23:00',
+          note: 'площадь супермаркета ~500 м²',
+          source: 'Belretail',
+          sourceUrl: 'https://belretail.by/news/na-meste-tts-schaste-v-minske-otkryilsya-supermarket-santa',
+        },
+      ],
+    },
+  },
+  'sudmalisa-1g': {
+    district: 'Ленинский',
+    yearBuilt: 2021,
+    retailFormat: 'районный ТЦ',
+    retailInfo: {
+      hours: [
+        {
+          zone: '«Мила»',
+          value: 'ежедневно 09:00–21:00',
+          note: null,
+          source: 'Pakupnik / сеть «Мила»',
+          sourceUrl: 'https://pakupnik.by/mila/shops/13641/',
+        },
+      ],
+      anchors: [
+        {
+          name: 'Мила',
+          category: 'красота',
+          floor: null,
+          area: null,
+          since: null,
+          text: 'Магазин косметики и бытовой химии сети «Мила».',
+          yandexUrl: 'https://yandex.by/maps/org/mila/223223256356/',
+          source: 'Отраслевой справочник; Яндекс Карты',
+          sourceUrl: 'https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html',
+        },
+        {
+          name: 'Три цены',
+          category: 'дом и интерьер',
+          floor: '1',
+          area: null,
+          since: null,
+          text: 'Магазин низких цен; в части каталогов указан адрес Судмалиса, 1Б рядом с 1Г.',
+          yandexUrl: null,
+          source: 'Отраслевой справочник; 2ГИС',
+          sourceUrl: 'https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html',
+        },
+        {
+          name: 'Zooбазар',
+          category: 'другое',
+          floor: null,
+          area: null,
+          since: null,
+          text: 'Зоомагазин в торговом узле у метро «Пролетарская».',
+          yandexUrl: null,
+          source: 'Отраслевой справочник',
+          sourceUrl: 'https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html',
+        },
+      ],
+    },
+  },
+  'very-horuzhey-25': {
+    district: 'Советский',
+    totalArea: 3700,
+    yearBuilt: 1978,
+    floors: 4,
+    retailFormat: 'районный ТЦ',
+  },
 
   // --- тонкие карточки без повторного Яндекса ---
   'evropa-tc': {
@@ -184,12 +287,16 @@ export const TC_LOCALIZED_STORAGE_PHOTO_SLUGS = [
   'oma-brilevichi',
   'oma-shabany',
   'pervomayskiy',
+  'radzivillovskiy',
   'ramonak',
+  'schaste',
+  'sudmalisa-1g',
   'tuteyshy',
   'serebryanka',
   'simax',
   'avtomoll-koltso',
   'uruche-3',
+  'very-horuzhey-25',
   'viessmann',
   'vitalyur-na-rafieva',
   'zapadnyy-rynok',
