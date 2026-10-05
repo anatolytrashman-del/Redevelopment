@@ -55,7 +55,7 @@ WHERE slug = 'schaste' AND kind = 'tc';
 UPDATE public.business_centers SET
   is_hidden = false,
   name = 'Торговый центр на Судмалиса, 1Г',
-  alt_names = '["ТЦ на Судмалиса 1Г","Судмалиса 1Г","Магазин «Мила» на Судмалиса, 1Г"]'::jsonb,
+  alt_names = ARRAY['ТЦ на Судмалиса 1Г','Судмалиса 1Г','Магазин «Мила» на Судмалиса, 1Г'],
   district = COALESCE(district, 'Ленинский'),
   microdistrict = COALESCE(NULLIF(microdistrict, ''), 'Пролетарская'),
   year_built = 2021,
@@ -67,8 +67,7 @@ UPDATE public.business_centers SET
     'hours', '[{"zone":"«Мила»","value":"ежедневно 09:00–21:00","note":null,"source":"Pakupnik / сеть «Мила»","sourceUrl":"https://pakupnik.by/mila/shops/13641/"},{"zone":"«Три цены»","value":"ежедневно 09:00–21:00","note":"в каталогах также ул. Судмалиса, 1Б","source":"2ГИС","sourceUrl":"https://2gis.by/minsk/firm/70000001067844231"}]'::jsonb,
     'anchors', '[{"area":null,"name":"Мила","text":"Магазин косметики и бытовой химии сети «Мила».","floor":null,"since":null,"source":"Отраслевой справочник; Яндекс Карты","category":"другое","sourceUrl":"https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html","yandexUrl":"https://yandex.by/maps/org/mila/223223256356/"},{"area":null,"name":"Три цены","text":"Магазин низких цен; в части каталогов указан адрес Судмалиса, 1Б рядом с 1Г.","floor":"1","since":null,"source":"Отраслевой справочник; 2ГИС","category":"дом и интерьер","sourceUrl":"https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html","yandexUrl":null},{"area":null,"name":"Zooбазар","text":"Зоомагазин в торговом узле у метро «Пролетарская».","floor":null,"since":null,"source":"Отраслевой справочник","category":"другое","sourceUrl":"https://megapolis-real.by/torgovyie-czentryi/korona-na-sudmalisa-1g.html","yandexUrl":null}]'::jsonb,
     'factCards', '[{"headline":"У метро и электрички","text":"Выход «Пролетарской» и остановка «Минск-Восточный» — в нескольких шагах от входа."},{"headline":"Построен в 2021 году","text":"Небольшой районный объект у жилого массива и «Антоновского пассажа»."}]'::jsonb
-  ),
-  tenant_count = GREATEST(COALESCE(tenant_count, 0), 3)
+  )
 WHERE slug = 'sudmalisa-1g' AND kind = 'tc';
 
 -- 4) Веры Хоружей 25 — дискаунтер-центр уже почти полный, добираем площадь/год
