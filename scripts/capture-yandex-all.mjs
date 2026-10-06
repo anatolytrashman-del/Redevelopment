@@ -30,10 +30,18 @@ const passArgs = (onlyIndex >= 0 ? args.filter((_, i) => i !== onlyIndex && i !=
   .filter((arg) => arg !== '--manual');
 if (args.includes('--manual')) console.log('--manual не нужен: здания, которые Яндекс не найдёт сам, скрипт попросит открыть в окне Chrome');
 
+const kindIndex = passArgs.indexOf('--kind');
+const catalogKind = kindIndex >= 0 ? passArgs[kindIndex + 1] : 'bc';
+// У коворкинга нужна только его карточка и рейтинг/отзывы, не арендаторы
+// внутри здания (владелец, 2026-10-06).
 const steps = [
   { key: 'tenants', title: 'Арендаторы и этажи', script: 'capture-yandex-bc-tenants.mjs' },
-  { key: 'reviews', title: 'Карточка здания и отзывы', script: 'capture-yandex-reviews.mjs' },
-].filter((step) => !only || step.key === only);
+  { key: 'reviews', title: 'Карточка коворкинга и отзывы', script: 'capture-yandex-reviews.mjs' },
+].filter((step) => {
+  if (only && step.key !== only) return false;
+  if (catalogKind === 'cw' && step.key === 'tenants') return false;
+  return true;
+});
 
 if (steps.length === 0) {
   console.error('--only: tenants или reviews');

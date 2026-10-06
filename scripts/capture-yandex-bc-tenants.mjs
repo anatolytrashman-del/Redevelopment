@@ -70,6 +70,10 @@ const onlySlugs = (onlySlug ?? '').split(',').map((s) => s.trim()).filter(Boolea
 // --kind bc|tc|all — какой каталог собирать (по умолчанию bc, как было до
 // каталога ТЦ 2026-09-23; торговые центры — `--kind tc`).
 const catalogKind = valueOf('--kind') ?? 'bc';
+if (catalogKind === 'cw') {
+  console.log('Для коворкингов организации внутри здания не собираем — только карточка и отзывы (capture-yandex-reviews.mjs --kind cw).');
+  process.exit(0);
+}
 const limit = Number(valueOf('--limit') ?? 0);
 const writeDb = has('--write-db');
 const listOnly = has('--list');
@@ -80,7 +84,7 @@ const withCoords = has('--coords');
 const nodeFetch = has('--node-fetch');
 // Автоматический режим — см. шапку файла. Для ТЦ по умолчанию; для БЦ
 // поведение прежнее, пока не передан --auto.
-const autoMode = has('--auto') || ((catalogKind === 'tc' || catalogKind === 'cw') && !has('--manual'));
+const autoMode = has('--auto') || (catalogKind === 'tc' && !has('--manual'));
 const headless = has('--headless');
 const maxDistance = Number(valueOf('--max-distance') ?? DEFAULT_MAX_DISTANCE_M);
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-tenants');
