@@ -55,7 +55,7 @@
 //   node scripts/capture-yandex-reviews.mjs --kind tc --missing-only --write-db
 // --manual возвращает ручной режим и для ТЦ.
 //
-// Флаги: --kind bc|tc|all, --limit N, --slug SLUG[,SLUG2…], --missing-only, --classes A,B,B+,
+// Флаги: --kind bc|tc|cw|all, --limit N, --slug SLUG[,SLUG2…], --missing-only, --classes A,B,B+,
 // --skip-collected, --max-age-days 45, --output DIR, --profile DIR,
 // КАРТОЧКА ЗДАНИЯ (2026-09-24): в автоматическом режиме вместе с отзывами
 // пишется собственная карточка здания — общий рейтинг, часы, телефоны, сайты
@@ -124,7 +124,7 @@ const cardOnlySlugs = new Set();
 const classesFilter = (valueOf('--classes') ?? '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 // Автоматический режим — см. шапку файла. Для ТЦ по умолчанию, для БЦ
 // поведение прежнее, пока не передан --auto.
-const autoMode = has('--auto') || (catalogKind === 'tc' && !has('--manual'));
+const autoMode = has('--auto') || ((catalogKind === 'tc' || catalogKind === 'cw') && !has('--manual'));
 const headless = has('--headless');
 // Потолок отзывов на здание. У крупных ТЦ их тысячи (Galleria Minsk —
 // 10 364, ЦУМ — 5 338 на 2026-09-23): прокрутка до конца — десятки минут на
@@ -436,7 +436,7 @@ async function catalogEntries() {
   const client = createClient(SUPABASE_URL, anonKey);
   let query = client
     .from('business_centers')
-    .select('slug,name,address,status,sort_order,business_class,lat,lng')
+    .select('slug,name,address,status,sort_order,business_class,lat,lng,kind')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
   if (catalogKind !== 'all') query = query.eq('kind', catalogKind);

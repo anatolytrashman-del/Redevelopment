@@ -56,6 +56,11 @@ const GENERIC_WORDS_RE = new RegExp(
       'автомолл',
       'аутлет',
       'рынок',
+      'коворкинг',
+      'coworking',
+      'бизнес хаб',
+      'бизнесхаб',
+      'свободное пространство',
     ].join('|') +
     ')(?![\\p{L}\\p{N}])',
   'giu',
@@ -97,11 +102,15 @@ export function nameVariants(name) {
 // Поисковые запросы по порядку: короткое имя, потом «<имя> торговый центр»
 // (так находится ТРЦ «Замок», когда по одному «Замок» всплывает кинотеатр
 // внутри), потом полное название, как в базе.
-export function searchTextsFor(name) {
+export function searchTextsFor(name, kind = 'tc') {
   const full = String(name ?? '').trim();
   const primary = isQuotedName(full) ? shortNameOf(full).replace(/\s*\([^)]*\)\s*/g, ' ').trim() : full;
   const texts = [primary];
-  if (!/торгов|рынок|универмаг/i.test(primary)) texts.push(`${primary} торговый центр`);
+  if (kind === 'cw') {
+    if (!/коворкинг|coworking|бизнес[\s-]*хаб/i.test(primary)) texts.push(`${primary} коворкинг`);
+  } else if (!/торгов|рынок|универмаг/i.test(primary)) {
+    texts.push(`${primary} торговый центр`);
+  }
   texts.push(full.replace(/[«»]/g, ''));
   return [...new Set(texts.filter(Boolean))];
 }
@@ -131,6 +140,20 @@ export function retailTier(rubrics) {
   return 0;
 }
 
+const COWORKING_TIER_A_RE = /коворкинг|coworking|бизнес[\s-]*хаб|свободное пространство/i;
+const COWORKING_TIER_B_RE = /бизнес[\s-]*центр|библиотек|кинотеатр/i;
+
+export function coworkingTier(rubrics) {
+  const text = rubrics.join(' · ');
+  if (COWORKING_TIER_A_RE.test(text)) return 2;
+  if (COWORKING_TIER_B_RE.test(text)) return 1;
+  return 0;
+}
+
+function buildingTier(kind, rubrics) {
+  return kind === 'cw' ? coworkingTier(rubrics) : retailTier(rubrics);
+}
+
 const STREET_PREFIX_RE = /^(?:ул|улица|просп|проспект|пр-т|пр|пер|переулок|пл|площадь|б-р|бульвар|тракт|ш|шоссе|пр-д|проезд|наб|набережная|туп|тупик|мкр|микрорайон)\.?\s+/iu;
 
 // «г. Минск, ул. Иосифа Жиновича, 7» → { streetWords: ['жиновича', …], house: '7' }.
@@ -157,7 +180,7 @@ function addressMatches(ours, candidateAddress) {
 
 function slugForms(slug) {
   const s = String(slug ?? '').toLowerCase();
-  return [...new Set([s, s.replace(/-tc$/, '')])].filter(Boolean);
+  return [...new Set([s, s.replace(/-tc$/, ''), s.replace(/-coworking$/, '')])].filter(Boolean);
 }
 
 // Выбор организации здания из кандидатов одной выдачи. Чистая функция —
@@ -176,7 +199,7 @@ export function pickOrganization({ candidates, building, maxDistance = DEFAULT_M
     // «похожие рядом» (tag similar) и слой карты — без русской рубрики.
     if (rubrics.length === 0 || tag === 'similar') continue;
     seen.add(id);
-    const tier = retailTier(rubrics);
+    const tier = buildingTier(building.kind, rubrics);
     if (tier === 0) continue;
     const distance = haversineMeters(center, { lat: candidate.lat, lng: candidate.lng });
     if (!Number.isFinite(distance)) continue;
@@ -240,7 +263,7 @@ export async function resolveBuildingOrganization({ building, fetchHtml, onCaptc
     log('  нет координат здания — искать карточку не по чему');
     return null;
   }
-  for (const text of searchTextsFor(building.name)) {
+  for (const text of searchTextsFor(building.name, building.kind)) {
     const url = searchUrl({ text, center });
     let state = null;
     for (let attempt = 1; attempt <= 3 && !state; attempt += 1) {

@@ -10,7 +10,7 @@
 // передаются обоим шагам как есть; у каждого своя отметка «уже собрано»
 // для --skip-collected.
 //   node scripts/capture-yandex-all.mjs --kind tc --slug siluet-tc,expobel --write-db
-//   node scripts/capture-yandex-all.mjs --kind tc --skip-collected --write-db
+//   node scripts/capture-yandex-all.mjs --kind cw --write-db
 // --only tenants|reviews — один шаг (например, добрать упавший).
 
 import { spawn } from 'node:child_process';

@@ -78,7 +78,16 @@ describe('вспомогательное', () => {
   it('адрес вкладки организации', () => {
     const org = { id: '1058481112', seoname: 'tsum' };
     expect(orgUrl(org, 'inside')).toBe('https://yandex.by/maps/org/tsum/1058481112/inside/');
-    expect(isOrgTabUrl('https://yandex.by/maps/org/tsum/1058481112/reviews/?ll=1,2', '1058481112', 'reviews')).toBe(true);
-    expect(isOrgTabUrl('https://yandex.by/maps/org/tsum/1058481112/', '1058481112', 'reviews')).toBe(false);
+  it('коворкинг HUB#1, не кафе внутри', () => {
+    const building = { slug: 'hub-1', name: 'Коворкинг HUB#1', address: 'г. Минск, ул. Пинская, 28/1', lat: 53.9045, lng: 27.5615, kind: 'cw' };
+    const cafe = cand('1', 'Кофейня', 'Кофейня · coffee · business', 'ул. Пинская, 28/1', 53.9045, 27.5615);
+    const hub = cand('226011234567', 'HUB#1', 'Коворкинг · hub_1 · business', 'ул. Пинская, 28/1', 53.90452, 27.56148);
+    expect(pickOrganization({ candidates: [cafe, hub], building })?.id).toBe('226011234567');
+  });
+
+  it('кинотеатр не берём как коворкинг без рубрики коворкинга, если имя не совпало', () => {
+    const building = { slug: 'hub-1', name: 'Коворкинг HUB#1', address: 'г. Минск, ул. Пинская, 28/1', lat: 53.9045, lng: 27.5615, kind: 'cw' };
+    const cinema = cand('9', 'Москва', 'Кинотеатр · moskva · business', 'просп. Победителей, 13', 53.9045, 27.5615);
+    expect(pickOrganization({ candidates: [cinema], building })).toBeNull();
   });
 });

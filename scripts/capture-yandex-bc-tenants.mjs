@@ -80,7 +80,7 @@ const withCoords = has('--coords');
 const nodeFetch = has('--node-fetch');
 // Автоматический режим — см. шапку файла. Для ТЦ по умолчанию; для БЦ
 // поведение прежнее, пока не передан --auto.
-const autoMode = has('--auto') || (catalogKind === 'tc' && !has('--manual'));
+const autoMode = has('--auto') || ((catalogKind === 'tc' || catalogKind === 'cw') && !has('--manual'));
 const headless = has('--headless');
 const maxDistance = Number(valueOf('--max-distance') ?? DEFAULT_MAX_DISTANCE_M);
 const outputRoot = path.resolve(valueOf('--output') ?? 'tmp/yandex-bc-tenants');
@@ -146,6 +146,8 @@ const DEFAULT_ORGANIZATION_CATEGORY = 'Офис организации';
 // арендатор, поэтому второе правило включается только при --kind tc.
 const BUSINESS_CENTER_CATEGORY_RE = catalogKind === 'tc'
   ? /^(?:бизнес[\s-]*центр|торгов(?:ый|о-развлекательный)[\s-]*центр)(?![\p{L}])/iu
+  : catalogKind === 'cw'
+    ? /^(?:коворкинг|бизнес[\s-]*хаб|свободное пространство)(?![\p{L}])/iu
   : /^бизнес[\s-]*центр(?![\p{L}])/iu;
 const withDefaultCategory = (organizations) => organizations
   .map((organization) => ({
@@ -647,7 +649,7 @@ async function catalogEntries() {
   const client = createClient(supabaseUrl, anonKey);
   let centersQuery = client
     .from('business_centers')
-    .select('slug,name,address,status,sort_order,lat,lng')
+    .select('slug,name,address,status,sort_order,lat,lng,kind')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
   if (catalogKind !== 'all') centersQuery = centersQuery.eq('kind', catalogKind);
