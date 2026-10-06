@@ -36,6 +36,8 @@ export const mediaOutlets: Record<string, MediaOutletBrand> = {
   'officelife.media': OFFICE_LIFE,
   'belretail.by': { name: 'BelRetail', logo: '/media-logos/belretail.png' },
   'blizko.by': { name: 'Blizko.by', logo: '/media-logos/blizko.png' },
+  'citydog.io': { name: 'CityDog.io', logo: null },
+  'myfin.by': { name: 'Myfin', logo: null },
   // Единственный логотип «Минск-новостей», который удалось найти на сайте,
   // — юбилейный значок «МН 25 лет» из шапки (2026-09-20). Он не читается как
   // обычный вордмарк и устареет с концом юбилейного года, поэтому картинку

@@ -55,7 +55,7 @@
 //   node scripts/capture-yandex-reviews.mjs --kind tc --missing-only --write-db
 // --manual возвращает ручной режим и для ТЦ.
 //
-// Флаги: --kind bc|tc|all, --limit N, --slug SLUG[,SLUG2…], --missing-only, --classes A,B,B+,
+// Флаги: --kind bc|tc|cw|all, --limit N, --slug SLUG[,SLUG2…], --missing-only, --classes A,B,B+,
 // --skip-collected, --max-age-days 45, --output DIR, --profile DIR,
 // КАРТОЧКА ЗДАНИЯ (2026-09-24): в автоматическом режиме вместе с отзывами
 // пишется собственная карточка здания — общий рейтинг, часы, телефоны, сайты
@@ -91,6 +91,13 @@ import {
 import { cardFromOrgHtml } from './yandex-org-card.mjs';
 import { isCaptchaHtml } from './yandex-tenant-floors.mjs';
 import { orgFromUrl, pickedOrgFor, savePickedOrg, searchUrlFor, withoutSeoname } from './yandex-picked-orgs.mjs';
+import {
+  COWORKING_REVIEW_SQL,
+  coworkingCardStatsFromReviews,
+  filterCoworkingReviews,
+  isCoworkingReviewBody,
+  needsCoworkingReviewFilter,
+} from './coworking-review-filter.mjs';
 
 const args = process.argv.slice(2);
 const valueOf = (name) => {
@@ -124,7 +131,7 @@ const cardOnlySlugs = new Set();
 const classesFilter = (valueOf('--classes') ?? '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 // Автоматический режим — см. шапку файла. Для ТЦ по умолчанию, для БЦ
 // поведение прежнее, пока не передан --auto.
-const autoMode = has('--auto') || (catalogKind === 'tc' && !has('--manual'));
+const autoMode = has('--auto') || ((catalogKind === 'tc' || catalogKind === 'cw') && !has('--manual'));
 const headless = has('--headless');
 // Потолок отзывов на здание. У крупных ТЦ их тысячи (Galleria Minsk —
 // 10 364, ЦУМ — 5 338 на 2026-09-23): прокрутка до конца — десятки минут на
@@ -280,6 +287,89 @@ async function saveCheckpoint(slug, reviews, sourceUrl, capturedAt) {
 // --- Запись в базу -----------------------------------------------------
 // Одна строка на отзыв (не JSONB-снимок, как у организаций) — уникальный
 // индекс (business_center_slug, author, published_at) в самой таблице.
+async function deleteNonCoworkingReviews(slug) {
+  if (!needsCoworkingReviewFilter(slug) || !writeDb) return;
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('business_center_review_snapshots')
+      .select('id, body')
+      .eq('business_center_slug', slug)
+      .eq('source', 'yandex_maps')
+      .range(0, 999);
+    if (error) throw error;
+    const ids = (data ?? []).filter((row) => !isCoworkingReviewBody(row.body)).map((row) => row.id);
+    if (ids.length === 0) return;
+    const { error: deleteError } = await supabase.from('business_center_review_snapshots').delete().in('id', ids);
+    if (deleteError) throw deleteError;
+    return;
+  }
+  await runSql(
+    `delete from public.business_center_review_snapshots
+      where business_center_slug = ${sqlLiteral(slug)}
+        and source = 'yandex_maps'
+        and body !~* ${sqlLiteral(COWORKING_REVIEW_SQL)};`,
+    accessToken,
+  );
+}
+
+async function patchSharedCoworkingCard(slug) {
+  if (!needsCoworkingReviewFilter(slug) || !writeDb) return;
+  const statsSql = `select count(*)::int as n,
+      count(rating)::int as rated,
+      round(avg(rating), 1) as avg
+    from public.business_center_review_snapshots
+    where business_center_slug = ${sqlLiteral(slug)}`;
+  let reviewCount = 0;
+  let ratingCount = 0;
+  let rating = null;
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('business_center_review_snapshots')
+      .select('rating')
+      .eq('business_center_slug', slug)
+      .range(0, 999);
+    if (error) throw error;
+    const rows = data ?? [];
+    const stats = coworkingCardStatsFromReviews(rows);
+    reviewCount = stats.reviewCount;
+    ratingCount = stats.ratingCount;
+    rating = stats.rating;
+  } else {
+    const rows = await runSql(`${statsSql};`, accessToken);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    reviewCount = Number(row?.n ?? 0);
+    ratingCount = Number(row?.rated ?? 0);
+    rating = row?.avg == null ? null : Number(row.avg);
+  }
+  if (supabase) {
+    const { error } = await supabase
+      .from('business_center_yandex_cards')
+      .update({ review_count: reviewCount, rating_count: ratingCount, rating })
+      .eq('business_center_slug', slug);
+    if (error) throw error;
+    return;
+  }
+  await runSql(
+    `update public.business_center_yandex_cards
+        set review_count = ${reviewCount},
+            rating_count = ${ratingCount},
+            rating = ${rating == null ? 'null' : rating}
+      where business_center_slug = ${sqlLiteral(slug)};`,
+    accessToken,
+  );
+}
+
+async function persistReviews({ supabase, slug, reviews, capturedAt }) {
+  const kept = filterCoworkingReviews(slug, reviews);
+  if (needsCoworkingReviewFilter(slug)) {
+    console.log(`  из ${reviews.length} отзывов карточки здания про коворкинг — ${kept.length}`);
+  }
+  if (kept.length > 0) await writeReviews({ supabase, slug, reviews: kept, capturedAt });
+  await deleteNonCoworkingReviews(slug);
+  await patchSharedCoworkingCard(slug);
+  return kept;
+}
+
 async function writeReviews({ supabase, slug, reviews, capturedAt }) {
   const rows = reviews.map((r) => ({
     business_center_slug: slug,
@@ -436,7 +526,7 @@ async function catalogEntries() {
   const client = createClient(SUPABASE_URL, anonKey);
   let query = client
     .from('business_centers')
-    .select('slug,name,address,status,sort_order,business_class,lat,lng')
+    .select('slug,name,address,status,sort_order,business_class,lat,lng,kind')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
   if (catalogKind !== 'all') query = query.eq('kind', catalogKind);
@@ -479,7 +569,7 @@ async function main() {
     return;
   }
 
-  console.log(`БЦ в очереди: ${queue.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
+  console.log(`${catalogKind === 'cw' ? 'Коворкингов' : 'БЦ'} в очереди: ${queue.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
   const { chromium } = await import('playwright-core');
   const context = await chromium.launchPersistentContext(
     profileDir,
@@ -526,10 +616,10 @@ async function main() {
         }
       }
       await saveCheckpoint(center.slug, reviews, page.url(), capturedAt);
-      if (writeDb) await writeReviews({ supabase, slug: center.slug, reviews, capturedAt });
+      const kept = writeDb ? await persistReviews({ supabase, slug: center.slug, reviews, capturedAt }) : filterCoworkingReviews(center.slug, reviews);
       done += 1;
-      totalReviews += reviews.length;
-      console.log(`${done}/${queue.length} ${center.slug}: ${reviews.length} отзывов${writeDb ? ', записано в базу' : ''}`);
+      totalReviews += kept.length;
+      console.log(`${done}/${queue.length} ${center.slug}: ${kept.length} отзывов${writeDb ? ', записано в базу' : ''}`);
     }
   } finally {
     await context.close();
@@ -778,11 +868,11 @@ async function runAuto(page, queue) {
       console.log(`  ${center.slug}: у организации нет отзывов (так показывает Яндекс)`);
     }
     await saveCheckpoint(center.slug, reviews, page.url(), capturedAt);
-    if (writeDb) await writeReviews({ supabase, slug: center.slug, reviews, capturedAt });
+    const kept = writeDb ? await persistReviews({ supabase, slug: center.slug, reviews, capturedAt }) : filterCoworkingReviews(center.slug, reviews);
     done += 1;
-    totalReviews += reviews.length;
+    totalReviews += kept.length;
     console.log(
-      `${done}/${queue.length} ${center.slug}: ${reviews.length} отзывов` +
+      `${done}/${queue.length} ${center.slug}: ${kept.length} отзывов` +
         `${state.tabCount ? ` (на вкладке ${state.tabCount})` : ''}${writeDb ? ', записано в базу' : ''}`,
     );
     await randomDelay();

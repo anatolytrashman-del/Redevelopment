@@ -8,6 +8,7 @@ import {
   searchUrl,
 } from './capture-yandex-nearby.mjs';
 import { dedupePlaces } from './nearby-places-common.mjs';
+import { searchQueryFor } from './yandex-picked-orgs.mjs';
 
 // Формы взяты с живых выдач Яндекс.Карт 2026-09-20/21 (аптека/магазин/кафе/
 // банкомат вокруг БЦ «Порт»): организация — числовой id и рубрика с русским
@@ -137,5 +138,29 @@ describe('адрес страницы поиска', () => {
     expect(searchUrl({ text: 'продуктовый магазин', center })).toBe(
       'https://yandex.by/maps/157/minsk/search/%D0%BF%D1%80%D0%BE%D0%B4%D1%83%D0%BA%D1%82%D0%BE%D0%B2%D1%8B%D0%B9%20%D0%BC%D0%B0%D0%B3%D0%B0%D0%B7%D0%B8%D0%BD/?ll=27.682522,53.946157&z=17',
     );
+  });
+
+  it('без pin не ставит координаты здания в URL', () => {
+    expect(searchUrl({ text: 'Коворкинг HUB#1', center, pin: false })).toBe(
+      `https://yandex.by/maps/157/minsk/search/${encodeURIComponent('Коворкинг HUB#1')}/`,
+    );
+  });
+});
+
+describe('строка поиска в Chrome', () => {
+  it('для коворкинга — только название, без адреса', () => {
+    expect(searchQueryFor({
+      kind: 'cw',
+      name: 'Коворкинг HUB#1',
+      address: 'г. Минск, ул. Пинская, 28/1',
+    })).toBe('Коворкинг HUB#1');
+  });
+
+  it('для ТЦ — название и адрес', () => {
+    expect(searchQueryFor({
+      kind: 'tc',
+      name: 'ТРЦ «Замок»',
+      address: 'г. Минск, просп. Победителей, 65',
+    })).toBe('ТРЦ  Замок  г. Минск, просп. Победителей, 65');
   });
 });

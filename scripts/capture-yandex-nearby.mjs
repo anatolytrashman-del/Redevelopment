@@ -432,8 +432,10 @@ async function looksLikeCaptcha(page) {
 // города путь меняется флагом --city-path.
 const CITY_PATH = valueOf('--city-path') ?? '157/minsk';
 
-export function searchUrl({ text, center, cityPath = CITY_PATH }) {
-  return `https://yandex.by/maps/${cityPath}/search/${encodeURIComponent(text)}/?ll=${center.lng},${center.lat}&z=17`;
+export function searchUrl({ text, center, cityPath = CITY_PATH, pin = true }) {
+  const base = `https://yandex.by/maps/${cityPath}/search/${encodeURIComponent(text)}/`;
+  if (!pin || !Number.isFinite(center?.lat) || !Number.isFinite(center?.lng)) return base;
+  return `${base}?ll=${center.lng},${center.lat}&z=17`;
 }
 
 const BROWSER_HEADERS = {

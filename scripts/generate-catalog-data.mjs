@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 import { buildDataOffline } from './_buildFallback.mjs';
+import { filterCoworkingReviews } from './coworking-review-filter.mjs';
 import ts from 'typescript';
 
 // Один фильтр для сборки и страницы, без копии правил (владелец, 2026-09-25).
@@ -342,7 +343,7 @@ async function writeExtras() {
       JSON.stringify({
         generatedAt,
         offers: offersBy.get(slug) ?? [],
-        reviews: isTc ? [] : (reviewsBy.get(slug) ?? []),
+        reviews: isTc ? [] : filterCoworkingReviews(slug, reviewsBy.get(slug) ?? []),
         nearby: nearbyBy.get(slug) ?? [],
         gis2: gis2By.get(slug)?.[0] ?? null,
         tenants: tenantsBy.get(slug)?.[0] ?? null,

@@ -10,7 +10,7 @@
 // передаются обоим шагам как есть; у каждого своя отметка «уже собрано»
 // для --skip-collected.
 //   node scripts/capture-yandex-all.mjs --kind tc --slug siluet-tc,expobel --write-db
-//   node scripts/capture-yandex-all.mjs --kind tc --skip-collected --write-db
+//   node scripts/capture-yandex-all.mjs --kind cw --write-db
 // --only tenants|reviews — один шаг (например, добрать упавший).
 
 import { spawn } from 'node:child_process';
@@ -30,14 +30,39 @@ const passArgs = (onlyIndex >= 0 ? args.filter((_, i) => i !== onlyIndex && i !=
   .filter((arg) => arg !== '--manual');
 if (args.includes('--manual')) console.log('--manual не нужен: здания, которые Яндекс не найдёт сам, скрипт попросит открыть в окне Chrome');
 
+const kindIndex = passArgs.indexOf('--kind');
+const catalogKind = kindIndex >= 0 ? passArgs[kindIndex + 1] : 'bc';
+// У коворкинга нужна только его карточка и рейтинг/отзывы, не арендаторы
+// внутри здания (владелец, 2026-10-06).
 const steps = [
   { key: 'tenants', title: 'Арендаторы и этажи', script: 'capture-yandex-bc-tenants.mjs' },
-  { key: 'reviews', title: 'Карточка здания и отзывы', script: 'capture-yandex-reviews.mjs' },
-].filter((step) => !only || step.key === only);
+  { key: 'reviews', title: catalogKind === 'cw' ? 'Карточка коворкинга и отзывы' : 'Карточка здания и отзывы', script: 'capture-yandex-reviews.mjs' },
+].filter((step) => {
+  if (only && step.key !== only) return false;
+  if (catalogKind === 'cw' && step.key === 'tenants') return false;
+  return true;
+});
 
 if (steps.length === 0) {
-  console.error('--only: tenants или reviews');
+  console.error(catalogKind === 'cw' ? 'У коворкингов шага tenants нет — только --only reviews' : '--only: tenants или reviews');
   process.exit(1);
+}
+
+// Видно с первого экрана, что запущен нужный код (владелец, 2026-10-06: на
+// старой ветке тот же вызов открывал дом по адресу и «Организации внутри»).
+if (catalogKind === 'cw') {
+  const line = '='.repeat(68);
+  console.log(
+    [
+      '',
+      line,
+      '  КОВОРКИНГИ (--kind cw)',
+      '  Арендаторов и «Организаций внутри» НЕТ — только карточка коворкинга,',
+      '  рейтинг и отзывы. Поиск в Яндексе — по НАЗВАНИЮ («Коворкинг Campus»),',
+      '  не по адресу. Если в Chrome открылся дом/адрес — это старый код.',
+      line,
+    ].join('\n'),
+  );
 }
 
 function run(script) {
