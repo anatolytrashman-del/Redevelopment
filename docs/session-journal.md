@@ -3,6 +3,7 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-06** — План каталога «Коммерция в ЖК Минска» (`/minsk/zhk`): `docs/zhk-commercial-catalog-plan.md` — Вордстат через Pixel Tools (≈1300 фраз, `data/zhk-commercial/wordstat-2026-10-06.csv`), ресёрч застройщиков (поштучные лоты только bir.by, airon.by, versh.by, savainvest.by), структура, модель данных (`kind='zhk'` + `zhk_info`), 20 шагов. Код не менялся.
 - **2026-10-05** — SQL `20261005-tc-eight-research-fill.sql` применён в БД (Management API): globus GLA/часы/якоря, pole якорь+микрорайон, lobanka Соседи+парковка, stepyanka парковка/factCards, talisman factCards×3. Stamp сдвинут — нужна прод-сборка.
 - **2026-10-05 (ТЦ: добор тонких из 8).** globus-park (GLA 24 247, часы 09–22, якоря OZ/MEGATOP/Мой/DOMO, парковка 1500), pole-chudes (якорь блошиного рынка; часы не трогали — уже верные), lobanka-26 (Соседи 07–23, парковка, factCards), stepyanka (парковка Карвата 4/2, factCards), talisman-tc (factCards). green-time/korona-siti/kupalovskiy уже полные. SQL `20261005-tc-eight-research-fill.sql` + патчи; stamp сдвинет сборку (CDN 134→142).
 - **2026-10-05** — Прод: 8 скрытых ТЦ без фото получили обложки (`green-time`/`korona-siti`/`talisman-tc` с preview PR #718; `globus-park`/`kupalovskiy`/`lobanka-26`/`pole-chudes`/`stepyanka` — фото владельца) + SQL `20261005-tc-covers-unhide.sql` (photos + `is_hidden=false`).
