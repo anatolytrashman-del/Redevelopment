@@ -479,7 +479,7 @@ async function main() {
     return;
   }
 
-  console.log(`БЦ в очереди: ${queue.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
+  console.log(`${catalogKind === 'cw' ? 'Коворкингов' : 'БЦ'} в очереди: ${queue.length}. Открываю Chrome — окно можно двигать, но не закрывайте его.`);
   const { chromium } = await import('playwright-core');
   const context = await chromium.launchPersistentContext(
     profileDir,

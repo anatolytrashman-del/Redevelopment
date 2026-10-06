@@ -656,7 +656,10 @@ async function catalogEntries() {
     .select('slug,name,address,status,sort_order,lat,lng,kind')
     .eq('status', 'built')
     .order('sort_order', { ascending: true });
+  // --kind all коворкинги не берёт: у них организаций внутри не собираем,
+  // а поиск по адресу открывает дом, а не карточку коворкинга.
   if (catalogKind !== 'all') centersQuery = centersQuery.eq('kind', catalogKind);
+  else centersQuery = centersQuery.neq('kind', 'cw');
   if (onlySlugs.length > 0) centersQuery = centersQuery.in('slug', onlySlugs);
   // При --skip-collected лимит применяем ПОСЛЕ фильтрации уже собранных —
   // иначе --limit по sort_order мог бы целиком попасть на готовые БЦ и
@@ -694,6 +697,7 @@ async function catalogEntries() {
       slug: center.slug,
       name: center.name,
       address: center.address,
+      kind: center.kind,
       lat: center.lat,
       lng: center.lng,
       buildings: buildings.length > 0 ? buildings : [{ address: center.address }],
