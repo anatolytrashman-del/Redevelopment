@@ -24,7 +24,10 @@ export function isCoworkingReviewBody(body) {
 
 export function filterCoworkingReviews(slug, reviews) {
   if (!needsCoworkingReviewFilter(slug)) return reviews;
-  return reviews.filter((review) => isCoworkingReviewBody(review?.body));
+  // Яндекс — карточка здания целиком; 2ГИС и ручной импорт уже отобраны.
+  return reviews.filter((review) =>
+    (review?.source && review.source !== 'yandex_maps') || isCoworkingReviewBody(review?.body),
+  );
 }
 
 export function coworkingCardStatsFromReviews(reviews) {

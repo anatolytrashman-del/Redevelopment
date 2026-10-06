@@ -312,9 +312,35 @@ async function deleteNonCoworkingReviews(slug) {
   );
 }
 
-async function patchSharedCoworkingCard(slug, reviews) {
+async function patchSharedCoworkingCard(slug) {
   if (!needsCoworkingReviewFilter(slug) || !writeDb) return;
-  const { reviewCount, ratingCount, rating } = coworkingCardStatsFromReviews(reviews);
+  const statsSql = `select count(*)::int as n,
+      count(rating)::int as rated,
+      round(avg(rating), 1) as avg
+    from public.business_center_review_snapshots
+    where business_center_slug = ${sqlLiteral(slug)}`;
+  let reviewCount = 0;
+  let ratingCount = 0;
+  let rating = null;
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('business_center_review_snapshots')
+      .select('rating')
+      .eq('business_center_slug', slug)
+      .range(0, 999);
+    if (error) throw error;
+    const rows = data ?? [];
+    const stats = coworkingCardStatsFromReviews(rows);
+    reviewCount = stats.reviewCount;
+    ratingCount = stats.ratingCount;
+    rating = stats.rating;
+  } else {
+    const rows = await runSql(`${statsSql};`, accessToken);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    reviewCount = Number(row?.n ?? 0);
+    ratingCount = Number(row?.rated ?? 0);
+    rating = row?.avg == null ? null : Number(row.avg);
+  }
   if (supabase) {
     const { error } = await supabase
       .from('business_center_yandex_cards')
@@ -340,7 +366,7 @@ async function persistReviews({ supabase, slug, reviews, capturedAt }) {
   }
   if (kept.length > 0) await writeReviews({ supabase, slug, reviews: kept, capturedAt });
   await deleteNonCoworkingReviews(slug);
-  await patchSharedCoworkingCard(slug, kept);
+  await patchSharedCoworkingCard(slug);
   return kept;
 }
 

@@ -17,7 +17,9 @@ export function isCoworkingReviewBody(body: string | null | undefined): boolean 
   return COWORKING_REVIEW_RE.test(String(body ?? ''));
 }
 
-export function filterCoworkingReviews<T extends { body?: string | null }>(slug: string, reviews: T[]): T[] {
+export function filterCoworkingReviews<T extends { body?: string | null; source?: string | null }>(slug: string, reviews: T[]): T[] {
   if (!needsCoworkingReviewFilter(slug)) return reviews;
-  return reviews.filter((review) => isCoworkingReviewBody(review.body));
+  return reviews.filter((review) =>
+    (review.source != null && review.source !== 'yandex_maps') || isCoworkingReviewBody(review.body),
+  );
 }
