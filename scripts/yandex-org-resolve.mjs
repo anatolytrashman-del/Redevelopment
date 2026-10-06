@@ -259,12 +259,13 @@ export function isOrgTabUrl(url, orgId, tab) {
  */
 export async function resolveBuildingOrganization({ building, fetchHtml, onCaptcha, log = () => {}, maxDistance, delay }) {
   const center = { lat: Number(building.lat), lng: Number(building.lng) };
-  if (!Number.isFinite(center.lat) || !Number.isFinite(center.lng)) {
+  const pinToCoords = building.kind !== 'cw' && Number.isFinite(center.lat) && Number.isFinite(center.lng);
+  if (!pinToCoords && building.kind !== 'cw' && (!Number.isFinite(center.lat) || !Number.isFinite(center.lng))) {
     log('  нет координат здания — искать карточку не по чему');
     return null;
   }
   for (const text of searchTextsFor(building.name, building.kind)) {
-    const url = searchUrl({ text, center });
+    const url = searchUrl({ text, center, pin: pinToCoords });
     let state = null;
     for (let attempt = 1; attempt <= 3 && !state; attempt += 1) {
       let html = '';

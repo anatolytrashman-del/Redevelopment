@@ -45,9 +45,15 @@ export function pickedOrgFor(slug) {
 }
 
 // Поиск здания в окне Chrome: человеку остаётся нажать на нужный результат.
+// Коворкинг — только имя, без адреса: иначе Яндекс открывает дом, а карточку
+// организации приходится выбирать руками (владелец, 2026-10-06).
+export function searchQueryFor(entry) {
+  const text = entry.kind === 'cw' ? entry.name : [entry.name, entry.address].filter(Boolean).join(' ');
+  return String(text ?? '').replace(/[«»"]/g, ' ').trim();
+}
+
 export function searchUrlFor(entry, cityPath = '157/minsk') {
-  const text = [entry.name, entry.address].filter(Boolean).join(' ').replace(/[«»"]/g, ' ');
-  return `https://yandex.by/maps/${cityPath}/search/${encodeURIComponent(text)}/`;
+  return `https://yandex.by/maps/${cityPath}/search/${encodeURIComponent(searchQueryFor(entry))}/`;
 }
 
 // Без seoname в адресе: у карточки ALL (seoname «all») Яндекс отдаёт 404 на
