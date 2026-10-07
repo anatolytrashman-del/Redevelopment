@@ -438,14 +438,14 @@ function tradeCenterCatalogPaths() {
   const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
   const filtersPath = join(DIST_DIR, 'data', 'tc-filters.json');
   const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
-  // /store/* — только sitemap (см. includeStores в _tcPaths.mjs): сотни URL
-  // и растущий хвост, полный headless на каждый раздувает деплой.
+  // /store/* не пререндерим и не индексируем (includeStores default false):
+  // это страницы организаций, не категорий; headless на тысячи URL раздувал
+  // бы деплой, а в sitemap они больше не нужны (владелец, 2026-10-07).
   return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
     districtSlugs: DISTRICT_HUB_SLUG_BY_NAME,
     metroSlugs: METRO_HUB_SLUG_BY_STATION,
     metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
     tcFilters,
-    includeStores: false,
   });
 }
 

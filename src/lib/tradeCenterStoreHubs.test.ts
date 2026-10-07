@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — скрипт сборки без типов
-import { collectTcStoreHubs as collectTcStoreHubsScript, collectTcStoreSlugs, slugifyTcBrand as scriptSlugify, TC_STORE_HUB_MIN_CENTERS as SCRIPT_STORE_MIN } from '../../scripts/_tcPaths.mjs';
+import {
+  collectTcStoreHubs as collectTcStoreHubsScript,
+  collectTcStoreSlugs,
+  slugifyTcBrand as scriptSlugify,
+  TC_STORE_HUB_MIN_CENTERS as SCRIPT_STORE_MIN,
+  tradeCenterPaths,
+} from '../../scripts/_tcPaths.mjs';
 import { buildTcFilterEntry, slugifyTcBrand, type TcFilterSource } from './tradeCenterCatalogFeatures';
 import {
   collectTcStoreHubs,
@@ -156,5 +162,22 @@ describe('/minsk/tc/store', () => {
     expect(isLegacyWithBrandSlug('zara')).toBe(true);
     expect(isLegacyWithBrandSlug('shopping')).toBe(false);
     expect(makeTcStoreHub('zara', 'Zara').title).toContain('Zara');
+  });
+
+  // Владелец 2026-10-07: /store/* — страницы организаций, в sitemap не зовём.
+  it('tradeCenterPaths по умолчанию без /store/*; includeStores: true — с ними', () => {
+    const filters = { a: { ...empty, brands: ['Zara'] } };
+    const rows = [{ slug: 'a', status: 'built', address: 'г. Минск', district: 'Центральный' }];
+    const opts = {
+      districtSlugs: { Центральный: 'tsentralny' },
+      metroSlugs: {},
+      metroMaxDistance: 1500,
+      tcFilters: filters,
+    };
+    const without = tradeCenterPaths(rows, opts) as string[];
+    expect(without.some((p) => p.startsWith('minsk/tc/store/'))).toBe(false);
+    expect(without).toContain('minsk/tc/a');
+    const withStores = tradeCenterPaths(rows, { ...opts, includeStores: true }) as string[];
+    expect(withStores).toContain('minsk/tc/store/zara');
   });
 });

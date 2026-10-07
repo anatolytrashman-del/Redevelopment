@@ -3,6 +3,7 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-07 (sitemap: выкинуть /tc/store).** В живом sitemap было ~7540 URL, из них ~7077 `/minsk/tc/store/*` (подборки «ТЦ с организацией X» + дубли слагов). В индекс оставляем БЦ/ТЦ/категории (format/with/district/metro): `includeStores: false` в sitemap, default false в `_tcPaths`, `X-Robots-Tag: noindex` на `/minsk/tc/store/*`, `setNoIndex` на странице, SEO-шеллы магазинов убраны из `build:app`.
 - **2026-10-07** — Карточки ТЦ: убраны мелкие исследовательские отсылки (`note`) из ленты «Чем ТЦ вошёл в историю ритейла» и из FAQ истории/рейтингов — на странице остаются факт и описание.
 - **2026-10-05** — SQL `20261005-tc-eight-research-fill.sql` применён в БД (Management API): globus GLA/часы/якоря, pole якорь+микрорайон, lobanka Соседи+парковка, stepyanka парковка/factCards, talisman factCards×3. Stamp сдвинут — нужна прод-сборка.
 - **2026-10-05 (ТЦ: добор тонких из 8).** globus-park (GLA 24 247, часы 09–22, якоря OZ/MEGATOP/Мой/DOMO, парковка 1500), pole-chudes (якорь блошиного рынка; часы не трогали — уже верные), lobanka-26 (Соседи 07–23, парковка, factCards), stepyanka (парковка Карвата 4/2, factCards), talisman-tc (factCards). green-time/korona-siti/kupalovskiy уже полные. SQL `20261005-tc-eight-research-fill.sql` + патчи; stamp сдвинет сборку (CDN 134→142).

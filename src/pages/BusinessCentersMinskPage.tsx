@@ -846,7 +846,15 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // и ItemList смотрят сюда.
   // Каталог ТЦ — вне индекса целиком (TC_NOINDEX): отсюда же пропадает и
   // вся разметка — мета-эффект, FAQ и ItemList смотрят на этот флаг.
-  const pageIsIndexable = !notFound && filterIsIndexable && !thinDerivedHub && !(isTc && TC_NOINDEX);
+  // /minsk/tc/store/* — подборки по организации/арендатору: в UI нужны, в
+  // индекс нет (владелец, 2026-10-07). Дубль сигнала — X-Robots-Tag в vercel.json.
+  const pageIsIndexable =
+    !notFound &&
+    filterIsIndexable &&
+    !thinDerivedHub &&
+    !(isTc && TC_NOINDEX) &&
+    !storeHub &&
+    !storeSlug;
 
   // Мета-теги каталога. Эффект стоит ПОСЛЕ visibleCenters сознательно: с
   // 2026-09-22 в заголовок и описание подставляется число зданий в

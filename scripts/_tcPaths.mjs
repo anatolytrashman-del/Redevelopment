@@ -397,15 +397,15 @@ function formatHubMinCenters(slug) {
 
 /**
  * Пути каталога ТЦ.
- * includeStores (по умолчанию true) — /minsk/tc/store/* для sitemap.
- * Пререндер передаёт false: магазинов сотни и будет ещё больше, каждый
- * headless-прогон раздувает деплой (2026-10-04: +237 store → 27+ мин вместо ~11).
- * В индекс они попадают через sitemap; статический HTML с title/description/h1
- * кладёт scripts/generate-tc-store-seo-shells.mjs (без headless).
+ * includeStores (по умолчанию false) — /minsk/tc/store/* не в sitemap и не
+ * в пререндере: это страницы организаций/арендаторов, в индекс не нужны
+ * (владелец, 2026-10-07; раньше default true раздувал sitemap до ~7.5 тыс.
+ * URL). Фильтр «магазин в ТЦ» в UI остаётся, страницы открываются, но с
+ * noindex (X-Robots-Tag + клиентский setNoIndex).
  */
 export function tradeCenterPaths(
   rows,
-  { districtSlugs, metroSlugs, metroMaxDistance, tcFilters = null, includeStores = true } = {},
+  { districtSlugs, metroSlugs, metroMaxDistance, tcFilters = null, includeStores = false } = {},
 ) {
   const cards = [];
   const formatCounts = {};
