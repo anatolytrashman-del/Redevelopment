@@ -142,3 +142,16 @@ export function chartAxisTicks(maxValue: number): number[] {
   for (let value = 0; value <= top + step * 1e-6; value += step) ticks.push(Math.round(value * 1000) / 1000);
   return ticks;
 }
+
+// Шаг подписей дат, чтобы «26.08» не наезжали, когда дней становится больше,
+// чем влезает в ширину графика. 1 — подпись у каждого дня.
+export function chartDateEvery(plotWidth: number, dayCount: number): number {
+  if (dayCount <= 1) return 1;
+  if (plotWidth <= 0) return dayCount;
+  return Math.max(1, Math.ceil(36 / (plotWidth / dayCount)));
+}
+
+export function chartShowsValues(plotWidth: number, dayCount: number): boolean {
+  if (dayCount <= 0 || plotWidth <= 0) return false;
+  return plotWidth / dayCount >= 18;
+}
