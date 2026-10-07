@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — скрипт сборки без типов
-import {
-  collectTcStoreHubs as collectTcStoreHubsScript,
-  collectTcStoreSlugs,
-  slugifyTcBrand as scriptSlugify,
-  TC_STORE_HUB_MIN_CENTERS as SCRIPT_STORE_MIN,
-  tradeCenterPaths,
-} from '../../scripts/_tcPaths.mjs';
+import * as tcPaths from '../../scripts/_tcPaths.mjs';
+const collectTcStoreHubsScript = tcPaths.collectTcStoreHubs as (
+  rows: unknown,
+  filters: unknown,
+) => Array<{ slug: string; label: string; count: number }>;
+const collectTcStoreSlugs = tcPaths.collectTcStoreSlugs as (rows: unknown, filters: unknown) => string[];
+const scriptSlugify = tcPaths.slugifyTcBrand as (name: string) => string;
+const SCRIPT_STORE_MIN = tcPaths.TC_STORE_HUB_MIN_CENTERS as number;
+const tradeCenterPaths = tcPaths.tradeCenterPaths as (rows: unknown, opts: unknown) => string[];
 import { buildTcFilterEntry, slugifyTcBrand, type TcFilterSource } from './tradeCenterCatalogFeatures';
 import {
   collectTcStoreHubs,
