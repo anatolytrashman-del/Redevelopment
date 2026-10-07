@@ -18,11 +18,22 @@ function fromRow(row: YandexWebmasterStatRow): YandexWebmasterStat {
   };
 }
 
+const PAGE_SIZE = 1000;
+
 export function fetchYandexWebmasterStats(): Promise<YandexWebmasterStat[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase.from('yandex_webmaster_stats').select('*').order('date', { ascending: true });
-    if (error) throw error;
-    return (data as YandexWebmasterStatRow[]).map(fromRow);
+    const rows: YandexWebmasterStat[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('yandex_webmaster_stats')
+        .select('*')
+        .order('date', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = (data as YandexWebmasterStatRow[]).map(fromRow);
+      rows.push(...page);
+      if (page.length < PAGE_SIZE) return rows;
+    }
   });
 }
 

@@ -53,3 +53,92 @@ export function mergeSiteDailyStats(metrika: MetrikaDailyStat[], own: PageViewDa
   }
   return [...rows.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
+
+export interface SearchDailyPoint {
+  date: string;
+  impressions: number | null;
+  clicks: number | null;
+}
+
+export interface CombinedSearchDay {
+  date: string;
+  impressions: number;
+  clicks: number;
+  yandexImpressions: number;
+  yandexClicks: number;
+  googleImpressions: number;
+  googleClicks: number;
+}
+
+function positiveSearch(point: SearchDailyPoint | undefined): boolean {
+  return (point?.impressions ?? 0) > 0 || (point?.clicks ?? 0) > 0;
+}
+
+// Сумма показов и кликов Яндекса и Google по дням: с первого дня, где хоть
+// один источник показал сайт, по `today` включительно. Дыры и ещё не
+// пришедший сегодняшний день — нули, чтобы правый край всегда был «сейчас»,
+// а не последней строкой синка. Ведущие нули до первого показа не рисуем:
+// Вебмастер хранит их с июня, когда показов ещё не было.
+export function combineSearchDaily(
+  yandex: SearchDailyPoint[],
+  google: SearchDailyPoint[],
+  today: string,
+): CombinedSearchDay[] {
+  const yandexByDate = new Map(yandex.map((row) => [row.date, row]));
+  const googleByDate = new Map(google.map((row) => [row.date, row]));
+  const known = [...new Set([...yandexByDate.keys(), ...googleByDate.keys()])].sort();
+  const start = known.find((date) => positiveSearch(yandexByDate.get(date)) || positiveSearch(googleByDate.get(date)));
+  if (!start) return [];
+  const end = today >= start ? today : [...known].sort().at(-1) ?? start;
+  const days: CombinedSearchDay[] = [];
+  for (let date = start, guard = 0; date <= end && guard < 4000; date = shiftMetricsDate(date, 1), guard += 1) {
+    const yandexDay = yandexByDate.get(date);
+    const googleDay = googleByDate.get(date);
+    const yandexImpressions = yandexDay?.impressions ?? 0;
+    const yandexClicks = yandexDay?.clicks ?? 0;
+    const googleImpressions = googleDay?.impressions ?? 0;
+    const googleClicks = googleDay?.clicks ?? 0;
+    days.push({
+      date,
+      yandexImpressions,
+      yandexClicks,
+      googleImpressions,
+      googleClicks,
+      impressions: yandexImpressions + googleImpressions,
+      clicks: yandexClicks + googleClicks,
+    });
+  }
+  return days;
+}
+
+// Хвост после последнего дня, который Яндекс уже отдал. null — отставания нет.
+export function yandexLagNote(days: CombinedSearchDay[]): string | null {
+  let lastYandex = -1;
+  days.forEach((day, index) => {
+    if (day.yandexImpressions > 0 || day.yandexClicks > 0) lastYandex = index;
+  });
+  if (lastYandex === days.length - 1) return null;
+  const pending = days.slice(lastYandex + 1);
+  if (pending.length === 0) return null;
+  const from = pending[0].date;
+  const label = `${from.slice(8, 10)}.${from.slice(5, 7)}`;
+  if (pending.every((day) => day.impressions === 0 && day.clicks === 0)) {
+    return `С ${label} оба источника ещё не прислали показы и клики.`;
+  }
+  if (pending.some((day) => day.googleImpressions > 0 || day.googleClicks > 0)) {
+    return `С ${label} Яндекс ещё не отдал день. Ненулевые столбцы справа — пока только Google.`;
+  }
+  return null;
+}
+
+// Деления оси: 3–4 подписи, верхняя не ниже максимума.
+export function chartAxisTicks(maxValue: number): number[] {
+  if (maxValue <= 0) return [0, 1];
+  const rough = maxValue / 3;
+  const pow = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((multiplier) => multiplier * pow).find((candidate) => candidate >= rough - 1e-9) ?? pow * 10;
+  const top = Math.ceil((maxValue - 1e-9) / step) * step;
+  const ticks: number[] = [];
+  for (let value = 0; value <= top + step * 1e-6; value += step) ticks.push(Math.round(value * 1000) / 1000);
+  return ticks;
+}
