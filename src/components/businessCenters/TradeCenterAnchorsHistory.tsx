@@ -161,7 +161,6 @@ export function TradeCenterHistoryCard({ timeline, title }: { timeline: RetailTi
                   </Badge>
                 </div>
                 {entry.text && <p className="break-words text-sm leading-relaxed text-ink-muted">{entry.text}</p>}
-                {entry.note && <p className="break-words text-xs leading-relaxed text-ink-faint">{entry.note}</p>}
               </div>
             </li>
           );
