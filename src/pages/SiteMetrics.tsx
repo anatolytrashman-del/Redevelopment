@@ -28,8 +28,10 @@ import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
 import { fetchPageViewsDaily, fetchSearchVisitsDaily } from '../lib/pageViewsApi';
 import type { PageViewDaily, SearchVisitDaily } from '../data/pageViews';
+import { SearchVisibilityChart } from '../components/siteMetrics/SearchVisibilityChart';
 import {
-  mergeSiteDailyStats, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate, siteMetricsToday,
+  combineSearchDaily, mergeSiteDailyStats, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate,
+  siteMetricsToday, yandexLagNote,
   type SiteMetricsPeriod,
 } from '../lib/siteMetrics';
 
@@ -84,6 +86,11 @@ import {
 // соответствующий блок с этой страницы ("не нужен"), данные не удалялись,
 // просто больше не выводятся здесь; смотреть напрямую в таблице, если
 // понадобится точный статус конкретной страницы.
+//
+// Общий график показов и кликов (2026-10-07) — сумма Вебмастера и Search
+// Console с первого реального показа по сегодня, без переключателя периода.
+// Страница и так перечитывает таблицы раз в 5 минут; сами источники
+// обновляет суточный синк.
 //
 // «Обратные ссылки» (2026-09-17) забираются тем же суточным синком из
 // официальной ручки Яндекс.Вебмастера /links/external/samples. У Google
@@ -838,6 +845,11 @@ export function SiteMetrics() {
     return null;
   }, [currentGoogle]);
   const hasGoogleQueryData = currentGoogle.some((d) => d.impressions !== null || d.clicks !== null);
+  const searchVisibility = useMemo(
+    () => combineSearchDaily(webmasterStats ?? [], googleStats ?? [], today),
+    [webmasterStats, googleStats, today],
+  );
+  const searchLagNote = useMemo(() => yandexLagNote(searchVisibility), [searchVisibility]);
 
   const maxUpdatedAt = useMemo(() => {
     const dates = (trafficSources ?? []).map((s) => s.updatedAt);
@@ -1004,6 +1016,16 @@ export function SiteMetrics() {
             <Card className="text-sm text-ink-muted">
               Цель «бронирование кабинета» пока не найдена в данных — либо ещё не было ни одной брони за выбранный
               период, либо цель ещё не завершила первый синк.
+            </Card>
+          )}
+
+          {searchVisibility.length > 0 && (
+            <Card className="flex flex-col gap-3">
+              <p className="text-xs text-ink-muted">
+                С первого показа по сегодня. Период сверху на этот график не влияет: страница перечитывает
+                цифры раз в 5 минут, Вебмастер и Search Console присылают их раз в сутки.
+              </p>
+              <SearchVisibilityChart days={searchVisibility} lagNote={searchLagNote} />
             </Card>
           )}
 

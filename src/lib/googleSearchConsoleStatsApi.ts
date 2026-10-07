@@ -20,11 +20,22 @@ function fromRow(row: GoogleSearchConsoleStatRow): GoogleSearchConsoleStat {
   };
 }
 
+const PAGE_SIZE = 1000;
+
 export function fetchGoogleSearchConsoleStats(): Promise<GoogleSearchConsoleStat[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase.from('google_search_console_stats').select('*').order('date', { ascending: true });
-    if (error) throw error;
-    return (data as GoogleSearchConsoleStatRow[]).map(fromRow);
+    const rows: GoogleSearchConsoleStat[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('google_search_console_stats')
+        .select('*')
+        .order('date', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = (data as GoogleSearchConsoleStatRow[]).map(fromRow);
+      rows.push(...page);
+      if (page.length < PAGE_SIZE) return rows;
+    }
   });
 }
 
