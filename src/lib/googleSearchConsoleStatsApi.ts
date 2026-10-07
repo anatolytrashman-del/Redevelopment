@@ -7,6 +7,10 @@ import type {
   GoogleSearchConsolePageRow,
   GoogleSearchConsoleQuery,
   GoogleSearchConsoleQueryRow,
+  GoogleSearchConsoleAiStat,
+  GoogleSearchConsoleAiStatRow,
+  GoogleSearchConsoleAiPage,
+  GoogleSearchConsoleAiPageRow,
 } from '../data/googleSearchConsoleStats';
 
 function fromRow(row: GoogleSearchConsoleStatRow): GoogleSearchConsoleStat {
@@ -77,6 +81,38 @@ export function fetchGoogleSearchConsolePages(): Promise<GoogleSearchConsolePage
       impressions: row.impressions,
       clicks: row.clicks,
       avgPosition: row.avg_position,
+      dateFrom: row.date_from,
+      dateTo: row.date_to,
+    }));
+  });
+}
+
+export function fetchGoogleSearchConsoleAiStats(): Promise<GoogleSearchConsoleAiStat[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('google_search_console_ai_stats')
+      .select('*')
+      .order('date', { ascending: true });
+    if (error) throw error;
+    return (data as GoogleSearchConsoleAiStatRow[]).map((row) => ({
+      date: row.date,
+      impressions: row.impressions,
+      source: row.source,
+    }));
+  });
+}
+
+export function fetchGoogleSearchConsoleAiPages(): Promise<GoogleSearchConsoleAiPage[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('google_search_console_ai_pages')
+      .select('*')
+      .order('impressions', { ascending: false, nullsFirst: false })
+      .limit(1000);
+    if (error) throw error;
+    return (data as GoogleSearchConsoleAiPageRow[]).map((row) => ({
+      page: row.page,
+      impressions: row.impressions,
       dateFrom: row.date_from,
       dateTo: row.date_to,
     }));

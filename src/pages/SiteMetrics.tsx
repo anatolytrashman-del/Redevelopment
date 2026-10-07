@@ -10,20 +10,33 @@ import {
   fetchMetrikaTrafficSources,
   fetchMetrikaTopPages,
   fetchMetrikaGoalCompletions,
+  fetchMetrikaAiReferrers,
 } from '../lib/metrikaStatsApi';
-import type { MetrikaDailyStat, MetrikaTrafficSource, MetrikaTopPage, MetrikaGoalCompletion } from '../data/metrikaStats';
+import type {
+  MetrikaDailyStat,
+  MetrikaTrafficSource,
+  MetrikaTopPage,
+  MetrikaGoalCompletion,
+  MetrikaAiReferrer,
+} from '../data/metrikaStats';
 import { fetchYandexWebmasterStats, fetchYandexWebmasterQueries } from '../lib/yandexWebmasterStatsApi';
 import type { YandexWebmasterStat, YandexWebmasterQuery } from '../data/yandexWebmasterStats';
 import {
   fetchGoogleSearchConsoleStats,
   fetchGoogleSearchConsoleQueries,
   fetchGoogleSearchConsolePages,
+  fetchGoogleSearchConsoleAiStats,
+  fetchGoogleSearchConsoleAiPages,
 } from '../lib/googleSearchConsoleStatsApi';
 import type {
   GoogleSearchConsoleStat,
   GoogleSearchConsoleQuery,
   GoogleSearchConsolePage,
+  GoogleSearchConsoleAiStat,
+  GoogleSearchConsoleAiPage,
 } from '../data/googleSearchConsoleStats';
+import { authFetch } from '../lib/authFetch';
+import { AI_REFERRER_LABELS, isAiReferrerSource } from '../lib/aiReferrer';
 import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
 import { fetchPageViewsDaily, fetchSearchVisitsDaily } from '../lib/pageViewsApi';
@@ -726,6 +739,11 @@ export function SiteMetrics() {
   const [webmasterQueries, setWebmasterQueries] = useState<YandexWebmasterQuery[]>([]);
   const [googleQueries, setGoogleQueries] = useState<GoogleSearchConsoleQuery[]>([]);
   const [googlePages, setGooglePages] = useState<GoogleSearchConsolePage[]>([]);
+  const [aiReferrers, setAiReferrers] = useState<MetrikaAiReferrer[]>([]);
+  const [googleAiStats, setGoogleAiStats] = useState<GoogleSearchConsoleAiStat[]>([]);
+  const [googleAiPages, setGoogleAiPages] = useState<GoogleSearchConsoleAiPage[]>([]);
+  const [aiCsvBusy, setAiCsvBusy] = useState(false);
+  const [aiCsvMessage, setAiCsvMessage] = useState('');
   const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
   const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [searchVisitRows, setSearchVisitRows] = useState<SearchVisitDaily[]>([]);
@@ -747,8 +765,23 @@ export function SiteMetrics() {
     try {
       // Два полных окна по 90 дней нужны для сравнения с предыдущим периодом.
       const pageViewsSince = shiftMetricsDate(siteMetricsToday(), -179);
-      const [daily, traffic, pages, goals, webmaster, google, webmasterQ, googleQ, googleP, backlinkRows, ownPageViews, searchVisits] =
-        await Promise.all([
+      const [
+        daily,
+        traffic,
+        pages,
+        goals,
+        webmaster,
+        google,
+        webmasterQ,
+        googleQ,
+        googleP,
+        aiRefs,
+        gAiStats,
+        gAiPages,
+        backlinkRows,
+        ownPageViews,
+        searchVisits,
+      ] = await Promise.all([
           fetchMetrikaDailyStats(),
           fetchMetrikaTrafficSources(),
           fetchMetrikaTopPages(),
@@ -762,6 +795,9 @@ export function SiteMetrics() {
           fetchYandexWebmasterQueries().catch(() => []),
           fetchGoogleSearchConsoleQueries().catch(() => []),
           fetchGoogleSearchConsolePages().catch(() => []),
+          fetchMetrikaAiReferrers().catch(() => []),
+          fetchGoogleSearchConsoleAiStats().catch(() => []),
+          fetchGoogleSearchConsoleAiPages().catch(() => []),
           fetchSiteBacklinks().catch(() => []),
           fetchPageViewsDaily(pageViewsSince),
           fetchSearchVisitsDaily(pageViewsSince).catch(() => []),
@@ -775,6 +811,9 @@ export function SiteMetrics() {
       setWebmasterQueries(webmasterQ);
       setGoogleQueries(googleQ);
       setGooglePages(googleP);
+      setAiReferrers(aiRefs);
+      setGoogleAiStats(gAiStats);
+      setGoogleAiPages(gAiPages);
       setBacklinks(backlinkRows);
       setPageViewRows(ownPageViews);
       setSearchVisitRows(searchVisits);
@@ -845,6 +884,76 @@ export function SiteMetrics() {
     return null;
   }, [currentGoogle]);
   const hasGoogleQueryData = currentGoogle.some((d) => d.impressions !== null || d.clicks !== null);
+  // Основной счётчик ИИ-кликов — свой (search_visits_daily), без cookie.
+  // Метрика только после согласия — показываем отдельно, если есть.
+  const ownAiVisitRows = useMemo(
+    () => searchVisitRows.filter((row) => isAiReferrerSource(row.source)),
+    [searchVisitRows],
+  );
+  const ownAiByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of ownAiVisitRows) {
+      map.set(row.day, (map.get(row.day) ?? 0) + row.visits);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, value]) => ({ date, value }));
+  }, [ownAiVisitRows]);
+  const totalAiVisits = useMemo(() => sum(ownAiVisitRows.map((r) => r.visits)), [ownAiVisitRows]);
+  const aiByEngine = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of ownAiVisitRows) {
+      map.set(row.source, (map.get(row.source) ?? 0) + row.visits);
+    }
+    return [...map.entries()]
+      .map(([engine, visits]) => ({
+        engine,
+        label: AI_REFERRER_LABELS[engine as keyof typeof AI_REFERRER_LABELS] ?? engine,
+        visits,
+      }))
+      .sort((a, b) => b.visits - a.visits || a.label.localeCompare(b.label, 'ru'));
+  }, [ownAiVisitRows]);
+  const metrikaAiVisits = useMemo(() => sum(aiReferrers.map((r) => r.visits)), [aiReferrers]);
+  const googleAiImpressions = useMemo(
+    () => sum(googleAiStats.map((d) => d.impressions ?? 0)),
+    [googleAiStats],
+  );
+  const maxAiEngineVisits = Math.max(1, ...aiByEngine.map((e) => e.visits));
+
+  const uploadGscAiCsv = useCallback(
+    async (kind: 'dates' | 'pages', file: File | null) => {
+      if (!file) return;
+      setAiCsvBusy(true);
+      setAiCsvMessage('');
+      try {
+        const csv = await file.text();
+        const res = await authFetch('/api/import-gsc-ai-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind, csv }),
+        });
+        const body = (await res.json().catch(() => ({}))) as { error?: string; rows?: number };
+        if (!res.ok) throw new Error(body.error || `Ошибка ${res.status}`);
+        setAiCsvMessage(
+          kind === 'dates'
+            ? `Загружено ${body.rows ?? 0} дней AI-показов.`
+            : `Загружено ${body.rows ?? 0} страниц с AI-показами.`,
+        );
+        const [stats, pages] = await Promise.all([
+          fetchGoogleSearchConsoleAiStats(),
+          fetchGoogleSearchConsoleAiPages(),
+        ]);
+        setGoogleAiStats(stats);
+        setGoogleAiPages(pages);
+      } catch (err) {
+        setAiCsvMessage(err instanceof Error ? err.message : 'Не удалось загрузить CSV');
+      } finally {
+        setAiCsvBusy(false);
+      }
+    },
+    [],
+  );
+
   const searchVisibility = useMemo(
     () => combineSearchDaily(webmasterStats ?? [], googleStats ?? [], today),
     [webmasterStats, googleStats, today],
@@ -875,6 +984,7 @@ export function SiteMetrics() {
   const searchLabels: Record<string, string> = {
     yandex: 'Яндекс', google: 'Google', bing: 'Bing', duckduckgo: 'DuckDuckGo',
     yahoo: 'Yahoo', baidu: 'Baidu', ecosia: 'Ecosia', brave: 'Brave Search',
+    ...AI_REFERRER_LABELS,
   };
 
   return (
@@ -1172,6 +1282,160 @@ export function SiteMetrics() {
               владелец пройдёт разовую авторизацию (см. scripts/get-google-search-console-refresh-token.mjs).
             </Card>
           )}
+
+          <Card className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-ink">ИИ: клики и охват</h3>
+                <p className="text-xs text-ink-muted">
+                  Клики — из собственного счётчика (без cookie, по referrer: ChatGPT, Gemini, Алиса, Copilot…). Метрика
+                  только после согласия на cookies — недосчитывает. AI-охват Google — отчёт Generative AI (AI Overviews /
+                  AI Mode).
+                </p>
+              </div>
+              <a
+                href="https://search.google.com/search-console/performance/search-generative-ai"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary-hover hover:underline"
+              >
+                Отчёт в GSC <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiTile label="Клики из ИИ-чатов" value={totalAiVisits.toLocaleString('ru-RU')} />
+              <KpiTile
+                label="Показы в AI Google"
+                value={googleAiStats.length > 0 ? googleAiImpressions.toLocaleString('ru-RU') : '—'}
+              />
+              <KpiTile
+                label="Страниц в AI Google"
+                value={googleAiPages.length > 0 ? googleAiPages.length.toLocaleString('ru-RU') : '—'}
+              />
+              <KpiTile
+                label="Дней с ИИ-кликами"
+                value={ownAiByDay.length > 0 ? ownAiByDay.length.toLocaleString('ru-RU') : '—'}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-ink">Клики по движкам (свой счётчик)</p>
+                {aiByEngine.length === 0 ? (
+                  <p className="text-sm text-ink-muted">
+                    Пока нет переходов с referrer ИИ-чатов. Распознавание ИИ в своём счётчике включено с этой версии —
+                    история до неё не размечена (считались обычные заходы). Часть кликов уходит в Direct без referrer.
+                    {metrikaAiVisits > 0
+                      ? ` В Метрике (после cookies) за окно: ${metrikaAiVisits.toLocaleString('ru-RU')}.`
+                      : ''}
+                  </p>
+                ) : (
+                  <>
+                    {ownAiByDay.length > 1 && (
+                      <div className="mb-2">
+                        <p className="mb-1 text-xs text-ink-muted">По дням</p>
+                        <Sparkbars data={ownAiByDay} />
+                      </div>
+                    )}
+                    {aiByEngine.map((row) => (
+                      <div key={row.engine} className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-ink">{row.label}</span>
+                          <span className="text-ink-muted">
+                            {row.visits.toLocaleString('ru-RU')}
+                            {totalAiVisits > 0 && (
+                              <span className="ml-1 text-xs">({((row.visits / totalAiVisits) * 100).toFixed(0)}%)</span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{ width: `${(row.visits / maxAiEngineVisits) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {metrikaAiVisits > 0 && (
+                      <p className="mt-1 text-xs text-ink-muted">
+                        Метрика (после cookies), для сравнения: {metrikaAiVisits.toLocaleString('ru-RU')} визитов.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-ink">AI-охват Google (показы)</p>
+                {googleAiStats.length > 0 ? (
+                  <Sparkbars
+                    data={googleAiStats
+                      .filter((d) => d.impressions !== null)
+                      .map((d) => ({ date: d.date, value: d.impressions as number }))}
+                  />
+                ) : (
+                  <p className="text-sm text-ink-muted">
+                    В Search Analytics API Generative AI ещё не отдаётся (проверено). Экспортируй CSV из отчёта в GSC и
+                    загрузи ниже — появится график и список страниц.
+                  </p>
+                )}
+                {googleAiPages.length > 0 && (
+                  <div className="mt-2 flex flex-col divide-y divide-border">
+                    {googleAiPages.slice(0, 8).map((p) => (
+                      <div key={p.page} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                        <span className="truncate text-ink" title={p.page}>
+                          {readablePageLabel(p.page)}
+                        </span>
+                        <span className="shrink-0 text-ink-muted">
+                          {(p.impressions ?? 0).toLocaleString('ru-RU')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-muted/40 p-3">
+              <p className="text-xs font-medium text-ink">Загрузить CSV из Generative AI (GSC)</p>
+              <p className="text-xs text-ink-muted">
+                В отчёте: вкладка Dates → Export → загрузить как «по дням»; вкладка Pages → Export → «по страницам».
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink">
+                  <span className="rounded border border-border bg-white px-2 py-1">По дням</span>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    disabled={aiCsvBusy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      e.target.value = '';
+                      void uploadGscAiCsv('dates', file);
+                    }}
+                  />
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink">
+                  <span className="rounded border border-border bg-white px-2 py-1">По страницам</span>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    disabled={aiCsvBusy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      e.target.value = '';
+                      void uploadGscAiCsv('pages', file);
+                    }}
+                  />
+                </label>
+                {aiCsvBusy && <Loader2 className="h-4 w-4 animate-spin text-ink-muted" />}
+              </div>
+              {aiCsvMessage && <p className="text-xs text-ink-muted">{aiCsvMessage}</p>}
+            </div>
+          </Card>
 
           {backlinks !== null && <BacklinksCard backlinks={backlinks} />}
 

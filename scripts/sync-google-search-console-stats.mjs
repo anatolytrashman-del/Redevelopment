@@ -540,6 +540,110 @@ async function main() {
     if (error) throw error;
     console.log(`Проиндексировано страниц из sitemap: ${pagesIndexed}.`);
   }
+
+  // Generative AI (AI Overviews / AI Mode). В UI GSC отчёт есть с 2026-06,
+  // но searchAnalytics.query type для AI на 2026-10-07 ещё отвергает.
+  // Пробуем на каждом прогоне — как только Google откроет enum, данные
+  // потекут сами; до тех пор владелец грузит CSV в /admin/site-metrics.
+  try {
+    await syncGenerativeAiIfAvailable(accessToken, siteUrl);
+  } catch (err) {
+    console.error('Generative AI синк не удался:', err.message ?? err);
+  }
+}
+
+// Кандидаты type — на день проверки API ни один не принимался. Оставляем
+// список, чтобы не править код, когда Google добавит значение.
+const GENERATIVE_AI_TYPE_CANDIDATES = ['generativeAi', 'aiOverview', 'aiMode', 'GENERATIVE_AI', 'AI_OVERVIEW', 'AI_MODE'];
+
+async function syncGenerativeAiIfAvailable(accessToken, siteUrl) {
+  const dateTo = new Date();
+  const dateFrom = new Date(dateTo);
+  dateFrom.setDate(dateFrom.getDate() - QUERY_BREAKDOWN_DAYS);
+  const path = `/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`;
+  let workingType = null;
+  let dailyRows = null;
+
+  for (const type of GENERATIVE_AI_TYPE_CANDIDATES) {
+    try {
+      const { rows } = await searchConsoleFetch(accessToken, path, {
+        method: 'POST',
+        body: JSON.stringify({
+          startDate: isoDate(dateFrom),
+          endDate: isoDate(dateTo),
+          dimensions: ['date'],
+          type,
+          rowLimit: 1000,
+          dataState: 'all',
+        }),
+      });
+      workingType = type;
+      dailyRows = rows ?? [];
+      break;
+    } catch (err) {
+      const msg = String(err.message ?? err);
+      if (msg.includes('400') || msg.includes('Invalid value')) continue;
+      throw err;
+    }
+  }
+
+  if (!workingType) {
+    console.log(
+      'Generative AI в Search Analytics API пока недоступен (type не принят) — оставляем CSV-загрузку в админке.',
+    );
+    return;
+  }
+
+  console.log(`Generative AI API заработал с type=${workingType}, строк по дням: ${dailyRows.length}.`);
+  const stamp = new Date().toISOString();
+  const stats = dailyRows
+    .map((row) => ({
+      date: row.keys?.[0],
+      impressions: row.impressions ?? null,
+      source: `api:${workingType}`,
+      updated_at: stamp,
+    }))
+    .filter((r) => typeof r.date === 'string');
+
+  if (stats.length && !DRY_RUN) {
+    const { error } = await supabase.from('google_search_console_ai_stats').upsert(stats, { onConflict: 'date' });
+    if (error) throw error;
+  }
+
+  const { rows: pageRows } = await searchConsoleFetch(accessToken, path, {
+    method: 'POST',
+    body: JSON.stringify({
+      startDate: isoDate(dateFrom),
+      endDate: isoDate(dateTo),
+      dimensions: ['page'],
+      type: workingType,
+      rowLimit: QUERY_BREAKDOWN_LIMIT,
+      dataState: 'all',
+    }),
+  });
+  const pages = [];
+  for (const row of pageRows ?? []) {
+    let page;
+    try {
+      page = new URL(row.keys?.[0]).pathname.replace(/\/+$/, '') || '/';
+    } catch {
+      continue;
+    }
+    pages.push({
+      page,
+      impressions: row.impressions ?? null,
+      date_from: isoDate(dateFrom),
+      date_to: isoDate(dateTo),
+      updated_at: stamp,
+    });
+  }
+  if (pages.length && !DRY_RUN) {
+    const del = await supabase.from('google_search_console_ai_pages').delete().gte('impressions', 0);
+    if (del.error) throw del.error;
+    const { error } = await supabase.from('google_search_console_ai_pages').insert(pages);
+    if (error) throw error;
+  }
+  console.log(`Generative AI: сохранено ${stats.length} дней и ${pages.length} страниц.`);
 }
 
 main().catch((err) => {

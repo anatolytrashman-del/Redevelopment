@@ -332,6 +332,105 @@ async function syncTrafficSources(
   if (error) throw error;
 }
 
+// Хосты, с которых приходят клики из ИИ-чатов (referrer). Сверяем по
+// подстроке в hostname после нормализации. Алиса/Яндекс Нейро часто уходят
+// в Direct без referrer — таких визитов здесь не будет.
+const AI_REFERRER_RULES: { engine: string; label: string; match: RegExp }[] = [
+  { engine: 'chatgpt', label: 'ChatGPT', match: /(^|\.)chatgpt\.com$|(^|\.)chat\.openai\.com$|(^|\.)openai\.com$/i },
+  { engine: 'gemini', label: 'Gemini', match: /(^|\.)gemini\.google\.com$|(^|\.)bard\.google\.com$|(^|\.)aistudio\.google\.com$/i },
+  { engine: 'alice', label: 'Алиса / Яндекс Нейро', match: /(^|\.)alice\.yandex\.(ru|by|com)$|(^|\.)dialog\.yandex\.(ru|by)$|(^|\.)neuro\.yandex\.(ru|by)$/i },
+  // bing.com — обычный поиск; Copilot только copilot.microsoft.com (hostname
+  // без path, отличить bing.com/chat нельзя — см. src/lib/aiReferrer.ts).
+  { engine: 'copilot', label: 'Microsoft Copilot', match: /(^|\.)copilot\.microsoft\.com$/i },
+  { engine: 'perplexity', label: 'Perplexity', match: /(^|\.)perplexity\.ai$/i },
+  { engine: 'claude', label: 'Claude', match: /(^|\.)claude\.ai$/i },
+  { engine: 'grok', label: 'Grok', match: /(^|\.)grok\.x\.ai$|(^|\.)x\.ai$/i },
+  { engine: 'you', label: 'You.com', match: /(^|\.)you\.com$/i },
+];
+
+function normalizeReferrerHost(raw: string | null | undefined): string | null {
+  const text = String(raw ?? '').trim().toLowerCase();
+  if (!text || text === 'none' || text === 'null') return null;
+  try {
+    const withProto = text.includes('://') ? text : `https://${text}`;
+    const host = new URL(withProto).hostname.replace(/^www\./, '');
+    return host || null;
+  } catch {
+    return text.replace(/^www\./, '') || null;
+  }
+}
+
+function classifyAiReferrer(host: string): { engine: string; label: string } | null {
+  for (const rule of AI_REFERRER_RULES) {
+    if (rule.match.test(host)) return { engine: rule.engine, label: rule.label };
+  }
+  return null;
+}
+
+async function syncAiReferrers(
+  token: string,
+  snapshotWindow: SnapshotWindow,
+  flags: Flags,
+  log: string[],
+  raw: Record<string, unknown>,
+) {
+  // Только isRobot — второе условие в SESSION_FILTER ломает отчёт (см. выше).
+  // Берём все referrer-хосты и классифицируем на своей стороне.
+  const body = await metrikaFetch(token, '/stat/v1/data', {
+    ids: COUNTER_ID,
+    metrics: 'ym:s:visits,ym:s:users',
+    dimensions: 'ym:s:lastReferalSource',
+    sort: '-ym:s:visits',
+    limit: 100,
+    filters: SESSION_FILTER,
+    date1: snapshotWindow.date1,
+    date2: snapshotWindow.date2,
+  });
+  if (flags.json) raw['ai-referrers'] = body;
+
+  const now = new Date().toISOString();
+  const byHost = new Map<string, { label: string; engine: string; visits: number; users: number }>();
+  // deno-lint-ignore no-explicit-any
+  for (const row of body.data ?? []) {
+    const host = normalizeReferrerHost(row.dimensions?.[0]?.name);
+    if (!host) continue;
+    const classified = classifyAiReferrer(host);
+    if (!classified) continue;
+    const visits = Math.round(row.metrics?.[0] ?? 0);
+    const users = Math.round(row.metrics?.[1] ?? 0);
+    const prev = byHost.get(host);
+    if (prev) {
+      prev.visits += visits;
+      prev.users += users;
+    } else {
+      byHost.set(host, { ...classified, visits, users });
+    }
+  }
+
+  const rows = [...byHost.entries()]
+    .map(([host, v]) => ({
+      host,
+      label: v.label,
+      engine: v.engine,
+      visits: v.visits,
+      users: v.users,
+      window_days: snapshotWindow.windowDays,
+      updated_at: now,
+    }))
+    .sort((a, b) => b.visits - a.visits || a.host.localeCompare(b.host));
+
+  log.push(
+    `Клики из ИИ-чатов: ${rows.length} хостов, ${rows.reduce((s, r) => s + r.visits, 0)} визитов (окно ${snapshotWindow.windowDays} дн.).`,
+  );
+  if (flags.dryRun) return;
+
+  const del = await supabase.from('yandex_metrika_ai_referrers').delete().gte('visits', 0);
+  if (del.error) throw del.error;
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('yandex_metrika_ai_referrers').insert(rows);
+  if (error) throw error;
+}
+
 async function syncTopPages(
   token: string,
   snapshotWindow: SnapshotWindow,
@@ -553,13 +652,14 @@ Deno.serve(async (req) => {
     const snapshotWindow = await fetchSnapshotWindow(log);
 
     await runSection('источники трафика', () => syncTrafficSources(token, snapshotWindow, flags, log, raw));
+    await runSection('клики из ИИ-чатов', () => syncAiReferrers(token, snapshotWindow, flags, log, raw));
     await runSection('топ страниц', () => syncTopPages(token, snapshotWindow, flags, log, raw));
     await runSection('достижения целей', () => syncGoalCompletions(token, flags, log, raw));
 
     // Ни один раздел не прошёл — скорее всего протух токен/сменились права.
     // Отвечаем 500, чтобы это было видно в логах функции, а не тихо оставляем
     // пустые таблицы.
-    const allFailed = errors.length === 4;
+    const allFailed = errors.length === 5;
     return json({ ok: !allFailed, dryRun: flags.dryRun, log, errors, ...(flags.json ? { raw } : {}) }, allFailed ? 500 : 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
