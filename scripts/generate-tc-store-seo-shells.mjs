@@ -1,16 +1,15 @@
 // SEO-шеллы подборок «ТЦ с магазином X» (/minsk/tc/store/<slug>).
 //
-// Магазины намеренно не пререндерятся headless'ом (сотни URL, раздувают
-// деплой — см. includeStores в scripts/_tcPaths.mjs). Без своего HTML они
-// попадали под общий SPA-фолбэк dist/index.html: title/og/canonical от
-// лендинга Red One и без <h1>. В sitemap URL есть, для ботов без JS —
-// пусто. Тот же приём, что у admin-shells / tz.html: клонируем index.html
-// с правильными meta и кладём в dist/minsk/tc/store/<slug>/index.html —
-// Vercel отдаёт статику раньше rewrite на index.html. React при монтировании
-// сносит содержимое #root (как у пререндер-снапшотов).
+// Только бренды с count ≥ TC_STORE_HUB_INDEX_MIN_CENTERS (>3 ТЦ) — те же,
+// что в sitemap. Остальные store-URL в UI есть, но noindex и без шелла
+// (владелец, 2026-10-07: SEO нужен, хвост из ~7k одноразовых — нет).
+// Магазины намеренно не пререндерятся headless'ом (см. includeStores в
+// _tcPaths.mjs). Без своего HTML индексируемые попадали под SPA-фолбэк
+// dist/index.html: title/og/canonical от Red One. Клонируем index.html с
+// meta в dist/minsk/tc/store/<slug>/index.html.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { collectTcStoreHubs } from './_tcPaths.mjs';
+import { collectTcStoreHubs, TC_STORE_HUB_INDEX_MIN_CENTERS } from './_tcPaths.mjs';
 
 const DIST_DIR = 'dist';
 const SITE_ORIGIN = 'https://redevelopment.pro';
@@ -116,7 +115,9 @@ if (!existsSync(listPath) || !existsSync(filtersPath)) {
 
 const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
 const tcFilters = JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null;
-const hubs = collectTcStoreHubs(Array.isArray(rows) ? rows : [], tcFilters);
+const hubs = collectTcStoreHubs(Array.isArray(rows) ? rows : [], tcFilters).filter(
+  (h) => h.count >= TC_STORE_HUB_INDEX_MIN_CENTERS,
+);
 const template = readFileSync(indexPath, 'utf8');
 
 for (const hub of hubs) {
@@ -125,4 +126,6 @@ for (const hub of hubs) {
   writeFileSync(join(dir, 'index.html'), buildShell(template, hub));
 }
 
-console.log(`[tc-store-seo-shells] готово: ${hubs.length} подборок магазинов со своими title/description/h1`);
+console.log(
+  `[tc-store-seo-shells] готово: ${hubs.length} подборок (≥${TC_STORE_HUB_INDEX_MIN_CENTERS} ТЦ) со своими title/description/h1`,
+);
