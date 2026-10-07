@@ -79,3 +79,24 @@ export interface MetrikaGoalCompletionRow {
   reaches: number;
   conversion_rate: number | null;
 }
+
+/** Клики из ИИ-чатов по referrer (снимок за окно, как источники трафика). */
+export interface MetrikaAiReferrer {
+  host: string;
+  label: string;
+  engine: string;
+  visits: number;
+  users: number;
+  windowDays: number;
+  updatedAt: string;
+}
+
+export interface MetrikaAiReferrerRow {
+  host: string;
+  label: string;
+  engine: string;
+  visits: number;
+  users: number;
+  window_days: number;
+  updated_at: string;
+}

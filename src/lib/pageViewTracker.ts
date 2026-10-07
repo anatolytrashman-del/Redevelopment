@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { isLikelyBot } from './botDetection';
+import { aiSourceFromHostname } from './aiReferrer';
 
 // Собственный счётчик посещаемости без cookie (владелец, 2026-09-28) — см.
 // supabase/migrations/20260928-page-views-daily.sql и src/data/pageViews.ts.
@@ -13,8 +14,10 @@ import { isLikelyBot } from './botDetection';
 // entries=true — только для ПЕРВОЙ отслеженной страницы этой загрузки
 // документа, когда document.referrer пуст или ведёт на другой хост (значит
 // человек только что зашёл на сайт, а не кликнул по SPA-ссылке внутри него).
-// Для известных поисковиков дополнительно записываем агрегат source/day; сам
-// referrer не отправляем и не сохраняем.
+// Для известных поисковиков и ИИ-чатов дополнительно записываем агрегат
+// source/day (track_search_visit); сам referrer не отправляем и не сохраняем.
+// Это основной счётчик для «Показателей»: Метрика включается только после
+// принятия cookies и поэтому недосчитывает.
 // Дальнейшие переходы внутри той же загрузки (React Router, без перезагрузки
 // страницы) — entries=false, это продолжение того же визита.
 let hasTrackedEntryThisLoad = false;
@@ -48,6 +51,8 @@ function referrerIsExternal(): boolean {
 function searchSourceFromReferrer(): string | null {
   try {
     const host = new URL(document.referrer).hostname.toLowerCase().replace(/\.$/, '');
+    const ai = aiSourceFromHostname(host);
+    if (ai) return ai;
     const domains: Record<string, string[]> = {
       yandex: ['yandex.ru', 'yandex.by', 'yandex.kz', 'yandex.com', 'yandex.com.tr', 'ya.ru'],
       bing: ['bing.com'],

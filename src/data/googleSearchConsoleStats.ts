@@ -86,3 +86,33 @@ export interface GoogleSearchConsolePageRow {
   date_to: string | null;
   updated_at: string;
 }
+
+/** Показы в Generative AI (AI Overviews / AI Mode). Пока в основном из CSV —
+ * Search Analytics API type для AI на 2026-10-07 ещё не отдаёт. */
+export interface GoogleSearchConsoleAiStat {
+  date: string;
+  impressions: number | null;
+  source: string;
+}
+
+export interface GoogleSearchConsoleAiStatRow {
+  date: string;
+  impressions: number | null;
+  source: string;
+  updated_at: string;
+}
+
+export interface GoogleSearchConsoleAiPage {
+  page: string;
+  impressions: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+export interface GoogleSearchConsoleAiPageRow {
+  page: string;
+  impressions: number | null;
+  date_from: string | null;
+  date_to: string | null;
+  updated_at: string;
+}
