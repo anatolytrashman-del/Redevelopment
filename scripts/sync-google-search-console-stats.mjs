@@ -66,6 +66,11 @@ const KEY_PAGE_PATHS = [
   'minsk/bc/guide',
   'minsk/bc/new',
   'minsk/bc/analytics',
+  // Каталог ТЦ (открыт 2026-09-30): хабы важнее листовых /store/* —
+  // приоритет urlInspection после чистки sitemap (2026-10-07).
+  'minsk/tc',
+  'minsk/tc/rating',
+  'minsk/tc/rating/largest',
 ];
 
 // Сколько дней истории запросов подтягивать за один прогон — у Search

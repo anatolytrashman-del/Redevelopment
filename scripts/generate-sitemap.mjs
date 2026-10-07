@@ -280,11 +280,15 @@ function tradeCenterUrls() {
   const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
   const filtersPath = resolve(process.cwd(), 'dist/data/tc-filters.json');
   const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
+  // /store/* не кладём в sitemap: ~7k бренд-подборок съели crawl budget
+  // карточек ТЦ (владелец, 2026-10-07). Страницы живут для людей, в индексе —
+  // noindex (см. BusinessCentersMinskPage + SEO-шеллы).
   return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
     districtSlugs: DISTRICT_SLUGS,
     metroSlugs: METRO_HUB_SLUG_BY_STATION,
     metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
     tcFilters,
+    includeStores: false,
   }).map((path) => `${SITE}/${path}`);
 }
 

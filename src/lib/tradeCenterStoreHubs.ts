@@ -23,7 +23,12 @@ export interface TcStoreHub {
   intro: (countLabel: string) => string;
 }
 
-/** В индекс — любая непустая подборка магазина (как /with/*, владелец 2026-10-04). */
+/**
+ * Минимум ТЦ, чтобы подборка /store/<slug> существовала как страница.
+ * В индекс store с 2026-10-07 не пускаем вовсе (sitemap + noindex): тысячи
+ * брендов забили crawl budget карточек ТЦ. Константа остаётся для сборки
+ * списка хабов и близнеца в scripts/_tcPaths.mjs.
+ */
 export const TC_STORE_HUB_MIN_CENTERS = 1;
 
 function centersWord(n: number): string {
