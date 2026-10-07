@@ -3,6 +3,7 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-07 (sitemap: /tc/store только >3 ТЦ).** Store-подборки для SEO нужны, но не хвост из ~7077 одноразовых арендаторов. Порог `TC_STORE_HUB_INDEX_MIN_CENTERS = 4` (~420 URL): в sitemap + SEO-шеллы + index; остальные store в UI с noindex. UI-фильтр по-прежнему с MIN=1.
 - **2026-10-07 (sitemap: выкинуть /tc/store).** В живом sitemap было ~7540 URL, из них ~7077 `/minsk/tc/store/*` (подборки «ТЦ с организацией X» + дубли слагов). В индекс оставляем БЦ/ТЦ/категории (format/with/district/metro): `includeStores: false` в sitemap, default false в `_tcPaths`, `X-Robots-Tag: noindex` на `/minsk/tc/store/*`, `setNoIndex` на странице, SEO-шеллы магазинов убраны из `build:app`.
 - **2026-10-07** — Карточки ТЦ: убраны мелкие исследовательские отсылки (`note`) из ленты «Чем ТЦ вошёл в историю ритейла» и из FAQ истории/рейтингов — на странице остаются факт и описание.
 - **2026-10-05** — SQL `20261005-tc-eight-research-fill.sql` применён в БД (Management API): globus GLA/часы/якоря, pole якорь+микрорайон, lobanka Соседи+парковка, stepyanka парковка/factCards, talisman factCards×3. Stamp сдвинут — нужна прод-сборка.

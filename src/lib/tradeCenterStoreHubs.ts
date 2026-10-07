@@ -23,8 +23,10 @@ export interface TcStoreHub {
   intro: (countLabel: string) => string;
 }
 
-/** В индекс — любая непустая подборка магазина (как /with/*, владелец 2026-10-04). */
+/** В UI-фильтр — любая непустая подборка магазина. */
 export const TC_STORE_HUB_MIN_CENTERS = 1;
+/** В sitemap/индекс — только бренды в >3 ТЦ (владелец, 2026-10-07). Близнец в _tcPaths.mjs. */
+export const TC_STORE_HUB_INDEX_MIN_CENTERS = 4;
 
 function centersWord(n: number): string {
   return pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров');

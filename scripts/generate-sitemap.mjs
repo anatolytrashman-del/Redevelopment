@@ -280,16 +280,15 @@ function tradeCenterUrls() {
   const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
   const filtersPath = resolve(process.cwd(), 'dist/data/tc-filters.json');
   const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
-  // /minsk/tc/store/* — подборки «ТЦ с организацией X» — в индекс не
-  // пускаем (владелец, 2026-10-07): в sitemap улетало ~7 тыс. URL на каждого
-  // арендатора, дубли вроде 100-den/100den. Нужны БЦ, ТЦ и категории
-  // (format/with/district/metro), не страницы организаций. includeStores: false.
+  // /minsk/tc/store/* — бренды в >3 ТЦ (TC_STORE_HUB_INDEX_MIN_CENTERS в
+  // _tcPaths). Раньше без порога в sitemap улетало ~7 тыс. одноразовых
+  // арендаторов; владелец 2026-10-07: SEO-подборки нужны, но не хвост.
   return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
     districtSlugs: DISTRICT_SLUGS,
     metroSlugs: METRO_HUB_SLUG_BY_STATION,
     metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
     tcFilters,
-    includeStores: false,
+    includeStores: true,
   }).map((path) => `${SITE}/${path}`);
 }
 

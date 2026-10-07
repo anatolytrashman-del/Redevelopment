@@ -47,6 +47,10 @@ export const TC_TOPIC_HUB_SLUGS = [
 // format/улицы с порогом 3. Близнец: TC_TOPIC_HUB_MIN_CENTERS в tradeCenterHubs.ts.
 export const TC_TOPIC_HUB_MIN_CENTERS = 1;
 export const TC_STORE_HUB_MIN_CENTERS = 1;
+// В sitemap/индекс — только бренды в >3 ТЦ (владелец, 2026-10-07): иначе
+// ~7 тыс. одноразовых арендаторов. UI-фильтр по-прежнему с MIN=1.
+// Близнец: TC_STORE_HUB_INDEX_MIN_CENTERS в tradeCenterStoreHubs.ts.
+export const TC_STORE_HUB_INDEX_MIN_CENTERS = 4;
 export const TC_NON_SHOPPING_FORMATS = ['мебельный центр', 'рынок', 'строительный центр', 'автоцентр'];
 
 export const TC_RAILWAY_STATION = { lat: 53.8907, lng: 27.551 };
@@ -384,9 +388,10 @@ export function collectTcStoreHubs(rows, tcFilters) {
   );
 }
 
-/** Slug'и магазинов — для sitemap / tradeCenterPaths. */
+/** Slug'и магазинов для sitemap: только с count ≥ TC_STORE_HUB_INDEX_MIN_CENTERS. */
 export function collectTcStoreSlugs(rows, tcFilters) {
   return collectTcStoreHubs(rows, tcFilters)
+    .filter((h) => h.count >= TC_STORE_HUB_INDEX_MIN_CENTERS)
     .map((h) => h.slug)
     .sort();
 }
@@ -397,11 +402,11 @@ function formatHubMinCenters(slug) {
 
 /**
  * Пути каталога ТЦ.
- * includeStores (по умолчанию false) — /minsk/tc/store/* не в sitemap и не
- * в пререндере: это страницы организаций/арендаторов, в индекс не нужны
- * (владелец, 2026-10-07; раньше default true раздувал sitemap до ~7.5 тыс.
- * URL). Фильтр «магазин в ТЦ» в UI остаётся, страницы открываются, но с
- * noindex (X-Robots-Tag + клиентский setNoIndex).
+ * includeStores (по умолчанию false) — /minsk/tc/store/* для sitemap
+ * (generate-sitemap передаёт true). В sitemap только бренды с
+ * count ≥ TC_STORE_HUB_INDEX_MIN_CENTERS (>3 ТЦ). Пререндер оставляет
+ * false: headless на сотни URL раздувает деплой. SEO-шеллы для
+ * индексируемых — generate-tc-store-seo-shells.mjs.
  */
 export function tradeCenterPaths(
   rows,

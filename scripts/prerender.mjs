@@ -438,9 +438,9 @@ function tradeCenterCatalogPaths() {
   const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
   const filtersPath = join(DIST_DIR, 'data', 'tc-filters.json');
   const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
-  // /store/* не пререндерим и не индексируем (includeStores default false):
-  // это страницы организаций, не категорий; headless на тысячи URL раздувал
-  // бы деплой, а в sitemap они больше не нужны (владелец, 2026-10-07).
+  // /store/* не пререндерим (includeStores default false): headless на
+  // сотни URL раздувает деплой. В sitemap — только ≥ INDEX_MIN через
+  // generate-sitemap; SEO-шеллы — generate-tc-store-seo-shells.mjs.
   return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
     districtSlugs: DISTRICT_HUB_SLUG_BY_NAME,
     metroSlugs: METRO_HUB_SLUG_BY_STATION,

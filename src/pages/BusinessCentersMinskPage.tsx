@@ -112,7 +112,7 @@ import {
   isLegacyWithBrandSlug,
   matchesTcStoreHub,
   tcStoreHubUrl,
-  TC_STORE_HUB_MIN_CENTERS,
+  TC_STORE_HUB_INDEX_MIN_CENTERS,
   type TcStoreHub,
 } from '../lib/tradeCenterStoreHubs';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
@@ -834,11 +834,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // именно эти три оси и почему не метро/район/класс — см. комментарий у
   // MIN_INDEXABLE_HUB_CENTERS). Тематические /with/* — исключение: индексируем
   // даже с 1–2 ТЦ (владелец, 2026-10-04), порог TC_TOPIC_HUB_MIN_CENTERS.
+  // /store/* — только бренды в >3 ТЦ (TC_STORE_HUB_INDEX_MIN_CENTERS).
   const thinDerivedHub =
     !topicFiltersPending &&
     hubCount !== null &&
     ((Boolean(topicHub) && hubCount < TC_TOPIC_HUB_MIN_CENTERS) ||
-      (Boolean(storeHub) && hubCount < TC_STORE_HUB_MIN_CENTERS) ||
+      (Boolean(storeHub) && hubCount < TC_STORE_HUB_INDEX_MIN_CENTERS) ||
       (formatHub !== null && hubCount < tcFormatHubMinCenters(formatHub.slug)) ||
       (hubCount < MIN_INDEXABLE_HUB_CENTERS &&
         Boolean(streetFilter || microdistrictFilter || (classFilter && districtFilter))));
@@ -846,15 +847,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // и ItemList смотрят сюда.
   // Каталог ТЦ — вне индекса целиком (TC_NOINDEX): отсюда же пропадает и
   // вся разметка — мета-эффект, FAQ и ItemList смотрят на этот флаг.
-  // /minsk/tc/store/* — подборки по организации/арендатору: в UI нужны, в
-  // индекс нет (владелец, 2026-10-07). Дубль сигнала — X-Robots-Tag в vercel.json.
-  const pageIsIndexable =
-    !notFound &&
-    filterIsIndexable &&
-    !thinDerivedHub &&
-    !(isTc && TC_NOINDEX) &&
-    !storeHub &&
-    !storeSlug;
+  const pageIsIndexable = !notFound && filterIsIndexable && !thinDerivedHub && !(isTc && TC_NOINDEX);
 
   // Мета-теги каталога. Эффект стоит ПОСЛЕ visibleCenters сознательно: с
   // 2026-09-22 в заголовок и описание подставляется число зданий в
