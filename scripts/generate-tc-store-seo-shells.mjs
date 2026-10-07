@@ -1,13 +1,11 @@
 // SEO-шеллы подборок «ТЦ с магазином X» (/minsk/tc/store/<slug>).
 //
-// Магазины намеренно не пререндерятся headless'ом (сотни URL, раздувают
-// деплой — см. includeStores в scripts/_tcPaths.mjs). Без своего HTML они
-// попадали под общий SPA-фолбэк dist/index.html: title/og/canonical от
-// лендинга Red One и без <h1>. В sitemap URL есть, для ботов без JS —
-// пусто. Тот же приём, что у admin-shells / tz.html: клонируем index.html
-// с правильными meta и кладём в dist/minsk/tc/store/<slug>/index.html —
-// Vercel отдаёт статику раньше rewrite на index.html. React при монтировании
-// сносит содержимое #root (как у пререндер-снапшотов).
+// Магазины не пререндерятся headless'ом (тысячи URL). С 2026-10-07 они же
+// вне sitemap и в noindex — чтобы отдать crawl budget карточкам ТЦ; шелл
+// всё равно нужен людям по прямой ссылке (title/og/canonical/h1 вместо
+// фолбэка Red One). Тот же приём, что у admin-shells: клонируем index.html
+// в dist/minsk/tc/store/<slug>/index.html. React при монтировании сносит
+// содержимое #root.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectTcStoreHubs } from './_tcPaths.mjs';
@@ -89,7 +87,7 @@ function buildShell(template, { slug, label, count }) {
       .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${escapeAttr(title)}$2`)
       .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${escapeAttr(description)}$2`)
       .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${escapeAttr(url)}$2`)
-      .replace(/(<meta name="robots" content=")[^"]*(")/, '$1index, follow$2')
+      .replace(/(<meta name="robots" content=")[^"]*(")/, '$1noindex, follow$2')
       // RealEstateListing из index.html — про Red One, на подборке магазина не нужен.
       .replace(
         /(<script type="application\/ld\+json" id="object-json-ld">)[\s\S]*?(<\/script>)/,
