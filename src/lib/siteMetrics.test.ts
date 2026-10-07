@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { MetrikaDailyStat } from '../data/metrikaStats';
 import {
-  chartAxisTicks, combineSearchDaily, mergeSiteDailyStats, metricsPeriodBounds,
-  selectMetricsPeriod, siteMetricsToday, yandexLagNote,
+  chartAxisTicks, chartDateEvery, chartShowsValues, combineSearchDaily, mergeSiteDailyStats,
+  metricsPeriodBounds, selectMetricsPeriod, siteMetricsToday, yandexLagNote,
 } from './siteMetrics';
 
 const yesterday: MetrikaDailyStat = {
@@ -79,6 +79,16 @@ describe('site metrics regression: own visits exist before Metrika reports today
     expect(yandexLagNote(days)).toBeNull();
     expect(chartAxisTicks(19)).toEqual([0, 10, 20]);
     expect(chartAxisTicks(0)).toEqual([0, 1]);
+  });
+
+  it('packs date labels into the plot width instead of growing a scrollbar', () => {
+    expect(chartDateEvery(1200, 20)).toBe(1);
+    expect(chartShowsValues(1200, 20)).toBe(true);
+    expect(chartDateEvery(860, 43)).toBe(2);
+    expect(chartShowsValues(860, 43)).toBe(true);
+    expect(chartDateEvery(400, 43)).toBe(4);
+    expect(chartDateEvery(0, 43)).toBe(43);
+    expect(chartShowsValues(0, 43)).toBe(false);
   });
 
   it('rolls over at midnight in Minsk even when UTC and the browser date differ', () => {
