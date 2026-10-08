@@ -344,35 +344,50 @@
       color: var(--ink-muted);
     }
 
-    /* —— Journey path —— */
-    .path-strip {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.45rem 0.55rem;
+    /* —— Journey path: кто что делает —— */
+    .path-flow {
+      display: grid;
+      gap: 0.4rem;
       margin: 0 0 1.5rem;
-      padding: 0.85rem 1rem;
+      padding: 0.85rem;
       border-radius: 1rem;
       border: 1px solid var(--border);
       background: rgba(255, 255, 255, 0.72);
+    }
+
+    @media (min-width: 800px) {
+      .path-flow { grid-template-columns: 1fr 1fr; }
+    }
+
+    .path-row {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr;
+      gap: 0.55rem;
+      align-items: baseline;
+      padding: 0.45rem 0.55rem;
+      border-radius: 0.7rem;
       font-size: 0.8rem;
-      font-weight: 600;
+      font-weight: 500;
+      line-height: 1.35;
       color: var(--ink-muted);
     }
 
-    .path-strip .path-human {
+    .path-row.human { background: rgba(20, 21, 26, 0.03); }
+    .path-row.ai { background: rgba(217, 119, 87, 0.08); }
+
+    .path-who {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .path-row.human .path-who { color: var(--ink); }
+    .path-row.ai .path-who { color: #c45a38; }
+
+    .path-row strong {
       color: var(--ink);
       font-weight: 700;
-    }
-
-    .path-strip .path-ai {
-      color: #c45a38;
-      font-weight: 700;
-    }
-
-    .path-strip .sep {
-      color: var(--ink-faint);
-      font-weight: 500;
     }
 
     .journey {
@@ -416,10 +431,6 @@
     .j-body { min-width: 0; }
 
     .j-head {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.45rem 0.65rem;
       margin-bottom: 0.4rem;
     }
 
@@ -429,21 +440,6 @@
       font-weight: 800;
       color: var(--ink);
       letter-spacing: -0.015em;
-    }
-
-    .who {
-      display: inline-flex;
-      padding: 0.2rem 0.55rem;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 600;
-    }
-
-    .who.sys { background: var(--info-bg); color: var(--info-text); }
-    .who.op { background: var(--surface-muted); color: var(--ink-muted); }
-    .who.both {
-      background: rgba(217, 119, 87, 0.12);
-      color: #c45a38;
     }
 
     .j-d {
@@ -456,36 +452,74 @@
 
     .j-d strong { color: var(--ink); font-weight: 700; }
 
-    .j-points {
-      margin: 0.7rem 0 0;
-      padding: 0;
-      list-style: none;
+    /* Наглядные врезки для владельца */
+    .viz {
       display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
     }
 
-    .j-points li {
-      position: relative;
-      padding-left: 1rem;
-      font-size: 0.85rem;
-      font-weight: 500;
-      line-height: 1.4;
+    .viz-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 0.78rem;
+      font-weight: 600;
       color: var(--ink-muted);
     }
 
-    .j-points li::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0.55em;
-      width: 0.35rem;
-      height: 0.35rem;
-      border-radius: 50%;
-      background: var(--primary);
+    .viz-chip b { color: var(--ink); font-weight: 800; }
+    .viz-chip.ai {
+      border-color: rgba(217, 119, 87, 0.35);
+      background: rgba(217, 119, 87, 0.08);
+      color: #c45a38;
+    }
+    .viz-chip.ok {
+      border-color: rgba(21, 127, 66, 0.3);
+      background: var(--success-bg);
+      color: var(--success);
     }
 
-    .j-points strong { color: var(--ink); font-weight: 700; }
+    .rank {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 0.85rem;
+      max-width: 22rem;
+    }
+
+    .rank-row {
+      display: grid;
+      grid-template-columns: 1.6rem 1fr auto;
+      gap: 0.55rem;
+      align-items: center;
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .rank-row.win {
+      border-color: rgba(21, 127, 66, 0.35);
+      background: var(--success-bg);
+      color: var(--ink);
+    }
+
+    .rank-row .rn {
+      font-weight: 800;
+      color: var(--ink-faint);
+    }
+
+    .rank-row.win .rn { color: var(--success); }
+    .rank-row .rp { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
     /* Excel pain mock */
     .excel-pain {
@@ -748,9 +782,9 @@
           </p>
           <h1>Умный модуль закупок стройматериалов</h1>
           <p class="lede">
-            Автоматизирует закупку от&nbsp;заявки до&nbsp;приезда материала на&nbsp;объект:
-            запрос цен, переписку с&nbsp;поставщиками, сравнение КП, согласование
-            и&nbsp;контроль поставки — в&nbsp;симбиозе закупщика и&nbsp;Claude.
+            Экономит на&nbsp;закупке и&nbsp;на&nbsp;ФОТ закупщиков: больше конкуренции между
+            поставщиками, меньше ручной переписки и&nbsp;сводки Excel — решения принимает
+            человек, рутину закрывает Claude.
           </p>
         </div>
         <aside class="claude-panel" aria-label="Claude">
@@ -759,7 +793,7 @@
             <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
           </div>
           <ul>
-            <li>Закрывает <strong>повторяющуюся рутину</strong>: письма, счета, сводку, саммари, контроль документов</li>
+            <li>Снимает <strong>дорогую рутину</strong>: письма, счета, сводку, саммари, контроль документов</li>
             <li>Только в&nbsp;<strong>заданных ситуациях</strong> — не&nbsp;экспериментирует и&nbsp;не&nbsp;выдумывает</li>
             <li>Незнакомый случай&nbsp;— <strong>решает человек</strong>; после трёх одинаковых решений правило уходит в&nbsp;автомат</li>
             <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке — без кодинга</li>
@@ -770,29 +804,21 @@
       <!-- Journey -->
       <section class="glass section rise rise-d1">
         <div class="section-head">
-          <h2>От заявки до материала на объекте</h2>
+          <h2>Где сокращаются издержки</h2>
+          <p>От заявки на закупку до материала на объекте — кто делает шаг и зачем это владельцу.</p>
         </div>
 
-        <div class="path-strip">
-          <span class="path-human">Заявка</span>
-          <span class="sep">→</span>
-          <span class="path-ai">Claude: статус</span>
-          <span class="sep">→</span>
-          <span class="path-human">Ведомость + юрлицо</span>
-          <span class="sep">→</span>
-          <span class="path-ai">Claude: поставщики и письмо</span>
-          <span class="sep">→</span>
-          <span class="path-human">Отправить</span>
-          <span class="sep">→</span>
-          <span class="path-ai">Claude: рассылка и сводка</span>
-          <span class="sep">→</span>
-          <span class="path-human">Выбор поставщика</span>
-          <span class="sep">→</span>
-          <span class="path-ai">Claude: саммари</span>
-          <span class="sep">→</span>
-          <span class="path-human">Поставка</span>
-          <span class="sep">→</span>
-          <span class="path-ai">Claude: документы</span>
+        <div class="path-flow">
+          <div class="path-row human"><span class="path-who">Человек</span><span>Пришла заявка на&nbsp;закупку</span></div>
+          <div class="path-row ai"><span class="path-who">Claude</span><span>Обновил статус закупки</span></div>
+          <div class="path-row human"><span class="path-who">Человек</span><span>Выбрал ведомость и&nbsp;юрлицо</span></div>
+          <div class="path-row ai"><span class="path-who">Claude</span><span>Подобрал поставщиков и&nbsp;собрал письмо</span></div>
+          <div class="path-row human"><span class="path-who">Человек</span><span>Нажал «Отправить»</span></div>
+          <div class="path-row ai"><span class="path-who">Claude</span><span>Разослал, ответил на&nbsp;типовые, свёл таблицу</span></div>
+          <div class="path-row human"><span class="path-who">Человек</span><span>Выбрал поставщика</span></div>
+          <div class="path-row ai"><span class="path-who">Claude</span><span>Подготовил саммари для согласования</span></div>
+          <div class="path-row human"><span class="path-who">Человек</span><span>Спланировал поставку</span></div>
+          <div class="path-row ai"><span class="path-who">Claude</span><span>Проверил комплект документов</span></div>
         </div>
 
         <div class="journey">
@@ -800,13 +826,12 @@
             <div class="j-n">01</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Заявка и ведомость</h3>
-                <span class="who both">Человек + Claude</span>
+                <h3 class="j-t">Заявка пришла — ведомость одна</h3>
               </div>
               <p class="j-d">
-                Руководитель стройки, владелец или уполномоченный даёт заявку на&nbsp;закупку.
-                Claude обновляет статус. Изменения ведомости приходят закупщику
-                <strong>внутри платформы сразу</strong> — без пересылки файлов.
+                Руководитель стройки или владелец даёт заявку. Claude ставит статус в&nbsp;работе.
+                Правки ведомости видит закупщик сразу в&nbsp;платформе — <strong>без цепочки
+                «финальных» файлов</strong> и&nbsp;потерь времени на пересылку.
               </p>
               <div class="excel-pain" title="Как было без платформы">
                 <div class="excel-icon" aria-hidden="true">XLS</div>
@@ -821,14 +846,12 @@
             <div class="j-n">02</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Старт запроса — четыре клика</h3>
-                <span class="who both">Человек + Claude</span>
+                <h3 class="j-t">Запрос на рынок — четыре клика человека</h3>
               </div>
               <p class="j-d">
-                Человек принимает решение о&nbsp;закупке и&nbsp;делает четыре шага.
-                Дальше Claude подбирает категории по составу ведомости, сортирует поставщиков,
-                пишет письмо и&nbsp;прикладывает ведомость, карточку компании и&nbsp;файл
-                с&nbsp;условиями доставки — человеку остаётся нажать «Отправить».
+                Закупщик решает стартовать и&nbsp;делает четыре клика. Claude подбирает категории,
+                сортирует поставщиков, пишет письмо и&nbsp;прикладывает ведомость, карточку
+                компании и&nbsp;условия доставки — чтобы охват рынка не&nbsp;съедал часы ФОТ.
               </p>
               <div class="clicks" aria-label="Четыре клика">
                 <div class="click"><span class="cn">1</span><span class="ct">Старт закупки</span></div>
@@ -843,22 +866,19 @@
             <div class="j-n">03</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Рассылка, переписка и сводка</h3>
-                <span class="who both">Человек + Claude</span>
+                <h3 class="j-t">Переписка и сводка без ручного Excel</h3>
               </div>
               <p class="j-d">
-                Claude разослал письма. По мере ответов закрывает <strong>типовые</strong>,
-                собирает вложения, распознаёт счета и&nbsp;сводит всё в&nbsp;таблицу сравнения.
-                Нестандартное — человеку. После <strong>трёх одинаковых решений</strong>
-                правило уходит в&nbsp;автомат; сценарии правятся обычным языком в&nbsp;админке.
+                Claude разослал письма, закрывает <strong>типовые</strong> ответы, распознаёт счета
+                и&nbsp;сводит КП в&nbsp;таблицу. Человек включается только в&nbsp;нестандарт.
+                Меньше часов на почту — ниже ФОТ на рутину. Ящик на&nbsp;фирменном домене,
+                без передачи паролей между сотрудниками.
               </p>
-              <ul class="j-points">
-                <li>
-                  Полноценный <strong>email-ящик на фирменном домене</strong> для любого числа
-                  сотрудников — без передачи паролей
-                </li>
-                <li>Ответы, вложения, вся переписка по закупке — в&nbsp;одном месте</li>
-              </ul>
+              <div class="viz">
+                <span class="viz-chip ai"><b>Типовое</b> → Claude</span>
+                <span class="viz-chip"><b>Нестандарт</b> → человек</span>
+                <span class="viz-chip ok"><b>~50%</b> писем без участия</span>
+              </div>
             </div>
           </article>
 
@@ -866,14 +886,18 @@
             <div class="j-n">04</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Выбор поставщика и согласование</h3>
-                <span class="who both">Человек + Claude</span>
+                <h3 class="j-t">Выбор цены — смотришь первое место</h3>
               </div>
               <p class="j-d">
-                Человек видит топ-чарт от&nbsp;дешевле к&nbsp;дороже, оригинал и&nbsp;аналоги
-                рядом, закупку по позициям или комплектом — и&nbsp;выбирает итогового поставщика.
-                Claude готовит <strong>саммари для согласования</strong> с&nbsp;руководителем.
+                Топ-чарт от&nbsp;дешевле к&nbsp;дороже, оригинал и&nbsp;аналоги рядом.
+                Закупщик выбирает поставщика; Claude готовит саммари для согласования
+                с&nbsp;руководителем — быстрее решение, сильнее конкуренция по цене.
               </p>
+              <div class="rank" aria-hidden="true">
+                <div class="rank-row win"><span class="rn">1</span><span>Лучшая цена · выбрано</span><span class="rp">−12%</span></div>
+                <div class="rank-row"><span class="rn">2</span><span>Альтернатива</span><span class="rp">база</span></div>
+                <div class="rank-row"><span class="rn">3</span><span>Дороже</span><span class="rp">+4%</span></div>
+              </div>
             </div>
           </article>
 
@@ -881,14 +905,19 @@
             <div class="j-n">05</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Поставка и документы</h3>
-                <span class="who both">Человек + Claude</span>
+                <h3 class="j-t">Поставка без дыр в документах</h3>
               </div>
               <p class="j-d">
-                Человек планирует поставку: счёт, платёжка, дата, принимающий.
-                Claude держит под контролем полноту комплекта закрывающих документов.
-                При необходимости — интеграция с&nbsp;<strong>ЭДО</strong>.
+                Закупщик планирует поставку: счёт, платёжка, дата, принимающий.
+                Claude следит, чтобы комплект закрывающих был полным — меньше срывов
+                и&nbsp;ручного «догона» бумаг. Можно подключить <strong>ЭДО</strong>.
               </p>
+              <div class="viz">
+                <span class="viz-chip ok">Счёт ✓</span>
+                <span class="viz-chip ok">Платёжка ✓</span>
+                <span class="viz-chip ok">Дата ✓</span>
+                <span class="viz-chip">Закрывающие · Claude</span>
+              </div>
             </div>
           </article>
         </div>
