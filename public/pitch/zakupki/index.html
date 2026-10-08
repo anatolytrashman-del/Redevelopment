@@ -167,16 +167,16 @@
     /* —— Hero —— */
     .hero {
       display: grid;
-      gap: 1.75rem;
+      gap: 1.5rem;
       padding: 1.5rem;
+      align-items: stretch;
     }
 
     @media (min-width: 900px) {
       .hero {
-        grid-template-columns: 1.05fr 1fr;
-        align-items: center;
+        grid-template-columns: 1.15fr 0.95fr;
         padding: 2rem;
-        gap: 2rem;
+        gap: 1.75rem;
       }
     }
 
@@ -186,12 +186,15 @@
       font-weight: 600;
       line-height: 1.4;
       color: var(--ink-faint);
-      max-width: 36rem;
     }
 
     .who-for b {
       color: var(--ink-muted);
       font-weight: 700;
+    }
+
+    .who-site {
+      white-space: nowrap;
     }
 
     h1 {
@@ -208,7 +211,7 @@
     }
 
     .lede {
-      margin: 0 0 1.15rem;
+      margin: 0;
       font-size: 1.05rem;
       font-weight: 500;
       color: var(--ink-muted);
@@ -216,85 +219,79 @@
       line-height: 1.55;
     }
 
-    .claude {
+    .lede strong { color: var(--ink); font-weight: 700; }
+
+    /* Claude panel — справа в hero */
+    .claude-panel {
       display: flex;
-      align-items: flex-start;
-      gap: 0.65rem;
-      max-width: 36rem;
-      padding: 0.75rem 0.95rem;
-      border-radius: 1rem;
-      border: 1px solid rgba(217, 119, 87, 0.35);
-      background: rgba(217, 119, 87, 0.08);
+      flex-direction: column;
+      justify-content: center;
+      gap: 1rem;
+      min-width: 0;
+      padding: 1.35rem 1.4rem;
+      border-radius: 1.25rem;
+      border: 1px solid rgba(217, 119, 87, 0.4);
+      background:
+        linear-gradient(160deg, rgba(217, 119, 87, 0.14), rgba(255, 255, 255, 0.55) 55%),
+        rgba(255, 255, 255, 0.7);
+      box-shadow: 0 12px 32px rgba(196, 90, 56, 0.08);
+    }
+
+    .claude-panel-top {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
     }
 
     .claude-mark {
       flex-shrink: 0;
-      width: 1.35rem;
-      height: 1.35rem;
-      margin-top: 0.12rem;
-    }
-
-    .claude-copy {
-      min-width: 0;
+      width: 2rem;
+      height: 2rem;
     }
 
     .claude-title {
       margin: 0;
-      font-size: 0.9rem;
+      font-size: 1.15rem;
       font-weight: 800;
-      line-height: 1.3;
+      line-height: 1.25;
       color: var(--ink);
+      white-space: nowrap;
     }
 
-    @media (min-width: 480px) {
-      .claude-title { white-space: nowrap; }
+    .claude-title .claude-name { color: #c45a38; }
+
+    .claude-panel ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
     }
 
-    .claude-title .claude-name {
-      color: #c45a38;
-    }
-
-    .claude-note {
-      margin: 0.25rem 0 0;
-      font-size: 0.78rem;
+    .claude-panel li {
+      position: relative;
+      padding-left: 1.05rem;
+      font-size: 0.875rem;
       font-weight: 500;
       line-height: 1.4;
       color: var(--ink-muted);
     }
 
-    .bullets {
-      list-style: none;
-      margin: 0 0 1.35rem;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.7rem;
-    }
-
-    .bullets li {
-      position: relative;
-      padding-left: 1.15rem;
-      font-size: 0.95rem;
-      font-weight: 500;
-      line-height: 1.45;
-      color: var(--ink);
-    }
-
-    .bullets li::before {
+    .claude-panel li::before {
       content: '';
       position: absolute;
       left: 0;
       top: 0.55em;
-      width: 0.45rem;
-      height: 0.45rem;
+      width: 0.4rem;
+      height: 0.4rem;
       border-radius: 50%;
-      background: var(--primary);
+      background: #d97757;
     }
 
-    .bullets strong { font-weight: 700; }
-
-    .hero-shot {
-      min-width: 0;
+    .claude-panel li strong {
+      color: var(--ink);
+      font-weight: 700;
     }
 
     .shot {
@@ -304,15 +301,6 @@
       border: 1px solid var(--border);
       background: var(--surface);
       box-shadow: 0 16px 40px rgba(20, 21, 26, 0.1);
-    }
-
-    .hero-art {
-      display: block;
-      width: 100%;
-      border-radius: 1.25rem;
-      border: 1px solid rgba(20, 21, 26, 0.06);
-      background: #f3f1ee;
-      box-shadow: 0 16px 40px rgba(20, 21, 26, 0.08);
     }
 
     .shot-cap {
@@ -356,53 +344,95 @@
       color: var(--ink-muted);
     }
 
-    /* —— Chain —— */
-    .chain {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
-    }
-
-    @media (min-width: 700px) {
-      .chain { grid-template-columns: repeat(5, 1fr); gap: 0.65rem; }
-    }
-
-    .step {
-      border-radius: 1.1rem;
+    /* —— Journey path —— */
+    .path-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem 0.55rem;
+      margin: 0 0 1.5rem;
+      padding: 0.85rem 1rem;
+      border-radius: 1rem;
       border: 1px solid var(--border);
       background: rgba(255, 255, 255, 0.72);
-      padding: 1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .path-strip .path-human {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .path-strip .path-ai {
+      color: #c45a38;
+      font-weight: 700;
+    }
+
+    .path-strip .sep {
+      color: var(--ink-faint);
+      font-weight: 500;
+    }
+
+    .journey {
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
-      min-height: 100%;
+      gap: 0.85rem;
     }
 
-    .step .n {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
+    .j-step {
+      display: grid;
+      gap: 0.85rem;
+      padding: 1.1rem 1.15rem;
+      border-radius: 1.15rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    @media (min-width: 720px) {
+      .j-step {
+        grid-template-columns: 3.25rem 1fr;
+        gap: 1rem;
+        padding: 1.2rem 1.35rem;
+        align-items: start;
+      }
+    }
+
+    .j-n {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
       color: var(--primary);
+      background: var(--primary-soft);
+      letter-spacing: -0.02em;
     }
 
-    .step .t {
-      font-size: 0.95rem;
-      font-weight: 700;
+    .j-body { min-width: 0; }
+
+    .j-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem 0.65rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .j-t {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 800;
       color: var(--ink);
-    }
-
-    .step .d {
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: var(--ink-muted);
-      line-height: 1.4;
-      flex: 1;
+      letter-spacing: -0.015em;
     }
 
     .who {
       display: inline-flex;
-      align-self: flex-start;
-      margin-top: 0.4rem;
       padding: 0.2rem 0.55rem;
       border-radius: 999px;
       font-size: 0.7rem;
@@ -411,6 +441,115 @@
 
     .who.sys { background: var(--info-bg); color: var(--info-text); }
     .who.op { background: var(--surface-muted); color: var(--ink-muted); }
+    .who.both {
+      background: rgba(217, 119, 87, 0.12);
+      color: #c45a38;
+    }
+
+    .j-d {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.5;
+      color: var(--ink-muted);
+    }
+
+    .j-d strong { color: var(--ink); font-weight: 700; }
+
+    .j-points {
+      margin: 0.7rem 0 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .j-points li {
+      position: relative;
+      padding-left: 1rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--ink-muted);
+    }
+
+    .j-points li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 0.35rem;
+      height: 0.35rem;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .j-points strong { color: var(--ink); font-weight: 700; }
+
+    /* Excel pain mock */
+    .excel-pain {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.9rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.9rem;
+      border: 1px dashed rgba(210, 30, 52, 0.35);
+      background: rgba(253, 227, 229, 0.45);
+      max-width: 28rem;
+    }
+
+    .excel-icon {
+      flex-shrink: 0;
+      width: 2.4rem;
+      height: 2.85rem;
+      border-radius: 0.35rem 0.55rem 0.35rem 0.35rem;
+      background: linear-gradient(160deg, #21a366, #107c41);
+      box-shadow: 0 4px 12px rgba(16, 124, 65, 0.25);
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 0.35rem;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .excel-icon::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      border-width: 0 0.55rem 0.55rem 0;
+      border-style: solid;
+      border-color: transparent #0b5c30 transparent transparent;
+      filter: brightness(1.15);
+    }
+
+    .excel-meta {
+      min-width: 0;
+    }
+
+    .excel-name {
+      margin: 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--ink);
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .excel-label {
+      margin: 0.2rem 0 0;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
 
     /* —— Feature row —— */
     .feature-grid {
@@ -576,7 +715,8 @@
       <section class="glass hero rise">
         <div>
           <p class="who-for">
-            Для <b>Михаила Зуева</b> · ООО&nbsp;«Матрёшка» · стройка в&nbsp;посёлке&nbsp;Зелёном
+            Для <b>Михаила Зуева</b> · ООО&nbsp;«Матрёшка» ·
+            <span class="who-site">стройка&nbsp;в&nbsp;посёлке&nbsp;Зелёном</span>
           </p>
           <h1>Умный модуль закупок стройматериалов</h1>
           <p class="lede">
@@ -584,62 +724,145 @@
             показывает лучшую цену — по базе из&nbsp;<strong>378</strong>&nbsp;заводов
             и&nbsp;<strong>683</strong>&nbsp;поставщиков с&nbsp;доставкой по&nbsp;Москве и&nbsp;области.
           </p>
-          <div class="claude">
-            <img class="claude-mark" src="./claude-asterisk.svg" alt="" width="22" height="22" />
-            <div class="claude-copy">
-              <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
-              <p class="claude-note">Только в&nbsp;заданных ситуациях — не&nbsp;экспериментирует и&nbsp;не&nbsp;выдумывает. Незнакомый случай решает человек.</p>
-            </div>
+        </div>
+        <aside class="claude-panel" aria-label="Claude">
+          <div class="claude-panel-top">
+            <img class="claude-mark" src="./claude-asterisk.svg" alt="" width="32" height="32" />
+            <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
           </div>
-        </div>
-        <div class="hero-shot">
-          <img class="hero-art" src="./01-hero-art.jpg" alt="Закупщик выбирает лучшую цену вместе с Claude" />
-        </div>
+          <ul>
+            <li>Разбирает <strong>типовые</strong> письма и&nbsp;счета, ведёт дожим, готовит сравнение</li>
+            <li>Только в&nbsp;<strong>заданных ситуациях</strong> — не&nbsp;экспериментирует и&nbsp;не&nbsp;выдумывает</li>
+            <li>Незнакомый случай&nbsp;— <strong>решает человек</strong>; после трёх одинаковых решений правило уходит в&nbsp;автомат</li>
+            <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке — без кодинга</li>
+          </ul>
+        </aside>
       </section>
 
-      <!-- Chain -->
+      <!-- Journey -->
       <section class="glass section rise rise-d1">
         <div class="section-head">
-          <h2>Одна цепочка — от ведомости до заказа</h2>
-          <p>Система закрывает рутину. Оператор принимает решения там, где нужна ответственность.</p>
+          <h2>Путь закупщика — от ведомости до поставки</h2>
+          <p>
+            Решения — в&nbsp;пару кликов. Повторяющуюся рутину в&nbsp;середине закрывает Claude.
+          </p>
         </div>
-        <ul class="bullets">
-          <li>За&nbsp;2&nbsp;минуты запросить цены у&nbsp;<strong>378</strong>&nbsp;заводов и&nbsp;<strong>683</strong>&nbsp;поставщиков с&nbsp;доставкой по&nbsp;Москве и&nbsp;области</li>
-          <li>Разобрать <strong>типовые</strong> письма и&nbsp;<strong>100%</strong> счетов</li>
-          <li>Свести десятки КП в&nbsp;одно место и&nbsp;сразу показать лучшую цену&nbsp;— достаточно глянуть первое место</li>
-          <li>Заказать поставку материалов на&nbsp;объект</li>
-        </ul>
-        <div class="chain">
-          <div class="step">
-            <div class="n">01</div>
-            <div class="t">Ведомость</div>
-            <div class="d">Актуальный список материалов по объекту</div>
-            <span class="who op">Оператор</span>
-          </div>
-          <div class="step">
-            <div class="n">02</div>
-            <div class="t">Запрос цен</div>
-            <div class="d">Рассылка по известной базе в пару кликов</div>
-            <span class="who sys">Система</span>
-          </div>
-          <div class="step">
-            <div class="n">03</div>
-            <div class="t">Переписка</div>
-            <div class="d">Claude закрывает типовые письма; остальное — человек</div>
-            <span class="who sys">Система</span>
-          </div>
-          <div class="step">
-            <div class="n">04</div>
-            <div class="t">Сравнение</div>
-            <div class="d">Десятки КП → одно место · лучшая цена сверху</div>
-            <span class="who sys">Система</span>
-          </div>
-          <div class="step">
-            <div class="n">05</div>
-            <div class="t">Заказ</div>
-            <div class="d">Выбор и фиксация поставки на объект</div>
-            <span class="who op">Оператор</span>
-          </div>
+
+        <div class="path-strip" aria-hidden="true">
+          <span class="path-human">Выбрал</span>
+          <span class="sep">→</span>
+          <span class="path-ai">Claude закрыл рутину</span>
+          <span class="sep">→</span>
+          <span class="path-human">Сравнил цену</span>
+          <span class="sep">→</span>
+          <span class="path-ai">Claude собрал саммари</span>
+          <span class="sep">→</span>
+          <span class="path-human">Спланировал поставку</span>
+        </div>
+
+        <div class="journey">
+          <article class="j-step">
+            <div class="j-n">01</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Ведомость материалов</h3>
+                <span class="who op">Закупщик</span>
+              </div>
+              <p class="j-d">
+                Закупщик получает ведомость от руководителя стройки, владельца
+                или того, у&nbsp;кого есть полномочия. Любое изменение внутри платформы
+                приходит <strong>мгновенно</strong> — без пересылки «обновлённых таблиц».
+              </p>
+              <div class="excel-pain" title="Типичная боль без платформы">
+                <div class="excel-icon" aria-hidden="true">XLS</div>
+                <div class="excel-meta">
+                  <p class="excel-name">ведомость радиаторы финальная (3).xlsx</p>
+                  <p class="excel-label">Знакомо? Третья «финальная» — уже не нужна</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">02</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Запрос цен за 4 клика</h3>
+                <span class="who op">Закупщик</span>
+              </div>
+              <p class="j-d">
+                На&nbsp;любое количество позиций и&nbsp;любые группы поставщиков.
+                В&nbsp;среднем по каждой отдельной позиции — <strong>50–100 поставщиков</strong>
+                из базы заводов и дилеров с&nbsp;доставкой по Москве и области.
+              </p>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">03</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Переписка — 50% на автомате</h3>
+                <span class="who both">Claude + человек</span>
+              </div>
+              <p class="j-d">
+                ИИ-закупщик разбирает <strong>типовые</strong> письма; нестандартные ситуации
+                решает человек. Система обучается сама: после <strong>трёх одинаковых решений</strong>
+                добавляет правило в&nbsp;автомат. Сценарии ответов правятся обычным языком
+                и&nbsp;включаются/отключаются из админки — без кодинга.
+              </p>
+              <ul class="j-points">
+                <li>
+                  Полноценный <strong>email-ящик на фирменном домене</strong> для любого числа
+                  сотрудников — без передачи паролей
+                </li>
+                <li>Ответы, вложения, вся переписка по закупке — в&nbsp;одном месте</li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">04</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Сравнение — топ-чарт цен</h3>
+                <span class="who both">Claude + человек</span>
+              </div>
+              <p class="j-d">
+                От дешевле к&nbsp;дороже. Параллельный разбор <strong>оригинала и&nbsp;аналогов</strong>.
+                Можно закупать по позициям или комплектом целиком.
+                Достаточно глянуть первое место — это подсказка при выборе, не агрегатор.
+              </p>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">05</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Саммари для согласования</h3>
+                <span class="who sys">Система</span>
+              </div>
+              <p class="j-d">
+                Понятное резюме: кого выбираем, почему эта цена, что с&nbsp;аналогами —
+                чтобы согласовать финального поставщика с&nbsp;руководителем без пересказа переписки.
+              </p>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">06</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Ведение заказа и поставка</h3>
+                <span class="who op">Закупщик</span>
+              </div>
+              <p class="j-d">
+                Учёт счёта, платёжки, даты доставки, принимающего лица и&nbsp;закрывающих документов.
+                При необходимости — интеграция с&nbsp;<strong>ЭДО</strong>.
+              </p>
+            </div>
+          </article>
         </div>
       </section>
 
