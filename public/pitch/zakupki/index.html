@@ -544,11 +544,39 @@
       text-overflow: ellipsis;
     }
 
-    .excel-label {
-      margin: 0.2rem 0 0;
-      font-size: 0.72rem;
-      font-weight: 600;
+    .clicks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.45rem;
+      margin-top: 0.85rem;
+    }
+
+    @media (min-width: 640px) {
+      .clicks { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .click {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0.65rem 0.7rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .click .cn {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
       color: var(--primary);
+    }
+
+    .click .ct {
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--ink);
     }
 
     /* —— Feature row —— */
@@ -720,9 +748,9 @@
           </p>
           <h1>Умный модуль закупок стройматериалов</h1>
           <p class="lede">
-            Симбиоз закупщика и&nbsp;Claude: сводит десятки КП в&nbsp;одно место и&nbsp;сразу
-            показывает лучшую цену — по базе из&nbsp;<strong>378</strong>&nbsp;заводов
-            и&nbsp;<strong>683</strong>&nbsp;поставщиков с&nbsp;доставкой по&nbsp;Москве и&nbsp;области.
+            Автоматизирует закупку от&nbsp;заявки до&nbsp;приезда материала на&nbsp;объект:
+            запрос цен, переписку с&nbsp;поставщиками, сравнение КП, согласование
+            и&nbsp;контроль поставки — в&nbsp;симбиозе закупщика и&nbsp;Claude.
           </p>
         </div>
         <aside class="claude-panel" aria-label="Claude">
@@ -731,7 +759,7 @@
             <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
           </div>
           <ul>
-            <li>Разбирает <strong>типовые</strong> письма и&nbsp;счета, ведёт дожим, готовит сравнение</li>
+            <li>Закрывает <strong>повторяющуюся рутину</strong>: письма, счета, сводку, саммари, контроль документов</li>
             <li>Только в&nbsp;<strong>заданных ситуациях</strong> — не&nbsp;экспериментирует и&nbsp;не&nbsp;выдумывает</li>
             <li>Незнакомый случай&nbsp;— <strong>решает человек</strong>; после трёх одинаковых решений правило уходит в&nbsp;автомат</li>
             <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке — без кодинга</li>
@@ -742,22 +770,29 @@
       <!-- Journey -->
       <section class="glass section rise rise-d1">
         <div class="section-head">
-          <h2>Путь закупщика — от ведомости до поставки</h2>
-          <p>
-            Решения — в&nbsp;пару кликов. Повторяющуюся рутину в&nbsp;середине закрывает Claude.
-          </p>
+          <h2>От заявки до материала на объекте</h2>
         </div>
 
-        <div class="path-strip" aria-hidden="true">
-          <span class="path-human">Выбрал</span>
+        <div class="path-strip">
+          <span class="path-human">Заявка</span>
           <span class="sep">→</span>
-          <span class="path-ai">Claude закрыл рутину</span>
+          <span class="path-ai">Claude: статус</span>
           <span class="sep">→</span>
-          <span class="path-human">Сравнил цену</span>
+          <span class="path-human">Ведомость + юрлицо</span>
           <span class="sep">→</span>
-          <span class="path-ai">Claude собрал саммари</span>
+          <span class="path-ai">Claude: поставщики и письмо</span>
           <span class="sep">→</span>
-          <span class="path-human">Спланировал поставку</span>
+          <span class="path-human">Отправить</span>
+          <span class="sep">→</span>
+          <span class="path-ai">Claude: рассылка и сводка</span>
+          <span class="sep">→</span>
+          <span class="path-human">Выбор поставщика</span>
+          <span class="sep">→</span>
+          <span class="path-ai">Claude: саммари</span>
+          <span class="sep">→</span>
+          <span class="path-human">Поставка</span>
+          <span class="sep">→</span>
+          <span class="path-ai">Claude: документы</span>
         </div>
 
         <div class="journey">
@@ -765,19 +800,18 @@
             <div class="j-n">01</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Ведомость материалов</h3>
-                <span class="who op">Закупщик</span>
+                <h3 class="j-t">Заявка и ведомость</h3>
+                <span class="who both">Человек + Claude</span>
               </div>
               <p class="j-d">
-                Закупщик получает ведомость от руководителя стройки, владельца
-                или того, у&nbsp;кого есть полномочия. Любое изменение внутри платформы
-                приходит <strong>мгновенно</strong> — без пересылки «обновлённых таблиц».
+                Руководитель стройки, владелец или уполномоченный даёт заявку на&nbsp;закупку.
+                Claude обновляет статус. Изменения ведомости приходят закупщику
+                <strong>внутри платформы сразу</strong> — без пересылки файлов.
               </p>
-              <div class="excel-pain" title="Типичная боль без платформы">
+              <div class="excel-pain" title="Как было без платформы">
                 <div class="excel-icon" aria-hidden="true">XLS</div>
                 <div class="excel-meta">
                   <p class="excel-name">ведомость радиаторы финальная (3).xlsx</p>
-                  <p class="excel-label">Знакомо? Третья «финальная» — уже не нужна</p>
                 </div>
               </div>
             </div>
@@ -787,14 +821,21 @@
             <div class="j-n">02</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Запрос цен за 4 клика</h3>
-                <span class="who op">Закупщик</span>
+                <h3 class="j-t">Старт запроса — четыре клика</h3>
+                <span class="who both">Человек + Claude</span>
               </div>
               <p class="j-d">
-                На&nbsp;любое количество позиций и&nbsp;любые группы поставщиков.
-                В&nbsp;среднем по каждой отдельной позиции — <strong>50–100 поставщиков</strong>
-                из базы заводов и дилеров с&nbsp;доставкой по Москве и области.
+                Человек принимает решение о&nbsp;закупке и&nbsp;делает четыре шага.
+                Дальше Claude подбирает категории по составу ведомости, сортирует поставщиков,
+                пишет письмо и&nbsp;прикладывает ведомость, карточку компании и&nbsp;файл
+                с&nbsp;условиями доставки — человеку остаётся нажать «Отправить».
               </p>
+              <div class="clicks" aria-label="Четыре клика">
+                <div class="click"><span class="cn">1</span><span class="ct">Старт закупки</span></div>
+                <div class="click"><span class="cn">2</span><span class="ct">Выбрать ведомость</span></div>
+                <div class="click"><span class="cn">3</span><span class="ct">Выбрать юрлицо</span></div>
+                <div class="click"><span class="cn">4</span><span class="ct">Нажать «Отправить»</span></div>
+              </div>
             </div>
           </article>
 
@@ -802,14 +843,14 @@
             <div class="j-n">03</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Переписка — 50% на автомате</h3>
-                <span class="who both">Claude + человек</span>
+                <h3 class="j-t">Рассылка, переписка и сводка</h3>
+                <span class="who both">Человек + Claude</span>
               </div>
               <p class="j-d">
-                ИИ-закупщик разбирает <strong>типовые</strong> письма; нестандартные ситуации
-                решает человек. Система обучается сама: после <strong>трёх одинаковых решений</strong>
-                добавляет правило в&nbsp;автомат. Сценарии ответов правятся обычным языком
-                и&nbsp;включаются/отключаются из админки — без кодинга.
+                Claude разослал письма. По мере ответов закрывает <strong>типовые</strong>,
+                собирает вложения, распознаёт счета и&nbsp;сводит всё в&nbsp;таблицу сравнения.
+                Нестандартное — человеку. После <strong>трёх одинаковых решений</strong>
+                правило уходит в&nbsp;автомат; сценарии правятся обычным языком в&nbsp;админке.
               </p>
               <ul class="j-points">
                 <li>
@@ -825,13 +866,13 @@
             <div class="j-n">04</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Сравнение — топ-чарт цен</h3>
-                <span class="who both">Claude + человек</span>
+                <h3 class="j-t">Выбор поставщика и согласование</h3>
+                <span class="who both">Человек + Claude</span>
               </div>
               <p class="j-d">
-                От дешевле к&nbsp;дороже. Параллельный разбор <strong>оригинала и&nbsp;аналогов</strong>.
-                Можно закупать по позициям или комплектом целиком.
-                Достаточно глянуть первое место — это подсказка при выборе, не агрегатор.
+                Человек видит топ-чарт от&nbsp;дешевле к&nbsp;дороже, оригинал и&nbsp;аналоги
+                рядом, закупку по позициям или комплектом — и&nbsp;выбирает итогового поставщика.
+                Claude готовит <strong>саммари для согласования</strong> с&nbsp;руководителем.
               </p>
             </div>
           </article>
@@ -840,25 +881,12 @@
             <div class="j-n">05</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Саммари для согласования</h3>
-                <span class="who sys">Система</span>
+                <h3 class="j-t">Поставка и документы</h3>
+                <span class="who both">Человек + Claude</span>
               </div>
               <p class="j-d">
-                Понятное резюме: кого выбираем, почему эта цена, что с&nbsp;аналогами —
-                чтобы согласовать финального поставщика с&nbsp;руководителем без пересказа переписки.
-              </p>
-            </div>
-          </article>
-
-          <article class="j-step">
-            <div class="j-n">06</div>
-            <div class="j-body">
-              <div class="j-head">
-                <h3 class="j-t">Ведение заказа и поставка</h3>
-                <span class="who op">Закупщик</span>
-              </div>
-              <p class="j-d">
-                Учёт счёта, платёжки, даты доставки, принимающего лица и&nbsp;закрывающих документов.
+                Человек планирует поставку: счёт, платёжка, дата, принимающий.
+                Claude держит под контролем полноту комплекта закрывающих документов.
                 При необходимости — интеграция с&nbsp;<strong>ЭДО</strong>.
               </p>
             </div>
@@ -870,7 +898,10 @@
       <section class="glass section rise rise-d2">
         <div class="section-head">
           <h2>Не поиск поставщика — а лучшая цена на рынке</h2>
-          <p>Оператор не ищет контакты и не сводит Excel — выбирает из готовой таблицы рынка.</p>
+          <p>
+            База: <strong>378</strong>&nbsp;заводов и&nbsp;<strong>683</strong>&nbsp;поставщиков
+            с&nbsp;доставкой по Москве и области. В&nbsp;среднем по позиции — 50–100 контактов.
+          </p>
         </div>
         <div class="feature-grid">
           <div class="feature-copy">
@@ -879,8 +910,8 @@
             <ul>
               <li>База дилеров и заводов по всем категориям стройматериалов</li>
               <li>Поставщик виден в каждой категории, где реально торгует</li>
-              <li>Один клик — запрос цен по всей релевантной выборке</li>
-              <li>Авторазбор счетов и писем с ценами</li>
+              <li>Запрос уходит по релевантной выборке — не вручную по списку</li>
+              <li>Авторазбор счетов и типовых писем с ценами</li>
             </ul>
           </div>
           <div class="shot-card">
