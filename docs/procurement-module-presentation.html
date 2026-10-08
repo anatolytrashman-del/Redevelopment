@@ -110,10 +110,15 @@
     .brand {
       font-weight: 800;
       font-size: 13px;
-      letter-spacing: 0.18em;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+    .brand-mark {
+      font-weight: 800;
+      letter-spacing: 0;
       text-transform: uppercase;
     }
-    .brand span { color: var(--primary); }
+    .brand-mark .red { color: var(--primary); }
 
     .slide-no {
       font-size: 12px;
@@ -155,57 +160,85 @@
       grid-template-rows: auto 1fr auto;
     }
 
+    .cover .brand-row { margin-bottom: 6mm; }
+
+    .cover .brand {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .cover h1 {
+      font-size: 30px;
+      max-width: none;
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      margin-bottom: 5mm;
+    }
+
+    .cover .lede {
+      font-size: 13.5px;
+      line-height: 1.5;
+      max-width: 118mm;
+      margin-bottom: 7mm;
+      font-weight: 500;
+    }
+
     .cover-main {
       display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: 10mm;
+      grid-template-columns: 1fr 1.05fr;
+      gap: 9mm;
       align-items: stretch;
       min-height: 0;
     }
 
-    .metric-stack {
+    .plus-stack {
       display: flex;
       flex-direction: column;
-      gap: 4mm;
-      margin-top: 2mm;
+      gap: 3.5mm;
     }
 
-    .metric {
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid rgba(255, 255, 255, 0.85);
-      border-radius: 18px;
-      padding: 5mm 6mm;
-      box-shadow: 0 10px 28px rgba(20, 21, 26, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    .plus {
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 16px;
+      padding: 4.5mm 5.5mm;
+      box-shadow: 0 8px 24px rgba(20, 21, 26, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.8);
     }
 
-    .metric .label {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--ink-faint);
-      margin-bottom: 2mm;
-    }
-
-    .metric .value {
-      font-size: 26px;
+    .plus .title {
+      font-size: 16px;
       font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.15;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin: 0 0 1.5mm;
     }
 
-    .metric .value .arrow {
-      display: inline-block;
-      color: var(--primary);
-      margin: 0 2mm;
-    }
-
-    .metric .hint {
-      margin-top: 2mm;
-      font-size: 12px;
+    .plus .hint {
+      margin: 0;
+      font-size: 12.5px;
       color: var(--ink-muted);
       font-weight: 500;
-      line-height: 1.35;
+      line-height: 1.4;
+    }
+
+    .cover-shot {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .cover-shot .shot-frame {
+      flex: 1;
+      min-height: 0;
+      max-height: none;
+      height: 100%;
+    }
+
+    .cover-shot .shot-frame img {
+      object-fit: cover;
+      object-position: left top;
     }
 
     .shot-frame {
@@ -502,41 +535,40 @@
     <!-- ========== 1. COVER ========== -->
     <section class="slide cover">
       <div class="brand-row">
-        <div class="brand"><span>Redevelopment</span> · платформа</div>
+        <div class="brand">
+          Платформа
+          <span class="brand-mark"><span class="red">RED</span>EVELOPMENT</span>
+        </div>
         <div class="slide-no">01 / 04</div>
       </div>
 
       <div class="cover-main">
         <div>
-          <h1>Модуль закупок:<br />цены рынка вместо<br /><span class="accent">привычных трёх звонков</span></h1>
+          <h1>Умный модуль закупок<br />стройматериалов</h1>
           <p class="lede">
-            Инструмент собирает коммерческие предложения по всей базе поставщиков,
-            сравнивает оригиналы и аналоги и оставляет закупщику только решение —
-            где купить выгоднее.
+            Модуль помогает в пару кликов запросить цены на стройматериалы по базе
+            из 1061 поставщиков (из них — 378 заводы), автоматически разобрать счета,
+            сравнить цены, помочь выбрать и заказать поставку материалов на объект.
+            С применением ИИ на всех этапах.
           </p>
 
-          <div class="metric-stack">
-            <div class="metric">
-              <div class="label">Операционная модель</div>
-              <div class="value">3 человека <span class="arrow">→</span> 1</div>
-              <div class="hint">Закупки ведёт один сотрудник · около 2 часов в день</div>
+          <div class="plus-stack">
+            <div class="plus">
+              <div class="title">Лучшая проработка рынка</div>
+              <p class="hint">Дилеры и заводы по всем категориям. Запрос цен — сразу по всей релевантной базе, а не по трём знакомым.</p>
             </div>
-            <div class="metric">
-              <div class="label">Главный эффект для бизнеса</div>
-              <div class="value">Ниже себестоимость материалов</div>
-              <div class="hint">Шире рынок → сильнее конкуренция → выше чистая прибыль проекта</div>
+            <div class="plus">
+              <div class="title">Сокращение времени в разы</div>
+              <p class="hint">Рассылку, разбор счетов и типовую переписку закрывает система. Закупщику остаются решения.</p>
             </div>
           </div>
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:3mm;min-height:0;">
-          <div class="shot-frame" style="height:28mm;flex:none;">
-            <img src="assets/procurement-pitch/01-cover-header.png" alt="Шапка модуля Закупки" style="object-fit:cover;object-position:left center;" />
+        <div class="cover-shot">
+          <div class="shot-frame">
+            <img src="assets/procurement-pitch/01-catalog.png" alt="Каталог поставщиков" />
           </div>
-          <div class="shot-frame" style="flex:1;min-height:0;">
-            <img src="assets/procurement-pitch/03-compare-paint-body.png" alt="Сравнение цен на краски" style="object-fit:cover;object-position:left top;" />
-          </div>
-          <div class="shot-caption">Живая закупка красок · выбор лучшей цены по позиции</div>
+          <div class="shot-caption">Каталог поставщиков · 1061 · 378 заводов</div>
         </div>
       </div>
 
