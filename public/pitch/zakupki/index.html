@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Умный модуль закупок стройматериалов — внутренний продукт платформы Redevelopment." />
+  <title>Умный модуль закупок — Redevelopment</title>
+  <style>
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('/fonts/Montserrat-Regular.woff2') format('woff2');
+      font-weight: 100 449;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('/fonts/Montserrat-Medium.woff2') format('woff2');
+      font-weight: 450 549;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('/fonts/Montserrat-SemiBold.woff2') format('woff2');
+      font-weight: 550 899;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('/fonts/Montserrat-ExtraBold.woff2') format('woff2');
+      font-weight: 900;
+      font-display: swap;
+    }
+
+    :root {
+      --bg: #f0efed;
+      --surface: #ffffff;
+      --surface-muted: #f5f4f2;
+      --ink: #14151a;
+      --ink-muted: #6b6d76;
+      --ink-faint: #9a9ba3;
+      --primary: #e4152b;
+      --primary-hover: #c81124;
+      --primary-soft: #fde3e5;
+      --border: #e7e5e2;
+      --success: #157f42;
+      --success-bg: #e6f6ed;
+      --info-bg: #dfeafd;
+      --info-text: #1f4c8f;
+      --glass-bg: rgba(255, 255, 255, 0.55);
+      --glass-border: rgba(255, 255, 255, 0.75);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Montserrat', system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .page {
+      min-height: 100svh;
+      background:
+        radial-gradient(ellipse 70% 45% at 0% 0%, rgba(228, 21, 43, 0.06), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 100% 20%, rgba(20, 21, 26, 0.04), transparent 50%),
+        var(--bg);
+    }
+
+    /* —— Header (один раз) —— */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--border);
+      background: rgba(240, 239, 237, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .topbar-inner {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 1rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    @media (min-width: 640px) {
+      .topbar-inner { padding: 1.15rem 2rem; }
+    }
+
+    .brand {
+      font-size: 1.125rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+    }
+    .brand .red {
+      color: var(--primary);
+      font-weight: 900;
+    }
+
+    .topbar-meta {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ink-faint);
+      text-align: right;
+    }
+
+    /* —— Layout —— */
+    .wrap {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    @media (min-width: 640px) {
+      .wrap { padding: 3rem 2rem 5rem; gap: 1.5rem; }
+    }
+
+    .glass {
+      border-radius: 1.5rem;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px) saturate(150%);
+      -webkit-backdrop-filter: blur(20px) saturate(150%);
+      box-shadow: var(--glass-shadow);
+    }
+
+    /* —— Hero —— */
+    .hero {
+      display: grid;
+      gap: 1.75rem;
+      padding: 1.5rem;
+    }
+
+    @media (min-width: 900px) {
+      .hero {
+        grid-template-columns: 1.05fr 1fr;
+        align-items: center;
+        padding: 2rem;
+        gap: 2rem;
+      }
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 0 0 0.85rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(21, 127, 66, 0.3);
+      background: var(--success-bg);
+      color: var(--success);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    h1 {
+      margin: 0 0 1rem;
+      font-size: 1.65rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+
+    @media (min-width: 640px) {
+      h1 { font-size: 2rem; }
+    }
+
+    .lede {
+      margin: 0 0 1.25rem;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      max-width: 36rem;
+    }
+
+    .bullets {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+
+    .bullets li {
+      position: relative;
+      padding-left: 1.15rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      line-height: 1.45;
+      color: var(--ink);
+    }
+
+    .bullets li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .bullets strong { font-weight: 700; }
+
+    .ai-note {
+      margin: 1.15rem 0 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .hero-shot {
+      min-width: 0;
+    }
+
+    .shot {
+      display: block;
+      width: 100%;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 16px 40px rgba(20, 21, 26, 0.1);
+    }
+
+    .shot-cap {
+      margin: 0.65rem 0 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ink-faint);
+    }
+
+    /* —— Section shell —— */
+    .section {
+      padding: 1.5rem;
+    }
+
+    @media (min-width: 640px) {
+      .section { padding: 1.75rem 2rem; }
+    }
+
+    .section-head {
+      margin-bottom: 1.25rem;
+      max-width: 40rem;
+    }
+
+    h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
+      color: var(--ink);
+    }
+
+    @media (min-width: 640px) {
+      h2 { font-size: 1.4rem; }
+    }
+
+    .section-head p {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+
+    /* —— Chain —— */
+    .chain {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    @media (min-width: 700px) {
+      .chain { grid-template-columns: repeat(5, 1fr); gap: 0.65rem; }
+    }
+
+    .step {
+      border-radius: 1.1rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-height: 100%;
+    }
+
+    .step .n {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--primary);
+    }
+
+    .step .t {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .step .d {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    .who {
+      display: inline-flex;
+      align-self: flex-start;
+      margin-top: 0.4rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .who.sys { background: var(--info-bg); color: var(--info-text); }
+    .who.op { background: var(--surface-muted); color: var(--ink-muted); }
+
+    /* —— Feature row —— */
+    .feature-grid {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    @media (min-width: 800px) {
+      .feature-grid { grid-template-columns: 1fr 1.15fr; align-items: stretch; }
+    }
+
+    .feature-copy {
+      border-radius: 1.1rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 1.15rem 1.25rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      margin: 0 0 0.65rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .chip-red { background: var(--primary-soft); color: var(--primary); }
+    .chip-blue { background: var(--info-bg); color: var(--info-text); }
+
+    .feature-copy h3 {
+      margin: 0 0 0.75rem;
+      font-size: 1.05rem;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .feature-copy ul {
+      margin: 0;
+      padding: 0 0 0 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+
+    .feature-copy li::marker { color: var(--primary); }
+
+    /* —— Shot grids —— */
+    .shots-2 {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    @media (min-width: 800px) {
+      .shots-2 { grid-template-columns: 1fr 1fr; }
+    }
+
+    .shot-card {
+      min-width: 0;
+    }
+
+    .shot-card .shot {
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      object-position: left top;
+    }
+
+    /* —— Modes —— */
+    .modes {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    @media (min-width: 700px) {
+      .modes { grid-template-columns: 1fr 1fr; }
+    }
+
+    .mode {
+      border-radius: 1.1rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 1.15rem 1.25rem;
+    }
+
+    .mode h3 {
+      margin: 0 0 0.45rem;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    .mode p {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      line-height: 1.45;
+    }
+
+    /* —— Result —— */
+    .result {
+      display: grid;
+      gap: 1rem;
+      padding: 1.5rem;
+      background:
+        linear-gradient(135deg, rgba(228, 21, 43, 0.08), transparent 55%),
+        var(--glass-bg);
+    }
+
+    @media (min-width: 700px) {
+      .result {
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        padding: 1.75rem 2rem;
+        gap: 1.75rem;
+      }
+    }
+
+    .result .big {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+
+    .result .big span { color: var(--ink-faint); font-weight: 600; }
+
+    .result p {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      max-width: 36rem;
+    }
+
+    /* —— Footer —— */
+    .footer {
+      margin-top: 0.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid rgba(20, 21, 26, 0.08);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ink-faint);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand"><span class="red">RED</span>EVELOPMENT</div>
+        <div class="topbar-meta">Внутренний продукт<br />Модуль закупок</div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <!-- Hero -->
+      <section class="glass hero">
+        <div>
+          <div class="eyebrow">С применением ИИ на всех этапах</div>
+          <h1>Умный модуль закупок стройматериалов</h1>
+          <p class="lede">
+            Запрашивает цены по рынку, разбирает счета и письма, сравнивает предложения
+            и оставляет закупщику только решения.
+          </p>
+          <ul class="bullets">
+            <li>За&nbsp;2&nbsp;минуты запросить цены по базе из&nbsp;<strong>1061</strong> поставщиков (из них&nbsp;— <strong>378</strong> заводы)</li>
+            <li>Автоматически разобрать <strong>50%</strong> писем и&nbsp;<strong>100%</strong> счетов</li>
+            <li>Сравнить цены и&nbsp;подсветить лучшую</li>
+            <li>Помочь выбрать между оригиналом и&nbsp;аналогом</li>
+            <li>Заказать поставку материалов на&nbsp;объект</li>
+          </ul>
+        </div>
+        <div class="hero-shot">
+          <img class="shot" src="./01-catalog.png" alt="Каталог поставщиков" />
+          <p class="shot-cap">Каталог поставщиков · 1061 · 378 заводов</p>
+        </div>
+      </section>
+
+      <!-- Chain -->
+      <section class="glass section">
+        <div class="section-head">
+          <h2>Одна цепочка — от ведомости до заказа</h2>
+          <p>Система закрывает рутину. Оператор принимает решения там, где нужна ответственность.</p>
+        </div>
+        <div class="chain">
+          <div class="step">
+            <div class="n">01</div>
+            <div class="t">Ведомость</div>
+            <div class="d">Актуальный список материалов по объекту</div>
+            <span class="who op">Оператор</span>
+          </div>
+          <div class="step">
+            <div class="n">02</div>
+            <div class="t">Запрос цен</div>
+            <div class="d">Рассылка по рынку в пару кликов</div>
+            <span class="who sys">Система</span>
+          </div>
+          <div class="step">
+            <div class="n">03</div>
+            <div class="t">Переписка</div>
+            <div class="d">ИИ закрывает типовые письма, дожимает молчащих</div>
+            <span class="who sys">Система</span>
+          </div>
+          <div class="step">
+            <div class="n">04</div>
+            <div class="t">Сравнение</div>
+            <div class="d">Счета → таблица · оригинал и аналог отдельно</div>
+            <span class="who sys">Система</span>
+          </div>
+          <div class="step">
+            <div class="n">05</div>
+            <div class="t">Заказ</div>
+            <div class="d">Выбор лучших цен и фиксация поставки</div>
+            <span class="who op">Оператор</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Market + letters -->
+      <section class="glass section">
+        <div class="section-head">
+          <h2>Не поиск поставщика — а лучшая цена на рынке</h2>
+          <p>Оператор не ищет контакты и не сводит Excel — выбирает из готовой таблицы рынка.</p>
+        </div>
+        <div class="feature-grid">
+          <div class="feature-copy">
+            <span class="chip chip-red">Что решает</span>
+            <h3>Запрос сразу по всей релевантной базе</h3>
+            <ul>
+              <li>База дилеров и заводов по всем категориям стройматериалов</li>
+              <li>Поставщик виден в каждой категории, где реально торгует</li>
+              <li>Один клик — запрос цен по всей релевантной выборке</li>
+              <li>Авторазбор счетов и писем с ценами</li>
+            </ul>
+          </div>
+          <div class="shot-card">
+            <img class="shot" src="./04-letters-paint.png" alt="Переписка по краскам" />
+            <p class="shot-cap">Живая переписка · «Краски Здесь» · Imagine Colors</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Comparison -->
+      <section class="glass section">
+        <div class="section-head">
+          <h2>Сравнение счетов: оригинал отдельно, аналог отдельно</h2>
+          <p>Система не смешивает «то, что просили» с заменами. Спорные позиции помечает на уточнение.</p>
+        </div>
+        <div class="shots-2">
+          <div class="shot-card">
+            <img class="shot" src="./03-compare-paint-body.png" alt="Сравнение красок" />
+            <p class="shot-cap">Краски · Tikkurila / Dulux · 19 запросов · 12 КП · 5 из 5 позиций с ценой</p>
+          </div>
+          <div class="shot-card">
+            <img class="shot" src="./03-compare-ceramic-body.png" alt="Сравнение керамогранита" />
+            <p class="shot-cap">Керамогранит · 41 запрос · 106 писем · 7 КП · аналоги и уточнения</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Modes + AI -->
+      <section class="glass section">
+        <div class="section-head">
+          <h2>ИИ-закупщик и два режима сравнения</h2>
+          <p>Типовую переписку закрывает бот. Сравнение умеет и построчный тендер, и закупку комплектом.</p>
+        </div>
+        <div class="modes" style="margin-bottom: 1rem;">
+          <div class="mode">
+            <span class="chip chip-red">По позициям</span>
+            <h3>Плитка, краски, смеси</h3>
+            <p>Каждая строка ведомости сравнивается отдельно. Берём лучшую цену у разных поставщиков.</p>
+          </div>
+          <div class="mode">
+            <span class="chip chip-blue">Поставка целиком</span>
+            <h3>Грильято и комплекты</h3>
+            <p>Несущие, направляющие, подвесы — одним лотом. Сравниваем КП целиком, не ломая комплект.</p>
+          </div>
+        </div>
+        <div class="shots-2">
+          <div class="shot-card">
+            <img class="shot" src="./03-compare-ceilings-lot-body.png" alt="Потолки лотом" />
+            <p class="shot-cap">Потолки · режим «поставка целиком» · грильято 100×100</p>
+          </div>
+          <div class="shot-card">
+            <img class="shot" src="./04-autoreplies-crop.png" alt="Автоответы ИИ" />
+            <p class="shot-cap">ИИ-закупщик · 13 типовых ситуаций без участия человека</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Result -->
+      <section class="glass result">
+        <div class="big">3 → 1 <span>·</span> 2ч/день</div>
+        <p>
+          Меньше ФОТ на рутину. Больше конкуренции между поставщиками.
+          Результат — ниже закупка материалов и выше чистая прибыль объекта.
+        </p>
+      </section>
+
+      <footer class="footer">
+        Внутренний продукт · редевелопмент коммерческой недвижимости
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

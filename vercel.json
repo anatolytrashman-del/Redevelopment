@@ -40,11 +40,11 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=600, must-revalidate" }]
     },
     {
-      "source": "/minsk/tc",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "source": "/minsk/tc/store/(.*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }]
     },
     {
-      "source": "/minsk/tc/(.*)",
+      "source": "/pitch/(.*)",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     }
   ],
@@ -110,7 +110,34 @@
     { "source": "/minsk/bc/rating/samye-dostupnye{/}?", "destination": "/minsk/bc/rating/affordable", "permanent": true },
     { "source": "/minsk/bc/rating/samye-bolshie{/}?", "destination": "/minsk/bc/rating/largest", "permanent": true },
     { "source": "/minsk/bc/rating/b-plus{/}?", "destination": "/minsk/bc/rating/class-b-plus", "permanent": true },
-    { "source": "/minsk/bc/rating/b-c{/}?", "destination": "/minsk/bc/rating/class-b-c", "permanent": true }
+    { "source": "/minsk/bc/rating/b-c{/}?", "destination": "/minsk/bc/rating/class-b-c", "permanent": true },
+    { "source": "/minsk/tc/with/zara{/}?", "destination": "/minsk/tc/store/zara", "permanent": true },
+    { "source": "/minsk/tc/with/gold-apple{/}?", "destination": "/minsk/tc/store/gold-apple", "permanent": true },
+    { "source": "/minsk/tc/with/bershka{/}?", "destination": "/minsk/tc/store/bershka", "permanent": true },
+    { "source": "/minsk/tc/with/nike{/}?", "destination": "/minsk/tc/store/nike", "permanent": true },
+    { "source": "/minsk/tc/with/adidas{/}?", "destination": "/minsk/tc/store/adidas", "permanent": true },
+    { "source": "/minsk/tc/with/massimo-dutti{/}?", "destination": "/minsk/tc/store/massimo-dutti", "permanent": true },
+    { "source": "/minsk/tc/with/stradivarius{/}?", "destination": "/minsk/tc/store/stradivarius", "permanent": true },
+    { "source": "/minsk/tc/with/gloria-jeans{/}?", "destination": "/minsk/tc/store/gloria-jeans", "permanent": true },
+    { "source": "/minsk/tc/with/sinsay{/}?", "destination": "/minsk/tc/store/sinsay", "permanent": true },
+    { "source": "/minsk/tc/with/new-yorker{/}?", "destination": "/minsk/tc/store/new-yorker", "permanent": true },
+    { "source": "/minsk/tc/with/lc-waikiki{/}?", "destination": "/minsk/tc/store/lc-waikiki", "permanent": true },
+    { "source": "/minsk/tc/with/pull-and-bear{/}?", "destination": "/minsk/tc/store/pull-and-bear", "permanent": true },
+    { "source": "/minsk/tc/with/sportmaster{/}?", "destination": "/minsk/tc/store/sportmaster", "permanent": true },
+    { "source": "/minsk/tc/with/mango{/}?", "destination": "/minsk/tc/store/mango", "permanent": true },
+    { "source": "/minsk/tc/with/reserved{/}?", "destination": "/minsk/tc/store/reserved", "permanent": true },
+    { "source": "/minsk/tc/with/cropp{/}?", "destination": "/minsk/tc/store/cropp", "permanent": true },
+    { "source": "/minsk/tc/with/house{/}?", "destination": "/minsk/tc/store/house", "permanent": true },
+    { "source": "/minsk/tc/with/defacto{/}?", "destination": "/minsk/tc/store/defacto", "permanent": true },
+    { "source": "/minsk/tc/with/mohito{/}?", "destination": "/minsk/tc/store/mohito", "permanent": true },
+    { "source": "/minsk/tc/with/oysho{/}?", "destination": "/minsk/tc/store/oysho", "permanent": true },
+    { "source": "/minsk/tc/with/familia{/}?", "destination": "/minsk/tc/store/familia", "permanent": true },
+    { "source": "/minsk/tc/with/milavitsa{/}?", "destination": "/minsk/tc/store/milavitsa", "permanent": true },
+    { "source": "/minsk/tc/with/mark-formelle{/}?", "destination": "/minsk/tc/store/mark-formelle", "permanent": true },
+    { "source": "/minsk/tc/with/kari{/}?", "destination": "/minsk/tc/store/kari", "permanent": true },
+    { "source": "/minsk/tc/with/detmir{/}?", "destination": "/minsk/tc/store/detmir", "permanent": true },
+    { "source": "/minsk/tc/with/5-element{/}?", "destination": "/minsk/tc/store/5-element", "permanent": true },
+    { "source": "/minsk/tc/with/miniso{/}?", "destination": "/minsk/tc/store/miniso", "permanent": true }
   ],
   "rewrites": [
     { "source": "/api/telegram-webhook", "destination": "/api/telegram-avatar" },
