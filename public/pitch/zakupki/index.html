@@ -92,8 +92,6 @@
       padding: 1rem 1rem;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
     }
 
     @media (min-width: 640px) {
@@ -109,13 +107,6 @@
     .brand .red {
       color: var(--primary);
       font-weight: 900;
-    }
-
-    .topbar-meta {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--ink-faint);
-      text-align: right;
     }
 
     /* —— Layout —— */
@@ -344,89 +335,102 @@
       color: var(--ink-muted);
     }
 
-    /* —— Путь в сервисе: стадии модуля —— */
-    .service-path {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0.55rem;
-      margin: 0 0 1.5rem;
-    }
-
-    @media (min-width: 720px) {
-      .service-path {
-        grid-template-columns: repeat(6, 1fr);
-        gap: 0.45rem;
-        align-items: stretch;
-      }
-    }
-
-    .sp-stage {
+    /* —— Схема пути: чередование человек / Claude —— */
+    .schema {
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
-      min-width: 0;
-      padding: 0.85rem 0.8rem;
-      border-radius: 1rem;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.85);
-      box-shadow: 0 4px 16px rgba(20, 21, 26, 0.04);
-    }
-
-    @media (min-width: 720px) {
-      .sp-stage:not(:last-child)::after {
-        content: '';
-        position: absolute;
-        top: 1.35rem;
-        right: -0.35rem;
-        width: 0.35rem;
-        height: 0.35rem;
-        border-right: 2px solid var(--ink-faint);
-        border-top: 2px solid var(--ink-faint);
-        transform: rotate(45deg);
-        z-index: 1;
-      }
-    }
-
-    .sp-n {
-      font-size: 0.65rem;
-      font-weight: 800;
-      letter-spacing: 0.06em;
-      color: var(--primary);
-    }
-
-    .sp-t {
+      gap: 0;
       margin: 0;
-      font-size: 0.9rem;
-      font-weight: 800;
-      color: var(--ink);
-      letter-spacing: -0.015em;
-      line-height: 1.25;
+      padding: 0.25rem 0;
     }
 
-    .sp-d {
-      margin: 0;
-      font-size: 0.72rem;
-      font-weight: 500;
-      line-height: 1.35;
-      color: var(--ink-muted);
-      flex: 1;
+    .schema::before {
+      content: '';
+      position: absolute;
+      left: 1.05rem;
+      top: 0.9rem;
+      bottom: 0.9rem;
+      width: 2px;
+      background: linear-gradient(180deg, var(--border), rgba(217, 119, 87, 0.45), var(--border));
     }
 
-    .sp-tag {
-      align-self: flex-start;
-      margin-top: 0.25rem;
-      padding: 0.15rem 0.45rem;
+    .sch-step {
+      position: relative;
+      display: grid;
+      grid-template-columns: 2.2rem 1fr;
+      gap: 0.75rem;
+      padding: 0.55rem 0;
+      align-items: start;
+    }
+
+    .sch-dot {
+      position: relative;
+      z-index: 1;
+      width: 2.1rem;
+      height: 2.1rem;
       border-radius: 999px;
-      font-size: 0.65rem;
-      font-weight: 700;
-      background: rgba(217, 119, 87, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border: 2px solid var(--border);
+      background: #fff;
+      color: var(--ink-muted);
+    }
+
+    .sch-step.claude .sch-dot {
+      border-color: rgba(217, 119, 87, 0.55);
+      background: rgba(217, 119, 87, 0.1);
       color: #c45a38;
     }
 
-    .sp-tag.human {
+    .sch-step.human .sch-dot {
+      border-color: rgba(20, 21, 26, 0.18);
       background: var(--surface-muted);
+      color: var(--ink);
+    }
+
+    .sch-card {
+      min-width: 0;
+      padding: 0.7rem 0.9rem;
+      border-radius: 0.9rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .sch-step.claude .sch-card {
+      border-color: rgba(217, 119, 87, 0.28);
+      background: rgba(217, 119, 87, 0.06);
+    }
+
+    .sch-who {
+      margin: 0 0 0.2rem;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+
+    .sch-step.claude .sch-who { color: #c45a38; }
+
+    .sch-t {
+      margin: 0;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+
+    .sch-d {
+      margin: 0.25rem 0 0;
+      font-size: 0.78rem;
+      font-weight: 500;
       color: var(--ink-muted);
+      line-height: 1.35;
     }
 
     .journey {
@@ -807,7 +811,6 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand"><span class="red">RED</span>EVELOPMENT</div>
-        <div class="topbar-meta">Внутренний продукт<br />Модуль закупок</div>
       </div>
     </header>
 
@@ -823,7 +826,7 @@
           <p class="lede">
             Экономит на&nbsp;закупках и&nbsp;на&nbsp;ФОТ: больше конкуренции между поставщиками,
             меньше ручной работы — решения принимает человек, рутину закрывает Claude.
-            Весь контур внутри модуля: от&nbsp;заявки на&nbsp;закупку до&nbsp;материала на&nbsp;объекте.
+            Контур целиком: от&nbsp;заявки на&nbsp;закупку до&nbsp;материала на&nbsp;объекте.
           </p>
         </div>
         <aside class="claude-panel" aria-label="Claude">
@@ -832,58 +835,118 @@
             <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
           </div>
           <ul>
-            <li>Закрывает <strong>повторяющуюся рутину</strong>: письма, счета, сводку, саммари, контроль документов</li>
-            <li>Только в&nbsp;<strong>заданных ситуациях</strong> — не&nbsp;экспериментирует и&nbsp;не&nbsp;выдумывает</li>
-            <li>Незнакомый случай&nbsp;— <strong>решает человек</strong>; после трёх одинаковых решений правило уходит в&nbsp;автомат</li>
-            <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке — без кодинга</li>
+            <li>Модели <strong>Anthropic Claude</strong> — не «просто ИИ» из коробки</li>
+            <li>Только в&nbsp;<strong>заданных ситуациях</strong>: не&nbsp;экспериментирует и&nbsp;не&nbsp;выдумывает</li>
+            <li>Незнакомый кейс&nbsp;— человеку; после <strong>трёх одинаковых решений</strong> правило уходит в&nbsp;автомат</li>
+            <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке, без кодинга</li>
           </ul>
         </aside>
       </section>
 
-      <!-- Journey -->
+      <!-- Schema: отдельный смысловой блок -->
       <section class="glass section rise rise-d1">
         <div class="section-head">
           <h2>Путь закупки в модуле</h2>
-          <p>Шесть экранов сервиса — от заявки до поставки. Человек кликает решения, Claude закрывает середину.</p>
+          <p>Наглядная схема: человек принимает решение — Claude подхватывает рутину между шагами.</p>
         </div>
 
-        <div class="service-path" aria-label="Стадии в сервисе">
-          <div class="sp-stage">
-            <div class="sp-n">01</div>
-            <h3 class="sp-t">Заявка</h3>
-            <p class="sp-d">Пришла потребность, одна ведомость в&nbsp;системе</p>
-            <span class="sp-tag human">решение</span>
+        <div class="schema" aria-label="Схема пути">
+          <div class="sch-step human">
+            <div class="sch-dot">1</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Пришла заявка на закупку</p>
+              <p class="sch-d">Руководитель стройки или владелец зафиксировал потребность</p>
+            </div>
           </div>
-          <div class="sp-stage">
-            <div class="sp-n">02</div>
-            <h3 class="sp-t">Запрос</h3>
-            <p class="sp-d">Четыре клика — рассылка по рынку</p>
-            <span class="sp-tag human">решение</span>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Обновил статус закупки</p>
+              <p class="sch-d">Заявка видна закупщику в модуле, без пересылки файлов</p>
+            </div>
           </div>
-          <div class="sp-stage">
-            <div class="sp-n">03</div>
-            <h3 class="sp-t">Письма</h3>
-            <p class="sp-d">Типовые ответы и разбор счетов</p>
-            <span class="sp-tag">Claude</span>
+          <div class="sch-step human">
+            <div class="sch-dot">2</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Выбрал ведомость и юрлицо</p>
+              <p class="sch-d">Четыре клика до кнопки «Отправить»</p>
+            </div>
           </div>
-          <div class="sp-stage">
-            <div class="sp-n">04</div>
-            <h3 class="sp-t">Сравнение</h3>
-            <p class="sp-d">Топ-чарт цен, оригинал и аналоги</p>
-            <span class="sp-tag">Claude</span>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Подобрал поставщиков и собрал письмо</p>
+              <p class="sch-d">Категории, сортировка, ведомость, карточка компании, условия доставки</p>
+            </div>
           </div>
-          <div class="sp-stage">
-            <div class="sp-n">05</div>
-            <h3 class="sp-t">Согласование</h3>
-            <p class="sp-d">Выбор поставщика + саммари руководителю</p>
-            <span class="sp-tag human">решение</span>
+          <div class="sch-step human">
+            <div class="sch-dot">3</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Нажал «Отправить»</p>
+              <p class="sch-d">Подтвердил рассылку по рынку</p>
+            </div>
           </div>
-          <div class="sp-stage">
-            <div class="sp-n">06</div>
-            <h3 class="sp-t">Поставка</h3>
-            <p class="sp-d">Дата, принимающий, комплект документов</p>
-            <span class="sp-tag human">решение</span>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Разослал письма</p>
+              <p class="sch-d">Запрос ушёл выбранным поставщикам</p>
+            </div>
           </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Ответил на типовые и свёл таблицу</p>
+              <p class="sch-d">Разбор счетов, топ-чарт цен, оригинал и аналоги</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">4</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Выбрал поставщика</p>
+              <p class="sch-d">Смотрит первое место в сравнении и принимает решение</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Подготовил саммари для согласования</p>
+              <p class="sch-d">Короткое резюме для руководителя</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">5</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Спланировал поставку</p>
+              <p class="sch-d">Счёт, платёжка, дата, принимающий</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Проверил комплект документов</p>
+              <p class="sch-d">Полнота закрывающих до приезда материала на объект</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Пять пунктов — отдельно -->
+      <section class="glass section rise rise-d2">
+        <div class="section-head">
+          <h2>На чём держится экономия</h2>
+          <p>Пять опор для владельца — не повтор схемы, а смысл каждого узла.</p>
         </div>
 
         <div class="journey">
@@ -891,12 +954,11 @@
             <div class="j-n">01</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Заявка и ведомость</h3>
+                <h3 class="j-t">Одна ведомость вместо файловой каши</h3>
               </div>
               <p class="j-d">
-                Руководитель стройки, владелец или уполномоченный даёт заявку на&nbsp;закупку.
-                Claude обновляет статус. Изменения ведомости приходят закупщику
-                <strong>внутри платформы сразу</strong> — без пересылки обновлённых таблиц.
+                Заявка от руководителя стройки живёт в&nbsp;модуле. Правки видит закупщик сразу —
+                <strong>нет цепочки «финальных» Excel</strong> и&nbsp;потерь времени на пересылку.
               </p>
               <div class="excel-pain" title="Как было без платформы">
                 <div class="excel-icon" aria-hidden="true">XLS</div>
@@ -911,13 +973,12 @@
             <div class="j-n">02</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Старт запроса — четыре клика</h3>
+                <h3 class="j-t">Рынок за четыре клика — не за день рассылки</h3>
               </div>
               <p class="j-d">
-                Человек принимает решение о&nbsp;закупке и&nbsp;делает четыре шага.
-                Claude подбирает категории по составу ведомости, сортирует поставщиков,
-                пишет письмо и&nbsp;прикладывает ведомость, карточку компании и&nbsp;файл
-                с&nbsp;условиями доставки — человеку остаётся нажать «Отправить».
+                Закупщик только стартует, выбирает ведомость и&nbsp;юрлицо, жмёт «Отправить».
+                Подбор категорий, письмо и&nbsp;вложения готовит Claude — охват рынка
+                не&nbsp;съедает часы ФОТ.
               </p>
               <div class="clicks" aria-label="Четыре клика">
                 <div class="click"><span class="cn">1</span><span class="ct">Старт закупки</span></div>
@@ -932,14 +993,12 @@
             <div class="j-n">03</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Рассылка, переписка и сводка</h3>
+                <h3 class="j-t">Половина переписки без участия человека</h3>
               </div>
               <p class="j-d">
-                Claude разослал письма. По мере ответов закрывает <strong>типовые</strong>,
-                собирает вложения, распознаёт счета и&nbsp;сводит всё в&nbsp;таблицу сравнения.
-                Нестандартное — человеку. После <strong>трёх одинаковых решений</strong>
-                правило уходит в&nbsp;автомат. Полноценный email-ящик на&nbsp;фирменном домене —
-                без передачи паролей.
+                Типовые письма и&nbsp;счета закрывает Claude; нестандарт — закупщик.
+                Email на&nbsp;фирменном домене для любого числа сотрудников —
+                <strong>без передачи паролей</strong>. Меньше часов на почту.
               </p>
               <div class="viz">
                 <span class="viz-chip ai"><b>Типовое</b> → Claude</span>
@@ -953,12 +1012,12 @@
             <div class="j-n">04</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Сравнение — топ-чарт цен</h3>
+                <h3 class="j-t">Лучшая цена сверху — сильнее торг</h3>
               </div>
               <p class="j-d">
-                От дешевле к&nbsp;дороже. Параллельный разбор <strong>оригинала и&nbsp;аналогов</strong>.
-                Можно закупать по позициям или комплектом. Достаточно глянуть первое место —
-                подсказка при выборе, не агрегатор. Claude готовит саммари для согласования.
+                Топ-чарт от&nbsp;дешевле к&nbsp;дороже, оригинал и&nbsp;аналоги рядом.
+                Достаточно глянуть первое место. Саммари для руководителя —
+                быстрее согласование, ниже итоговая закупка.
               </p>
               <div class="rank" aria-hidden="true">
                 <div class="rank-row win"><span class="rn">1</span><span>Лучшая цена · выбрано</span><span class="rp">−12%</span></div>
@@ -972,12 +1031,11 @@
             <div class="j-n">05</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Поставка и документы</h3>
+                <h3 class="j-t">Поставка без дыр в закрывающих</h3>
               </div>
               <p class="j-d">
-                Человек планирует поставку: счёт, платёжка, дата, принимающий.
-                Claude держит под контролем полноту комплекта закрывающих документов.
-                При необходимости — интеграция с&nbsp;<strong>ЭДО</strong>.
+                План поставки у&nbsp;закупщика; полноту комплекта документов держит Claude.
+                Меньше срывов из‑за «забытой» бумаги. Можно подключить <strong>ЭДО</strong>.
               </p>
               <div class="viz">
                 <span class="viz-chip ok">Счёт ✓</span>
