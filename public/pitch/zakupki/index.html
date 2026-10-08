@@ -422,6 +422,104 @@
       font-weight: 700;
     }
 
+    /* —— Схема пути: чередование человек / Claude —— */
+    .schema {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 0;
+      padding: 0.25rem 0;
+    }
+
+    .schema::before {
+      content: '';
+      position: absolute;
+      left: 1.05rem;
+      top: 0.9rem;
+      bottom: 0.9rem;
+      width: 2px;
+      background: linear-gradient(180deg, var(--border), rgba(217, 119, 87, 0.45), var(--border));
+    }
+
+    .sch-step {
+      position: relative;
+      display: grid;
+      grid-template-columns: 2.2rem 1fr;
+      gap: 0.75rem;
+      padding: 0.55rem 0;
+      align-items: start;
+    }
+
+    .sch-dot {
+      position: relative;
+      z-index: 1;
+      width: 2.1rem;
+      height: 2.1rem;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border: 2px solid var(--border);
+      background: #fff;
+      color: var(--ink-muted);
+    }
+
+    .sch-step.claude .sch-dot {
+      border-color: rgba(217, 119, 87, 0.55);
+      background: rgba(217, 119, 87, 0.1);
+      color: #c45a38;
+    }
+
+    .sch-step.human .sch-dot {
+      border-color: rgba(20, 21, 26, 0.18);
+      background: var(--surface-muted);
+      color: var(--ink);
+    }
+
+    .sch-card {
+      min-width: 0;
+      padding: 0.7rem 0.9rem;
+      border-radius: 0.9rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .sch-step.claude .sch-card {
+      border-color: rgba(217, 119, 87, 0.28);
+      background: rgba(217, 119, 87, 0.06);
+    }
+
+    .sch-who {
+      margin: 0 0 0.2rem;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+
+    .sch-step.claude .sch-who { color: #c45a38; }
+
+    .sch-t {
+      margin: 0;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+
+    .sch-d {
+      margin: 0.25rem 0 0;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      line-height: 1.35;
+    }
+
     .journey {
       display: flex;
       flex-direction: column;
@@ -746,6 +844,97 @@
               Физический недовоз при «ровных» бумагах — <strong>в&nbsp;работе</strong>.
             </p>
           </article>
+        </div>
+      </section>
+
+      <!-- Как работает модуль: человек / Claude -->
+      <section class="glass section rise rise-d2">
+        <div class="section-head">
+          <h2>Как работает модуль</h2>
+          <p>Порядок действий: человек принимает решение — Claude закрывает рутину между шагами.</p>
+        </div>
+
+        <div class="schema" aria-label="Схема пути">
+          <div class="sch-step human">
+            <div class="sch-dot">1</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Пришла заявка на закупку</p>
+              <p class="sch-d">Руководитель стройки или владелец зафиксировал потребность</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Обновил статус закупки</p>
+              <p class="sch-d">Заявка видна закупщику в модуле, без пересылки файлов</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">2</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Выбрал ведомость и юрлицо</p>
+              <p class="sch-d">Четыре клика до кнопки «Отправить»</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Подобрал поставщиков и собрал письмо</p>
+              <p class="sch-d">Категории, сортировка, ведомость, карточка компании, условия доставки</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">3</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Нажал «Отправить»</p>
+              <p class="sch-d">Подтвердил рассылку по рынку</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Разослал, ответил на типовые, свёл таблицу</p>
+              <p class="sch-d">Переписка, разбор счетов, топ-чарт: оригинал и аналоги</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">4</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Выбрал поставщика</p>
+              <p class="sch-d">Смотрит первое место в сравнении и принимает решение</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Подготовил саммари Ивану</p>
+              <p class="sch-d">Короткое резюме для согласования</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">5</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Спланировал поставку</p>
+              <p class="sch-d">Счёт, платёжка, дата поставки, принимающий</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Проверил комплект документов</p>
+              <p class="sch-d">Учёт закрывающих до приезда материала на объект</p>
+            </div>
+          </div>
         </div>
       </section>
 
