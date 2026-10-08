@@ -156,24 +156,32 @@
     /* —— Hero —— */
     .hero {
       display: grid;
-      gap: 1.5rem;
-      padding: 1.5rem;
+      gap: 1.75rem;
+      padding: 1.75rem 1.5rem;
       align-items: stretch;
     }
 
     @media (min-width: 900px) {
       .hero {
-        grid-template-columns: 1.15fr 0.95fr;
-        padding: 2rem;
-        gap: 1.75rem;
+        grid-template-columns: 1.35fr 0.85fr;
+        padding: 2.5rem 2.25rem;
+        gap: 2.5rem;
       }
     }
 
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0;
+      min-width: 0;
+    }
+
     .who-for {
-      margin: 0 0 0.85rem;
-      font-size: 0.8rem;
+      margin: 0 0 1.15rem;
+      font-size: 0.85rem;
       font-weight: 600;
-      line-height: 1.4;
+      line-height: 1.55;
       color: var(--ink-faint);
     }
 
@@ -182,30 +190,27 @@
       font-weight: 700;
     }
 
-    .who-site {
-      white-space: nowrap;
-    }
-
     h1 {
-      margin: 0 0 1rem;
-      font-size: 1.65rem;
+      margin: 0 0 1.35rem;
+      font-size: 1.7rem;
       font-weight: 800;
-      line-height: 1.15;
+      line-height: 1.2;
       letter-spacing: -0.02em;
       color: var(--ink);
+      max-width: 18ch;
     }
 
     @media (min-width: 640px) {
-      h1 { font-size: 2.05rem; }
+      h1 { font-size: 2.15rem; max-width: 16ch; }
     }
 
     .lede {
       margin: 0;
-      font-size: 1.05rem;
+      font-size: 1.08rem;
       font-weight: 500;
       color: var(--ink-muted);
-      max-width: 34rem;
-      line-height: 1.55;
+      max-width: 36rem;
+      line-height: 1.65;
     }
 
     .lede strong { color: var(--ink); font-weight: 700; }
@@ -240,11 +245,10 @@
 
     .claude-title {
       margin: 0;
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 800;
-      line-height: 1.25;
+      line-height: 1.3;
       color: var(--ink);
-      white-space: nowrap;
     }
 
     .claude-title .claude-name { color: #c45a38; }
@@ -294,7 +298,7 @@
 
     .section-head {
       margin-bottom: 1.25rem;
-      max-width: 40rem;
+      max-width: 48rem;
     }
 
     h2 {
@@ -302,7 +306,7 @@
       font-size: 1.25rem;
       font-weight: 800;
       letter-spacing: -0.015em;
-      line-height: 1.25;
+      line-height: 1.35;
       color: var(--ink);
     }
 
@@ -466,7 +470,7 @@
       letter-spacing: -0.015em;
     }
 
-    .j-soon {
+    .j-demo {
       display: inline-flex;
       align-items: center;
       padding: 0.2rem 0.55rem;
@@ -649,28 +653,6 @@
       color: var(--ink);
     }
 
-    .tag-cloud {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.4rem;
-      margin-top: 0.85rem;
-    }
-
-    .tag-cloud .tag {
-      display: inline-flex;
-      padding: 0.35rem 0.7rem;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.9);
-      color: var(--ink-muted);
-      font-weight: 600;
-      line-height: 1.2;
-    }
-
-    .tag-cloud .tag.t1 { font-size: 0.72rem; }
-    .tag-cloud .tag.t2 { font-size: 0.82rem; color: var(--ink); }
-    .tag-cloud .tag.t3 { font-size: 0.92rem; font-weight: 700; color: var(--ink); }
   </style>
 </head>
 <body>
@@ -684,10 +666,10 @@
     <main class="wrap">
       <!-- Hero -->
       <section class="glass hero rise">
-        <div>
+        <div class="hero-copy">
           <p class="who-for">
             Для <b>Михаила Зуева</b> · ООО&nbsp;«Матрёшка» ·
-            <span class="who-site">стройка&nbsp;в&nbsp;посёлке&nbsp;Зелёном</span>
+            стройка в&nbsp;посёлке Зелёном
           </p>
           <h1>Умный модуль закупок стройматериалов</h1>
           <p class="lede">
@@ -713,7 +695,7 @@
       <!-- Как экономит деньги -->
       <section class="glass section rise rise-d1">
         <div class="section-head">
-          <h2>Как модуль экономит деньги</h2>
+          <h2>Как модуль сэкономит деньги на&nbsp;стройке в&nbsp;пос.&nbsp;Зелёном и&nbsp;дальше</h2>
         </div>
 
         <div class="save-grid">
@@ -759,10 +741,10 @@
         </div>
       </section>
 
-      <!-- Топ-5 функций -->
+      <!-- Пять полезных пунктов -->
       <section class="glass section rise rise-d2">
         <div class="section-head">
-          <h2>Топ-5 функций модуля</h2>
+          <h2>Пять полезных пунктов</h2>
         </div>
 
         <div class="journey">
@@ -802,24 +784,6 @@
                 <div class="click"><span class="cn">2</span><span class="ct">Выбрать ведомость</span></div>
                 <div class="click"><span class="cn">3</span><span class="ct">Выбрать юрлицо</span></div>
                 <div class="click"><span class="cn">4</span><span class="ct">Нажать «Отправить»</span></div>
-              </div>
-              <div class="tag-cloud" aria-label="Категории поставщиков">
-                <span class="tag t3">Черновые</span>
-                <span class="tag t2">Чистовые</span>
-                <span class="tag t3">Бетон</span>
-                <span class="tag t2">Керамогранит</span>
-                <span class="tag t1">Краски</span>
-                <span class="tag t3">Электрика</span>
-                <span class="tag t2">Сантехника</span>
-                <span class="tag t1">Радиаторы</span>
-                <span class="tag t2">Потолки</span>
-                <span class="tag t1">Гипсокартон</span>
-                <span class="tag t2">Утеплитель</span>
-                <span class="tag t1">Крепёж</span>
-                <span class="tag t2">Окна и двери</span>
-                <span class="tag t1">Смеси</span>
-                <span class="tag t2">Кабель</span>
-                <span class="tag t1">Вентиляция</span>
               </div>
             </div>
           </article>
@@ -867,7 +831,7 @@
             <div class="j-body">
               <div class="j-head">
                 <h3 class="j-t">Поставка без дыр в закрывающих</h3>
-                <span class="j-soon">Скоро</span>
+                <span class="j-demo">Демо</span>
               </div>
               <p class="j-d">
                 План поставки у&nbsp;закупщика: счёт, платёжка, дата поставки, принимающий,
