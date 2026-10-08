@@ -47,8 +47,11 @@
       --success-bg: #e6f6ed;
       --info-bg: #dfeafd;
       --info-text: #1f4c8f;
-      --glass-bg: rgba(255, 255, 255, 0.55);
-      --glass-border: rgba(255, 255, 255, 0.75);
+      /* как src/lib/glass.ts — Card/админка/каталог */
+      --glass-bg: rgba(255, 255, 255, 0.6);
+      --glass-bg-lg: rgba(255, 255, 255, 0.4);
+      --glass-border: rgba(255, 255, 255, 0.8);
+      --glass-border-lg: rgba(255, 255, 255, 0.6);
       --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
 
@@ -130,12 +133,35 @@
     }
 
     .glass {
-      border-radius: 1.5rem;
+      border-radius: 1.5rem; /* rounded-3xl */
       border: 1px solid var(--glass-border);
       background: var(--glass-bg);
-      backdrop-filter: blur(20px) saturate(150%);
-      -webkit-backdrop-filter: blur(20px) saturate(150%);
+      backdrop-filter: blur(24px) saturate(150%);
+      -webkit-backdrop-filter: blur(24px) saturate(150%);
       box-shadow: var(--glass-shadow);
+    }
+
+    @media (min-width: 640px) {
+      .glass {
+        border-color: var(--glass-border-lg);
+        background: var(--glass-bg-lg);
+      }
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .rise {
+      animation: rise 0.55s ease-out both;
+    }
+    .rise-d1 { animation-delay: 0.08s; }
+    .rise-d2 { animation-delay: 0.16s; }
+    .rise-d3 { animation-delay: 0.24s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rise, .rise-d1, .rise-d2, .rise-d3 { animation: none; }
     }
 
     /* —— Hero —— */
@@ -498,7 +524,7 @@
 
     <main class="wrap">
       <!-- Hero -->
-      <section class="glass hero">
+      <section class="glass hero rise">
         <div>
           <div class="eyebrow">С применением ИИ на всех этапах</div>
           <h1>Умный модуль закупок стройматериалов</h1>
@@ -521,7 +547,7 @@
       </section>
 
       <!-- Chain -->
-      <section class="glass section">
+      <section class="glass section rise rise-d1">
         <div class="section-head">
           <h2>Одна цепочка — от ведомости до заказа</h2>
           <p>Система закрывает рутину. Оператор принимает решения там, где нужна ответственность.</p>
@@ -561,7 +587,7 @@
       </section>
 
       <!-- Market + letters -->
-      <section class="glass section">
+      <section class="glass section rise rise-d2">
         <div class="section-head">
           <h2>Не поиск поставщика — а лучшая цена на рынке</h2>
           <p>Оператор не ищет контакты и не сводит Excel — выбирает из готовой таблицы рынка.</p>
@@ -633,7 +659,7 @@
       </section>
 
       <!-- Result -->
-      <section class="glass result">
+      <section class="glass result rise rise-d3">
         <div class="big">3 → 1 <span>·</span> 2ч/день</div>
         <p>
           Меньше ФОТ на рутину. Больше конкуренции между поставщиками.
