@@ -45,8 +45,6 @@
       --border: #e7e5e2;
       --success: #157f42;
       --success-bg: #e6f6ed;
-      --info-bg: #dfeafd;
-      --info-text: #1f4c8f;
       /* как src/lib/glass.ts — Card/админка/каталог */
       --glass-bg: rgba(255, 255, 255, 0.6);
       --glass-bg-lg: rgba(255, 255, 255, 0.4);
@@ -285,22 +283,6 @@
       font-weight: 700;
     }
 
-    .shot {
-      display: block;
-      width: 100%;
-      border-radius: 1rem;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      box-shadow: 0 16px 40px rgba(20, 21, 26, 0.1);
-    }
-
-    .shot-cap {
-      margin: 0.65rem 0 0;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--ink-faint);
-    }
-
     /* —— Section shell —— */
     .section {
       padding: 1.5rem;
@@ -469,6 +451,10 @@
     .j-body { min-width: 0; }
 
     .j-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.65rem;
       margin-bottom: 0.4rem;
     }
 
@@ -478,6 +464,18 @@
       font-weight: 800;
       color: var(--ink);
       letter-spacing: -0.015em;
+    }
+
+    .j-soon {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: rgba(20, 21, 26, 0.07);
+      color: var(--ink-muted);
     }
 
     .j-d {
@@ -651,53 +649,28 @@
       color: var(--ink);
     }
 
-    /* —— Result —— */
-    .result {
-      display: grid;
-      gap: 1rem;
-      padding: 1.5rem;
-      background:
-        linear-gradient(135deg, rgba(228, 21, 43, 0.08), transparent 55%),
-        var(--glass-bg);
+    .tag-cloud {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.85rem;
     }
 
-    @media (min-width: 700px) {
-      .result {
-        grid-template-columns: auto 1fr;
-        align-items: center;
-        padding: 1.75rem 2rem;
-        gap: 1.75rem;
-      }
-    }
-
-    .result .big {
-      font-size: 2rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
-      color: var(--ink);
-      white-space: nowrap;
-    }
-
-    .result .big span { color: var(--ink-faint); font-weight: 600; }
-
-    .result p {
-      margin: 0;
-      font-size: 0.95rem;
-      font-weight: 500;
+    .tag-cloud .tag {
+      display: inline-flex;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.9);
       color: var(--ink-muted);
-      max-width: 36rem;
+      font-weight: 600;
+      line-height: 1.2;
     }
 
-    /* —— Footer —— */
-    .footer {
-      margin-top: 0.5rem;
-      padding-top: 1.25rem;
-      border-top: 1px solid rgba(20, 21, 26, 0.08);
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--ink-faint);
-    }
+    .tag-cloud .tag.t1 { font-size: 0.72rem; }
+    .tag-cloud .tag.t2 { font-size: 0.82rem; color: var(--ink); }
+    .tag-cloud .tag.t3 { font-size: 0.92rem; font-weight: 700; color: var(--ink); }
   </style>
 </head>
 <body>
@@ -800,8 +773,8 @@
                 <h3 class="j-t">Одна ведомость вместо файловой каши</h3>
               </div>
               <p class="j-d">
-                Заявка от руководителя стройки живёт в&nbsp;модуле. Правки видит закупщик сразу —
-                <strong>нет цепочки «финальных» Excel</strong> и&nbsp;потерь времени на пересылку.
+                Заявка от руководителя стройки живёт в&nbsp;модуле. Изменения видит закупщик сразу —
+                <strong>нет пересылки «финальных» Excel</strong> и&nbsp;<strong>нет ошибок при заказе</strong>.
               </p>
               <div class="excel-pain" title="Как было без платформы">
                 <div class="excel-icon" aria-hidden="true">XLS</div>
@@ -829,6 +802,24 @@
                 <div class="click"><span class="cn">2</span><span class="ct">Выбрать ведомость</span></div>
                 <div class="click"><span class="cn">3</span><span class="ct">Выбрать юрлицо</span></div>
                 <div class="click"><span class="cn">4</span><span class="ct">Нажать «Отправить»</span></div>
+              </div>
+              <div class="tag-cloud" aria-label="Категории поставщиков">
+                <span class="tag t3">Черновые</span>
+                <span class="tag t2">Чистовые</span>
+                <span class="tag t3">Бетон</span>
+                <span class="tag t2">Керамогранит</span>
+                <span class="tag t1">Краски</span>
+                <span class="tag t3">Электрика</span>
+                <span class="tag t2">Сантехника</span>
+                <span class="tag t1">Радиаторы</span>
+                <span class="tag t2">Потолки</span>
+                <span class="tag t1">Гипсокартон</span>
+                <span class="tag t2">Утеплитель</span>
+                <span class="tag t1">Крепёж</span>
+                <span class="tag t2">Окна и двери</span>
+                <span class="tag t1">Смеси</span>
+                <span class="tag t2">Кабель</span>
+                <span class="tag t1">Вентиляция</span>
               </div>
             </div>
           </article>
@@ -861,7 +852,7 @@
               <p class="j-d">
                 Цены от&nbsp;дешевле к&nbsp;дороже; «то, что просили» и&nbsp;замены не смешиваются.
                 Сравнение — по позициям или поставкой целиком (комплекты вроде грильято).
-                Саммари для руководителя — быстрее согласование.
+                Саммари Ивану для согласования.
               </p>
               <div class="rank" aria-hidden="true">
                 <div class="rank-row win"><span class="rn">1</span><span>Лучшая цена · выбрано</span><span class="rp">−12%</span></div>
@@ -876,34 +867,23 @@
             <div class="j-body">
               <div class="j-head">
                 <h3 class="j-t">Поставка без дыр в закрывающих</h3>
+                <span class="j-soon">Скоро</span>
               </div>
               <p class="j-d">
-                План поставки у&nbsp;закупщика; полноту комплекта документов держит Claude.
-                Меньше срывов из‑за «забытой» бумаги. Можно подключить <strong>ЭДО</strong>.
+                План поставки у&nbsp;закупщика: счёт, платёжка, дата поставки, принимающий,
+                учёт закрывающих. Можно подключить <strong>любое ЭДО с&nbsp;API</strong>.
               </p>
               <div class="viz">
                 <span class="viz-chip ok">Счёт ✓</span>
                 <span class="viz-chip ok">Платёжка ✓</span>
-                <span class="viz-chip ok">Дата ✓</span>
-                <span class="viz-chip">Закрывающие · Claude</span>
+                <span class="viz-chip ok">Дата поставки ✓</span>
+                <span class="viz-chip ok">Принимающий ✓</span>
+                <span class="viz-chip ok">Учёт закрывающих ✓</span>
               </div>
             </div>
           </article>
         </div>
       </section>
-
-      <!-- Result -->
-      <section class="glass result rise rise-d3">
-        <div class="big">3 → 1 <span>·</span> 2ч/день</div>
-        <p>
-          Меньше ФОТ на рутину. Больше конкуренции между поставщиками.
-          Результат — ниже закупка материалов и выше чистая прибыль объекта.
-        </p>
-      </section>
-
-      <footer class="footer">
-        Внутренний продукт · редевелопмент коммерческой недвижимости
-      </footer>
     </main>
   </div>
 </body>
