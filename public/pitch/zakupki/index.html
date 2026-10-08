@@ -1,35 +1,36 @@
 <!DOCTYPE html>
-<!-- Живая страница: https://redevelopment.pro/pitch/zakupki  (источник правок: public/pitch/zakupki/index.html) -->
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Redevelopment — Модуль закупок</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Умный модуль закупок стройматериалов — внутренняя презентация платформы Redevelopment." />
+  <title>Умный модуль закупок — Redevelopment</title>
   <style>
     /* Как на платформе: ExtraBold субсетирован только под латиницу A–Z
        (логотип RED). Кириллические жирные → SemiBold, иначе буквы
        прыгают между фолбэками и выглядят «с разными отступами». */
     @font-face {
       font-family: 'Montserrat';
-      src: url('../public/fonts/Montserrat-Regular.woff2') format('woff2');
+      src: url('/fonts/Montserrat-Regular.woff2') format('woff2');
       font-weight: 100 449;
       font-display: swap;
     }
     @font-face {
       font-family: 'Montserrat';
-      src: url('../public/fonts/Montserrat-Medium.woff2') format('woff2');
+      src: url('/fonts/Montserrat-Medium.woff2') format('woff2');
       font-weight: 450 549;
       font-display: swap;
     }
     @font-face {
       font-family: 'Montserrat';
-      src: url('../public/fonts/Montserrat-SemiBold.woff2') format('woff2');
+      src: url('/fonts/Montserrat-SemiBold.woff2') format('woff2');
       font-weight: 550 899;
       font-display: swap;
     }
     @font-face {
       font-family: 'Montserrat';
-      src: url('../public/fonts/Montserrat-ExtraBold.woff2') format('woff2');
+      src: url('/fonts/Montserrat-ExtraBold.woff2') format('woff2');
       font-weight: 900;
       font-display: swap;
     }
@@ -558,6 +559,32 @@
         height: 210mm;
       }
     }
+
+    /* Web-view: на узком экране слайды сжимаются, не обрезаются */
+    @media screen and (max-width: 1100px) {
+      .deck {
+        padding: 12px;
+        gap: 16px;
+      }
+      .slide {
+        width: min(297mm, calc(100vw - 24px));
+        height: auto;
+        aspect-ratio: 297 / 210;
+        padding: 5vw 5vw 4vw;
+        border-radius: 12px;
+      }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .deck { padding: 0; gap: 0; }
+      .slide {
+        width: 297mm;
+        height: 210mm;
+        border-radius: 0;
+        box-shadow: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -588,7 +615,7 @@
 
         <div class="cover-shot">
           <div class="shot-frame">
-            <img src="assets/procurement-pitch/01-catalog.png" alt="Каталог поставщиков" />
+            <img src="./01-catalog.png" alt="Каталог поставщиков" />
           </div>
           <div class="shot-caption">Каталог поставщиков · 1061 · 378 заводов</div>
         </div>
@@ -660,7 +687,7 @@
           </div>
           <div class="shot-block">
             <div class="shot-frame">
-              <img src="assets/procurement-pitch/04-letters-paint.png" alt="Переписка по краскам" style="object-position: top center;" />
+              <img src="./04-letters-paint.png" alt="Переписка по краскам" style="object-position: top center;" />
             </div>
             <div class="shot-caption">Живая переписка · «Краски Здесь» · Imagine Colors</div>
           </div>
@@ -691,13 +718,13 @@
       <div class="shot-pair">
         <div class="shot-block tall">
           <div class="shot-frame">
-            <img src="assets/procurement-pitch/03-compare-paint-body.png" alt="Сравнение красок" style="object-position: top left;" />
+            <img src="./03-compare-paint-body.png" alt="Сравнение красок" style="object-position: top left;" />
           </div>
           <div class="shot-caption">Краски · Tikkurila / Dulux · 19 запросов · 12 КП · 5 из 5 позиций с ценой</div>
         </div>
         <div class="shot-block tall">
           <div class="shot-frame">
-            <img src="assets/procurement-pitch/03-compare-ceramic-body.png" alt="Сравнение керамогранита" style="object-position: top left;" />
+            <img src="./03-compare-ceramic-body.png" alt="Сравнение керамогранита" style="object-position: top left;" />
           </div>
           <div class="shot-caption">Керамогранит · 41 запрос · 106 писем · 7 КП · аналоги и уточнения</div>
         </div>
@@ -740,13 +767,13 @@
         <div class="split-shots">
           <div class="shot-block">
             <div class="shot-frame" style="max-height: 62mm;">
-              <img src="assets/procurement-pitch/03-compare-ceilings-lot-body.png" alt="Потолки лотом" style="object-position: top left;" />
+              <img src="./03-compare-ceilings-lot-body.png" alt="Потолки лотом" style="object-position: top left;" />
             </div>
             <div class="shot-caption">Потолки · режим «поставка целиком» · грильято 100×100 · лучшая цена выделена</div>
           </div>
           <div class="shot-block">
             <div class="shot-frame" style="max-height: 62mm;">
-              <img src="assets/procurement-pitch/04-autoreplies-crop.png" alt="Автоответы" style="object-position: top center;" />
+              <img src="./04-autoreplies-crop.png" alt="Автоответы" style="object-position: top center;" />
             </div>
             <div class="shot-caption">ИИ-закупщик · ответ не раньше 20 минут · 13 типовых ситуаций без участия человека</div>
           </div>
