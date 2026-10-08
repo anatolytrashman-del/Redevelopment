@@ -4,12 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="description" content="Умный модуль закупок стройматериалов — внутренняя презентация платформы Redevelopment." />
+  <meta name="description" content="Умный модуль закупок стройматериалов — внутренний продукт платформы Redevelopment." />
   <title>Умный модуль закупок — Redevelopment</title>
   <style>
-    /* Как на платформе: ExtraBold субсетирован только под латиницу A–Z
-       (логотип RED). Кириллические жирные → SemiBold, иначе буквы
-       прыгают между фолбэками и выглядят «с разными отступами». */
     @font-face {
       font-family: 'Montserrat';
       src: url('/fonts/Montserrat-Regular.woff2') format('woff2');
@@ -38,18 +35,24 @@
     :root {
       --bg: #f0efed;
       --surface: #ffffff;
+      --surface-muted: #f5f4f2;
       --ink: #14151a;
       --ink-muted: #6b6d76;
       --ink-faint: #9a9ba3;
       --primary: #e4152b;
+      --primary-hover: #c81124;
       --primary-soft: #fde3e5;
       --border: #e7e5e2;
       --success: #157f42;
       --success-bg: #e6f6ed;
-      --warning: #906721;
-      --warning-bg: #fbf1de;
       --info-bg: #dfeafd;
       --info-text: #1f4c8f;
+      /* как src/lib/glass.ts — Card/админка/каталог */
+      --glass-bg: rgba(255, 255, 255, 0.6);
+      --glass-bg-lg: rgba(255, 255, 255, 0.4);
+      --glass-border: rgba(255, 255, 255, 0.8);
+      --glass-border-lg: rgba(255, 255, 255, 0.6);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
 
     * { box-sizing: border-box; }
@@ -57,627 +60,542 @@
     body {
       font-family: 'Montserrat', system-ui, sans-serif;
       color: var(--ink);
-      background: #2a2b30;
+      background: var(--bg);
       -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
     }
 
-    @page {
-      size: A4 landscape;
-      margin: 0;
-    }
+    a { color: inherit; text-decoration: none; }
 
-    .deck {
-      display: flex;
-      flex-direction: column;
-      gap: 28px;
-      padding: 28px;
-      align-items: center;
-    }
-
-    .slide {
-      width: 297mm;
-      height: 210mm;
+    .page {
+      min-height: 100svh;
       background:
-        radial-gradient(ellipse 70% 55% at 0% 0%, rgba(228, 21, 43, 0.07), transparent 55%),
-        radial-gradient(ellipse 55% 45% at 100% 100%, rgba(20, 21, 26, 0.05), transparent 50%),
+        radial-gradient(ellipse 70% 45% at 0% 0%, rgba(228, 21, 43, 0.06), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 100% 20%, rgba(20, 21, 26, 0.04), transparent 50%),
         var(--bg);
-      border-radius: 18px;
-      overflow: hidden;
-      position: relative;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
-      page-break-after: always;
-      break-after: page;
-      display: grid;
-      padding: 14mm 16mm 12mm;
     }
 
-    .slide::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(20, 21, 26, 0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(20, 21, 26, 0.025) 1px, transparent 1px);
-      background-size: 28px 28px;
-      pointer-events: none;
-      opacity: 0.7;
+    /* —— Header (один раз) —— */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--border);
+      background: rgba(240, 239, 237, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
-    .slide > * { position: relative; z-index: 1; }
-
-    .brand-row {
+    .topbar-inner {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 1rem 1rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8mm;
+      gap: 1rem;
+    }
+
+    @media (min-width: 640px) {
+      .topbar-inner { padding: 1.15rem 2rem; }
     }
 
     .brand {
-      font-weight: 600;
-      font-size: 13px;
-      letter-spacing: 0;
-      text-transform: none;
-    }
-    .brand-mark {
-      font-weight: 900;
-      letter-spacing: 0;
-      text-transform: uppercase;
+      font-size: 1.125rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
       color: var(--ink);
     }
-    .brand-mark .red { color: var(--primary); font-weight: 900; }
+    .brand .red {
+      color: var(--primary);
+      font-weight: 900;
+    }
 
-    .slide-no {
-      font-size: 12px;
+    .topbar-meta {
+      font-size: 0.75rem;
       font-weight: 600;
       color: var(--ink-faint);
-      letter-spacing: 0.06em;
+      text-align: right;
+    }
+
+    /* —— Layout —— */
+    .wrap {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    @media (min-width: 640px) {
+      .wrap { padding: 3rem 2rem 5rem; gap: 1.5rem; }
+    }
+
+    .glass {
+      border-radius: 1.5rem; /* rounded-3xl */
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(24px) saturate(150%);
+      -webkit-backdrop-filter: blur(24px) saturate(150%);
+      box-shadow: var(--glass-shadow);
+    }
+
+    @media (min-width: 640px) {
+      .glass {
+        border-color: var(--glass-border-lg);
+        background: var(--glass-bg-lg);
+      }
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .rise {
+      animation: rise 0.55s ease-out both;
+    }
+    .rise-d1 { animation-delay: 0.08s; }
+    .rise-d2 { animation-delay: 0.16s; }
+    .rise-d3 { animation-delay: 0.24s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rise, .rise-d1, .rise-d2, .rise-d3 { animation: none; }
+    }
+
+    /* —— Hero —— */
+    .hero {
+      display: grid;
+      gap: 1.75rem;
+      padding: 1.5rem;
+    }
+
+    @media (min-width: 900px) {
+      .hero {
+        grid-template-columns: 1.05fr 1fr;
+        align-items: center;
+        padding: 2rem;
+        gap: 2rem;
+      }
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 0 0 0.85rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(21, 127, 66, 0.3);
+      background: var(--success-bg);
+      color: var(--success);
+      font-size: 0.75rem;
+      font-weight: 600;
     }
 
     h1 {
-      margin: 0 0 4mm;
-      font-size: 34px;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
-      max-width: 180mm;
+      margin: 0 0 1rem;
+      font-size: 1.65rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: var(--ink);
     }
 
-    h2 {
-      margin: 0 0 3mm;
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.15;
+    @media (min-width: 640px) {
+      h1 { font-size: 2rem; }
     }
 
     .lede {
-      margin: 0 0 7mm;
-      font-size: 15px;
-      line-height: 1.45;
-      color: var(--ink-muted);
-      max-width: 170mm;
+      margin: 0 0 1.25rem;
+      font-size: 1rem;
       font-weight: 500;
-    }
-
-    .accent { color: var(--primary); }
-
-    /* —— Cover —— */
-    .cover {
-      grid-template-rows: auto 1fr auto;
-    }
-
-    .cover .brand-row { margin-bottom: 6mm; }
-
-    .cover .brand {
-      font-size: 14px;
-      font-weight: 600;
       color: var(--ink-muted);
+      max-width: 36rem;
     }
 
-    .cover h1 {
-      font-size: 32px;
-      max-width: none;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      line-height: 1.15;
-      margin-bottom: 6mm;
-    }
-
-    .cover .lede {
-      font-size: 13.5px;
-      line-height: 1.55;
-      max-width: 118mm;
-      margin-bottom: 7mm;
-      font-weight: 500;
-    }
-
-    .cover-bullets {
+    .bullets {
       list-style: none;
-      margin: 0 0 6mm;
+      margin: 0;
       padding: 0;
-      max-width: 118mm;
       display: flex;
       flex-direction: column;
-      gap: 3mm;
+      gap: 0.7rem;
     }
 
-    .cover-bullets li {
+    .bullets li {
       position: relative;
-      padding-left: 5.5mm;
-      font-size: 13.5px;
+      padding-left: 1.15rem;
+      font-size: 0.95rem;
       font-weight: 500;
       line-height: 1.45;
       color: var(--ink);
     }
 
-    .cover-bullets li::before {
+    .bullets li::before {
       content: '';
       position: absolute;
       left: 0;
       top: 0.55em;
-      width: 2.2mm;
-      height: 2.2mm;
+      width: 0.45rem;
+      height: 0.45rem;
       border-radius: 50%;
       background: var(--primary);
     }
 
-    .cover-bullets li strong {
-      font-weight: 700;
-    }
+    .bullets strong { font-weight: 700; }
 
-    .cover-ai-note {
-      margin: 0;
-      max-width: 118mm;
-      font-size: 13px;
+    .ai-note {
+      margin: 1.15rem 0 0;
+      font-size: 0.875rem;
       font-weight: 600;
       color: var(--ink-muted);
     }
 
-    .cover-main {
-      display: grid;
-      grid-template-columns: 0.92fr 1.18fr;
-      gap: 8mm;
-      align-items: center;
-      min-height: 0;
+    .hero-shot {
+      min-width: 0;
     }
 
-    .cover-shot {
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      height: 100%;
-      justify-content: center;
-    }
-
-    .cover-shot .shot-frame {
-      flex: 0 1 auto;
-      width: 100%;
-      height: auto;
-      max-height: 132mm;
-      min-height: 0;
-    }
-
-    .cover-shot .shot-frame img {
-      width: 100%;
-      height: auto;
-      max-height: 132mm;
-      object-fit: contain;
-      object-position: center top;
-    }
-
-    .shot-frame {
-      border-radius: 16px;
-      overflow: hidden;
-      background: #fff;
-      border: 1px solid var(--border);
-      box-shadow: 0 16px 40px rgba(20, 21, 26, 0.12);
-      position: relative;
-    }
-
-    .shot-frame::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-      pointer-events: none;
-      border-radius: inherit;
-    }
-
-    .shot-frame img {
+    .shot {
       display: block;
       width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: top left;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 16px 40px rgba(20, 21, 26, 0.1);
     }
 
-    .shot-caption {
-      margin-top: 2.5mm;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--ink-faint);
-      letter-spacing: 0.02em;
-    }
-
-    .cover .shot-frame {
-      height: auto;
-      min-height: 0;
-      background: #f5f4f2;
-    }
-
-    .cover .footer-line {
-      justify-content: flex-start;
-    }
-
-    .footer-line {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      margin-top: 5mm;
-      padding-top: 3mm;
-      border-top: 1px solid rgba(20, 21, 26, 0.08);
-      font-size: 11px;
+    .shot-cap {
+      margin: 0.65rem 0 0;
+      font-size: 0.75rem;
       font-weight: 600;
       color: var(--ink-faint);
     }
 
-    /* —— Content slides —— */
-    .content {
-      grid-template-rows: auto auto 1fr auto;
+    /* —— Section shell —— */
+    .section {
+      padding: 1.5rem;
     }
 
-    .two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 7mm;
-      min-height: 0;
+    @media (min-width: 640px) {
+      .section { padding: 1.75rem 2rem; }
     }
 
-    .three-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 5mm;
-      min-height: 0;
+    .section-head {
+      margin-bottom: 1.25rem;
+      max-width: 40rem;
     }
 
-    .card {
-      background: rgba(255, 255, 255, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.9);
-      border-radius: 16px;
-      padding: 5mm;
-      box-shadow: 0 8px 24px rgba(20, 21, 26, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.75);
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-
-    .card h3 {
-      margin: 0 0 2.5mm;
-      font-size: 14px;
+    h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1.25rem;
       font-weight: 800;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
+      color: var(--ink);
     }
 
-    .card p, .card li {
-      font-size: 12.5px;
-      line-height: 1.4;
-      color: var(--ink-muted);
-      font-weight: 500;
+    @media (min-width: 640px) {
+      h2 { font-size: 1.4rem; }
     }
 
-    .card p { margin: 0; }
-
-    .card ul {
+    .section-head p {
       margin: 0;
-      padding: 0;
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 2.2mm;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--ink-muted);
     }
 
-    .card li {
-      position: relative;
-      padding-left: 4mm;
-    }
-
-    .card li::before {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 0.55em;
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: var(--primary);
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      width: fit-content;
-      border-radius: 999px;
-      padding: 1.2mm 3mm;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      margin-bottom: 2.5mm;
-    }
-
-    .chip-red { background: var(--primary-soft); color: var(--primary); }
-    .chip-green { background: var(--success-bg); color: var(--success); }
-    .chip-blue { background: var(--info-bg); color: var(--info-text); }
-    .chip-amber { background: var(--warning-bg); color: var(--warning); }
-
+    /* —— Chain —— */
     .chain {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 3mm;
-      margin-bottom: 5mm;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
     }
 
-    .chain-step {
-      background: rgba(255, 255, 255, 0.8);
+    @media (min-width: 700px) {
+      .chain { grid-template-columns: repeat(5, 1fr); gap: 0.65rem; }
+    }
+
+    .step {
+      border-radius: 1.1rem;
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 3.5mm 3mm;
-      position: relative;
+      background: rgba(255, 255, 255, 0.72);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-height: 100%;
     }
 
-    .chain-step .n {
-      font-size: 10px;
-      font-weight: 800;
+    .step .n {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       color: var(--primary);
-      letter-spacing: 0.08em;
-      margin-bottom: 1.5mm;
     }
 
-    .chain-step .t {
-      font-size: 12px;
-      font-weight: 800;
-      line-height: 1.2;
-      margin-bottom: 1.5mm;
+    .step .t {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink);
     }
 
-    .chain-step .d {
-      font-size: 11px;
-      color: var(--ink-muted);
+    .step .d {
+      font-size: 0.8rem;
       font-weight: 500;
-      line-height: 1.3;
+      color: var(--ink-muted);
+      line-height: 1.4;
+      flex: 1;
     }
 
     .who {
       display: inline-flex;
-      margin-top: 2mm;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--ink-faint);
+      align-self: flex-start;
+      margin-top: 0.4rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
     }
 
-    .who.sys { color: var(--info-text); }
-    .who.op { color: var(--warning); }
+    .who.sys { background: var(--info-bg); color: var(--info-text); }
+    .who.op { background: var(--surface-muted); color: var(--ink-muted); }
 
-    .shot-pair {
+    /* —— Feature row —— */
+    .feature-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 5mm;
-      min-height: 0;
+      gap: 0.85rem;
     }
 
-    .shot-block {
+    @media (min-width: 800px) {
+      .feature-grid { grid-template-columns: 1fr 1.15fr; align-items: stretch; }
+    }
+
+    .feature-copy {
+      border-radius: 1.1rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 1.15rem 1.25rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      margin: 0 0 0.65rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .chip-red { background: var(--primary-soft); color: var(--primary); }
+    .chip-blue { background: var(--info-bg); color: var(--info-text); }
+
+    .feature-copy h3 {
+      margin: 0 0 0.75rem;
+      font-size: 1.05rem;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .feature-copy ul {
+      margin: 0;
+      padding: 0 0 0 1.1rem;
       display: flex;
       flex-direction: column;
-      min-height: 0;
+      gap: 0.45rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink-muted);
     }
 
-    .shot-block .shot-frame {
-      flex: 1;
-      min-height: 68mm;
-      max-height: 82mm;
-    }
+    .feature-copy li::marker { color: var(--primary); }
 
-    .shot-block.tall .shot-frame {
-      min-height: 78mm;
-      max-height: 95mm;
-    }
-
-    .callout {
+    /* —— Shot grids —— */
+    .shots-2 {
       display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 4mm;
-      align-items: center;
-      background: var(--ink);
-      color: #fff;
-      border-radius: 16px;
-      padding: 4.5mm 5.5mm;
-      margin-top: 4mm;
+      gap: 0.85rem;
     }
 
-    .callout .big {
-      font-size: 28px;
+    @media (min-width: 800px) {
+      .shots-2 { grid-template-columns: 1fr 1fr; }
+    }
+
+    .shot-card {
+      min-width: 0;
+    }
+
+    .shot-card .shot {
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      object-position: left top;
+    }
+
+    /* —— Modes —— */
+    .modes {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    @media (min-width: 700px) {
+      .modes { grid-template-columns: 1fr 1fr; }
+    }
+
+    .mode {
+      border-radius: 1.1rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+      padding: 1.15rem 1.25rem;
+    }
+
+    .mode h3 {
+      margin: 0 0 0.45rem;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    .mode p {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      line-height: 1.45;
+    }
+
+    /* —— Result —— */
+    .result {
+      display: grid;
+      gap: 1rem;
+      padding: 1.5rem;
+      background:
+        linear-gradient(135deg, rgba(228, 21, 43, 0.08), transparent 55%),
+        var(--glass-bg);
+    }
+
+    @media (min-width: 700px) {
+      .result {
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        padding: 1.75rem 2rem;
+        gap: 1.75rem;
+      }
+    }
+
+    .result .big {
+      font-size: 2rem;
       font-weight: 800;
       letter-spacing: -0.03em;
+      line-height: 1.1;
+      color: var(--ink);
       white-space: nowrap;
-      color: #fff;
     }
 
-    .callout .big span { color: #ff7a76; }
+    .result .big span { color: var(--ink-faint); font-weight: 600; }
 
-    .callout p {
+    .result p {
       margin: 0;
-      font-size: 13px;
+      font-size: 0.95rem;
       font-weight: 500;
-      line-height: 1.35;
-      color: rgba(255, 255, 255, 0.78);
-    }
-
-    .mode-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 5mm;
-      margin-bottom: 4mm;
-    }
-
-    .mode-card {
-      border-radius: 16px;
-      padding: 4.5mm;
-      background: rgba(255, 255, 255, 0.8);
-      border: 1px solid var(--border);
-    }
-
-    .mode-card h3 {
-      margin: 0 0 1.5mm;
-      font-size: 15px;
-      font-weight: 800;
-    }
-
-    .mode-card p {
-      margin: 0;
-      font-size: 12px;
       color: var(--ink-muted);
-      font-weight: 500;
-      line-height: 1.35;
+      max-width: 36rem;
     }
 
-    .split-shots {
-      display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 5mm;
-      min-height: 0;
-    }
-
-    @media print {
-      body { background: #fff; }
-      .deck { padding: 0; gap: 0; }
-      .slide {
-        border-radius: 0;
-        box-shadow: none;
-        width: 297mm;
-        height: 210mm;
-      }
-    }
-
-    /* Web-view: на узком экране слайды сжимаются, не обрезаются */
-    @media screen and (max-width: 1100px) {
-      .deck {
-        padding: 12px;
-        gap: 16px;
-      }
-      .slide {
-        width: min(297mm, calc(100vw - 24px));
-        height: auto;
-        aspect-ratio: 297 / 210;
-        padding: 5vw 5vw 4vw;
-        border-radius: 12px;
-      }
-    }
-
-    @media print {
-      body { background: #fff; }
-      .deck { padding: 0; gap: 0; }
-      .slide {
-        width: 297mm;
-        height: 210mm;
-        border-radius: 0;
-        box-shadow: none;
-      }
+    /* —— Footer —— */
+    .footer {
+      margin-top: 0.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid rgba(20, 21, 26, 0.08);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--ink-faint);
     }
   </style>
 </head>
 <body>
-  <div class="deck">
-
-    <!-- ========== 1. COVER ========== -->
-    <section class="slide cover">
-      <div class="brand-row">
-        <div class="brand">
-          Платформа
-          <span class="brand-mark"><span class="red">RED</span>EVELOPMENT</span>
-        </div>
-        <div class="slide-no">01 / 04</div>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand"><span class="red">RED</span>EVELOPMENT</div>
+        <div class="topbar-meta">Внутренний продукт<br />Модуль закупок</div>
       </div>
+    </header>
 
-      <div class="cover-main">
+    <main class="wrap">
+      <!-- Hero -->
+      <section class="glass hero rise">
         <div>
-          <h1>Умный модуль закупок<br />стройматериалов</h1>
-          <ul class="cover-bullets">
+          <div class="eyebrow">С применением ИИ на всех этапах</div>
+          <h1>Умный модуль закупок стройматериалов</h1>
+          <p class="lede">
+            Запрашивает цены по рынку, разбирает счета и письма, сравнивает предложения
+            и оставляет закупщику только решения.
+          </p>
+          <ul class="bullets">
             <li>За&nbsp;2&nbsp;минуты запросить цены по базе из&nbsp;<strong>1061</strong> поставщиков (из них&nbsp;— <strong>378</strong> заводы)</li>
             <li>Автоматически разобрать <strong>50%</strong> писем и&nbsp;<strong>100%</strong> счетов</li>
             <li>Сравнить цены и&nbsp;подсветить лучшую</li>
             <li>Помочь выбрать между оригиналом и&nbsp;аналогом</li>
             <li>Заказать поставку материалов на&nbsp;объект</li>
           </ul>
-          <p class="cover-ai-note">С применением ИИ на всех этапах</p>
         </div>
-
-        <div class="cover-shot">
-          <div class="shot-frame">
-            <img src="./01-catalog.png" alt="Каталог поставщиков" />
-          </div>
-          <div class="shot-caption">Каталог поставщиков · 1061 · 378 заводов</div>
+        <div class="hero-shot">
+          <img class="shot" src="./01-catalog.png" alt="Каталог поставщиков" />
+          <p class="shot-cap">Каталог поставщиков · 1061 · 378 заводов</p>
         </div>
-      </div>
+      </section>
 
-      <div class="footer-line">
-        <span>Внутренний продукт · редевелопмент коммерческой недвижимости</span>
-      </div>
-    </section>
-
-    <!-- ========== 2. LOGIC + CHAIN ========== -->
-    <section class="slide content">
-      <div class="brand-row">
-        <div class="brand"><span>Redevelopment</span> · закупки</div>
-        <div class="slide-no">02 / 04</div>
-      </div>
-
-      <div>
-        <h2>Логика работы: одна цепочка от ведомости до заказа</h2>
-        <p class="lede" style="margin-bottom: 4mm;">
-          Система закрывает рутину. Оператор принимает решения в точках, где нужна ответственность.
-        </p>
-      </div>
-
-      <div>
+      <!-- Chain -->
+      <section class="glass section rise rise-d1">
+        <div class="section-head">
+          <h2>Одна цепочка — от ведомости до заказа</h2>
+          <p>Система закрывает рутину. Оператор принимает решения там, где нужна ответственность.</p>
+        </div>
         <div class="chain">
-          <div class="chain-step">
+          <div class="step">
             <div class="n">01</div>
             <div class="t">Ведомость</div>
             <div class="d">Актуальный список материалов по объекту</div>
-            <div class="who op">Оператор</div>
+            <span class="who op">Оператор</span>
           </div>
-          <div class="chain-step">
+          <div class="step">
             <div class="n">02</div>
             <div class="t">Запрос цен</div>
             <div class="d">Рассылка по рынку в пару кликов</div>
-            <div class="who sys">Система</div>
+            <span class="who sys">Система</span>
           </div>
-          <div class="chain-step">
+          <div class="step">
             <div class="n">03</div>
             <div class="t">Переписка</div>
             <div class="d">ИИ закрывает типовые письма, дожимает молчащих</div>
-            <div class="who sys">Система</div>
+            <span class="who sys">Система</span>
           </div>
-          <div class="chain-step">
+          <div class="step">
             <div class="n">04</div>
             <div class="t">Сравнение</div>
             <div class="d">Счета → таблица · оригинал и аналог отдельно</div>
-            <div class="who sys">Система</div>
+            <span class="who sys">Система</span>
           </div>
-          <div class="chain-step">
+          <div class="step">
             <div class="n">05</div>
             <div class="t">Заказ</div>
             <div class="d">Выбор лучших цен и фиксация поставки</div>
-            <div class="who op">Оператор</div>
+            <span class="who op">Оператор</span>
           </div>
         </div>
+      </section>
 
-        <div class="two-col">
-          <div class="card">
+      <!-- Market + letters -->
+      <section class="glass section rise rise-d2">
+        <div class="section-head">
+          <h2>Не поиск поставщика — а лучшая цена на рынке</h2>
+          <p>Оператор не ищет контакты и не сводит Excel — выбирает из готовой таблицы рынка.</p>
+        </div>
+        <div class="feature-grid">
+          <div class="feature-copy">
             <span class="chip chip-red">Что решает</span>
-            <h3>Не поиск поставщика — а лучшая цена на рынке</h3>
+            <h3>Запрос сразу по всей релевантной базе</h3>
             <ul>
               <li>База дилеров и заводов по всем категориям стройматериалов</li>
               <li>Поставщик виден в каждой категории, где реально торгует</li>
@@ -685,115 +603,74 @@
               <li>Авторазбор счетов и писем с ценами</li>
             </ul>
           </div>
-          <div class="shot-block">
-            <div class="shot-frame">
-              <img src="./04-letters-paint.png" alt="Переписка по краскам" style="object-position: top center;" />
-            </div>
-            <div class="shot-caption">Живая переписка · «Краски Здесь» · Imagine Colors</div>
+          <div class="shot-card">
+            <img class="shot" src="./04-letters-paint.png" alt="Переписка по краскам" />
+            <p class="shot-cap">Живая переписка · «Краски Здесь» · Imagine Colors</p>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="footer-line">
-        <span>Оператор не ищет контакты и не сводит Excel — он выбирает из готовой таблицы рынка</span>
-        <span>02 / 04</span>
-      </div>
-    </section>
-
-    <!-- ========== 3. COMPARISON ========== -->
-    <section class="slide content">
-      <div class="brand-row">
-        <div class="brand"><span>Redevelopment</span> · сравнение</div>
-        <div class="slide-no">03 / 04</div>
-      </div>
-
-      <div>
-        <h2>Сравнение счетов: оригинал отдельно, аналог отдельно</h2>
-        <p class="lede" style="margin-bottom: 4mm;">
-          Система не смешивает «то, что просили» с заменами. Спорные позиции помечает на уточнение.
-          Решение — только там, где есть развилка цены и качества.
-        </p>
-      </div>
-
-      <div class="shot-pair">
-        <div class="shot-block tall">
-          <div class="shot-frame">
-            <img src="./03-compare-paint-body.png" alt="Сравнение красок" style="object-position: top left;" />
-          </div>
-          <div class="shot-caption">Краски · Tikkurila / Dulux · 19 запросов · 12 КП · 5 из 5 позиций с ценой</div>
+      <!-- Comparison -->
+      <section class="glass section">
+        <div class="section-head">
+          <h2>Сравнение счетов: оригинал отдельно, аналог отдельно</h2>
+          <p>Система не смешивает «то, что просили» с заменами. Спорные позиции помечает на уточнение.</p>
         </div>
-        <div class="shot-block tall">
-          <div class="shot-frame">
-            <img src="./03-compare-ceramic-body.png" alt="Сравнение керамогранита" style="object-position: top left;" />
+        <div class="shots-2">
+          <div class="shot-card">
+            <img class="shot" src="./03-compare-paint-body.png" alt="Сравнение красок" />
+            <p class="shot-cap">Краски · Tikkurila / Dulux · 19 запросов · 12 КП · 5 из 5 позиций с ценой</p>
           </div>
-          <div class="shot-caption">Керамогранит · 41 запрос · 106 писем · 7 КП · аналоги и уточнения</div>
+          <div class="shot-card">
+            <img class="shot" src="./03-compare-ceramic-body.png" alt="Сравнение керамогранита" />
+            <p class="shot-cap">Керамогранит · 41 запрос · 106 писем · 7 КП · аналоги и уточнения</p>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div class="footer-line">
-        <span>Пример эффекта: по позиции краски лучший поставщик выбран автоматически · дельта к соседним КП видна сразу</span>
-        <span>03 / 04</span>
-      </div>
-    </section>
-
-    <!-- ========== 4. AI + MODES + RESULT ========== -->
-    <section class="slide content">
-      <div class="brand-row">
-        <div class="brand"><span>Redevelopment</span> · масштаб</div>
-        <div class="slide-no">04 / 04</div>
-      </div>
-
-      <div>
-        <h2>ИИ-закупщик и два режима сравнения</h2>
-        <p class="lede" style="margin-bottom: 3.5mm;">
-          Типовую переписку закрывает бот. Сравнение умеет и построчный тендер, и закупку комплектом.
-        </p>
-      </div>
-
-      <div>
-        <div class="mode-grid">
-          <div class="mode-card">
+      <!-- Modes + AI -->
+      <section class="glass section">
+        <div class="section-head">
+          <h2>ИИ-закупщик и два режима сравнения</h2>
+          <p>Типовую переписку закрывает бот. Сравнение умеет и построчный тендер, и закупку комплектом.</p>
+        </div>
+        <div class="modes" style="margin-bottom: 1rem;">
+          <div class="mode">
             <span class="chip chip-red">По позициям</span>
             <h3>Плитка, краски, смеси</h3>
             <p>Каждая строка ведомости сравнивается отдельно. Берём лучшую цену у разных поставщиков.</p>
           </div>
-          <div class="mode-card">
+          <div class="mode">
             <span class="chip chip-blue">Поставка целиком</span>
             <h3>Грильято и комплекты</h3>
             <p>Несущие, направляющие, подвесы — одним лотом. Сравниваем КП целиком, не ломая комплект.</p>
           </div>
         </div>
-
-        <div class="split-shots">
-          <div class="shot-block">
-            <div class="shot-frame" style="max-height: 62mm;">
-              <img src="./03-compare-ceilings-lot-body.png" alt="Потолки лотом" style="object-position: top left;" />
-            </div>
-            <div class="shot-caption">Потолки · режим «поставка целиком» · грильято 100×100 · лучшая цена выделена</div>
+        <div class="shots-2">
+          <div class="shot-card">
+            <img class="shot" src="./03-compare-ceilings-lot-body.png" alt="Потолки лотом" />
+            <p class="shot-cap">Потолки · режим «поставка целиком» · грильято 100×100</p>
           </div>
-          <div class="shot-block">
-            <div class="shot-frame" style="max-height: 62mm;">
-              <img src="./04-autoreplies-crop.png" alt="Автоответы" style="object-position: top center;" />
-            </div>
-            <div class="shot-caption">ИИ-закупщик · ответ не раньше 20 минут · 13 типовых ситуаций без участия человека</div>
+          <div class="shot-card">
+            <img class="shot" src="./04-autoreplies-crop.png" alt="Автоответы ИИ" />
+            <p class="shot-cap">ИИ-закупщик · 13 типовых ситуаций без участия человека</p>
           </div>
         </div>
+      </section>
 
-        <div class="callout">
-          <div class="big">3 → 1 <span>·</span> 2ч/день</div>
-          <p>
-            Меньше ФОТ на рутину. Больше конкуренции между поставщиками.
-            Результат — ниже закупка материалов и выше чистая прибыль объекта.
-          </p>
-        </div>
-      </div>
+      <!-- Result -->
+      <section class="glass result rise rise-d3">
+        <div class="big">3 → 1 <span>·</span> 2ч/день</div>
+        <p>
+          Меньше ФОТ на рутину. Больше конкуренции между поставщиками.
+          Результат — ниже закупка материалов и выше чистая прибыль объекта.
+        </p>
+      </section>
 
-      <div class="footer-line">
-        <span>Демонстрация: redevelopment.pro/admin/purchases</span>
-        <span>04 / 04</span>
-      </div>
-    </section>
-
+      <footer class="footer">
+        Внутренний продукт · редевелопмент коммерческой недвижимости
+      </footer>
+    </main>
   </div>
 </body>
 </html>
