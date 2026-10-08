@@ -180,20 +180,6 @@
       }
     }
 
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin: 0 0 0.85rem;
-      padding: 0.3rem 0.75rem;
-      border-radius: 999px;
-      border: 1px solid rgba(21, 127, 66, 0.3);
-      background: var(--success-bg);
-      color: var(--success);
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-
     h1 {
       margin: 0 0 1rem;
       font-size: 1.65rem;
@@ -204,20 +190,65 @@
     }
 
     @media (min-width: 640px) {
-      h1 { font-size: 2rem; }
+      h1 { font-size: 2.15rem; }
     }
 
     .lede {
-      margin: 0 0 1.25rem;
-      font-size: 1rem;
+      margin: 0 0 1.15rem;
+      font-size: 1.05rem;
       font-weight: 500;
       color: var(--ink-muted);
-      max-width: 36rem;
+      max-width: 34rem;
+      line-height: 1.55;
+    }
+
+    .claude {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      max-width: 34rem;
+      padding: 0.85rem 1rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(217, 119, 87, 0.35);
+      background: rgba(217, 119, 87, 0.08);
+    }
+
+    .claude-mark {
+      flex-shrink: 0;
+      width: 1.65rem;
+      height: 1.65rem;
+      margin-top: 0.1rem;
+    }
+
+    .claude-copy {
+      min-width: 0;
+    }
+
+    .claude-copy strong {
+      display: block;
+      margin: 0 0 0.2rem;
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .claude-copy span {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--ink-muted);
+    }
+
+    .claude-name {
+      color: #c45a38;
+      font-weight: 800;
     }
 
     .bullets {
       list-style: none;
-      margin: 0;
+      margin: 0 0 1.35rem;
       padding: 0;
       display: flex;
       flex-direction: column;
@@ -246,13 +277,6 @@
 
     .bullets strong { font-weight: 700; }
 
-    .ai-note {
-      margin: 1.15rem 0 0;
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--ink-muted);
-    }
-
     .hero-shot {
       min-width: 0;
     }
@@ -264,6 +288,16 @@
       border: 1px solid var(--border);
       background: var(--surface);
       box-shadow: 0 16px 40px rgba(20, 21, 26, 0.1);
+    }
+
+    .hero-shot .shot {
+      aspect-ratio: auto;
+      max-height: 28rem;
+      width: 100%;
+      object-fit: contain;
+      object-position: left top;
+      background:
+        linear-gradient(180deg, #f7f6f4, #efeeec);
     }
 
     .shot-cap {
@@ -526,23 +560,23 @@
       <!-- Hero -->
       <section class="glass hero rise">
         <div>
-          <div class="eyebrow">С применением ИИ на всех этапах</div>
           <h1>Умный модуль закупок стройматериалов</h1>
           <p class="lede">
-            Запрашивает цены по рынку, разбирает счета и письма, сравнивает предложения
-            и оставляет закупщику только решения.
+            Сам обходит рынок, разбирает счета и&nbsp;письма поставщиков, сводит сравнение
+            оригинал/аналог&nbsp;— и&nbsp;оставляет закупщику только решения.
+            Не&nbsp;Excel и&nbsp;не&nbsp;почта вручную: готовая таблица лучших цен по&nbsp;каждой позиции.
           </p>
-          <ul class="bullets">
-            <li>За&nbsp;2&nbsp;минуты запросить цены по базе из&nbsp;<strong>1061</strong> поставщиков (из них&nbsp;— <strong>378</strong> заводы)</li>
-            <li>Автоматически разобрать <strong>50%</strong> писем и&nbsp;<strong>100%</strong> счетов</li>
-            <li>Сравнить цены и&nbsp;подсветить лучшую</li>
-            <li>Помочь выбрать между оригиналом и&nbsp;аналогом</li>
-            <li>Заказать поставку материалов на&nbsp;объект</li>
-          </ul>
+          <div class="claude">
+            <img class="claude-mark" src="./claude-asterisk.svg" alt="" width="26" height="26" />
+            <div class="claude-copy">
+              <strong>На всех этапах — <span class="claude-name">Claude</span></strong>
+              <span>Модели Anthropic Claude: читают счета, ведут переписку и сравнивают КП. Не «просто ИИ» — сильный закупщик в системе.</span>
+            </div>
+          </div>
         </div>
         <div class="hero-shot">
-          <img class="shot" src="./01-catalog.png" alt="Каталог поставщиков" />
-          <p class="shot-cap">Каталог поставщиков · 1061 · 378 заводов</p>
+          <img class="shot" src="./01-hero-decision.png" alt="Сравнение цен: выбранное предложение" />
+          <p class="shot-cap">Сравнение · лучшая цена подсвечена · «✓ Выбрано»</p>
         </div>
       </section>
 
@@ -552,6 +586,13 @@
           <h2>Одна цепочка — от ведомости до заказа</h2>
           <p>Система закрывает рутину. Оператор принимает решения там, где нужна ответственность.</p>
         </div>
+        <ul class="bullets">
+          <li>За&nbsp;2&nbsp;минуты запросить цены по базе из&nbsp;<strong>1061</strong> поставщиков (из них&nbsp;— <strong>378</strong> заводы)</li>
+          <li>Автоматически разобрать <strong>50%</strong> писем и&nbsp;<strong>100%</strong> счетов</li>
+          <li>Сравнить цены и&nbsp;подсветить лучшую</li>
+          <li>Помочь выбрать между оригиналом и&nbsp;аналогом</li>
+          <li>Заказать поставку материалов на&nbsp;объект</li>
+        </ul>
         <div class="chain">
           <div class="step">
             <div class="n">01</div>
