@@ -335,6 +335,122 @@
       color: var(--ink-muted);
     }
 
+    /* —— Как экономит деньги —— */
+    .save-grid {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    @media (min-width: 900px) {
+      .save-grid { grid-template-columns: 1fr 1fr 1fr; align-items: stretch; }
+    }
+
+    .save-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      padding: 1.15rem 1.2rem;
+      border-radius: 1.15rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.78);
+      min-width: 0;
+    }
+
+    .save-card.max {
+      border-color: rgba(228, 21, 43, 0.28);
+      background:
+        linear-gradient(165deg, rgba(228, 21, 43, 0.07), transparent 55%),
+        rgba(255, 255, 255, 0.85);
+    }
+
+    .save-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .save-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .save-pill.level {
+      background: var(--surface-muted);
+      color: var(--ink-muted);
+    }
+
+    .save-pill.live {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .save-pill.soon {
+      background: #fff3d6;
+      color: #8a6a12;
+    }
+
+    .save-pill.money {
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .save-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
+      color: var(--ink);
+    }
+
+    .save-card p {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.45;
+      color: var(--ink-muted);
+      flex: 1;
+    }
+
+    .save-card p strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .save-example {
+      margin-top: 0.15rem;
+      padding: 0.7rem 0.8rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: rgba(240, 239, 237, 0.65);
+      font-size: 0.8rem;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--ink-muted);
+    }
+
+    .save-example b {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .save-loss {
+      margin-top: 0.15rem;
+      padding: 0.7rem 0.8rem;
+      border-radius: 0.85rem;
+      border: 1px dashed rgba(228, 21, 43, 0.35);
+      background: rgba(253, 227, 229, 0.4);
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--primary);
+    }
+
     /* —— Схема пути: чередование человек / Claude —— */
     .schema {
       position: relative;
@@ -843,8 +959,70 @@
         </aside>
       </section>
 
-      <!-- Schema: отдельный смысловой блок -->
+      <!-- Как экономит деньги -->
       <section class="glass section rise rise-d1">
+        <div class="section-head">
+          <h2>Как модуль экономит деньги</h2>
+          <p>Три уровня — от ФОТ до потерь на объекте. Сначала то, что уже работает у&nbsp;Зуева на&nbsp;Зелёном.</p>
+        </div>
+
+        <div class="save-grid">
+          <article class="save-card">
+            <div class="save-meta">
+              <span class="save-pill level">Уровень 1 · базовый</span>
+              <span class="save-pill live">Уже работает</span>
+              <span class="save-pill money">~100 тыс. ₽</span>
+            </div>
+            <h3>Сокращает затраты на ФОТ</h3>
+            <p>
+              Рутину закрывает Claude — закупщику остаются решения.
+              Меньше людей на ту&nbsp;же стройку, меньше часов в&nbsp;день на переписку и сводку.
+            </p>
+            <div class="save-example">
+              Для <b>Зуева на Зелёном</b>: вместо <b>3 закупщиков</b> справляется
+              <b>1 за 2&nbsp;часа в&nbsp;день</b>. Экономия уже на ФОТ — порядка сотни тысяч рублей.
+            </div>
+          </article>
+
+          <article class="save-card">
+            <div class="save-meta">
+              <span class="save-pill level">Уровень 2 · рынок</span>
+              <span class="save-pill live">Уже работает</span>
+              <span class="save-pill money">сотни тыс. ₽</span>
+            </div>
+            <h3>Находит лучшую цену по всему рынку</h3>
+            <p>
+              Даже если мало времени или «лень обзванивать» — модуль запрашивает
+              сразу везде: заводы и дилеры с&nbsp;доставкой. Разница между первой
+              и&nbsp;средней ценой на материалы — <strong>сотни тысяч на одну закупку</strong>.
+            </p>
+            <div class="save-example">
+              Ситуация: ведомость большая, срок короткий. Без модуля берут
+              у&nbsp;привычного поставщика. С модулем — топ-чарт по рынку, выбирают первое место.
+            </div>
+          </article>
+
+          <article class="save-card max">
+            <div class="save-meta">
+              <span class="save-pill level">Уровень 3 · максимум</span>
+              <span class="save-pill soon">Скоро</span>
+              <span class="save-pill money">до млн ₽</span>
+            </div>
+            <h3>Приёмка на объекте ловит расхождения</h3>
+            <p>
+              Модуль приёмки сверит, что заказали и&nbsp;что реально доехало.
+              Недовоз, подмена, «лишние» позиции — видны до того, как деньги ушли безвозвратно.
+            </p>
+            <div class="save-loss">
+              Живые потери без контроля: на крупных закупках — <b>миллионы</b>.
+              Это главный приоритет следующей волны: после ФОТ и рынка — закрыть дыру на объекте.
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Schema: отдельный смысловой блок -->
+      <section class="glass section rise rise-d2">
         <div class="section-head">
           <h2>Путь закупки в модуле</h2>
           <p>Наглядная схема: человек принимает решение — Claude подхватывает рутину между шагами.</p>
