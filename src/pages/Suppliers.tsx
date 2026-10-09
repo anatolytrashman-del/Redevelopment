@@ -1473,19 +1473,15 @@ export function Suppliers() {
     fetchSupplierEnrichmentJobs().then(setEnrichmentJobs).catch(() => setEnrichmentJobs([]));
   }, []);
 
-  // Владелец, 2026-09-03: "в ведомости по умолчанию всегда выбран Red One" —
-  // единственный объект с landingSlug 'one' (см. SEO_OVERRIDES в
-  // lib/pageMeta.ts — тот же признак используется там для той же цели).
-  // Срабатывает один раз, как только оба списка подгрузились и смета ещё не
-  // выбрана вручную — не перезаписывает осознанный выбор пользователя.
+  // Владелец, 2026-10-09: в ведомости по умолчанию «Смета Зелёный» (общая
+  // смета без объекта). Раньше был Red One по landingSlug 'one'. Срабатывает
+  // один раз, пока смету не выбрали вручную.
   useEffect(() => {
-    if (ledgerEstimateId || estimates.length === 0 || objects.length === 0) return;
-    const redOne = objects.find((o) => o.landingSlug === 'one');
-    if (!redOne) return;
-    const redOneEstimate = estimates.find((e) => e.objectId === redOne.id);
-    if (redOneEstimate) setLedgerEstimateId(redOneEstimate.id);
+    if (ledgerEstimateId || estimates.length === 0) return;
+    const green = estimates.find((e) => /зелен/i.test((e.title ?? '').replace(/ё/g, 'е')));
+    if (green) setLedgerEstimateId(green.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estimates, objects]);
+  }, [estimates]);
 
   // Владелец, 2026-09-03: "нужно, чтобы новые письма подгружались и были
   // уведомления даже когда страница открыта... сейчас страницу нужно
@@ -2599,8 +2595,11 @@ export function Suppliers() {
             offers={offers}
             requests={requests}
             snapshotByHost={snapshotByHost}
+            emails={supplierEmails}
+            quotes={supplierQuotes}
+            orders={purchaseOrders}
             onOpenDetail={(o) => setDetailOfferId(o.id)}
-              onAddSupplier={() => openNewOffer(null)}
+            onAddSupplier={() => openNewOffer(null)}
           />
         )}
 
