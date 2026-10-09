@@ -6,12 +6,12 @@
 ## Деплой
 
 **Быстрый лендинг закупок (отдельно от сайта).** Статика
-`public/pitch/zakupki/` выкладывается workflow
+`public/zakupki/` выкладывается workflow
 `.github/workflows/deploy-pitch-zakupki.yml` на GitHub Pages за десятки секунд,
 без `npm` и пререндера:
-`https://anatolytrashman-del.github.io/Redevelopment/pitch-zakupki/`.
+`https://anatolytrashman-del.github.io/Redevelopment/zakupki/`.
 Триггер — push в `oodobu` с правками в этой папке (environment `github-pages` сейчас пускает только эту ветку; `cursor/*` в policy добавит владелец в настройках GitHub, если понадобится деплой без мержа).
-Прод `redevelopment.pro/pitch/zakupki` по-прежнему идёт обычным Vercel-деплоем.
+Прод: `https://redevelopment.pro/zakupki/`.
 Хелпер URL: `scripts/deploy-pitch-fast.sh`.
 
 
