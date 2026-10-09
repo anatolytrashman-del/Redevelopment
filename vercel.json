@@ -168,6 +168,8 @@
     { "source": "/admin/meeting-summaries/(.*)", "destination": "/admin/meeting-summaries/index.html" },
     { "source": "/admin/transactions/(.*)", "destination": "/admin/transactions/index.html" },
     { "source": "/admin/(.*)", "destination": "/admin/index.html" },
+    { "source": "/zakupki", "destination": "/zakupki/index.html" },
+    { "source": "/zakupki/", "destination": "/zakupki/index.html" },
     { "source": "/((?!\\.well-known/).*)", "destination": "/index.html" }
   ]
 }
