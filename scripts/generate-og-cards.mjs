@@ -28,15 +28,22 @@
 // Сбой рендера конкретной карточки не роняет сборку: у страницы просто
 // остаётся прежний og:image (заглушка или фото объекта) — не хуже, чем было.
 import { chromium } from 'playwright-core';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import os from 'node:os';
 
 const DIST_DIR = 'dist';
 const FONTS_DIR = 'public/fonts';
+const PUBLIC_OG_DIR = 'public/og';
 const CARDS_DIR = join(DIST_DIR, 'og');
 const SITE_ORIGIN = 'https://redevelopment.pro';
 const RED = '#e4152b';
+
+// Ручные обложки в public/og/{slug}.png — не перерисовывать генератором
+// (Vite уже копирует их в dist/og/, здесь только закрепляем и не затираем).
+function handcraftedOgPath(slug) {
+  return join(PUBLIC_OG_DIR, `${slug}.png`);
+}
 
 // index.html — общий SPA-фолбэк на неизвестные пути (и 404.html — копия с
 // него): у них остаётся дефолтная обложка с «R», своей страницы за ними нет.
@@ -98,6 +105,11 @@ const CARD_TEXT_OVERRIDES = {
     // Без "· redevelopment.pro" — домен уже есть в шапке карточки рядом с
     // "R" (владелец, 2026-09-13: "два раза упоминается домен").
     kicker: 'Обновляется ежемесячно',
+  },
+  // Fallback, если ручной public/og/zakupki.png вдруг отсутствует на сборке.
+  zakupki: {
+    title: 'Умный модуль закупки стройматериалов',
+    kicker: 'Автоматизация и ИИ · для стройки в Зелёном и дальше',
   },
 };
 
@@ -285,9 +297,24 @@ async function main() {
     writeFileSync(entry.file, html);
   };
 
+  // Ручные PNG из public/og/ — закрепить в dist/og и не копировать/рисовать.
+  let handcrafted = 0;
+  const remaining = [];
+  for (const entry of pages) {
+    const slug = cardSlug(entry.path);
+    const src = handcraftedOgPath(slug);
+    if (!existsSync(src)) {
+      remaining.push(entry);
+      continue;
+    }
+    copyFileSync(src, join(CARDS_DIR, `${slug}.png`));
+    finishPage(entry);
+    handcrafted += 1;
+  }
+
   // 1) Страницы, скопированные с прода — обложку тоже с прода, параллельно.
-  const toCopy = pages.filter((p) => copiedFromProd.has(p.path));
-  const toRender = pages.filter((p) => !copiedFromProd.has(p.path));
+  const toCopy = remaining.filter((p) => copiedFromProd.has(p.path));
+  const toRender = remaining.filter((p) => !copiedFromProd.has(p.path));
   let copied = 0;
   let cursor = 0;
   await Promise.all(
@@ -389,7 +416,7 @@ async function main() {
     }
   }
   console.log(
-    `[og-cards] готово: ${copied + rendered} страниц со своей обложкой (dist/og/*.png; скопировано с прода ${copied}, отрендерено ${rendered})`,
+    `[og-cards] готово: ${handcrafted + copied + rendered} страниц со своей обложкой (dist/og/*.png; ручных ${handcrafted}, с прода ${copied}, отрендерено ${rendered})`,
   );
   if (failed.length > 0) {
     console.warn(`[og-cards] ${failed.length} страниц остались с прежним og:image:\n  - ${failed.join('\n  - ')}`);
