@@ -1,5 +1,5 @@
 # Только лендинг закупок — без npm/vite/пререндера.
-# URL: https://anatolytrashman-del.github.io/Redevelopment/pitch-zakupki/
+# URL: https://anatolytrashman-del.github.io/Redevelopment/zakupki/
 name: Deploy pitch zakupki
 
 on:
@@ -9,7 +9,7 @@ on:
       - preview
       - 'cursor/**'
     paths:
-      - 'public/pitch/zakupki/**'
+      - 'public/zakupki/**'
       - '.github/workflows/deploy-pitch-zakupki.yml'
   workflow_dispatch:
 
@@ -33,10 +33,9 @@ jobs:
 
       - name: Stage static site
         run: |
-          mkdir -p _site/pitch-zakupki
-          cp -a public/pitch/zakupki/. _site/pitch-zakupki/
-          # без index в корне — чтобы случайно не перепутать с сайтом
-          printf '%s\n' '<!DOCTYPE html><meta http-equiv="refresh" content="0;url=./pitch-zakupki/"><title>pitch</title>' > _site/index.html
+          mkdir -p _site/zakupki
+          cp -a public/zakupki/. _site/zakupki/
+          printf '%s\n' '<!DOCTYPE html><meta http-equiv="refresh" content="0;url=./zakupki/"><title>zakupki</title>' > _site/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:

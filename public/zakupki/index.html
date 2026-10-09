@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="Умный модуль закупки стройматериалов — внутренний продукт платформы Redevelopment." />
+  <title>Умный модуль закупки — Redevelopment</title>
+  <style>
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('./fonts/Montserrat-Regular.woff2') format('woff2');
+      font-weight: 100 449;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('./fonts/Montserrat-Medium.woff2') format('woff2');
+      font-weight: 450 549;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('./fonts/Montserrat-SemiBold.woff2') format('woff2');
+      font-weight: 550 899;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Montserrat';
+      src: url('./fonts/Montserrat-ExtraBold.woff2') format('woff2');
+      font-weight: 900;
+      font-display: swap;
+    }
+
+    :root {
+      --bg: #f0efed;
+      --surface: #ffffff;
+      --surface-muted: #f5f4f2;
+      --ink: #14151a;
+      --ink-muted: #6b6d76;
+      --ink-faint: #9a9ba3;
+      --primary: #e4152b;
+      --primary-hover: #c81124;
+      --primary-soft: #fde3e5;
+      --border: #e7e5e2;
+      --success: #157f42;
+      --success-bg: #e6f6ed;
+      /* как src/lib/glass.ts — Card/админка/каталог */
+      --glass-bg: rgba(255, 255, 255, 0.6);
+      --glass-bg-lg: rgba(255, 255, 255, 0.4);
+      --glass-border: rgba(255, 255, 255, 0.8);
+      --glass-border-lg: rgba(255, 255, 255, 0.6);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Montserrat', system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .page {
+      min-height: 100svh;
+      background:
+        radial-gradient(ellipse 70% 45% at 0% 0%, rgba(228, 21, 43, 0.06), transparent 55%),
+        radial-gradient(ellipse 50% 40% at 100% 20%, rgba(20, 21, 26, 0.04), transparent 50%),
+        var(--bg);
+    }
+
+    /* —— Header (один раз) —— */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--border);
+      background: rgba(240, 239, 237, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .topbar-inner {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 1rem 1rem;
+      display: flex;
+      align-items: center;
+    }
+
+    @media (min-width: 640px) {
+      .topbar-inner { padding: 1.15rem 2rem; }
+    }
+
+    .brand {
+      font-size: 1.125rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+    }
+    .brand .red {
+      color: var(--primary);
+      font-weight: 900;
+    }
+
+    /* —— Layout —— */
+    .wrap {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    @media (min-width: 640px) {
+      .wrap { padding: 3rem 2rem 5rem; gap: 1.5rem; }
+    }
+
+    .glass {
+      border-radius: 1.5rem; /* rounded-3xl */
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(24px) saturate(150%);
+      -webkit-backdrop-filter: blur(24px) saturate(150%);
+      box-shadow: var(--glass-shadow);
+    }
+
+    @media (min-width: 640px) {
+      .glass {
+        border-color: var(--glass-border-lg);
+        background: var(--glass-bg-lg);
+      }
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .rise {
+      animation: rise 0.55s ease-out both;
+    }
+    .rise-d1 { animation-delay: 0.08s; }
+    .rise-d2 { animation-delay: 0.16s; }
+    .rise-d3 { animation-delay: 0.24s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rise, .rise-d1, .rise-d2, .rise-d3 { animation: none; }
+    }
+
+    /* —— Hero —— */
+    .hero {
+      display: grid;
+      gap: 1.5rem;
+      padding: 1.35rem 1.15rem;
+      align-items: stretch;
+    }
+
+    @media (min-width: 640px) {
+      .hero {
+        gap: 1.75rem;
+        padding: 1.75rem 1.5rem;
+      }
+    }
+
+    @media (min-width: 900px) {
+      .hero {
+        grid-template-columns: 1.35fr 0.85fr;
+        padding: 2.5rem 2.25rem;
+        gap: 2.5rem;
+      }
+    }
+
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0;
+      min-width: 0;
+    }
+
+    .who-for {
+      margin: 0 0 1.15rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      line-height: 1.55;
+      color: var(--ink-faint);
+    }
+
+    .who-for b {
+      color: var(--ink-muted);
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0 0 1.1rem;
+      font-size: 1.45rem;
+      font-weight: 800;
+      line-height: 1.22;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      max-width: none;
+      overflow-wrap: anywhere;
+    }
+
+    @media (min-width: 640px) {
+      h1 { font-size: 2.1rem; margin-bottom: 1.35rem; overflow-wrap: normal; }
+    }
+
+    @media (min-width: 900px) {
+      h1 { font-size: 2.35rem; }
+    }
+
+    .lede {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      max-width: 36rem;
+      line-height: 1.65;
+    }
+
+    .lede strong { color: var(--ink); font-weight: 700; }
+
+    /* Claude panel — справа в hero; оранж только у Anthropic-акцентов */
+    .claude-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1rem;
+      min-width: 0;
+      padding: 1.35rem 1.4rem;
+      border-radius: 1.25rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .claude-panel-top {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    .claude-mark {
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+    }
+
+    .claude-title {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 800;
+      line-height: 1.3;
+      color: var(--ink);
+    }
+
+    .claude-title .claude-name { color: #c45a38; }
+
+    .claude-panel ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .claude-panel li {
+      position: relative;
+      padding-left: 1.05rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--ink-muted);
+    }
+
+    .claude-panel li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 0.4rem;
+      height: 0.4rem;
+      border-radius: 50%;
+      background: #d97757;
+    }
+
+    .claude-panel li strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    /* —— Section shell —— */
+    .section {
+      padding: 1.25rem 1.1rem;
+    }
+
+    @media (min-width: 640px) {
+      .section { padding: 1.75rem 2rem; }
+    }
+
+    .section-head {
+      margin-bottom: 1.25rem;
+      max-width: none;
+    }
+
+    h2 {
+      margin: 0 0 0.5rem;
+      font-size: 1.2rem;
+      font-weight: 800;
+      letter-spacing: -0.015em;
+      line-height: 1.3;
+      color: var(--ink);
+    }
+
+    @media (min-width: 640px) {
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (min-width: 1100px) {
+      .save-head h2 { white-space: nowrap; }
+    }
+
+    @media (max-width: 639px) {
+      .save-pill { font-size: 0.64rem; }
+      .claude-panel { padding: 1.15rem 1.1rem; }
+      .claude-panel li { font-size: 0.82rem; }
+      .sch-d { font-size: 0.74rem; }
+      .wrap { padding-left: 0.85rem; padding-right: 0.85rem; }
+    }
+
+    .section-head p {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+
+    /* —— Как экономит деньги —— */
+    .save-grid {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    @media (min-width: 900px) {
+      .save-grid { grid-template-columns: 1fr 1fr 1fr; align-items: stretch; }
+    }
+
+    .save-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      padding: 1.15rem 1.2rem;
+      border-radius: 1.15rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.78);
+      min-width: 0;
+    }
+
+    .save-card.soon-card {
+      border-style: dashed;
+      border-color: rgba(20, 21, 26, 0.14);
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .save-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .save-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .save-pill.stage {
+      background: var(--surface-muted);
+      color: var(--ink-muted);
+    }
+
+    .save-pill.live {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .save-pill.soon {
+      background: rgba(20, 21, 26, 0.07);
+      color: var(--ink-muted);
+    }
+
+    .save-pill.loss {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+
+    .save-pill.loss.l1 {
+      background: rgba(21, 127, 66, 0.12);
+      color: #157f42;
+    }
+
+    .save-pill.loss.l2 {
+      background: rgba(180, 120, 20, 0.14);
+      color: #8a6410;
+    }
+
+    .save-pill.loss.l3 {
+      background: rgba(180, 70, 70, 0.12);
+      color: #9a4545;
+    }
+
+    .save-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
+      color: var(--ink);
+    }
+
+    .save-card p {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      line-height: 1.45;
+      color: var(--ink-muted);
+      flex: 1;
+    }
+
+    .save-card p strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    /* —— Схема пути: чередование человек / Claude —— */
+    .schema {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 0;
+      padding: 0.25rem 0;
+    }
+
+    .schema::before {
+      content: '';
+      position: absolute;
+      left: 1.05rem;
+      top: 0.9rem;
+      bottom: 0.9rem;
+      width: 2px;
+      background: linear-gradient(180deg, var(--border), rgba(20, 21, 26, 0.18), var(--border));
+    }
+
+    .sch-step {
+      position: relative;
+      display: grid;
+      grid-template-columns: 2.2rem 1fr;
+      gap: 0.75rem;
+      padding: 0.55rem 0;
+      align-items: start;
+    }
+
+    .sch-dot {
+      position: relative;
+      z-index: 1;
+      width: 2.1rem;
+      height: 2.1rem;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      border: 2px solid var(--border);
+      background: #fff;
+      color: var(--ink-muted);
+    }
+
+    .sch-step.claude .sch-dot {
+      border-color: rgba(217, 119, 87, 0.55);
+      background: rgba(217, 119, 87, 0.1);
+      color: #c45a38;
+    }
+
+    .sch-step.human .sch-dot {
+      border-color: rgba(20, 21, 26, 0.18);
+      background: var(--surface-muted);
+      color: var(--ink);
+    }
+
+    .sch-card {
+      min-width: 0;
+      padding: 0.7rem 0.9rem;
+      border-radius: 0.9rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .sch-step.claude .sch-card {
+      border-color: rgba(217, 119, 87, 0.28);
+      background: rgba(217, 119, 87, 0.06);
+    }
+
+    .sch-who {
+      margin: 0 0 0.2rem;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+
+    .sch-step.claude .sch-who { color: #c45a38; }
+
+    .sch-t {
+      margin: 0;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+
+    .sch-d {
+      margin: 0.25rem 0 0;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--ink-muted);
+      line-height: 1.35;
+    }
+
+    .journey {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .j-step {
+      display: grid;
+      gap: 0.85rem;
+      padding: 1.1rem 1.15rem;
+      border-radius: 1.15rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    @media (min-width: 720px) {
+      .j-step {
+        grid-template-columns: 3.25rem 1fr;
+        gap: 1rem;
+        padding: 1.2rem 1.35rem;
+        align-items: start;
+      }
+    }
+
+    .j-n {
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: var(--ink-muted);
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      letter-spacing: -0.02em;
+    }
+
+    .j-body { min-width: 0; }
+
+    .j-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.65rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .j-t {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.015em;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    @media (min-width: 640px) {
+      .j-t { font-size: 1.05rem; overflow-wrap: normal; }
+    }
+
+    .j-demo {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: rgba(20, 21, 26, 0.07);
+      color: var(--ink-muted);
+    }
+
+    .j-d {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.5;
+      color: var(--ink-muted);
+    }
+
+    .j-d strong { color: var(--ink); font-weight: 700; }
+
+    /* Наглядные врезки для владельца */
+    .viz {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.85rem;
+    }
+
+    .viz-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .viz-chip b { color: var(--ink); font-weight: 800; }
+    .viz-chip.ai {
+      border-color: rgba(217, 119, 87, 0.35);
+      background: rgba(217, 119, 87, 0.08);
+      color: #c45a38;
+    }
+    .viz-chip.ok {
+      border-color: rgba(21, 127, 66, 0.3);
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .rank {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-top: 0.85rem;
+      max-width: 22rem;
+    }
+
+    .rank-row {
+      display: grid;
+      grid-template-columns: 1.6rem 1fr auto;
+      gap: 0.55rem;
+      align-items: center;
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .rank-row.win {
+      border-color: rgba(21, 127, 66, 0.35);
+      background: var(--success-bg);
+      color: var(--ink);
+    }
+
+    .rank-row .rn {
+      font-weight: 800;
+      color: var(--ink-faint);
+    }
+
+    .rank-row.win .rn { color: var(--success); }
+    .rank-row .rp { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* Было: искали файл в чате */
+    .excel-pain {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      margin-top: 0.9rem;
+      padding: 0.7rem 0.85rem;
+      border-radius: 0.9rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    @media (min-width: 640px) {
+      .excel-pain { max-width: 28rem; }
+    }
+
+    .excel-icon {
+      flex-shrink: 0;
+      width: 2.35rem;
+      height: 2.35rem;
+      border-radius: 0.65rem;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ink-muted);
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      text-align: center;
+    }
+
+    .excel-meta {
+      min-width: 0;
+    }
+
+    .excel-name {
+      margin: 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--ink);
+      font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .excel-sub {
+      margin: 0.2rem 0 0;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--ink-faint);
+    }
+
+    .clicks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.45rem;
+      margin-top: 0.85rem;
+    }
+
+    @media (min-width: 640px) {
+      .clicks { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .click {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0.65rem 0.7rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .click .cn {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--ink-muted);
+    }
+
+    .click .ct {
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--ink);
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand"><span class="red">RED</span>EVELOPMENT</div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <!-- Hero -->
+      <section class="glass hero rise">
+        <div class="hero-copy">
+          <p class="who-for">
+            Для <b>Михаила Зуева</b> · <b>Основа</b> ·
+            стройка в&nbsp;посёлке Зелёном
+          </p>
+          <h1>Умный модуль закупки стройматериалов</h1>
+          <p class="lede">
+            Экономит на&nbsp;закупках и&nbsp;ФОТ: больше конкуренции между поставщиками,
+            меньше ручной работы. Решения принимает человек, рутину закрывает&nbsp;Claude.
+          </p>
+        </div>
+        <aside class="claude-panel" aria-label="Claude">
+          <div class="claude-panel-top">
+            <img class="claude-mark" src="./claude-asterisk.svg" alt="" width="32" height="32" />
+            <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
+          </div>
+          <ul>
+            <li>Модели <strong>Anthropic</strong> — не масс-маркет ИИ-чат</li>
+            <li>Действует только в&nbsp;<strong>заданных ситуациях</strong></li>
+            <li>Незнакомое отдаёт человеку; на типовом <strong>самообучается</strong></li>
+            <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке</li>
+          </ul>
+        </aside>
+      </section>
+
+      <!-- Как экономит деньги -->
+      <section class="glass section rise rise-d1">
+        <div class="section-head save-head">
+          <h2>Как модуль сэкономит деньги на&nbsp;стройке в&nbsp;Зелёном и других проектах</h2>
+        </div>
+
+        <div class="save-grid">
+          <article class="save-card">
+            <div class="save-meta">
+              <span class="save-pill stage">Этап 1 · ФОТ</span>
+              <span class="save-pill live">Уже работает</span>
+              <span class="save-pill loss l1">приоритет · десятки тыс. ₽</span>
+            </div>
+            <h3>Сокращает затраты на ФОТ</h3>
+            <p>
+              Рутину закрывает Claude — закупщику остаются решения.
+              На&nbsp;<strong>Зелёном</strong> вместо троих справится
+              <strong>один человек за&nbsp;пару часов в&nbsp;день</strong>.
+            </p>
+          </article>
+
+          <article class="save-card">
+            <div class="save-meta">
+              <span class="save-pill stage">Этап 2 · рынок</span>
+              <span class="save-pill live">Уже работает</span>
+              <span class="save-pill loss l2">приоритет · сотни тыс. ₽</span>
+            </div>
+            <h3>Собирает цены у заводов и дилеров</h3>
+            <p>
+              Один запрос — ответы со всего рынка, не только от привычного поставщика.
+              Разница — <strong>сотни тысяч на одну закупку</strong>.
+            </p>
+          </article>
+
+          <article class="save-card soon-card">
+            <div class="save-meta">
+              <span class="save-pill stage">Этап 3 · объект</span>
+              <span class="save-pill soon">Демо</span>
+              <span class="save-pill loss l3">приоритет · до млн ₽</span>
+            </div>
+            <h3>Приёмка сверит заказ и документы</h3>
+            <p>
+              Если по документам приехало меньше, чем заказали — расхождение будет видно.
+              Физический недовоз при «ровных» бумагах — <strong>в&nbsp;работе</strong>.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- Как работает модуль: человек / Claude -->
+      <section class="glass section rise rise-d2">
+        <div class="section-head">
+          <h2>Как работает модуль</h2>
+          <p>Порядок действий: человек принимает решение — Claude закрывает рутину между шагами.</p>
+        </div>
+
+        <div class="schema" aria-label="Схема пути">
+          <div class="sch-step human">
+            <div class="sch-dot">1</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Пришла заявка на закупку</p>
+              <p class="sch-d">Руководитель стройки или Иван зафиксировал потребность</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Обновил статус закупки</p>
+              <p class="sch-d">Заявка видна закупщику в модуле, без пересылки файлов</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">2</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Выбрал ведомость и юрлицо</p>
+              <p class="sch-d">Четыре клика до кнопки «Отправить»</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Подобрал поставщиков и собрал письмо</p>
+              <p class="sch-d">Категории, сортировка, ведомость, карточка компании, условия доставки</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">3</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Нажал «Отправить»</p>
+              <p class="sch-d">Подтвердил рассылку по рынку</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Разослал, ответил на типовые, свёл таблицу</p>
+              <p class="sch-d">Переписка, разбор счетов, топ-чарт: оригинал и аналоги</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">4</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Выбрал поставщика</p>
+              <p class="sch-d">Смотрит первое место в сравнении и принимает решение</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Подготовил саммари Ивану</p>
+              <p class="sch-d">Короткое резюме для согласования</p>
+            </div>
+          </div>
+          <div class="sch-step human">
+            <div class="sch-dot">5</div>
+            <div class="sch-card">
+              <p class="sch-who">Человек</p>
+              <p class="sch-t">Спланировал поставку</p>
+              <p class="sch-d">Счёт, платёжка, дата поставки, принимающий</p>
+            </div>
+          </div>
+          <div class="sch-step claude">
+            <div class="sch-dot">C</div>
+            <div class="sch-card">
+              <p class="sch-who">Claude</p>
+              <p class="sch-t">Проверил комплект документов</p>
+              <p class="sch-d">Учёт закрывающих до приезда материала на объект</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Автоматизация и ИИ -->
+      <section class="glass section rise rise-d2">
+        <div class="section-head">
+          <h2>Что даёт автоматизация и&nbsp;ИИ</h2>
+        </div>
+
+        <div class="journey">
+          <article class="j-step">
+            <div class="j-n">01</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Актуальная ведомость всегда в&nbsp;модуле — не&nbsp;в&nbsp;переписке</h3>
+              </div>
+              <p class="j-d">
+                Не&nbsp;надо искать последнюю версию в&nbsp;чате Битрикса.
+                Изменения видит закупщик сразу — <strong>нет пересылки</strong>
+                и&nbsp;<strong>нет ошибок при заказе</strong>.
+              </p>
+              <div class="excel-pain" title="Как было без платформы">
+                <div class="excel-icon" aria-hidden="true">чат</div>
+                <div class="excel-meta">
+                  <p class="excel-name">ведомость радиаторы финальная (3).xlsx</p>
+                  <p class="excel-sub">искали в&nbsp;чате Битрикса</p>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">02</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Рынок за четыре клика</h3>
+              </div>
+              <p class="j-d">
+                База: <strong>378</strong>&nbsp;заводов и&nbsp;<strong>683</strong>&nbsp;поставщиков
+                по Москве и области — в среднем 50–100 контактов на позицию.
+                Закупщик только выбирает ведомость и&nbsp;юрлицо, жмёт «Отправить»;
+                письмо и&nbsp;выборку готовит Claude.
+              </p>
+              <div class="clicks" aria-label="Четыре клика">
+                <div class="click"><span class="cn">1</span><span class="ct">Старт закупки</span></div>
+                <div class="click"><span class="cn">2</span><span class="ct">Выбрать ведомость</span></div>
+                <div class="click"><span class="cn">3</span><span class="ct">Выбрать юрлицо</span></div>
+                <div class="click"><span class="cn">4</span><span class="ct">Нажать «Отправить»</span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">03</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Половина переписки без участия человека</h3>
+              </div>
+              <p class="j-d">
+                Типовые письма и&nbsp;счета закрывает Claude (~13 сценариев); нестандарт — закупщик.
+                Email на&nbsp;фирменном домене для любого числа сотрудников —
+                <strong>без передачи паролей</strong>.
+              </p>
+              <div class="viz">
+                <span class="viz-chip ai"><b>Типовое</b> → Claude</span>
+                <span class="viz-chip"><b>Нестандарт</b> → человек</span>
+                <span class="viz-chip ok"><b>~50%</b> писем без участия</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">04</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Топ-чарт: оригинал и аналоги отдельно</h3>
+              </div>
+              <p class="j-d">
+                Цены от&nbsp;дешевле к&nbsp;дороже; «то, что просили» и&nbsp;замены не смешиваются.
+                Сравнение — по позициям или поставкой целиком (комплекты вроде грильято).
+                Саммари Ивану для согласования.
+              </p>
+              <div class="rank" aria-hidden="true">
+                <div class="rank-row win"><span class="rn">1</span><span>Лучшая цена · выбрано</span><span class="rp">−12%</span></div>
+                <div class="rank-row"><span class="rn">2</span><span>Альтернатива</span><span class="rp">база</span></div>
+                <div class="rank-row"><span class="rn">3</span><span>Дороже</span><span class="rp">+4%</span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">05</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">Проверка контрагента по ИНН из КП</h3>
+              </div>
+              <p class="j-d">
+                ИНН берём не&nbsp;с&nbsp;сайта поставщика, а&nbsp;из&nbsp;<strong>фактически присланного КП</strong> —
+                кто реально выставил счёт. Проверка контрагента до&nbsp;согласования и оплаты.
+              </p>
+              <div class="viz">
+                <span class="viz-chip">КП → ИНН</span>
+                <span class="viz-chip ok">Проверка контрагента</span>
+                <span class="viz-chip">Не с сайта</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">06</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">На объект приехало всё, что оплатили</h3>
+                <span class="j-demo">Демо</span>
+              </div>
+              <p class="j-d">
+                Главный риск — недовоз: привезли не&nbsp;всё, деньги ушли. Модуль сверяет заказ
+                с&nbsp;тем, что приняли на объекте, плюс план поставки: дата, принимающий,
+                закрывающие. Можно подключить <strong>любое ЭДО с&nbsp;API</strong>.
+              </p>
+              <div class="viz">
+                <span class="viz-chip ok">Заказано</span>
+                <span class="viz-chip ok">Принято на объекте</span>
+                <span class="viz-chip">Расхождение видно</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

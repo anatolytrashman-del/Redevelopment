@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Быстрый деплой ТОЛЬКО лендинга /pitch/zakupki — без сборки сайта.
+# Быстрый деплой ТОЛЬКО лендинга /zakupki — без сборки сайта.
 # После push на origin страница доступна через CDN (секунды, не минуты Vercel).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DIR="public/pitch/zakupki"
+DIR="public/zakupki"
 BRANCH="${1:-}"
 
 if [[ ! -f "$ROOT/$DIR/index.html" ]]; then
@@ -31,4 +31,4 @@ echo "Мгновенные URL (после git push):"
 echo "  $URL_JSDELIVR"
 echo "  $URL_GITHACK"
 echo
-echo "Прод сайта (долгий деплой): https://redevelopment.pro/pitch/zakupki"
+echo "Прод сайта: https://redevelopment.pro/zakupki/"
