@@ -70,17 +70,25 @@ export function fetchAllSupplierOfferEmails(): Promise<SupplierOfferEmail[]> {
 // выбираем по её карточкам. Отдельная функция, а не фильтр по общему списку:
 // на странице компании тянуть все письма всех поставщиков незачем, а body у
 // них тяжёлый.
+// Карточка компании не показывает тело письма — только список. Без body
+// (и тяжёлого extraction) первая отрисовка заметно быстрее (владелец,
+// 2026-10-09: «в первый раз долго грузится»).
+const SUPPLIER_DETAIL_EMAIL_COLUMNS =
+  'id, offer_id, order_id, direction, from_address, to_address, subject, files, resend_message_id, read_at, sent_by_profile_id, sent_by_name, send_status, send_error, delivered_at, opened_at, bounced_at, bounce_reason, complained_at, message_id_header, created_at';
+
 export function fetchSupplierOfferEmailsByOffers(offerIds: string[]): Promise<SupplierOfferEmail[]> {
   if (offerIds.length === 0) return Promise.resolve([]);
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('supplier_offer_emails')
-      .select('*')
+      .select(SUPPLIER_DETAIL_EMAIL_COLUMNS)
       .in('offer_id', offerIds)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return (data as SupplierOfferEmailRow[]).map(supplierOfferEmailFromRow);
+    return (data as SupplierOfferEmailRow[]).map((row) =>
+      supplierOfferEmailFromRow({ ...row, body: row.body ?? '', extraction: row.extraction ?? null }),
+    );
   });
 }
 
