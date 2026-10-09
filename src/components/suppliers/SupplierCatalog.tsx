@@ -406,7 +406,7 @@ export function SupplierCatalog({
           [
             ['all', 'Все', kindCounts.factories + kindCounts.others],
             ['factories', 'Заводы', kindCounts.factories],
-            ['others', 'Остальные', kindCounts.others],
+            ['others', 'Дилеры', kindCounts.others],
           ] as [KindFilter, string, number][]
         ).map(([key, label, n]) => (
           <button

@@ -1,7 +1,12 @@
 import { Bot, Check, Clock } from 'lucide-react';
 import { ClaudeLogo } from './ClaudeLogo';
 import type { AiAgent } from '../../data/aiAgents';
-import { formatActivityTime, getAiAgentStatus, type AiAgentActivity } from '../../lib/aiAgentsApi';
+import {
+  formatActivityTime,
+  getAiAgentStatus,
+  resolveAiAgentActivity,
+  type AiAgentActivity,
+} from '../../lib/aiAgentsApi';
 import { Badge } from '../ui/Badge';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
@@ -32,7 +37,7 @@ export function AiAgentCard({
   activity?: AiAgentActivity | null;
   now?: Date;
 }) {
-  const activity = liveActivity ?? agent.staticActivity ?? null;
+  const activity = resolveAiAgentActivity(liveActivity, agent.staticActivity, now);
   const status = getAiAgentStatus(agent.heartbeat, activity, now);
   const statusStyle = aiAgentStatusStyles[status.tone];
   return (

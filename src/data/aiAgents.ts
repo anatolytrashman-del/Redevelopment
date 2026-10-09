@@ -49,8 +49,10 @@ export interface AiAgent {
   tag?: string;
   // Последняя задача, известная без похода в базу (у Claude Code это время
   // сборки прода). Если агента нет в ответе RPC ai_agents_last_activity —
-  // карточка покажет это.
-  staticActivity?: { label: string; doneAt: string };
+  // карточка покажет это. `daysAgo` — относительный пол: «позавчера» не
+  // протухает между деплоями (владелец, 2026-10-09: давно не гоняли
+  // закупщика, для демо нужен свежий след).
+  staticActivity?: { label: string; doneAt?: string; daysAgo?: number };
   // Ожидаемый ритм заявленной функции — из него и считается статус.
   heartbeat: AiAgentHeartbeat;
 }
@@ -114,11 +116,12 @@ export const aiAgents: AiAgent[] = [
     name: 'ИИ-закупщик',
     role: 'Закупки',
     tasks: ['Ответы на письма поставщиков', 'Сбор цен и коммерческих предложений'],
-    // Воркеры очередей (process-supplier-jobs, process-bulk-send-jobs) pg_cron
-    // дёргает раз в минуту, но след они оставляют только когда есть работа:
-    // пришло письмо, владелец запустил рассылку или веб-поиск. Поэтому срок
-    // щедрый и молчание трактуется как простой, а не как поломка.
-    heartbeat: { staleAfterMinutes: 24 * 60, scheduled: false, cadence: 'по мере поступления задач' },
+    // Владелец, 2026-10-09: «всегда онлайн по умолчанию», последняя задача —
+    // «Отправил письмо» позавчера (живьём давно не гоняли; RPC отдаёт старый
+    // след — пол fresher() поднимет staticActivity). Как у Codex: молчание
+    // не «поломка» и не «ожидает», агент доступен всегда.
+    staticActivity: { label: 'Отправил письмо', daysAgo: 2 },
+    heartbeat: { staleAfterMinutes: null, scheduled: false, cadence: 'по мере поступления задач' },
   },
   {
     id: 'data-collector',

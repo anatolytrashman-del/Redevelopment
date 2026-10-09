@@ -42,7 +42,12 @@ import type { QuoteTerms, SupplierQuote } from '../data/supplierQuotes';
 import type { SupplierReliabilityCheck } from '../data/supplierReliability';
 import { currencySymbols } from '../data/transactions';
 import { purchaseItemTotal } from '../data/purchases';
-import { messengerLink, supplierWebsiteFullUrl, type SupplierMessengerContact } from '../data/supplierResearch';
+import {
+  countryFlag,
+  messengerLink,
+  supplierWebsiteFullUrl,
+  type SupplierMessengerContact,
+} from '../data/supplierResearch';
 import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '../data/supplierReliability';
 import { fetchSupplier, fetchSupplierMergeCandidates, mergeSuppliers, setSupplierBlocked } from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequests } from '../lib/supplierResearchApi';
@@ -62,6 +67,7 @@ import {
   updateSupplierContact,
   type SupplierContactInput,
 } from '../lib/supplierContactsApi';
+import { glassCardClass, glassCardShadow } from '../lib/glass';
 
 // Страница компании-поставщика (шаг 3 плана docs/procurement-product-steps.md).
 //
@@ -1094,6 +1100,11 @@ export function SupplierDetailView({
     .map((q) => q.createdAt)
     .sort()
     .at(-1);
+  const lastEmailAt = emails
+    .map((e) => e.createdAt)
+    .sort()
+    .at(-1);
+  const lastTouchAt = [lastQuoteAt, lastEmailAt, activity[0]?.at].filter(Boolean).sort().at(-1) ?? null;
   const tabCounts: Partial<Record<SupplierDetailTab, number>> = {
     Каталог: profile?.products?.length ?? 0,
     Переписка: emails.length,
@@ -1153,6 +1164,9 @@ export function SupplierDetailView({
   }, [menuOpen]);
 
   const hasRisk = shouldFlag(reliability);
+  const locationLabel = [profile?.addresses?.[0]?.city || supplier.city, supplier.country]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <div className="min-w-0 space-y-4 [overflow-wrap:anywhere]">
@@ -1162,11 +1176,12 @@ export function SupplierDetailView({
       >
         <ArrowLeft className="h-4 w-4" />К закупкам
       </Link>
-      <Card className="relative z-30 !p-0">
-        <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
+      <div className={cn('relative z-30 overflow-hidden', glassCardClass)} style={glassCardShadow}>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/70 via-white/30 to-primary/[0.06]" />
+        <div className="relative flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
           <div className="min-w-0 flex-1 basis-72">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="break-words text-2xl font-bold text-ink">{supplier.name}</h1>
+              <h1 className="break-words text-2xl font-bold tracking-tight text-ink">{supplier.name}</h1>
               {supplier.supplierKind && (
                 <Badge tone={supplier.supplierKind === 'manufacturer' ? 'success' : 'neutral'}>
                   <Factory className="mr-1 inline h-4 w-4" />
@@ -1195,20 +1210,32 @@ export function SupplierDetailView({
                   {supplier.websiteHost || supplier.websiteUrl} ↗
                 </a>
               )}
-              {(profile?.addresses?.[0]?.city || supplier.city) && (
-                <span>{profile?.addresses?.[0]?.city || supplier.city}</span>
+              {locationLabel && (
+                <span>
+                  {supplier.country ? `${countryFlag(supplier.country)} ` : ''}
+                  {locationLabel}
+                </span>
               )}
               {profile?.founded_year != null && <span>Работает с {profile.founded_year} года</span>}
               {!!profile?.regions?.length && <span>Возит: {profile.regions.slice(0, 3).join(', ')}</span>}
+              {lastTouchAt && <span>Контакт: {formatDate(lastTouchAt)}</span>}
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             {primaryOffer && (
               <Link to={threadLink(primaryOffer.requestId, primaryOffer.id, null)} className={buttonClasses('primary')}>
                 <Mail className="h-4 w-4" />
                 Написать
               </Link>
             )}
+            <Button type="button" variant="secondary" onClick={() => setTab('Переписка')}>
+              Переписка
+              {emails.length > 0 && <span className="ml-1 tabular-nums text-ink-faint">{emails.length}</span>}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setTab('КП и цены')}>
+              КП
+              {quotes.length > 0 && <span className="ml-1 tabular-nums text-ink-faint">{quotes.length}</span>}
+            </Button>
             <div className="relative" ref={menuRef}>
               <button
                 ref={menuButtonRef}
@@ -1217,7 +1244,7 @@ export function SupplierDetailView({
                 aria-expanded={menuOpen}
                 aria-controls="supplier-actions"
                 onClick={() => setMenuOpen((open) => !open)}
-                className="rounded-full border border-border p-2.5 text-ink-muted"
+                className="rounded-full border border-border bg-white/60 p-2.5 text-ink-muted backdrop-blur"
               >
                 <MoreHorizontal className="h-5 w-5" />
               </button>
@@ -1307,28 +1334,30 @@ export function SupplierDetailView({
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 border-t border-border sm:grid-cols-4">
+        <div className="relative grid grid-cols-2 border-t border-white/70 sm:grid-cols-4">
           {[
-            [profile ? (profile.own_brands?.length ?? 0) : '—', 'своих марок'],
-            [profile ? (profile.product_kinds?.length ?? 0) : '—', 'видов товара'],
-            [profile ? (profile.products?.length ?? 0) : '—', 'позиций в каталоге'],
-            [quotes.length, `КП${lastQuoteAt ? ` · последнее ${formatDate(lastQuoteAt)}` : ''}`],
+            [emails.length, lastEmailAt ? `писем · ${formatDate(lastEmailAt)}` : 'писем'],
+            [quotes.length, lastQuoteAt ? `КП · ${formatDate(lastQuoteAt)}` : 'КП'],
+            [orderCount ?? '—', orderCount === 1 ? 'заказ' : 'заказов'],
+            [`${profilePercent}%`, missing.length > 0 ? `профиль · нет: ${missing.slice(0, 2).join(', ')}` : 'профиль'],
           ].map(([value, label], index) => (
             <div
               key={index}
               className={cn(
                 'min-w-0 px-5 py-4 sm:px-6',
-                index % 2 === 0 && 'border-r border-border',
-                index < 2 && 'border-b border-border sm:border-b-0',
+                index % 2 === 0 && 'border-r border-white/70',
+                index < 2 && 'border-b border-white/70 sm:border-b-0',
                 index === 1 && 'sm:border-r',
               )}
             >
-              <p className="text-xl font-bold tabular-nums">{value}</p>
-              <p className="text-xs text-ink-muted">{label}</p>
+              <p className="text-xl font-bold tabular-nums text-ink">{value}</p>
+              <p className="truncate text-xs text-ink-muted" title={typeof label === 'string' ? label : undefined}>
+                {label}
+              </p>
             </div>
           ))}
         </div>
-      </Card>
+      </div>
 
       {supplier.blockedReason && (
         <Card className="space-y-1 border-danger/40">
@@ -1460,13 +1489,16 @@ export function SupplierDetailView({
                   {offers.map((o) => {
                     const request = requestById.get(o.requestId);
                     return (
-                      <li key={o.id} className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm text-ink">{request?.title ?? 'Категория удалена'}</span>
+                      <li
+                        key={o.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/70 bg-white/40 px-3 py-2.5"
+                      >
+                        <span className="text-sm font-medium text-ink">{request?.title ?? 'Категория удалена'}</span>
                         <Link
-                          to="/admin/purchases?tab=suppliers"
+                          to={threadLink(o.requestId, o.id, null)}
                           className="inline-flex items-center gap-1.5 text-xs text-info-text hover:underline"
                         >
-                          Открыть в закупках
+                          Переписка
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Link>
                       </li>
@@ -1474,7 +1506,10 @@ export function SupplierDetailView({
                   })}
                 </ul>
               ) : (
-                <p className="text-sm text-ink-faint">Компания не участвует ни в одной категории закупки.</p>
+                <p className="text-sm text-ink-faint">
+                  Компания не участвует ни в одной категории закупки — добавьте её из каталога или через «Запросить
+                  цены».
+                </p>
               )}
             </Card>
             <Card className="space-y-3">
