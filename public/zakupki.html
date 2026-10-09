@@ -737,18 +737,19 @@
       flex-shrink: 0;
       width: 2.35rem;
       height: 2.35rem;
-      border-radius: 0.65rem;
-      background: var(--surface-muted);
-      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      background: #1d6f42;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: var(--ink-muted);
-      font-size: 0.58rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-      text-align: center;
+      color: #fff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .excel-icon svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      display: block;
     }
 
     .excel-meta {
@@ -1005,10 +1006,15 @@
                 и&nbsp;<strong>нет ошибок при заказе</strong>.
               </p>
               <div class="excel-pain" title="Как было без платформы">
-                <div class="excel-icon" aria-hidden="true">чат</div>
+                <div class="excel-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 3.5h10.5L20 9v11.5A1.5 1.5 0 0 1 18.5 22h-13A1.5 1.5 0 0 1 4 20.5v-17A1.5 1.5 0 0 1 5.5 2" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+                    <path d="M14.5 3.5V9H20" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+                    <path d="M8 13h8M8 16.5h8M8 9.5h3.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                </div>
                 <div class="excel-meta">
-                  <p class="excel-name">ведомость радиаторы финальная (3).xlsx</p>
-                  <p class="excel-sub">искали в&nbsp;чате Битрикса</p>
+                  <p class="excel-name">ведомость.xlsx</p>
                 </div>
               </div>
             </div>
