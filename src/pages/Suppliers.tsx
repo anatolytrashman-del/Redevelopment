@@ -1248,7 +1248,22 @@ export function Suppliers() {
   // «Массовая отправка» — кнопка в шапке вкладки, категория выбирается в
   // маленьком окне перед пикером ведомости.
   // «Запросить цены» — рассылка от ведомости (2026-09-28, RequestPricesModal).
-  const [requestPricesOpen, setRequestPricesOpen] = useState(false);
+  // С карточки поставщика приходим с ?action=request-prices (2026-10-09).
+  const [requestPricesOpen, setRequestPricesOpen] = useState(
+    () => searchParams.get('action') === 'request-prices',
+  );
+  useEffect(() => {
+    if (searchParams.get('action') !== 'request-prices') return;
+    setRequestPricesOpen(true);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete('action');
+        return params;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
   const [bulkSendConfig, setBulkSendConfig] = useState<{ request: SupplierRequest; attachment: LedgerAttachment } | null>(null);
 
   const [requests, setRequests] = useState<SupplierRequest[]>([]);

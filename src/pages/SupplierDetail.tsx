@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
+  Copy,
   ExternalLink,
   Factory,
   MoreHorizontal,
@@ -15,6 +16,7 @@ import {
   Plus,
   Merge,
   RefreshCw,
+  Send,
   SlidersHorizontal,
   ShieldCheck,
   Trash2,
@@ -1105,12 +1107,31 @@ export function SupplierDetailView({
     .sort()
     .at(-1);
   const lastTouchAt = [lastQuoteAt, lastEmailAt, activity[0]?.at].filter(Boolean).sort().at(-1) ?? null;
+  const emailsOut = emails.filter((e) => e.direction === 'out').length;
+  const emailsIn = emails.filter((e) => e.direction === 'in').length;
+  const replyRate = emailsOut > 0 ? Math.round((emailsIn / emailsOut) * 100) : null;
+  const categoryTitles = [
+    ...new Set(offers.map((o) => requestById.get(o.requestId)?.title).filter((t): t is string => Boolean(t))),
+  ];
   const tabCounts: Partial<Record<SupplierDetailTab, number>> = {
     Каталог: profile?.products?.length ?? 0,
     Переписка: emails.length,
     'КП и цены': quotes.length,
     ...(orderCount != null ? { Заказы: orderCount } : {}),
   };
+  const requestPricesHref = '/admin/purchases?tab=letters&action=request-prices';
+  const requisitesText = [
+    supplier.name,
+    ...(profile?.legal_entities ?? []).flatMap((e) =>
+      [e.name, e.inn ? `ИНН ${e.inn}` : '', e.ogrn ? `ОГРН ${e.ogrn}` : ''].filter(Boolean),
+    ),
+    !(profile?.legal_entities ?? []).some((e) => e.inn) && supplier.inn ? `ИНН ${supplier.inn}` : '',
+    supplier.email.trim() || '',
+    supplier.phone.trim() ? formatPhoneDisplay(supplier.phone) : '',
+    supplier.websiteUrl.trim() ? supplierWebsiteFullUrl(supplier.websiteUrl) : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
   const companyContacts: { key: string; value: string; label?: string | null; preferred?: boolean; phone?: boolean }[] =
     [];
   const seenContacts = new Set<string>();
@@ -1219,7 +1240,35 @@ export function SupplierDetailView({
               {profile?.founded_year != null && <span>Работает с {profile.founded_year} года</span>}
               {!!profile?.regions?.length && <span>Возит: {profile.regions.slice(0, 3).join(', ')}</span>}
               {lastTouchAt && <span>Контакт: {formatDate(lastTouchAt)}</span>}
+              <span>В базе с {formatDate(supplier.createdAt)}</span>
             </div>
+            {(categoryTitles.length > 0 || replyRate != null || emails.length > 0) && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {categoryTitles.slice(0, 4).map((title) => (
+                  <span
+                    key={title}
+                    className="rounded-full border border-border/80 bg-white/50 px-2.5 py-0.5 text-[11px] text-ink-muted"
+                  >
+                    {title}
+                  </span>
+                ))}
+                {categoryTitles.length > 4 && (
+                  <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-[11px] text-ink-faint">
+                    +{categoryTitles.length - 4}
+                  </span>
+                )}
+                {replyRate != null && (
+                  <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-[11px] font-medium text-success">
+                    ответы {replyRate}% · {emailsIn}/{emailsOut}
+                  </span>
+                )}
+                {emailsOut > 0 && emailsIn === 0 && (
+                  <span className="rounded-full bg-warning-bg px-2.5 py-0.5 text-[11px] font-medium text-warning">
+                    писали — ответа нет
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {primaryOffer && (
@@ -1228,6 +1277,10 @@ export function SupplierDetailView({
                 Написать
               </Link>
             )}
+            <Link to={requestPricesHref} className={buttonClasses('secondary')}>
+              <Send className="h-4 w-4" />
+              Запросить цены
+            </Link>
             <Button type="button" variant="secondary" onClick={() => setTab('Переписка')}>
               Переписка
               {emails.length > 0 && <span className="ml-1 tabular-nums text-ink-faint">{emails.length}</span>}
@@ -1335,26 +1388,46 @@ export function SupplierDetailView({
           </div>
         </div>
         <div className="relative grid grid-cols-2 border-t border-white/70 sm:grid-cols-4">
-          {[
-            [emails.length, lastEmailAt ? `писем · ${formatDate(lastEmailAt)}` : 'писем'],
-            [quotes.length, lastQuoteAt ? `КП · ${formatDate(lastQuoteAt)}` : 'КП'],
-            [orderCount ?? '—', orderCount === 1 ? 'заказ' : 'заказов'],
-            [`${profilePercent}%`, missing.length > 0 ? `профиль · нет: ${missing.slice(0, 2).join(', ')}` : 'профиль'],
-          ].map(([value, label], index) => (
-            <div
-              key={index}
+          {(
+            [
+              {
+                value: emails.length,
+                label: lastEmailAt ? `писем · ${formatDate(lastEmailAt)}` : 'писем',
+                onClick: () => setTab('Переписка'),
+              },
+              {
+                value: quotes.length,
+                label: lastQuoteAt ? `КП · ${formatDate(lastQuoteAt)}` : 'КП',
+                onClick: () => setTab('КП и цены'),
+              },
+              {
+                value: orderCount ?? '—',
+                label: orderCount === 1 ? 'заказ' : 'заказов',
+                onClick: () => setTab('Заказы'),
+              },
+              {
+                value: `${profilePercent}%`,
+                label: missing.length > 0 ? `профиль · нет: ${missing.slice(0, 2).join(', ')}` : 'профиль',
+                onClick: () => setTab('Обзор'),
+              },
+            ] as const
+          ).map((cell, index) => (
+            <button
+              key={cell.label}
+              type="button"
+              onClick={cell.onClick}
               className={cn(
-                'min-w-0 px-5 py-4 sm:px-6',
+                'min-w-0 px-5 py-4 text-left transition hover:bg-white/50 sm:px-6',
                 index % 2 === 0 && 'border-r border-white/70',
                 index < 2 && 'border-b border-white/70 sm:border-b-0',
                 index === 1 && 'sm:border-r',
               )}
             >
-              <p className="text-xl font-bold tabular-nums text-ink">{value}</p>
-              <p className="truncate text-xs text-ink-muted" title={typeof label === 'string' ? label : undefined}>
-                {label}
+              <p className="text-xl font-bold tabular-nums text-ink">{cell.value}</p>
+              <p className="truncate text-xs text-ink-muted" title={cell.label}>
+                {cell.label}
               </p>
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -1467,33 +1540,72 @@ export function SupplierDetailView({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-ink-faint">
-                    {!supplier.websiteHost
-                      ? 'Сайта нет — товарные группы брать неоткуда.'
-                      : !snapshot
-                        ? 'Сайт ещё не читали.'
-                        : snapshot.status === 'error'
-                          ? `Сайт не открылся автосбору${snapshot.error ? `: ${snapshot.error}` : ''}.`
-                          : snapshot.status === 'done'
-                            ? 'По сайту не удалось понять, что поставляет.'
-                            : 'Сайт в очереди на чтение.'}
-                  </p>
+                  <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border px-4 py-5">
+                    <p className="text-sm text-ink-faint">
+                      {!supplier.websiteHost
+                        ? 'Сайта нет — товарные группы брать неоткуда.'
+                        : !snapshot
+                          ? 'Сайт ещё не читали.'
+                          : snapshot.status === 'error'
+                            ? `Сайт не открылся автосбору${snapshot.error ? `: ${snapshot.error}` : ''}.`
+                            : snapshot.status === 'done'
+                              ? 'По сайту не удалось понять, что поставляет.'
+                              : 'Сайт в очереди на чтение.'}
+                    </p>
+                    {supplier.websiteHost && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="self-start"
+                        disabled={busyAction !== null}
+                        icon={
+                          busyAction === 'snapshot' ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )
+                        }
+                        onClick={() => void refreshSnapshot()}
+                      >
+                        Обновить сайт
+                      </Button>
+                    )}
+                  </div>
                 )}
                 {snapshot?.categoriesNote && <p className="text-xs text-ink-faint">{snapshot.categoriesNote}</p>}
               </Card>
             )}
             <Card className="space-y-3">
-              <h2 className="text-sm font-semibold text-ink">Участвует в закупках</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-ink">Участвует в закупках</h2>
+                {offers.length > 0 && (
+                  <Link to={requestPricesHref} className="text-xs font-medium text-info-text hover:underline">
+                    Запросить цены ещё раз
+                  </Link>
+                )}
+              </div>
               {offers.length > 0 ? (
                 <ul className="space-y-2">
                   {offers.map((o) => {
                     const request = requestById.get(o.requestId);
+                    const offerEmails = emails.filter((e) => e.offerId === o.id);
+                    const offerQuotes = quotes.filter((q) => q.offerId === o.id);
                     return (
                       <li
                         key={o.id}
                         className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/70 bg-white/40 px-3 py-2.5"
                       >
-                        <span className="text-sm font-medium text-ink">{request?.title ?? 'Категория удалена'}</span>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-ink">{request?.title ?? 'Категория удалена'}</span>
+                          <p className="text-[11px] text-ink-faint">
+                            {[
+                              offerEmails.length > 0 ? `${offerEmails.length} писем` : null,
+                              offerQuotes.length > 0 ? `${offerQuotes.length} КП` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ') || 'пока без писем и КП'}
+                          </p>
+                        </div>
                         <Link
                           to={threadLink(o.requestId, o.id, null)}
                           className="inline-flex items-center gap-1.5 text-xs text-info-text hover:underline"
@@ -1506,36 +1618,66 @@ export function SupplierDetailView({
                   })}
                 </ul>
               ) : (
-                <p className="text-sm text-ink-faint">
-                  Компания не участвует ни в одной категории закупки — добавьте её из каталога или через «Запросить
-                  цены».
-                </p>
+                <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border px-4 py-5">
+                  <p className="text-sm text-ink-faint">
+                    Компания ещё не в закупках — запросите цены по ведомости или напишите вручную.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Link to={requestPricesHref} className={buttonClasses('primary')}>
+                      <Send className="h-4 w-4" />
+                      Запросить цены
+                    </Link>
+                    {primaryOffer && (
+                      <Link
+                        to={threadLink(primaryOffer.requestId, primaryOffer.id, null)}
+                        className={buttonClasses('secondary')}
+                      >
+                        <Mail className="h-4 w-4" />
+                        Написать
+                      </Link>
+                    )}
+                  </div>
+                </div>
               )}
             </Card>
             <Card className="space-y-3">
-              <h2 className="text-base font-semibold text-ink">Наша история</h2>
-              {activity.length === 0 && (
-                <p className="text-sm text-ink-faint">С этой компанией пока ничего не происходило.</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-semibold text-ink">Наша история</h2>
+                {activity.length > 5 && (
+                  <button type="button" onClick={() => setTab('Активность')} className="text-xs text-info-text hover:underline">
+                    Вся лента
+                  </button>
+                )}
+              </div>
+              {activity.length === 0 ? (
+                <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border px-4 py-5">
+                  <p className="text-sm text-ink-faint">С этой компанией пока ничего не происходило.</p>
+                  <Link to={requestPricesHref} className={cn(buttonClasses('secondary'), 'self-start')}>
+                    <Send className="h-4 w-4" />
+                    Запросить цены
+                  </Link>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {activity.slice(0, 5).map((event, index) => (
+                    <li
+                      key={`${event.at}-${index}`}
+                      className="flex flex-wrap items-baseline gap-3 rounded-2xl border-l-4 border-l-ink-faint/40 bg-surface-muted/60 px-3 py-2.5"
+                    >
+                      <span className="shrink-0 text-xs tabular-nums text-ink-faint">{formatDate(event.at)}</span>
+                      <div className="min-w-0 flex-1 text-sm">
+                        <p className="font-medium text-ink">{event.title}</p>
+                        <p className="text-ink-muted">{event.detail}</p>
+                      </div>
+                      {event.href && (
+                        <Link to={event.href} className="text-xs text-info-text hover:underline">
+                          Открыть
+                        </Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
-              <ul className="divide-y divide-border">
-                {activity.slice(0, 5).map((event, index) => (
-                  <li key={`${event.at}-${index}`} className="flex flex-wrap items-baseline gap-3 py-3">
-                    <span className="text-xs text-ink-faint">{formatDate(event.at)}</span>
-                    <div className="min-w-0 flex-1 text-sm">
-                      <p className="font-medium">{event.title}</p>
-                      <p className="text-ink-muted">{event.detail}</p>
-                    </div>
-                    {event.href && (
-                      <Link to={event.href} className="text-xs text-info-text hover:underline">
-                        Открыть
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <Link to="?tab=activity" className="text-sm text-info-text hover:underline">
-                Вся активность
-              </Link>
             </Card>
           </div>
           <aside className="min-w-0 space-y-4 [&>div]:p-5">
@@ -1571,10 +1713,23 @@ export function SupplierDetailView({
               {contactError && <p className="text-sm text-danger">{contactError}</p>}
 
               {contacts.length === 0 ? (
-                <p className="text-sm text-ink-faint">
-                  Людей пока нет. Контакт появится сам, как только с этой компании ответят на письмо, — или добавьте
-                  вручную.
-                </p>
+                <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-border px-3 py-4">
+                  <p className="text-sm text-ink-faint">
+                    Людей пока нет. Контакт появится сам после ответа на письмо — или добавьте вручную.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="self-start"
+                    icon={<Plus className="h-4 w-4" />}
+                    onClick={() => {
+                      setEditingContact(null);
+                      setContactModalOpen(true);
+                    }}
+                  >
+                    Добавить контакт
+                  </Button>
+                </div>
               ) : (
                 <ul className="space-y-3">
                   {contacts.map((c) => (
@@ -1691,7 +1846,26 @@ export function SupplierDetailView({
               )}
             </Card>
             <Card className="space-y-3">
-              <h2 className="text-base font-semibold text-ink">Реквизиты</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-base font-semibold text-ink">Реквизиты</h2>
+                {requisitesText.includes('ИНН') && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-ink-muted hover:text-ink"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard?.writeText(requisitesText);
+                        setActionNote('Реквизиты скопированы');
+                      } catch {
+                        setActionError('Не удалось скопировать реквизиты');
+                      }
+                    }}
+                  >
+                    <Copy className="h-3 w-3" />
+                    Скопировать всё
+                  </button>
+                )}
+              </div>
               {(profile?.legal_entities ?? []).map((entity, index) => (
                 <div key={index} className="space-y-2 border-b border-border pb-3 last:border-0 last:pb-0">
                   {entity.name && <p className="text-sm font-semibold">{entity.name}</p>}
@@ -1699,7 +1873,7 @@ export function SupplierDetailView({
                   {entity.ogrn && <CopyLine value={entity.ogrn} label="ОГРН" />}
                 </div>
               ))}
-              {!profile &&
+              {!(profile?.legal_entities ?? []).length &&
                 (supplier.inn ? (
                   <CopyLine value={supplier.inn} label="ИНН" />
                 ) : (
@@ -1830,9 +2004,31 @@ export function SupplierDetailView({
 
       {tab === 'Переписка' && (
         <Card className="space-y-4">
-          <h2 className="text-sm font-semibold text-ink">Переписка{emails.length > 0 ? ` (${emails.length})` : ''}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">Переписка{emails.length > 0 ? ` (${emails.length})` : ''}</h2>
+            {primaryOffer && (
+              <Link to={threadLink(primaryOffer.requestId, primaryOffer.id, null)} className={buttonClasses('secondary')}>
+                <Mail className="h-4 w-4" />
+                Открыть тред
+              </Link>
+            )}
+          </div>
           {emails.length === 0 ? (
-            <p className="text-sm text-ink-faint">Писем с этой компанией ещё не было.</p>
+            <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border px-4 py-6">
+              <p className="text-sm text-ink-faint">Писем с этой компанией ещё не было.</p>
+              <div className="flex flex-wrap gap-2">
+                {primaryOffer && (
+                  <Link to={threadLink(primaryOffer.requestId, primaryOffer.id, null)} className={buttonClasses('primary')}>
+                    <Mail className="h-4 w-4" />
+                    Написать первое письмо
+                  </Link>
+                )}
+                <Link to={requestPricesHref} className={buttonClasses('secondary')}>
+                  <Send className="h-4 w-4" />
+                  Запросить цены
+                </Link>
+              </div>
+            </div>
           ) : (
             <ul className="space-y-2">
               {emails.slice(0, 30).map((e) => {
@@ -1879,9 +2075,15 @@ export function SupplierDetailView({
             Коммерческие предложения{shownQuotes.length > 0 ? ` (${shownQuotes.length})` : ''}
           </h2>
           {shownQuotes.length === 0 ? (
-            <p className="text-sm text-ink-faint">
-              КП ещё не получали. Они появляются сами, когда поставщик присылает счёт и распознавание его разбирает.
-            </p>
+            <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border px-4 py-6">
+              <p className="text-sm text-ink-faint">
+                КП ещё не получали. Они появляются сами, когда поставщик присылает счёт и распознавание его разбирает.
+              </p>
+              <Link to={requestPricesHref} className={cn(buttonClasses('secondary'), 'self-start')}>
+                <Send className="h-4 w-4" />
+                Запросить цены
+              </Link>
+            </div>
           ) : (
             <ul className="space-y-3">
               {shownQuotes.map((q) => {
