@@ -131,11 +131,6 @@
       "permanent": true
     },
     {
-      "source": "/zakupki/",
-      "destination": "/zakupki",
-      "permanent": false
-    },
-    {
       "source": "/pitch/zakupki",
       "destination": "/zakupki",
       "permanent": true
@@ -562,6 +557,14 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/zakupki",
+      "destination": "/lp-zakupki.html"
+    },
+    {
+      "source": "/zakupki/",
+      "destination": "/lp-zakupki.html"
+    },
     {
       "source": "/api/telegram-webhook",
       "destination": "/api/telegram-avatar"
