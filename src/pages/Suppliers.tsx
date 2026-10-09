@@ -67,7 +67,14 @@ import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppli
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
 import { PriceComparisonCard } from '../components/suppliers/PriceComparisonCard';
 import { PurchaseOrdersTab } from '../components/suppliers/PurchaseOrdersTab';
+import { PurchasesOverview, isNewPurchaseQuote } from '../components/suppliers/PurchasesOverview';
 import { QuoteUploadModal } from '../components/suppliers/QuoteUploadModal';
+import type { UnmatchedIncomingEmail } from '../data/unmatchedIncomingEmails';
+import { fetchUnmatchedIncomingEmails } from '../lib/unmatchedIncomingEmailsApi';
+import type { PurchaseDelivery } from '../data/purchaseDeliveries';
+import { fetchAllPurchaseDeliveries } from '../lib/purchaseDeliveriesApi';
+import type { PurchaseOrder } from '../data/purchaseOrders';
+import { fetchPurchaseOrders } from '../lib/purchaseOrdersApi';
 import { lotTotal } from '../components/suppliers/bestPriceReport';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
@@ -207,10 +214,21 @@ function siteLabel(url: string): string {
 // же днём убрал первую версию с редактируемым чек-листом категорий — "не
 // будем отмечать категории вручную". См.
 // components/suppliers/SupplierVerificationTab.tsx.
-// Владелец, 2026-09-28: порядок пунктов — Письма, Сравнение цен, Поставщики,
-// Ведомости материалов, Заказы. Первая вкладка — она же открывается по
-// голому /admin/purchases (см. fallback у `tab` ниже).
-const SUPPLIER_TABS = ['Письма', 'Сравнение цен', 'Поставщики', 'Верификация', 'Ведомости материалов', 'Заказы'] as const;
+// Владелец, 2026-10-09: порядок вкладок = цепочка с лендинга закупок
+// (ведомость → рассылка → сравнение → согласование/поставки), но первой
+// не ведомость (редко открывают), а стартовый «Обзор» с парой уведомлений.
+// Рассылка = каталог «Поставщики» + «Письма» (кнопка «Запросить цены»).
+// Согласование и поставки живут на «Заказы» (лист из сравнения → заказ →
+// привоз). Верификация по-прежнему скрыта из пилюли (см. ниже).
+const SUPPLIER_TABS = [
+  'Обзор',
+  'Ведомости материалов',
+  'Поставщики',
+  'Письма',
+  'Сравнение цен',
+  'Заказы',
+  'Верификация',
+] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-15: "вкладку Верификация убираем из верхнего меню и
@@ -231,6 +249,7 @@ const VISIBLE_SUPPLIER_TABS = SUPPLIER_TABS.filter((t) => t !== 'Верифик�
 // названия — если вкладку когда-нибудь переименуют, старые сохранённые
 // ссылки не должны сломаться.
 const SUPPLIER_TAB_SLUGS: Record<SupplierTab, string> = {
+  Обзор: 'overview',
   'Поставщики': 'suppliers',
   'Верификация': 'verification',
   'Сравнение цен': 'comparison',
@@ -1157,7 +1176,7 @@ export function Suppliers() {
   // любых хуков ниже не спрячется — поэтому отдельной строкой здесь, а не
   // внутри useEffect: сама страница в этом случае не нужна вовсе.
   const movedToOwnPage = searchParams.get('tab') === 'contractors';
-  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Письма';
+  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Обзор';
   const comparisonCategoryId = searchParams.get('cat') ?? '';
   function setComparisonParam(key: string, value: string | null) {
     setSearchParams(
@@ -1327,6 +1346,12 @@ export function Suppliers() {
   // Все КП поставщиков (data/supplierQuotes.ts) — несколько счетов в одной
   // ветке переписки больше не схлопываются в карточку, см. сравнение цен.
   const [supplierQuotes, setSupplierQuotes] = useState<SupplierQuote[]>([]);
+  // Данные стартового «Обзора»: неразобранные письма, поставки, заказы.
+  // Письма вкладка «Письма» грузит сама ещё раз — тут отдельная копия ради
+  // счётчика на обзоре, без связки с фильтром переписки.
+  const [overviewUnmatched, setOverviewUnmatched] = useState<UnmatchedIncomingEmail[]>([]);
+  const [overviewDeliveries, setOverviewDeliveries] = useState<PurchaseDelivery[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   // Загрузка КП «в 1 клик» (владелец, 2026-09-16). Диалог тоже на уровне
   // страницы, а не внутри карточки поставки: он как раз для случая, когда
   // поставка заранее неизвестна — её определяет сервер по самому документу.
@@ -1441,6 +1466,9 @@ export function Suppliers() {
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => setSupplierQuotes([]));
+    fetchUnmatchedIncomingEmails().then(setOverviewUnmatched).catch(() => setOverviewUnmatched([]));
+    fetchAllPurchaseDeliveries().then(setOverviewDeliveries).catch(() => setOverviewDeliveries([]));
+    fetchPurchaseOrders().then(setPurchaseOrders).catch(() => setPurchaseOrders([]));
     fetchTodayRate().then(setRate).catch(() => setRate(undefined));
     fetchSupplierEnrichmentJobs().then(setEnrichmentJobs).catch(() => setEnrichmentJobs([]));
   }, []);
@@ -2358,6 +2386,7 @@ export function Suppliers() {
         isAlternative,
         alternativeNote: isAlternative ? note : '',
         sourceEmailId: quote.sourceEmailId,
+        isTest: quote.isTest,
       });
       setSupplierQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
     } catch (err) {
@@ -2447,6 +2476,21 @@ export function Suppliers() {
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
   const pendingVerificationCount = pendingVerificationHostCount(offers, siteSnapshots);
+  // Тестовые КП только на обзоре — в таблицу сравнения их не пускаем, чтобы
+  // демо-сиды не ломали «лучшую цену» по живым категориям.
+  const comparisonQuotes = useMemo(() => supplierQuotes.filter((q) => !q.isTest), [supplierQuotes]);
+  const overviewAttentionCount =
+    supplierQuotes.filter((q) => isNewPurchaseQuote(q)).length +
+    overviewUnmatched.length +
+    overviewDeliveries.filter((d) => {
+      if (d.status === 'cancelled' || d.status === 'accepted' || !d.plannedDate) return false;
+      const today = new Date();
+      const from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const to = new Date(from);
+      to.setDate(to.getDate() + 2);
+      const day = new Date(`${d.plannedDate}T12:00:00`);
+      return !Number.isNaN(day.getTime()) && day >= from && day <= to;
+    }).length;
   // Подписи категорий закупки для вкладки «Заказы»: заказ хранит request_id,
   // а показывать надо название категории — запросы на странице и так есть,
   // отдельным запросом их тянуть незачем.
@@ -2459,8 +2503,8 @@ export function Suppliers() {
   return (
     <>
       {/* Заголовок совпадает с пунктом меню (data/pages.ts, 'purchases').
-          Владелец, 2026-09-12: раздел снова называется "Закупки"; вкладка
-          "Поставщики" — первая внутри него, это разные уровни. */}
+          Владелец, 2026-09-12: раздел снова называется "Закупки"; вкладки
+          внутри — цепочка процесса, старт с «Обзора». */}
       <PageHeader title="Закупки" action={supplierAddButton} />
 
       {/* Ряд шапки: меню раздела, сразу за ним пилюля ИИ-закупщика, кнопки
@@ -2471,7 +2515,7 @@ export function Suppliers() {
           options={[...VISIBLE_SUPPLIER_TABS]}
           value={tab}
           onChange={(v) => setTab(v as SupplierTab)}
-          badges={{ Письма: unreadSupplierEmailsCount }}
+          badges={{ Обзор: overviewAttentionCount, Письма: unreadSupplierEmailsCount }}
         />
         {/* Владелец, 2026-09-15: "справа от нашего меню выведем статус онлайна
             ИИ-закупщика и покажем его последнее действие". Данные пилюля тянет
@@ -2487,7 +2531,7 @@ export function Suppliers() {
               знать), в какой поставке он должен оказаться. */}
           {/* Владелец, 2026-09-28: на вкладке «Письма» кнопки нет — там КП
               и так приходят письмами. */}
-          {tab !== 'Письма' && (
+          {tab !== 'Письма' && tab !== 'Обзор' && (
             <Button type="button" variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setQuoteUploadOpen(true)}>
               Загрузить КП
             </Button>
@@ -2509,6 +2553,29 @@ export function Suppliers() {
           )}
         </div>
       </div>
+
+      {tab === 'Обзор' && (
+        <PurchasesOverview
+          quotes={supplierQuotes}
+          offers={offers}
+          unmatched={overviewUnmatched}
+          deliveries={overviewDeliveries}
+          orders={purchaseOrders}
+          onOpenComparison={() => setTab('Сравнение цен')}
+          onOpenUnmatched={() => {
+            setSearchParams(
+              (prev) => {
+                const params = new URLSearchParams(prev);
+                params.set('tab', SUPPLIER_TAB_SLUGS['Письма']);
+                params.set('filter', 'unmatched');
+                return params;
+              },
+              { replace: true },
+            );
+          }}
+          onOpenOrders={() => setTab('Заказы')}
+        />
+      )}
 
       {tab === 'Поставщики' && (
       <div className="mt-6 flex flex-col gap-8">
@@ -2634,7 +2701,7 @@ export function Suppliers() {
                     request={r}
                     offers={offers.filter((o) => o.requestId === r.id)}
                     emails={supplierEmails}
-                    quotes={supplierQuotes}
+                    quotes={comparisonQuotes}
                     rate={rate}
                     onOpenDetail={(o) => setDetailOfferId(o.id)}
                     enrichmentState={enrichmentState}
@@ -2654,7 +2721,7 @@ export function Suppliers() {
                     positions={requestPositions(r)}
                     offers={offers.filter((o) => o.requestId === r.id)}
                     emails={supplierEmails}
-                    quotes={supplierQuotes}
+                    quotes={comparisonQuotes}
                     rate={rate}
                     estimates={estimates}
                     // Страна юрлица категории — запасная ставка НДС для

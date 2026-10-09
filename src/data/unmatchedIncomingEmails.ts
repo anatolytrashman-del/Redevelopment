@@ -32,6 +32,8 @@ export interface UnmatchedIncomingEmail {
   resolvedAt: string | null;
   resolvedOfferId: string | null;
   resolvedByName: string | null;
+  // Тестовое письмо для демо стартового экрана закупок (миграция 20261009).
+  isTest: boolean;
   createdAt: string;
 }
 
@@ -48,5 +50,6 @@ export interface UnmatchedIncomingEmailRow {
   resolved_at: string | null;
   resolved_offer_id: string | null;
   resolved_by_name: string | null;
+  is_test?: boolean | null;
   created_at: string;
 }

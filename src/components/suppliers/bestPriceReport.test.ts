@@ -37,6 +37,7 @@ function quote(id: string, offerId: string, items: PurchaseItem[], patch: Partia
     alternativeNote: '',
     terms: null,
     sourceEmailId: null,
+    isTest: false,
     createdAt: '2026-09-14T10:00:00.000Z',
     ...patch,
   } as SupplierQuote;

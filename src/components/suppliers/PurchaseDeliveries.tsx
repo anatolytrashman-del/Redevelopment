@@ -224,6 +224,9 @@ export function DeliveryForm({
         // не используется.
         files: [],
         comment: comment.trim(),
+        // Новые поставки из формы — живые; тестовые создаются сидом для
+        // стартового экрана и при правке сохраняют свой флаг.
+        isTest: delivery?.isTest ?? false,
       };
       onSaved(delivery ? await updatePurchaseDelivery(delivery.id, input) : await insertPurchaseDelivery(input));
     } catch (err) {

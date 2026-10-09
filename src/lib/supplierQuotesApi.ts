@@ -17,6 +17,7 @@ function fromRow(row: SupplierQuoteRow): SupplierQuote {
     alternativeNote: row.alternative_note ?? '',
     sourceEmailId: row.source_email_id,
     terms: row.terms ?? null,
+    isTest: row.is_test === true,
     createdAt: row.created_at,
   };
 }
@@ -66,6 +67,7 @@ export function insertSupplierQuote(input: Omit<SupplierQuote, 'id' | 'createdAt
         alternative_note: input.alternativeNote,
         source_email_id: input.sourceEmailId,
         terms: input.terms,
+        is_test: input.isTest,
       })
       .select()
       .single();
@@ -88,6 +90,7 @@ export function updateSupplierQuote(id: string, input: Omit<SupplierQuote, 'id' 
         is_alternative: input.isAlternative,
         alternative_note: input.alternativeNote,
         source_email_id: input.sourceEmailId,
+        is_test: input.isTest,
       })
       .eq('id', id)
       .select()
