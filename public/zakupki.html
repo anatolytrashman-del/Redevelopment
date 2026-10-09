@@ -235,11 +235,16 @@
 
     .lede {
       margin: 0;
-      font-size: 1.08rem;
+      /* на мобиле как .save-card p (блок экономии на ФОТ); с 640px крупнее */
+      font-size: 0.875rem;
       font-weight: 500;
       color: var(--ink-muted);
       max-width: 36rem;
       line-height: 1.65;
+    }
+
+    @media (min-width: 640px) {
+      .lede { font-size: 1.08rem; }
     }
 
     .lede strong { color: var(--ink); font-weight: 700; }
