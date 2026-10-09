@@ -4,8 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="description" content="Умный модуль закупки стройматериалов — внутренний продукт платформы Redevelopment." />
+  <meta name="description" content="Умный модуль закупки стройматериалов — экономия на ФОТ и цене за счёт автоматизации и ИИ." />
   <title>Умный модуль закупки — Redevelopment</title>
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Redevelopment" />
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:title" content="Умный модуль закупки стройматериалов" />
+  <meta property="og:description" content="Экономия на ФОТ и цене: рынок за минуты, рутину закрывает Claude. Для стройки в Зелёном и других проектов." />
+  <meta property="og:url" content="https://redevelopment.pro/zakupki/" />
+  <meta property="og:image" content="https://redevelopment.pro/og-zakupki.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Умный модуль закупки — Redevelopment" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Умный модуль закупки стройматериалов" />
+  <meta name="twitter:description" content="Экономия на ФОТ и цене: рынок за минуты, рутину закрывает Claude." />
+  <meta name="twitter:image" content="https://redevelopment.pro/og-zakupki.png" />
+
+  <link rel="canonical" href="https://redevelopment.pro/zakupki/" />
   <style>
     @font-face {
       font-family: 'Montserrat';
@@ -101,7 +119,9 @@
       font-weight: 800;
       letter-spacing: 0.02em;
       color: var(--ink);
+      text-decoration: none;
     }
+    .brand:hover { color: var(--ink); }
     .brand .red {
       color: var(--primary);
       font-weight: 900;
@@ -510,8 +530,8 @@
     }
 
     .sch-step.claude .sch-card {
-      border-color: rgba(217, 119, 87, 0.28);
-      background: rgba(217, 119, 87, 0.06);
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.85);
     }
 
     .sch-who {
@@ -649,10 +669,11 @@
 
     .viz-chip b { color: var(--ink); font-weight: 800; }
     .viz-chip.ai {
-      border-color: rgba(217, 119, 87, 0.35);
-      background: rgba(217, 119, 87, 0.08);
-      color: #c45a38;
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--ink-muted);
     }
+    .viz-chip.ai b { color: #c45a38; }
     .viz-chip.ok {
       border-color: rgba(21, 127, 66, 0.3);
       background: var(--success-bg);
@@ -794,7 +815,7 @@
   <div class="page">
     <header class="topbar">
       <div class="topbar-inner">
-        <div class="brand"><span class="red">RED</span>EVELOPMENT</div>
+        <a class="brand" href="https://redevelopment.pro/"><span class="red">RED</span>EVELOPMENT</a>
       </div>
     </header>
 
