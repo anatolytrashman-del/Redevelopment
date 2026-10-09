@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Factory, Plus, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Factory, Mail, Plus, Search, Send } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button, buttonClasses } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -41,67 +41,40 @@ import {
   type CatalogEngagementIndex,
   type CatalogEngagementTier,
 } from './catalogEngagement';
+import { buildCatalogMailStats, mailStatsForOffer, type CatalogMailStats } from './catalogMailStats';
+import {
+  brandsInSuppliers,
+  buildCarriedItemIndex,
+  matchCarriedPosition,
+  supplierHasBrand,
+} from './catalogCarriedItems';
 
 // Каталог поставщиков: хабы → категории → компании. Владелец, 2026-09-12:
 // «нравится, как организованы визуально категории у ВсеИнструменты, особенно
 // большие карточки». Первый экран — большие плитки хабов с числом компаний,
 // внутри хаба — плитки категорий, внутри категории — список.
 //
-// Поставщик в категории — по ЛЮБОМУ из двух признаков (владелец, 2026-09-12,
-// вторая правка: «сделай категории с сайта сущностью по умолчанию — если по
-// сайту поняли, что поставщик поставляет категорию, значит мы её ему
-// присваиваем», разделения на «подтверждённых» и «по сайту» больше нет):
-// название строки категории закупки совпадает с категорией (см.
-// LEGACY_REQUEST_TITLES в data/supplierCatalog.ts) ИЛИ по снимку сайта у
-// поставщика есть хотя бы одна товарная группа плитки. Один и тот же
-// поставщик так может оказаться сразу в нескольких плитках — это ожидаемо,
-// плитка отвечает «кто это реально возит», а не «в какую строку его завели».
+// Поставщик в категории — по ЛЮБОМУ из двух признаков (владелец, 2026-09-12):
+// название строки категории закупки совпадает с категорией ИЛИ по снимку сайта
+// есть товарная группа плитки. Страна — фильтр над всем каталогом.
 //
-// Пятая правка того же дня: убрана отдельная сущность «универсальный
-// поставщик»/«база». Раньше гипермаркет с группой «Строительный гипермаркет»
-// на снимке сайта уходил в отдельный хаб-резервуар вместо профильных плиток
-// (владелец: «если у поставщика есть керамогранит — выводим его в категории
-// керамогранита, если есть электрика — в электрике, и по аналогии»). Теперь
-// никакого отдельного «универсального» узла нет и не было: гипермаркет —
-// просто поставщик, который матчится сразу во МНОГИЕ плитки правилом №2
-// выше (у него на снимке много групп), это не отдельная сущность, а
-// естественное следствие того же правила.
-//
-// Страна — не отдельный список внутри плитки (третья правка того же дня:
-// «не друг под другом выводить категории, а в целом вверху каталога выбор
-// иконки флага и далее идёт поиск уже по нужной стране»), а фильтр НАД всем
-// каталогом: один переключатель флагов в шапке решает, что считают и хабы, и
-// категории, и списки компаний — вся навигация ниже видит уже отфильтрованные
-// по стране предложения. Карточки без указанной страны (их 25 из 278, старые
-// записи) показываются при любом флаге — молчаливо прятать их неправильно.
+// 2026-10-09: поиск по полям карточки + ранжирование заказы→КП→письма;
+// 2026-10-09 (второй заход): чипы брендов, «Запросить цены» из категории,
+// счётчики непрочитанных/ждут ответа, свёртка холодных, поиск по позиции КП.
 
 interface CategoryStats {
   category: SupplierCatalogCategory;
-  // Поставщики категории — по названию строки закупки ИЛИ по товарной группе
-  // со снимка сайта, в одном списке: владелец, 2026-09-12 («сделай категории
-  // с сайта сущностью по умолчанию — если по сайту поняли, что поставщик
-  // поставляет категорию, значит мы её ему присваиваем») отменил разделение
-  // на «подтверждённых вручную» и «найденных по сайту». Гипермаркеты и базы
-  // здесь не отдельный бакет (пятая правка того же дня) — они просто
-  // попадают в этот же список каждой плитки, чью товарную группу везут.
   suppliers: SupplierOffer[];
 }
 
 interface HubStats {
   hub: SupplierCatalogHub;
   categories: CategoryStats[];
-  // Уникальные компании по всем плиткам хаба (без баз).
   total: number;
 }
 
+const COLD_COLLAPSE_AFTER = 6;
 
-// «Подробнее» из каталога ведёт на страницу компании (/admin/suppliers/:id,
-// шаг 3 плана закупок), а не в модалку: в каталоге человек смотрит на
-// компанию целиком, и адрес такой страницы можно сохранить и переслать.
-// Модалка остаётся запасным путём для карточек без supplier_id — их быть не
-// должно (компанию проставляет триггер в базе), но терять кнопку из-за
-// пропущенной связи нельзя. Из сравнения цен по-прежнему открывается
-// модалка: там уход со страницы потерял бы таблицу сравнения (шаг 4).
 function OpenDetailButton({ offer, onOpenDetail }: { offer: SupplierOffer; onOpenDetail: (o: SupplierOffer) => void }) {
   if (offer.supplierId) {
     return (
@@ -121,10 +94,6 @@ function offerGroups(o: SupplierOffer, snapshotByHost: Map<string, SupplierSiteS
   return snapshotByHost.get(supplierWebsiteHost(o.websiteUrl))?.categories ?? [];
 }
 
-// Ярлык категории для строки поиска — «домашняя» (по названию строки
-// закупки) в приоритете, иначе первая категория, чья товарная группа есть
-// на снимке сайта, иначе сырое название строки закупки (услуги вроде «ЭДО»,
-// не входящие в каталог).
 function catalogLabelFor(
   o: SupplierOffer,
   requestTitleById: Map<string, string>,
@@ -141,10 +110,6 @@ function catalogLabelFor(
   return bySite?.name ?? title ?? '—';
 }
 
-// Подпись страны для селектора — флаг остаётся в подписи (владелец,
-// 2026-09-12: «вверху каталога выбор иконки флага»), а Select работает со
-// строками, поэтому флаг живёт прямо в подписи, и обратно в страну её
-// переводит countryByLabel.
 function countryLabel(country: string): string {
   return `${countryFlag(country)} ${country}`;
 }
@@ -153,14 +118,16 @@ function countryByLabel(label: string): string {
   return SUPPLIER_COUNTRIES.find((c) => countryLabel(c) === label) ?? SUPPLIER_COUNTRIES[0];
 }
 
-// Товарные группы плитки = зашитые в код + заведённые в базе на эту же
-// плитку (см. lib/supplyCategoriesApi.ts). Складываем, а не заменяем:
-// недоступная база должна означать «каталог как раньше», а не «каталог
-// опустел».
 function tileGroups(category: SupplierCatalogCategory, extraGroupsByTile: Map<string, string[]>): string[] {
   const extra = extraGroupsByTile.get(category.name);
   return extra && extra.length > 0 ? [...category.supplyGroups, ...extra] : category.supplyGroups;
 }
+
+const tileClass =
+  'flex flex-col justify-between gap-3 rounded-3xl border border-white/70 bg-gradient-to-br from-white/80 to-white/40 p-5 text-left shadow-[0_8px_24px_rgba(20,21,26,0.06)] backdrop-blur-xl transition hover:border-primary/40 hover:from-white hover:to-white/70';
+
+const rowClass =
+  'flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-white/50 px-4 py-3 transition hover:border-border-strong hover:bg-white/80';
 
 export function SupplierCatalog({
   offers,
@@ -171,42 +138,35 @@ export function SupplierCatalog({
   orders,
   onOpenDetail,
   onAddSupplier,
+  onRequestPrices,
+  onOpenLetters,
 }: {
   offers: SupplierOffer[];
   requests: SupplierRequest[];
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
-  // Для ранжирования «с кем уже работали» (заказы → КП → переписка).
   emails: SupplierOfferEmail[];
   quotes: SupplierQuote[];
   orders: PurchaseOrder[];
   onOpenDetail: (o: SupplierOffer) => void;
-  // Завести поставщика руками — когда его нашли не веб-поиском, а по
-  // знакомству или на выставке. До этого единственным способом добавить
-  // карточку был автосбор.
   onAddSupplier: () => void;
+  // Открыть мастер «Запросить цены» (ведомость → рассылка) с вкладки каталога.
+  onRequestPrices: () => void;
+  // Перейти в «Письма» к переписке этой компании.
+  onOpenLetters: (offer: SupplierOffer) => void;
 }) {
   const [country, setCountry] = useState<string>(SUPPLIER_COUNTRIES[0]);
   const [search, setSearch] = useState('');
   const [hubName, setHubName] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState<string | null>(null);
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
+  const [brandFilter, setBrandFilter] = useState<string | null>(null);
 
-  // Карточки без страны видны при любом флаге (см. комментарий выше) —
-  // отфильтровать их молчаливо было бы потерей данных, а не удобством.
-  // Карточки закупок по ведомости (request.ledgerId) — копии поставщиков,
-  // заведённые под конкретную закупку; в каталоге у компании уже есть своя
-  // карточка, копия дала бы дубль.
   const purchaseRequestIds = useMemo(() => new Set(requests.filter((r) => r.ledgerId).map((r) => r.id)), [requests]);
   const baseOffers = useMemo(
     () => offers.filter((o) => !purchaseRequestIds.has(o.requestId) && (!o.country.trim() || o.country === country)),
     [offers, country, purchaseRequestIds],
   );
 
-  // Заводы и остальные (владелец, 2026-09-29: «видеть общее количество
-  // заводов и обычных поставщиков и оставить в каталоге только заводы»).
-  // Тип — из разбора сайта (suppliers.supplier_kind); завод здесь только
-  // manufacturer: владелец марки сам не производит. Нет типа — «остальные».
-  // С 2026-10-09 тот же запрос тянет бренды/ИНН/email для расширенного поиска.
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [hintsById, setHintsById] = useState<Map<string, SupplierCatalogHintRow>>(new Map());
   useEffect(() => {
@@ -241,16 +201,13 @@ export function SupplierCatalog({
   );
 
   const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
-
   const engagement = useMemo(
     () => buildCatalogEngagementIndex({ offers, orders, quotes, emails }),
     [offers, orders, quotes, emails],
   );
+  const mailStats = useMemo(() => buildCatalogMailStats(offers, emails), [offers, emails]);
+  const carriedByOffer = useMemo(() => buildCarriedItemIndex(offers, quotes), [offers, quotes]);
 
-  // Справочник из базы — чтобы группа, найденная при верификации живого
-  // поставщика, попадала в свою плитку сразу, без ожидания публикации кода
-  // (владелец, 2026-09-14). Ошибку глотаем молча: каталог тогда показывает
-  // ровно то же, что показывал бы без базы, — группы из кода.
   const [dbCategories, setDbCategories] = useState<SupplyCategoryDto[]>([]);
   useEffect(() => {
     fetchSupplyCategories()
@@ -277,22 +234,11 @@ export function SupplierCatalog({
         const suppliers: SupplierOffer[] = [];
         const companies = new Set<string>();
         for (const o of countryOffers) {
-          // Каталог считает и показывает только верифицированных поставщиков
-          // (владелец, 2026-09-13) — `verified: false` значит «нашли веб-
-          // поиском, руками ещё не смотрели», такую карточку рано выводить
-          // в счётчик плитки или в список.
           if (!o.verified) continue;
           const title = requestTitleById.get(o.requestId) ?? '';
-          // Категория присваивается по ЛЮБОМУ из двух признаков — по новому
-          // или старому названию строки закупки (LEGACY_REQUEST_TITLES) ИЛИ
-          // по товарной группе со снимка сайта. Оба источника равноправны.
-          // Гипермаркеты не исключение — у них просто обычно много групп
-          // сразу, поэтому они естественно попадают в несколько плиток.
           const titleMatch = findCatalogCategory(title) === category;
           const hasGroup = offerGroups(o, snapshotByHost).some((g) => groups.has(g));
           if (!titleMatch && !hasGroup) continue;
-          // Одна компания — одна строка: у неё бывают карточки в разных
-          // категориях (рассылка по товару заводит копию в выбранной).
           if (o.supplierId && companies.has(o.supplierId)) continue;
           if (o.supplierId) companies.add(o.supplierId);
           suppliers.push(o);
@@ -310,11 +256,6 @@ export function SupplierCatalog({
   const currentHub = hubs.find((h) => h.hub.name === hubName) ?? null;
   const currentCategory = currentHub?.categories.find((c) => c.category.name === categoryName) ?? null;
 
-  // Поиск — плоский результат по всему каталогу (в рамках выбранной
-  // страны), поверх навигации по хабам/категориям: владелец, 2026-09-12,
-  // «справа от заголовка нужна строка поиска поставщика». С 2026-09-28 ищет
-  // и по товару (разделы сайта). С 2026-10-09 — ещё по категории, бренду,
-  // ИНН, email, телефону, менеджеру, сайту; сверху — совпадения с плитками.
   const searchQuery = normalizeSearch(search.trim());
   const navHits = useMemo(() => (searchQuery ? matchCatalogNavigation(searchQuery) : []), [searchQuery]);
   const searchResults = useMemo(() => {
@@ -327,6 +268,7 @@ export function SupplierCatalog({
       reason: string | null;
       kinds: CatalogMatchKind[];
       tier: CatalogEngagementTier;
+      carried: boolean;
     }[] = [];
     const companies = new Set<string>();
     for (const o of countryOffers) {
@@ -339,7 +281,8 @@ export function SupplierCatalog({
         requestTitleById.get(o.requestId),
         hints ?? emptyHints(),
       );
-      if (!match.matched) continue;
+      const carried = matchCarriedPosition(o, offers, carriedByOffer, searchQuery);
+      if (!match.matched && !carried.matched) continue;
       if (o.supplierId && companies.has(o.supplierId)) continue;
       if (o.supplierId) companies.add(o.supplierId);
       results.push({
@@ -347,39 +290,70 @@ export function SupplierCatalog({
         categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile),
         byName: match.byName,
         hits: match.hits,
-        reason: match.reason,
+        reason: match.matched
+          ? match.reason
+          : carried.itemName
+            ? `возил: ${carried.itemName}`
+            : null,
         kinds: match.kinds,
         tier: engagement.tierOf(o),
+        carried: carried.matched && !match.matched,
       });
     }
-    // Сначала «с кем работали», потом совпадение по имени, потом по числу
-    // разделов сайта, потом алфавит.
     return results.sort(
       (a, b) =>
         a.tier - b.tier ||
         Number(b.byName) - Number(a.byName) ||
+        Number(b.carried) - Number(a.carried) ||
         b.hits.length - a.hits.length ||
         a.offer.name.localeCompare(b.offer.name, 'ru'),
     );
-  }, [countryOffers, requestTitleById, searchQuery, snapshotByHost, extraGroupsByTile, hintsById, engagement]);
+  }, [
+    countryOffers,
+    offers,
+    requestTitleById,
+    searchQuery,
+    snapshotByHost,
+    extraGroupsByTile,
+    hintsById,
+    engagement,
+    carriedByOffer,
+  ]);
 
   const openHub = (h: HubStats) => {
     setHubName(h.hub.name);
     setGroupFilter(null);
-    // У универсальных промежуточного уровня нет — сразу список.
+    setBrandFilter(null);
     setCategoryName(h.hub.categories.length === 1 ? h.hub.categories[0].name : null);
   };
 
   const crumb = (
     <div className="flex flex-wrap items-center gap-1 text-sm">
-      <button type="button" className="text-primary-hover hover:underline" onClick={() => { setHubName(null); setCategoryName(null); setGroupFilter(null); }}>
+      <button
+        type="button"
+        className="font-medium text-primary-hover hover:underline"
+        onClick={() => {
+          setHubName(null);
+          setCategoryName(null);
+          setGroupFilter(null);
+          setBrandFilter(null);
+        }}
+      >
         Каталог
       </button>
       {currentHub && (
         <>
           <ChevronRight className="h-3.5 w-3.5 text-ink-faint" />
           {currentCategory ? (
-            <button type="button" className="text-primary-hover hover:underline" onClick={() => { setCategoryName(null); setGroupFilter(null); }}>
+            <button
+              type="button"
+              className="font-medium text-primary-hover hover:underline"
+              onClick={() => {
+                setCategoryName(null);
+                setGroupFilter(null);
+                setBrandFilter(null);
+              }}
+            >
               {currentHub.hub.name}
             </button>
           ) : (
@@ -397,29 +371,26 @@ export function SupplierCatalog({
   );
 
   return (
-    <Card className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-lg font-bold text-ink">Каталог поставщиков</span>
+    <Card className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-lg font-bold tracking-tight text-ink">Каталог поставщиков</span>
+          <span className="text-xs text-ink-muted">Сверху — с кем уже работали. Поиск — по карточке, бренду и позициям КП.</span>
+        </div>
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+          <Button type="button" icon={<Send className="h-4 w-4" />} onClick={onRequestPrices} className="px-4 py-1.5 text-sm">
+            Запросить цены
+          </Button>
           <Button type="button" variant="secondary" onClick={onAddSupplier} className="px-4 py-1.5 text-sm">
             <Plus className="h-4 w-4" />
-            Добавить поставщика
+            Добавить
           </Button>
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Название, бренд, ИНН, email, категория…"
-            wrapperClassName="w-full max-w-[320px]"
+            placeholder="Название, бренд, ИНН, email, позиция КП…"
+            wrapperClassName="w-full max-w-[340px]"
           />
-          {/* Владелец, 2026-09-15, второй заход: сперва две пилюли-кнопки
-              заменили на ToggleGroup, но владелец хотел не «две страны рядом»,
-              а «когда виден только активный вариант, а для переключения надо
-              на него кликнуть и выбрать из выпадающего списка» — то есть Select
-              (ui/Select, pill), а не ToggleGroup: тот по определению показывает
-              все варианты сразу. Флаг остаётся частью подписи: Select работает
-              со строками, поэтому options — подписи с флагом, а обратно в
-              страну переводим countryByLabel. Значение по умолчанию —
-              SUPPLIER_COUNTRIES[0], то есть Россия (см. data/supplierResearch.ts). */}
           <Select
             pill
             options={SUPPLIER_COUNTRIES.map(countryLabel)}
@@ -444,7 +415,7 @@ export function SupplierCatalog({
             onClick={() => setKindFilter(key)}
             aria-pressed={kindFilter === key}
             className={cn(
-              'rounded-full px-3 py-1 transition-colors',
+              'rounded-full px-3 py-1.5 transition-colors',
               kindFilter === key ? 'bg-surface font-medium text-ink shadow-sm' : 'text-ink-muted hover:text-ink',
             )}
           >
@@ -457,7 +428,7 @@ export function SupplierCatalog({
         <div className="flex flex-col gap-3">
           {navHits.length > 0 && (
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Категории</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-faint">Категории</span>
               <div className="flex flex-wrap gap-2">
                 {navHits.map((hit) => (
                   <button
@@ -468,8 +439,9 @@ export function SupplierCatalog({
                       setHubName(hit.hubName);
                       setCategoryName(hit.categoryName);
                       setGroupFilter(null);
+                      setBrandFilter(null);
                     }}
-                    className="rounded-full border border-border bg-white/60 px-3 py-1.5 text-sm text-ink transition hover:border-primary"
+                    className="rounded-full border border-border bg-white/70 px-3 py-1.5 text-sm text-ink shadow-sm transition hover:border-primary/50"
                   >
                     {hit.kind === 'hub' ? hit.label : `${hit.hubName} · ${hit.label}`}
                   </button>
@@ -479,119 +451,208 @@ export function SupplierCatalog({
           )}
           <span className="text-sm text-ink-muted">
             {searchResults.length === 0 && navHits.length === 0
-              ? `Ничего не нашлось по «${search.trim()}» — проверьте название, бренд, ИНН, email или категорию.`
+              ? `Ничего не нашлось по «${search.trim()}».`
               : searchResults.length === 0
-                ? 'Компаний по запросу нет — выше совпали категории каталога.'
+                ? 'Компаний нет — выше совпали категории.'
                 : `Найдено ${searchResults.length} ${plural(searchResults.length, 'поставщик', 'поставщика', 'поставщиков')}.`}
           </span>
-          {searchResults.map(({ offer, categoryLabel, byName, hits, reason, tier }) => (
-            <div key={offer.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-2">
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate font-medium text-ink">{offer.name}</span>
-                  {isFactory(offer) && <FactoryMark />}
-                  <EngagementMark tier={tier} />
-                  <span className="text-xs text-ink-faint">{categoryLabel}</span>
-                </div>
-                {!byName && (
-                  <span className="text-xs text-ink-muted">
-                    {hits.length > 0 ? (
-                      <>
-                        на сайте:{' '}
-                        {hits.slice(0, 3).map((sec, i) => (
-                          <span key={sec.url + i}>
-                            {i > 0 && ', '}
-                            <a href={sec.url} target="_blank" rel="noreferrer" className="text-primary-hover hover:underline">
-                              {sec.title}
-                            </a>
-                          </span>
-                        ))}
-                        {hits.length > 3 && ` и ещё ${hits.length - 3}`}
-                      </>
-                    ) : (
-                      reason ?? 'совпадение по карточке'
-                    )}
-                  </span>
-                )}
-              </div>
-              <OpenDetailButton offer={offer} onOpenDetail={onOpenDetail} />
-            </div>
+          {searchResults.map(({ offer, categoryLabel, byName, hits, reason, tier, carried }) => (
+            <SupplierRow
+              key={offer.id}
+              offer={offer}
+              categoryLabel={categoryLabel}
+              isFactory={isFactory(offer)}
+              tier={tier}
+              mail={mailStatsForOffer(offer, mailStats)}
+              onOpenDetail={onOpenDetail}
+              onOpenLetters={onOpenLetters}
+              subtitle={
+                byName
+                  ? null
+                  : hits.length > 0
+                    ? (
+                        <>
+                          на сайте:{' '}
+                          {hits.slice(0, 3).map((sec, i) => (
+                            <span key={sec.url + i}>
+                              {i > 0 && ', '}
+                              <a href={sec.url} target="_blank" rel="noreferrer" className="text-primary-hover hover:underline">
+                                {sec.title}
+                              </a>
+                            </span>
+                          ))}
+                          {hits.length > 3 && ` и ещё ${hits.length - 3}`}
+                        </>
+                      )
+                    : reason ?? (carried ? 'позиция из КП' : null)
+              }
+            />
           ))}
         </div>
       ) : (
         <>
-      {crumb}
+          {crumb}
 
-      {/* Уровень 0: хабы */}
-      {!currentHub && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {hubs.map((h) => (
-            <button
-              key={h.hub.name}
-              type="button"
-              onClick={() => openHub(h)}
-              className="flex min-h-[132px] flex-col justify-between gap-3 rounded-control border border-border bg-white/50 p-4 text-left transition hover:border-primary hover:bg-white/80"
-            >
-              <div className="flex flex-col gap-1">
-                <span className="font-semibold text-ink">{h.hub.name}</span>
-                <span className="line-clamp-2 text-xs text-ink-faint">{h.hub.description}</span>
+          {!currentHub && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {hubs.map((h) => {
+                const live = h.categories.reduce(
+                  (n, c) => n + c.suppliers.filter((o) => engagement.tierOf(o) < 3).length,
+                  0,
+                );
+                return (
+                  <button key={h.hub.name} type="button" onClick={() => openHub(h)} className={cn(tileClass, 'min-h-[140px]')}>
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-base font-semibold tracking-tight text-ink">{h.hub.name}</span>
+                      <span className="line-clamp-2 text-xs leading-relaxed text-ink-muted">{h.hub.description}</span>
+                    </div>
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-semibold tabular-nums text-ink">{h.total}</span>
+                        <span className="text-xs text-ink-faint">
+                          {plural(h.total, 'компания', 'компании', 'компаний')} · {h.hub.categories.length}{' '}
+                          {plural(h.hub.categories.length, 'категория', 'категории', 'категорий')}
+                        </span>
+                      </div>
+                      {live > 0 && (
+                        <span className="rounded-full bg-success-bg px-2 py-0.5 text-[11px] font-medium text-success">
+                          {live} в работе
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {currentHub && !currentCategory && (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-ink-muted">{currentHub.hub.description}</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {currentHub.categories.map((c) => {
+                  const live = c.suppliers.filter((o) => engagement.tierOf(o) < 3).length;
+                  return (
+                    <button
+                      key={c.category.name}
+                      type="button"
+                      onClick={() => {
+                        setCategoryName(c.category.name);
+                        setGroupFilter(null);
+                        setBrandFilter(null);
+                      }}
+                      className={tileClass}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="font-semibold tracking-tight text-ink">{c.category.name}</span>
+                        <Badge tone="neutral">
+                          {c.category.defaultComparisonMode === 'lot' ? 'поставка целиком' : 'по материалам'}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {c.category.supplyGroups.slice(0, 4).map((g) => (
+                          <span key={g} className="rounded-full border border-border/80 bg-white/50 px-2 py-0.5 text-[11px] text-ink-muted">
+                            {g}
+                          </span>
+                        ))}
+                        {c.category.supplyGroups.length > 4 && (
+                          <span className="text-[11px] text-ink-faint">+{c.category.supplyGroups.length - 4}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm tabular-nums">
+                        <span className="text-ink">
+                          <span className="text-xl font-semibold">{c.suppliers.length}</span>{' '}
+                          {plural(c.suppliers.length, 'поставщик', 'поставщика', 'поставщиков')}
+                        </span>
+                        {live > 0 && <span className="text-xs text-success">{live} с историей</span>}
+                        {c.suppliers.length === 0 && <Badge tone="warning">базу набирать</Badge>}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-semibold tabular-nums text-ink">{h.total}</span>
-                <span className="text-xs text-ink-faint">{plural(h.total, 'компания', 'компании', 'компаний')} · {h.hub.categories.length} {plural(h.hub.categories.length, 'категория', 'категории', 'категорий')}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* Уровень 1: категории хаба */}
-      {currentHub && !currentCategory && (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-ink-muted">{currentHub.hub.description}</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {currentHub.categories.map((c) => (
-              <button
-                key={c.category.name}
-                type="button"
-                onClick={() => { setCategoryName(c.category.name); setGroupFilter(null); }}
-                className="flex flex-col gap-3 rounded-control border border-border bg-white/50 p-4 text-left transition hover:border-primary hover:bg-white/80"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <span className="font-semibold text-ink">{c.category.name}</span>
-                  <Badge tone="neutral">{c.category.defaultComparisonMode === 'lot' ? 'поставка целиком' : 'по материалам'}</Badge>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {c.category.supplyGroups.slice(0, 4).map((g) => (
-                    <span key={g} className="rounded-full border border-border px-2 py-0.5 text-xs text-ink-muted">{g}</span>
-                  ))}
-                  {c.category.supplyGroups.length > 4 && <span className="text-xs text-ink-faint">+{c.category.supplyGroups.length - 4}</span>}
-                </div>
-                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm tabular-nums">
-                  <span className="text-ink"><span className="text-xl font-semibold">{c.suppliers.length}</span> {plural(c.suppliers.length, 'поставщик', 'поставщика', 'поставщиков')}</span>
-                  {c.suppliers.length === 0 && <Badge tone="warning">базу набирать</Badge>}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Уровень 2: список компаний */}
-      {currentCategory && (
-        <CategoryView
-          stats={currentCategory}
-          groupFilter={groupFilter}
-          onGroupFilter={setGroupFilter}
-          snapshotByHost={snapshotByHost}
-          onOpenDetail={onOpenDetail}
-          isFactory={isFactory}
-          engagement={engagement}
-        />
-      )}
+          {currentCategory && (
+            <CategoryView
+              stats={currentCategory}
+              groupFilter={groupFilter}
+              onGroupFilter={setGroupFilter}
+              brandFilter={brandFilter}
+              onBrandFilter={setBrandFilter}
+              snapshotByHost={snapshotByHost}
+              hintsById={hintsById}
+              onOpenDetail={onOpenDetail}
+              onOpenLetters={onOpenLetters}
+              onRequestPrices={onRequestPrices}
+              isFactory={isFactory}
+              engagement={engagement}
+              mailStats={mailStats}
+            />
+          )}
         </>
       )}
     </Card>
+  );
+}
+
+function SupplierRow({
+  offer,
+  categoryLabel,
+  isFactory,
+  tier,
+  mail,
+  onOpenDetail,
+  onOpenLetters,
+  subtitle,
+}: {
+  offer: SupplierOffer;
+  categoryLabel?: string;
+  isFactory: boolean;
+  tier: CatalogEngagementTier;
+  mail: CatalogMailStats;
+  onOpenDetail: (o: SupplierOffer) => void;
+  onOpenLetters: (o: SupplierOffer) => void;
+  subtitle?: ReactNode;
+}) {
+  const accent =
+    tier === 0 ? 'border-l-success' : tier === 1 ? 'border-l-warning' : tier === 2 ? 'border-l-ink-faint' : 'border-l-transparent';
+  return (
+    <div className={cn(rowClass, 'border-l-4', accent)}>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="truncate font-medium text-ink">{offer.name}</span>
+          {isFactory && <FactoryMark />}
+          <EngagementMark tier={tier} />
+          {mail.unread > 0 && (
+            <button
+              type="button"
+              onClick={() => onOpenLetters(offer)}
+              className="inline-flex items-center gap-1 rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white"
+              title="Непрочитанные — открыть переписку"
+            >
+              <Mail className="h-3 w-3" />
+              {mail.unread}
+            </button>
+          )}
+          {mail.waiting && mail.unread === 0 && (
+            <button
+              type="button"
+              onClick={() => onOpenLetters(offer)}
+              className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-[11px] font-medium text-warning"
+              title="Ждём ответа"
+            >
+              ждём ответа
+            </button>
+          )}
+          {categoryLabel && <span className="text-xs text-ink-faint">{categoryLabel}</span>}
+          {!offer.country.trim() && <span className="text-xs text-ink-faint">страна не указана</span>}
+        </div>
+        {subtitle && <span className="text-xs text-ink-muted">{subtitle}</span>}
+      </div>
+      <OpenDetailButton offer={offer} onOpenDetail={onOpenDetail} />
+    </div>
   );
 }
 
@@ -599,87 +660,156 @@ function CategoryView({
   stats,
   groupFilter,
   onGroupFilter,
+  brandFilter,
+  onBrandFilter,
   snapshotByHost,
+  hintsById,
   onOpenDetail,
+  onOpenLetters,
+  onRequestPrices,
   isFactory,
   engagement,
+  mailStats,
 }: {
   stats: CategoryStats;
   groupFilter: string | null;
   onGroupFilter: (g: string | null) => void;
+  brandFilter: string | null;
+  onBrandFilter: (b: string | null) => void;
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
+  hintsById: Map<string, SupplierCatalogHintRow>;
   onOpenDetail: (o: SupplierOffer) => void;
+  onOpenLetters: (o: SupplierOffer) => void;
+  onRequestPrices: () => void;
   isFactory: (o: SupplierOffer) => boolean;
   engagement: CatalogEngagementIndex;
+  mailStats: Map<string, CatalogMailStats>;
 }) {
   const { category } = stats;
-  const matchesFilter = (o: SupplierOffer) => !groupFilter || offerGroups(o, snapshotByHost).includes(groupFilter);
+  const [showCold, setShowCold] = useState(false);
+
+  const matchesGroup = (o: SupplierOffer) => !groupFilter || offerGroups(o, snapshotByHost).includes(groupFilter);
+  const matchesBrand = (o: SupplierOffer) => !brandFilter || supplierHasBrand(o, brandFilter, hintsById);
   const groupCount = (g: string) =>
     stats.suppliers.filter((o) => offerGroups(o, snapshotByHost).includes(g)).length;
 
-  const row = (o: SupplierOffer) => (
-    <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <span className="truncate font-medium text-ink">{o.name}</span>
-        {isFactory(o) && <FactoryMark />}
-        <EngagementMark tier={engagement.tierOf(o)} />
-        {!o.country.trim() && <span className="text-xs text-ink-faint">страна не указана</span>}
-      </div>
-      <OpenDetailButton offer={o} onOpenDetail={onOpenDetail} />
-    </div>
-  );
-
-  const suppliers = stats.suppliers.filter(matchesFilter);
-  const empty = suppliers.length === 0;
-  const withHistory = suppliers.filter((o) => engagement.tierOf(o) < 3).length;
+  const filtered = stats.suppliers.filter((o) => matchesGroup(o) && matchesBrand(o));
+  const live = filtered.filter((o) => engagement.tierOf(o) < 3);
+  const cold = filtered.filter((o) => engagement.tierOf(o) === 3);
+  const collapseCold = cold.length > COLD_COLLAPSE_AFTER && live.length > 0;
+  const visibleCold = collapseCold && !showCold ? [] : cold;
+  const brands = brandsInSuppliers(stats.suppliers, hintsById).slice(0, 12);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2">
-        <p className="text-sm text-ink-muted">Что сюда входит: {category.includes.join('; ')}.</p>
-        {category.supplyGroups.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onGroupFilter(null)}
-              className={cn('rounded-full border px-2.5 py-1 text-xs', groupFilter === null ? 'border-primary text-primary' : 'border-border text-ink-muted hover:border-primary')}
-            >
-              все группы
-            </button>
-            {category.supplyGroups.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => onGroupFilter(groupFilter === g ? null : g)}
-                className={cn('rounded-full border px-2.5 py-1 text-xs tabular-nums', groupFilter === g ? 'border-primary text-primary' : 'border-border text-ink-muted hover:border-primary')}
-              >
-                {g} · {groupCount(g)}
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-3xl text-sm leading-relaxed text-ink-muted">Что сюда входит: {category.includes.join('; ')}.</p>
+        <Button type="button" icon={<Send className="h-4 w-4" />} onClick={onRequestPrices} className="shrink-0 px-4 py-1.5 text-sm">
+          Запросить цены
+        </Button>
       </div>
 
-      {empty && (
-        <div className="flex flex-wrap items-center gap-2 text-sm text-ink-faint">
-          <Search className="h-4 w-4" />
-          В базе пока никого — эту категорию придётся набирать веб-поиском из карточки категории ниже.
+      {(category.supplyGroups.length > 1 || brands.length > 0) && (
+        <div className="flex flex-col gap-2">
+          {category.supplyGroups.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Группы</span>
+              <Chip active={groupFilter === null} onClick={() => onGroupFilter(null)}>
+                все
+              </Chip>
+              {category.supplyGroups.map((g) => (
+                <Chip key={g} active={groupFilter === g} onClick={() => onGroupFilter(groupFilter === g ? null : g)}>
+                  {g} · {groupCount(g)}
+                </Chip>
+              ))}
+            </div>
+          )}
+          {brands.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Бренды</span>
+              <Chip active={brandFilter === null} onClick={() => onBrandFilter(null)}>
+                все
+              </Chip>
+              {brands.map(({ brand, count }) => (
+                <Chip key={brand} active={brandFilter === brand} onClick={() => onBrandFilter(brandFilter === brand ? null : brand)}>
+                  {brand} · {count}
+                </Chip>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {suppliers.length > 0 && (
-        <Section
-          title={`Поставщики (${suppliers.length})`}
-          hint={
-            withHistory > 0
-              ? `Сверху те, с кем уже были заказы, КП или переписка (${withHistory}). Дальше — остальные по алфавиту.`
-              : 'По названию строки закупки или по товарной группе со снимка сайта — оба признака дают полноценное присвоение категории.'
-          }
-        >
-          {suppliers.map((o) => row(o))}
+      {filtered.length === 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-dashed border-border px-4 py-6 text-sm text-ink-faint">
+          <Search className="h-4 w-4" />
+          {stats.suppliers.length === 0
+            ? 'В базе пока никого — эту категорию придётся набирать веб-поиском.'
+            : 'По выбранным фильтрам никого нет.'}
+        </div>
+      )}
+
+      {live.length > 0 && (
+        <Section title={`С историей (${live.length})`} hint="Заказы, КП или переписка — сверху приоритетнее.">
+          {live.map((o) => (
+            <SupplierRow
+              key={o.id}
+              offer={o}
+              isFactory={isFactory(o)}
+              tier={engagement.tierOf(o)}
+              mail={mailStatsForOffer(o, mailStats)}
+              onOpenDetail={onOpenDetail}
+              onOpenLetters={onOpenLetters}
+            />
+          ))}
         </Section>
       )}
+
+      {visibleCold.length > 0 && (
+        <Section
+          title={live.length > 0 ? `Остальные (${cold.length})` : `Поставщики (${cold.length})`}
+          hint={live.length > 0 ? 'Пока без заказов, КП и писем.' : undefined}
+        >
+          {visibleCold.map((o) => (
+            <SupplierRow
+              key={o.id}
+              offer={o}
+              isFactory={isFactory(o)}
+              tier={3}
+              mail={mailStatsForOffer(o, mailStats)}
+              onOpenDetail={onOpenDetail}
+              onOpenLetters={onOpenLetters}
+            />
+          ))}
+        </Section>
+      )}
+
+      {collapseCold && !showCold && (
+        <button
+          type="button"
+          onClick={() => setShowCold(true)}
+          className="inline-flex items-center justify-center gap-1.5 self-start rounded-full border border-border bg-white/60 px-4 py-2 text-sm font-medium text-ink-muted transition hover:border-border-strong hover:text-ink"
+        >
+          Ещё {cold.length} без истории
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      )}
     </div>
+  );
+}
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'rounded-full border px-2.5 py-1 text-xs tabular-nums transition',
+        active ? 'border-ink bg-ink text-white' : 'border-border bg-white/50 text-ink-muted hover:border-ink-faint hover:text-ink',
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -697,16 +827,15 @@ function FactoryMark() {
 function EngagementMark({ tier }: { tier: CatalogEngagementTier }) {
   const label = CATALOG_ENGAGEMENT_LABEL[tier];
   if (!label) return null;
-  // Не primary: нейтральный статус нельзя красить фирменным красным.
   const tone = tier === 0 ? 'success' : tier === 1 ? 'warning' : 'neutral';
   return <Badge tone={tone}>{label}</Badge>;
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-col">
-        <span className="text-sm font-medium text-ink">{title}</span>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-semibold text-ink">{title}</span>
         {hint && <span className="text-xs text-ink-faint">{hint}</span>}
       </div>
       <div className="flex flex-col gap-2">{children}</div>
