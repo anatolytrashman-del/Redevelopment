@@ -137,6 +137,56 @@ export function fetchSupplierKinds(): Promise<Map<string, SupplierKind>> {
   });
 }
 
+// Индекс для поиска и фильтра каталога: тип + бренды + контакты компании,
+// без site_profile. Нужен, чтобы искать «Ceresit» / ИНН / email не только по
+// карточке категории, но и по данным самой фирмы.
+export interface SupplierCatalogHintRow {
+  kind: SupplierKind | null;
+  ownBrands: string[];
+  resoldBrands: string[];
+  productKinds: string[];
+  inn: string | null;
+  email: string;
+  phone: string;
+}
+
+export function fetchSupplierCatalogHints(): Promise<Map<string, SupplierCatalogHintRow>> {
+  return withRetry(async () => {
+    const map = new Map<string, SupplierCatalogHintRow>();
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, supplier_kind, own_brands, resold_brands, product_kinds, inn, email, phone')
+        .is('deleted_at', null)
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as {
+        id: string;
+        supplier_kind: SupplierKind | null;
+        own_brands: string[] | null;
+        resold_brands: string[] | null;
+        product_kinds: string[] | null;
+        inn: string | null;
+        email: string | null;
+        phone: string | null;
+      }[];
+      for (const r of rows) {
+        map.set(r.id, {
+          kind: r.supplier_kind ?? null,
+          ownBrands: r.own_brands ?? [],
+          resoldBrands: r.resold_brands ?? [],
+          productKinds: r.product_kinds ?? [],
+          inn: r.inn,
+          email: r.email ?? '',
+          phone: r.phone ?? '',
+        });
+      }
+      if (rows.length < PAGE_SIZE) return map;
+    }
+  });
+}
+
 // Стоп-лист: причина непуста — компании больше не пишем. Снятие — reason=null.
 // Дата ставится и снимается вместе с причиной, чтобы не остаться с «когда-то
 // блокировали, но уже нет» в данных.

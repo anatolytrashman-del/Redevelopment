@@ -15,8 +15,7 @@ import {
   type SupplierCatalogHub,
 } from '../../data/supplierCatalog';
 import { fetchSupplyCategories, type SupplyCategoryDto } from '../../lib/supplyCategoriesApi';
-import { fetchSupplierKinds } from '../../lib/suppliersApi';
-import type { SupplierKind } from '../../data/suppliers';
+import { fetchSupplierCatalogHints, type SupplierCatalogHintRow } from '../../lib/suppliersApi';
 import {
   countryFlag,
   supplierWebsiteHost,
@@ -25,7 +24,23 @@ import {
   type SupplierRequest,
 } from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
-import { matchOfferProduct, normalizeSearch } from './productSearch';
+import type { SupplierOfferEmail } from '../../data/supplierOfferEmails';
+import type { SupplierQuote } from '../../data/supplierQuotes';
+import type { PurchaseOrder } from '../../data/purchaseOrders';
+import {
+  emptyHints,
+  matchCatalogNavigation,
+  matchCatalogOffer,
+  normalizeSearch,
+  type CatalogMatchKind,
+} from './productSearch';
+import {
+  buildCatalogEngagementIndex,
+  CATALOG_ENGAGEMENT_LABEL,
+  compareByEngagementThenName,
+  type CatalogEngagementIndex,
+  type CatalogEngagementTier,
+} from './catalogEngagement';
 
 // Каталог поставщиков: хабы → категории → компании. Владелец, 2026-09-12:
 // «нравится, как организованы визуально категории у ВсеИнструменты, особенно
@@ -151,12 +166,19 @@ export function SupplierCatalog({
   offers,
   requests,
   snapshotByHost,
+  emails,
+  quotes,
+  orders,
   onOpenDetail,
   onAddSupplier,
 }: {
   offers: SupplierOffer[];
   requests: SupplierRequest[];
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
+  // Для ранжирования «с кем уже работали» (заказы → КП → переписка).
+  emails: SupplierOfferEmail[];
+  quotes: SupplierQuote[];
+  orders: PurchaseOrder[];
   onOpenDetail: (o: SupplierOffer) => void;
   // Завести поставщика руками — когда его нашли не веб-поиском, а по
   // знакомству или на выставке. До этого единственным способом добавить
@@ -184,35 +206,46 @@ export function SupplierCatalog({
   // заводов и обычных поставщиков и оставить в каталоге только заводы»).
   // Тип — из разбора сайта (suppliers.supplier_kind); завод здесь только
   // manufacturer: владелец марки сам не производит. Нет типа — «остальные».
+  // С 2026-10-09 тот же запрос тянет бренды/ИНН/email для расширенного поиска.
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
-  const [kindById, setKindById] = useState<Map<string, SupplierKind>>(new Map());
+  const [hintsById, setHintsById] = useState<Map<string, SupplierCatalogHintRow>>(new Map());
   useEffect(() => {
-    fetchSupplierKinds()
-      .then(setKindById)
+    fetchSupplierCatalogHints()
+      .then(setHintsById)
       .catch(() => {});
   }, []);
-  const isFactory = (o: SupplierOffer) => !!o.supplierId && kindById.get(o.supplierId) === 'manufacturer';
+  const isFactory = (o: SupplierOffer) =>
+    !!o.supplierId && hintsById.get(o.supplierId)?.kind === 'manufacturer';
   const kindCounts = useMemo(() => {
     const factories = new Set<string>();
     const others = new Set<string>();
     for (const o of baseOffers) {
       if (!o.verified) continue;
       const key = o.supplierId ?? o.id;
-      if (o.supplierId && kindById.get(o.supplierId) === 'manufacturer') factories.add(key);
+      if (o.supplierId && hintsById.get(o.supplierId)?.kind === 'manufacturer') factories.add(key);
       else others.add(key);
     }
     for (const k of factories) others.delete(k);
     return { factories: factories.size, others: others.size };
-  }, [baseOffers, kindById]);
+  }, [baseOffers, hintsById]);
   const countryOffers = useMemo(
     () =>
       kindFilter === 'all'
         ? baseOffers
-        : baseOffers.filter((o) => (kindFilter === 'factories') === (!!o.supplierId && kindById.get(o.supplierId) === 'manufacturer')),
-    [baseOffers, kindFilter, kindById],
+        : baseOffers.filter(
+            (o) =>
+              (kindFilter === 'factories') ===
+              (!!o.supplierId && hintsById.get(o.supplierId)?.kind === 'manufacturer'),
+          ),
+    [baseOffers, kindFilter, hintsById],
   );
 
   const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
+
+  const engagement = useMemo(
+    () => buildCatalogEngagementIndex({ offers, orders, quotes, emails }),
+    [offers, orders, quotes, emails],
+  );
 
   // Справочник из базы — чтобы группа, найденная при верификации живого
   // поставщика, попадала в свою плитку сразу, без ожидания публикации кода
@@ -265,12 +298,14 @@ export function SupplierCatalog({
           suppliers.push(o);
           seen.add(o.supplierId ?? o.id);
         }
-        const byName = (a: SupplierOffer, b: SupplierOffer) => a.name.localeCompare(b.name, 'ru');
-        return { category, suppliers: suppliers.sort(byName) };
+        return {
+          category,
+          suppliers: suppliers.sort((a, b) => compareByEngagementThenName(a, b, engagement)),
+        };
       });
       return { hub, categories, total: seen.size };
     });
-  }, [countryOffers, requestTitleById, snapshotByHost, extraGroupsByTile]);
+  }, [countryOffers, requestTitleById, snapshotByHost, extraGroupsByTile, engagement]);
 
   const currentHub = hubs.find((h) => h.hub.name === hubName) ?? null;
   const currentCategory = currentHub?.categories.find((c) => c.category.name === categoryName) ?? null;
@@ -278,31 +313,55 @@ export function SupplierCatalog({
   // Поиск — плоский результат по всему каталогу (в рамках выбранной
   // страны), поверх навигации по хабам/категориям: владелец, 2026-09-12,
   // «справа от заголовка нужна строка поиска поставщика». С 2026-09-28 ищет
-  // и по товару: по разделам меню сайта со снимка, по заголовку и описанию
-  // сайта («нужна закупка по керамзиту — как найти, у кого он есть»).
-  // Снимки уже загружены для плиток, в базу поиск не ходит.
+  // и по товару (разделы сайта). С 2026-10-09 — ещё по категории, бренду,
+  // ИНН, email, телефону, менеджеру, сайту; сверху — совпадения с плитками.
   const searchQuery = normalizeSearch(search.trim());
+  const navHits = useMemo(() => (searchQuery ? matchCatalogNavigation(searchQuery) : []), [searchQuery]);
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
-    const results: { offer: SupplierOffer; categoryLabel: string; byName: boolean; hits: SupplierSiteSnapshot['sections'] }[] = [];
+    const results: {
+      offer: SupplierOffer;
+      categoryLabel: string;
+      byName: boolean;
+      hits: SupplierSiteSnapshot['sections'];
+      reason: string | null;
+      kinds: CatalogMatchKind[];
+      tier: CatalogEngagementTier;
+    }[] = [];
     const companies = new Set<string>();
     for (const o of countryOffers) {
       if (!o.verified) continue;
-      const { byName, hits, matched } = matchOfferProduct(o, snapshotByHost, searchQuery);
-      if (!matched) continue;
+      const hints = o.supplierId ? hintsById.get(o.supplierId) : undefined;
+      const { match } = matchCatalogOffer(
+        o,
+        snapshotByHost,
+        searchQuery,
+        requestTitleById.get(o.requestId),
+        hints ?? emptyHints(),
+      );
+      if (!match.matched) continue;
       if (o.supplierId && companies.has(o.supplierId)) continue;
       if (o.supplierId) companies.add(o.supplierId);
-      results.push({ offer: o, categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile), byName, hits });
+      results.push({
+        offer: o,
+        categoryLabel: catalogLabelFor(o, requestTitleById, snapshotByHost, extraGroupsByTile),
+        byName: match.byName,
+        hits: match.hits,
+        reason: match.reason,
+        kinds: match.kinds,
+        tier: engagement.tierOf(o),
+      });
     }
-    // Сперва совпавшие по имени, потом — у кого товар в разделах сайта
-    // (больше разделов — выше), потом — только в описании сайта.
+    // Сначала «с кем работали», потом совпадение по имени, потом по числу
+    // разделов сайта, потом алфавит.
     return results.sort(
       (a, b) =>
+        a.tier - b.tier ||
         Number(b.byName) - Number(a.byName) ||
         b.hits.length - a.hits.length ||
         a.offer.name.localeCompare(b.offer.name, 'ru'),
     );
-  }, [countryOffers, requestTitleById, searchQuery, snapshotByHost, extraGroupsByTile]);
+  }, [countryOffers, requestTitleById, searchQuery, snapshotByHost, extraGroupsByTile, hintsById, engagement]);
 
   const openHub = (h: HubStats) => {
     setHubName(h.hub.name);
@@ -349,8 +408,8 @@ export function SupplierCatalog({
           <SearchInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поставщик или товар"
-            wrapperClassName="w-full max-w-[240px]"
+            placeholder="Название, бренд, ИНН, email, категория…"
+            wrapperClassName="w-full max-w-[320px]"
           />
           {/* Владелец, 2026-09-15, второй заход: сперва две пилюли-кнопки
               заменили на ToggleGroup, но владелец хотел не «две страны рядом»,
@@ -395,18 +454,43 @@ export function SupplierCatalog({
       </div>
 
       {searchQuery ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
+          {navHits.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">Категории</span>
+              <div className="flex flex-wrap gap-2">
+                {navHits.map((hit) => (
+                  <button
+                    key={`${hit.kind}:${hit.hubName}:${hit.categoryName ?? ''}`}
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setHubName(hit.hubName);
+                      setCategoryName(hit.categoryName);
+                      setGroupFilter(null);
+                    }}
+                    className="rounded-full border border-border bg-white/60 px-3 py-1.5 text-sm text-ink transition hover:border-primary"
+                  >
+                    {hit.kind === 'hub' ? hit.label : `${hit.hubName} · ${hit.label}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <span className="text-sm text-ink-muted">
-            {searchResults.length === 0
-              ? `Ни в названиях, ни на сайтах поставщиков нет «${search.trim()}».`
-              : `Найдено ${searchResults.length} ${plural(searchResults.length, 'поставщик', 'поставщика', 'поставщиков')}.`}
+            {searchResults.length === 0 && navHits.length === 0
+              ? `Ничего не нашлось по «${search.trim()}» — проверьте название, бренд, ИНН, email или категорию.`
+              : searchResults.length === 0
+                ? 'Компаний по запросу нет — выше совпали категории каталога.'
+                : `Найдено ${searchResults.length} ${plural(searchResults.length, 'поставщик', 'поставщика', 'поставщиков')}.`}
           </span>
-          {searchResults.map(({ offer, categoryLabel, byName, hits }) => (
+          {searchResults.map(({ offer, categoryLabel, byName, hits, reason, tier }) => (
             <div key={offer.id} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border px-4 py-2">
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="truncate font-medium text-ink">{offer.name}</span>
                   {isFactory(offer) && <FactoryMark />}
+                  <EngagementMark tier={tier} />
                   <span className="text-xs text-ink-faint">{categoryLabel}</span>
                 </div>
                 {!byName && (
@@ -425,7 +509,7 @@ export function SupplierCatalog({
                         {hits.length > 3 && ` и ещё ${hits.length - 3}`}
                       </>
                     ) : (
-                      'упоминается в описании сайта'
+                      reason ?? 'совпадение по карточке'
                     )}
                   </span>
                 )}
@@ -502,6 +586,7 @@ export function SupplierCatalog({
           snapshotByHost={snapshotByHost}
           onOpenDetail={onOpenDetail}
           isFactory={isFactory}
+          engagement={engagement}
         />
       )}
         </>
@@ -517,6 +602,7 @@ function CategoryView({
   snapshotByHost,
   onOpenDetail,
   isFactory,
+  engagement,
 }: {
   stats: CategoryStats;
   groupFilter: string | null;
@@ -524,6 +610,7 @@ function CategoryView({
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
   onOpenDetail: (o: SupplierOffer) => void;
   isFactory: (o: SupplierOffer) => boolean;
+  engagement: CatalogEngagementIndex;
 }) {
   const { category } = stats;
   const matchesFilter = (o: SupplierOffer) => !groupFilter || offerGroups(o, snapshotByHost).includes(groupFilter);
@@ -535,6 +622,7 @@ function CategoryView({
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="truncate font-medium text-ink">{o.name}</span>
         {isFactory(o) && <FactoryMark />}
+        <EngagementMark tier={engagement.tierOf(o)} />
         {!o.country.trim() && <span className="text-xs text-ink-faint">страна не указана</span>}
       </div>
       <OpenDetailButton offer={o} onOpenDetail={onOpenDetail} />
@@ -543,6 +631,7 @@ function CategoryView({
 
   const suppliers = stats.suppliers.filter(matchesFilter);
   const empty = suppliers.length === 0;
+  const withHistory = suppliers.filter((o) => engagement.tierOf(o) < 3).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -579,7 +668,14 @@ function CategoryView({
       )}
 
       {suppliers.length > 0 && (
-        <Section title={`Поставщики (${suppliers.length})`} hint="По названию строки закупки или по товарной группе со снимка сайта — оба признака дают полноценное присвоение категории. Гипермаркеты и базы не выделены отдельно — если везут эту группу, они здесь наравне с профильными.">
+        <Section
+          title={`Поставщики (${suppliers.length})`}
+          hint={
+            withHistory > 0
+              ? `Сверху те, с кем уже были заказы, КП или переписка (${withHistory}). Дальше — остальные по алфавиту.`
+              : 'По названию строки закупки или по товарной группе со снимка сайта — оба признака дают полноценное присвоение категории.'
+          }
+        >
           {suppliers.map((o) => row(o))}
         </Section>
       )}
@@ -596,6 +692,14 @@ function FactoryMark() {
       завод
     </span>
   );
+}
+
+function EngagementMark({ tier }: { tier: CatalogEngagementTier }) {
+  const label = CATALOG_ENGAGEMENT_LABEL[tier];
+  if (!label) return null;
+  // Не primary: нейтральный статус нельзя красить фирменным красным.
+  const tone = tier === 0 ? 'success' : tier === 1 ? 'warning' : 'neutral';
+  return <Badge tone={tone}>{label}</Badge>;
 }
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
