@@ -65,6 +65,7 @@ import { BulkSendModal } from '../components/suppliers/BulkSendModal';
 import { RequestPricesModal } from '../components/suppliers/RequestPricesModal';
 import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppliers/SupplierMergeModal';
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
+import { conversationKeyOf } from '../components/suppliers/correspondenceInbox';
 import { PriceComparisonCard } from '../components/suppliers/PriceComparisonCard';
 import { PurchaseOrdersTab } from '../components/suppliers/PurchaseOrdersTab';
 import { PurchasesOverview, isNewPurchaseQuote } from '../components/suppliers/PurchasesOverview';
@@ -1202,6 +1203,8 @@ export function Suppliers() {
           params.delete('category');
           params.delete('offer');
           params.delete('order');
+          params.delete('supplier');
+          params.delete('filter');
         }
         return params;
       },
@@ -2600,6 +2603,22 @@ export function Suppliers() {
             orders={purchaseOrders}
             onOpenDetail={(o) => setDetailOfferId(o.id)}
             onAddSupplier={() => openNewOffer(null)}
+            onRequestPrices={() => setRequestPricesOpen(true)}
+            onOpenLetters={(offer) => {
+              setSearchParams(
+                (prev) => {
+                  const params = new URLSearchParams(prev);
+                  params.set('tab', SUPPLIER_TAB_SLUGS['Письма']);
+                  params.set('supplier', conversationKeyOf(offer));
+                  params.delete('filter');
+                  params.delete('offer');
+                  params.delete('order');
+                  params.delete('category');
+                  return params;
+                },
+                { replace: true },
+              );
+            }}
           />
         )}
 
