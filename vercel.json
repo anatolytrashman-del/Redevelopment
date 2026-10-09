@@ -100,7 +100,7 @@
       ]
     },
     {
-      "source": "/zakupki/(.*)",
+      "source": "/zakupki-static/(.*)",
       "headers": [
         {
           "key": "X-Robots-Tag",
