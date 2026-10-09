@@ -87,10 +87,7 @@
 
     .page {
       min-height: 100svh;
-      background:
-        radial-gradient(ellipse 70% 45% at 0% 0%, rgba(228, 21, 43, 0.06), transparent 55%),
-        radial-gradient(ellipse 50% 40% at 100% 20%, rgba(20, 21, 26, 0.04), transparent 50%),
-        var(--bg);
+      background: var(--bg);
     }
 
     /* —— Header (один раз) —— */
@@ -247,7 +244,7 @@
 
     .lede strong { color: var(--ink); font-weight: 700; }
 
-    /* Claude panel — справа в hero; оранж только у Anthropic-акцентов */
+    /* Claude panel — фирменный оранж Anthropic только здесь, не на фоне страницы */
     .claude-panel {
       display: flex;
       flex-direction: column;
@@ -256,8 +253,10 @@
       min-width: 0;
       padding: 1.35rem 1.4rem;
       border-radius: 1.25rem;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(217, 119, 87, 0.32);
+      background:
+        linear-gradient(165deg, rgba(255, 248, 244, 0.95) 0%, rgba(255, 236, 224, 0.92) 100%);
+      box-shadow: 0 8px 28px rgba(196, 90, 56, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
 
     .claude-panel-top {
