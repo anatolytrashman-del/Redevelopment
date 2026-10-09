@@ -79,6 +79,17 @@ export function fetchSupplierRequests(): Promise<SupplierRequest[]> {
   });
 }
 
+// Только нужные строки для карточки компании — не весь справочник категорий.
+export function fetchSupplierRequestsByIds(ids: string[]): Promise<SupplierRequest[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return Promise.resolve([]);
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('supplier_research_requests').select('*').in('id', unique);
+    if (error) throw error;
+    return (data as SupplierRequestRow[]).map(requestFromRow);
+  });
+}
+
 export interface SupplierRequestInput {
   title: string;
   group: SupplierRequestGroup;

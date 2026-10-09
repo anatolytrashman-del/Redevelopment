@@ -52,13 +52,14 @@ import {
 } from '../data/supplierResearch';
 import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '../data/supplierReliability';
 import { fetchSupplier, fetchSupplierMergeCandidates, mergeSuppliers, setSupplierBlocked } from '../lib/suppliersApi';
-import { fetchSupplierOffersByCompany, fetchSupplierRequests } from '../lib/supplierResearchApi';
+import { fetchSupplierOffersByCompany, fetchSupplierRequestsByIds } from '../lib/supplierResearchApi';
 import { fetchSupplierSiteSnapshot, requestSiteSnapshotRefresh } from '../lib/supplierSiteSnapshotsApi';
 import {
   checkSupplierReliability,
-  fetchSupplierReliability,
+  fetchSupplierReliabilityByInn,
   fetchSupplierReliabilityChecks,
 } from '../lib/supplierReliabilityApi';
+import { groupProductKindsByCatalog } from '../components/suppliers/groupProductKinds';
 import { SupplierOrdersSection } from '../components/suppliers/PurchaseOrdersTab';
 import { fetchSupplierOfferEmailsByOffers } from '../lib/supplierOfferEmailsApi';
 import { fetchSupplierQuotesByOffers, updateSupplierQuoteTerms } from '../lib/supplierQuotesApi';
@@ -644,6 +645,45 @@ function ProfileChips({
   );
 }
 
+// Виды товара блоками по плиткам каталога — метки категорий тонкие,
+// чтобы глаз цеплялся за раздел, а не за кричащий заголовок.
+function GroupedProductKinds({ kinds }: { kinds: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const groups = useMemo(() => groupProductKindsByCatalog(kinds), [kinds]);
+  if (!kinds.length) return null;
+
+  const flatFallback = groups.length === 1 && groups[0].category === 'Прочее';
+  if (flatFallback) {
+    return <ProfileChips title="Виды товара" values={kinds} limit={16} />;
+  }
+
+  const visible = expanded ? groups : groups.slice(0, 4);
+  const hiddenKinds = groups.slice(4).reduce((n, g) => n + g.kinds.length, 0);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Виды товара</h3>
+      {visible.map((group) => (
+        <div key={group.category} className="space-y-1.5">
+          <p className="text-[11px] leading-none text-ink-faint/80">{group.category}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {group.kinds.map((value) => (
+              <span key={value} className="rounded-lg bg-surface-muted px-2.5 py-1 text-sm text-ink">
+                {value}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+      {!expanded && groups.length > 4 && (
+        <button type="button" className="text-sm font-semibold text-ink-muted" onClick={() => setExpanded(true)}>
+          ещё {groups.length - 4} {groups.length - 4 === 1 ? 'категория' : 'категории'} · {hiddenKinds} видов
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function SupplierDetail() {
   const { id } = useParams();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
@@ -657,55 +697,71 @@ export function SupplierDetail() {
   const [checks, setChecks] = useState<SupplierReliabilityCheck[]>([]);
   const [orderCount, setOrderCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
     setLoading(true);
+    setDetailsLoading(true);
     setLoadError(null);
+    setSnapshot(null);
+    setReliability(null);
+    setEmails([]);
+    setQuotes([]);
+    setChecks([]);
+    setOrderCount(null);
+    setRequests([]);
     (async () => {
       try {
-        const [company, companyOffers, allRequests, companyContacts] = await Promise.all([
+        // Первый экран: кто это и контакты — без писем/КП/снимка.
+        const [company, companyOffers, companyContacts] = await Promise.all([
           fetchSupplier(id),
           fetchSupplierOffersByCompany(id),
-          fetchSupplierRequests(),
           fetchSupplierContacts(id),
         ]);
         if (cancelled) return;
+        if (!company) {
+          setSupplier(null);
+          setLoading(false);
+          setDetailsLoading(false);
+          return;
+        }
         setSupplier(company);
         setOffers(companyOffers);
-        setRequests(allRequests);
         setContacts(companyContacts);
+        setLoading(false);
 
-        // Снимок сайта и проверка реестра — вторым заходом: они нужны не
-        // всегда (компания без сайта, компания без ИНН) и не должны
-        // задерживать показ основного.
-        const host = company?.websiteHost ?? '';
-        const inn = (company?.inn ?? '').trim();
-        // Переписка, КП и история проверок — вторым заходом, вместе со
-        // снимком сайта: первый экран (кто это и чем занимается) не должен
-        // ждать писем.
+        const host = company.websiteHost ?? '';
+        const inn = (company.inn ?? '').trim();
         const offerIds = companyOffers.map((o) => o.id);
-        const [siteSnapshot, allChecks, companyEmails, companyQuotes, history, companyOrderCount] = await Promise.all([
-          host ? fetchSupplierSiteSnapshot(host) : Promise.resolve(null),
-          inn ? fetchSupplierReliability() : Promise.resolve([]),
-          fetchSupplierOfferEmailsByOffers(offerIds),
-          fetchSupplierQuotesByOffers(offerIds),
-          fetchSupplierReliabilityChecks(id),
-          fetchPurchaseOrderCountBySupplier(id).catch(() => null),
-        ]);
+        const requestIds = companyOffers.map((o) => o.requestId);
+        const [siteSnapshot, reliabilityRow, companyEmails, companyQuotes, history, companyOrderCount, relatedRequests] =
+          await Promise.all([
+            host ? fetchSupplierSiteSnapshot(host) : Promise.resolve(null),
+            inn ? fetchSupplierReliabilityByInn(inn) : Promise.resolve(null),
+            fetchSupplierOfferEmailsByOffers(offerIds),
+            fetchSupplierQuotesByOffers(offerIds),
+            fetchSupplierReliabilityChecks(id),
+            fetchPurchaseOrderCountBySupplier(id).catch(() => null),
+            fetchSupplierRequestsByIds(requestIds),
+          ]);
         if (cancelled) return;
         setSnapshot(siteSnapshot);
-        setReliability(allChecks.find((c) => c.inn === inn) ?? null);
+        setReliability(reliabilityRow);
         setEmails(companyEmails);
         setQuotes(companyQuotes);
         setChecks(history);
         setOrderCount(companyOrderCount);
+        setRequests(relatedRequests);
       } catch (err) {
         if (!cancelled) setLoadError(errorMessage(err, 'Не удалось загрузить поставщика'));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setDetailsLoading(false);
+        }
       }
     })();
     return () => {
@@ -756,6 +812,7 @@ export function SupplierDetail() {
       quotes={quotes}
       checks={checks}
       orderCount={orderCount}
+      detailsLoading={detailsLoading}
     />
   );
 }
@@ -778,6 +835,7 @@ export function SupplierDetailView({
   quotes,
   checks,
   orderCount,
+  detailsLoading = false,
 }: {
   supplier: Supplier;
   // Стоп-лист и перепроверка меняют саму компанию, поэтому представление
@@ -796,6 +854,7 @@ export function SupplierDetailView({
   quotes: SupplierQuote[];
   checks: SupplierReliabilityCheck[];
   orderCount: number | null;
+  detailsLoading?: boolean;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab: SupplierDetailTab = SLUG_TO_TAB[searchParams.get('tab') ?? ''] ?? 'Обзор';
@@ -1109,7 +1168,9 @@ export function SupplierDetailView({
   const lastTouchAt = [lastQuoteAt, lastEmailAt, activity[0]?.at].filter(Boolean).sort().at(-1) ?? null;
   const emailsOut = emails.filter((e) => e.direction === 'out').length;
   const emailsIn = emails.filter((e) => e.direction === 'in').length;
-  const replyRate = emailsOut > 0 ? Math.round((emailsIn / emailsOut) * 100) : null;
+  // Входящих может быть больше исходящих (несколько ответов на одно письмо) —
+  // процент ответов не выше 100 (владелец, 2026-10-09: у Банапала было 144%).
+  const replyRate = emailsOut > 0 ? Math.min(100, Math.round((emailsIn / emailsOut) * 100)) : null;
   const categoryTitles = [
     ...new Set(offers.map((o) => requestById.get(o.requestId)?.title).filter((t): t is string => Boolean(t))),
   ];
@@ -1241,6 +1302,12 @@ export function SupplierDetailView({
               {!!profile?.regions?.length && <span>Возит: {profile.regions.slice(0, 3).join(', ')}</span>}
               {lastTouchAt && <span>Контакт: {formatDate(lastTouchAt)}</span>}
               <span>В базе с {formatDate(supplier.createdAt)}</span>
+              {detailsLoading && (
+                <span className="inline-flex items-center gap-1 text-ink-faint">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  догружаем переписку…
+                </span>
+              )}
             </div>
             {(categoryTitles.length > 0 || replyRate != null || emails.length > 0) && (
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -1522,7 +1589,7 @@ export function SupplierDetailView({
                   limit={14}
                   products={profile.products ?? []}
                 />
-                <ProfileChips title="Виды товара" values={profile.product_kinds ?? []} limit={12} />
+                <GroupedProductKinds kinds={profile.product_kinds ?? []} />
                 {(supplier.supplierKind === 'dealer' || supplier.supplierKind === 'retail') && (
                   <ProfileChips title="Чужие марки" values={profile.resold_brands ?? []} />
                 )}
