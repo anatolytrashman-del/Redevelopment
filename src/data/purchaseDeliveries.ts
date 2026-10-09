@@ -68,6 +68,8 @@ export interface PurchaseDelivery {
   files: DocumentFile[];
   comment: string;
   createdBy: string;
+  // Тестовая поставка для демо стартового экрана закупок (миграция 20261009).
+  isTest: boolean;
   createdAt: string;
 }
 
@@ -88,6 +90,7 @@ export interface PurchaseDeliveryRow {
   files: DocumentFile[] | null;
   comment: string | null;
   created_by: string | null;
+  is_test?: boolean | null;
   created_at: string;
   deleted_at?: string | null;
 }
