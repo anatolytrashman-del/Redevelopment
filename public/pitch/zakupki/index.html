@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
-  <meta name="description" content="Умный модуль закупок стройматериалов — внутренний продукт платформы Redevelopment." />
-  <title>Умный модуль закупок — Redevelopment</title>
+  <meta name="description" content="Умный модуль закупки стройматериалов — внутренний продукт платформы Redevelopment." />
+  <title>Умный модуль закупки — Redevelopment</title>
   <style>
     @font-face {
       font-family: 'Montserrat';
@@ -388,15 +388,23 @@
     }
 
     .save-pill.loss {
-      background: rgba(20, 21, 26, 0.06);
-      color: var(--ink-muted);
       font-variant-numeric: tabular-nums;
+      font-weight: 700;
     }
 
-    .save-pill.loss.max {
-      background: rgba(20, 21, 26, 0.1);
-      color: var(--ink);
-      font-weight: 800;
+    .save-pill.loss.l1 {
+      background: rgba(21, 127, 66, 0.12);
+      color: #157f42;
+    }
+
+    .save-pill.loss.l2 {
+      background: rgba(180, 120, 20, 0.14);
+      color: #8a6410;
+    }
+
+    .save-pill.loss.l3 {
+      background: rgba(180, 70, 70, 0.12);
+      color: #9a4545;
     }
 
     .save-card h3 {
@@ -774,14 +782,13 @@
       <section class="glass hero rise">
         <div class="hero-copy">
           <p class="who-for">
-            Для <b>Михаила Зуева</b> · ООО&nbsp;«Матрёшка» ·
+            Для <b>Михаила Зуева</b> · <b>Основа</b> ·
             стройка в&nbsp;посёлке Зелёном
           </p>
           <h1>Умный модуль закупок стройматериалов</h1>
           <p class="lede">
-            Экономит на&nbsp;закупках и&nbsp;на&nbsp;ФОТ: больше конкуренции между поставщиками,
-            меньше ручной работы — решения принимает человек, рутину закрывает Claude.
-            Контур целиком: от&nbsp;заявки на&nbsp;закупку до&nbsp;материала на&nbsp;объекте.
+            Экономит на&nbsp;закупках и&nbsp;ФОТ: больше конкуренции между поставщиками,
+            меньше ручной работы. Решения принимает человек, рутину закрывает Claude.
           </p>
         </div>
         <aside class="claude-panel" aria-label="Claude">
@@ -790,10 +797,10 @@
             <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
           </div>
           <ul>
-            <li>Модели <strong>Anthropic</strong> — не&nbsp;самый дешёвый условный GigaChat</li>
-            <li>Действует только в&nbsp;<strong>заданных ситуациях</strong>: не&nbsp;экспериментирует и&nbsp;не&nbsp;выдумывает; незнакомый кейс отдаёт человеку</li>
-            <li><strong>Самообучается</strong> на типовых ситуациях: после трёх одинаковых решений правило уходит в&nbsp;автомат</li>
-            <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке, без кодинга</li>
+            <li>Модели <strong>Anthropic</strong> — не масс-маркет-чат</li>
+            <li>Действует только в&nbsp;<strong>заданных ситуациях</strong></li>
+            <li>Незнакомое отдаёт человеку; на типовом <strong>самообучается</strong></li>
+            <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке</li>
           </ul>
         </aside>
       </section>
@@ -801,7 +808,7 @@
       <!-- Как экономит деньги -->
       <section class="glass section rise rise-d1">
         <div class="section-head save-head">
-          <h2>Как модуль сэкономит деньги на&nbsp;стройке в&nbsp;пос.&nbsp;Зелёном и&nbsp;дальше</h2>
+          <h2>Как модуль сэкономит деньги на&nbsp;стройке в&nbsp;Зелёном и&nbsp;других проектах</h2>
         </div>
 
         <div class="save-grid">
@@ -809,13 +816,13 @@
             <div class="save-meta">
               <span class="save-pill stage">Этап 1 · ФОТ</span>
               <span class="save-pill live">Уже работает</span>
-              <span class="save-pill loss">потери: десятки тыс. ₽</span>
+              <span class="save-pill loss l1">приоритет · десятки тыс. ₽</span>
             </div>
             <h3>Сокращает затраты на ФОТ</h3>
             <p>
               Рутину закрывает Claude — закупщику остаются решения.
               На&nbsp;<strong>Зелёном</strong> вместо троих справится
-              <strong>один человек пару часов в&nbsp;день</strong>.
+              <strong>один человек за&nbsp;пару часов в&nbsp;день</strong>.
             </p>
           </article>
 
@@ -823,7 +830,7 @@
             <div class="save-meta">
               <span class="save-pill stage">Этап 2 · рынок</span>
               <span class="save-pill live">Уже работает</span>
-              <span class="save-pill loss">потери: сотни тыс. ₽</span>
+              <span class="save-pill loss l2">приоритет · сотни тыс. ₽</span>
             </div>
             <h3>Собирает цены у заводов и дилеров</h3>
             <p>
@@ -835,8 +842,8 @@
           <article class="save-card soon-card">
             <div class="save-meta">
               <span class="save-pill stage">Этап 3 · объект</span>
-              <span class="save-pill soon">Скоро</span>
-              <span class="save-pill loss max">потери: до млн ₽</span>
+              <span class="save-pill soon">Демо</span>
+              <span class="save-pill loss l3">приоритет · до млн ₽</span>
             </div>
             <h3>Приёмка сверит заказ и документы</h3>
             <p>
@@ -860,7 +867,7 @@
             <div class="sch-card">
               <p class="sch-who">Человек</p>
               <p class="sch-t">Пришла заявка на закупку</p>
-              <p class="sch-d">Руководитель стройки или владелец зафиксировал потребность</p>
+              <p class="sch-d">Руководитель стройки или Иван зафиксировал потребность</p>
             </div>
           </div>
           <div class="sch-step claude">
@@ -938,10 +945,10 @@
         </div>
       </section>
 
-      <!-- Новый уровень закупок -->
+      <!-- Автоматизация и ИИ -->
       <section class="glass section rise rise-d2">
         <div class="section-head">
-          <h2>Новый уровень закупок — за&nbsp;счёт автоматизации и&nbsp;ИИ</h2>
+          <h2>Что даёт автоматизация и&nbsp;ИИ</h2>
         </div>
 
         <div class="journey">
@@ -1027,19 +1034,36 @@
             <div class="j-n">05</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Поставка без дыр в закрывающих</h3>
+                <h3 class="j-t">Проверка контрагента по ИНН из КП</h3>
+              </div>
+              <p class="j-d">
+                ИНН берём не&nbsp;с&nbsp;сайта поставщика, а&nbsp;из&nbsp;<strong>фактически присланного КП</strong> —
+                кто реально выставил счёт. Проверка контрагента до&nbsp;согласования и оплаты.
+              </p>
+              <div class="viz">
+                <span class="viz-chip">КП → ИНН</span>
+                <span class="viz-chip ok">Проверка контрагента</span>
+                <span class="viz-chip">Не с сайта</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="j-step">
+            <div class="j-n">06</div>
+            <div class="j-body">
+              <div class="j-head">
+                <h3 class="j-t">На объект приехало всё, что оплатили</h3>
                 <span class="j-demo">Демо</span>
               </div>
               <p class="j-d">
-                План поставки у&nbsp;закупщика: счёт, платёжка, дата поставки, принимающий,
-                учёт закрывающих. Можно подключить <strong>любое ЭДО с&nbsp;API</strong>.
+                Главный риск — недовоз: привезли не&nbsp;всё, деньги ушли. Модуль сверяет заказ
+                с&nbsp;тем, что приняли на объекте, плюс план поставки: дата, принимающий,
+                закрывающие. Можно подключить <strong>любое ЭДО с&nbsp;API</strong>.
               </p>
               <div class="viz">
-                <span class="viz-chip ok">Счёт ✓</span>
-                <span class="viz-chip ok">Платёжка ✓</span>
-                <span class="viz-chip ok">Дата поставки ✓</span>
-                <span class="viz-chip ok">Принимающий ✓</span>
-                <span class="viz-chip ok">Учёт закрывающих ✓</span>
+                <span class="viz-chip ok">Заказано</span>
+                <span class="viz-chip ok">Принято на объекте</span>
+                <span class="viz-chip">Расхождение видно</span>
               </div>
             </div>
           </article>
