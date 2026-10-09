@@ -559,11 +559,11 @@
   "rewrites": [
     {
       "source": "/zakupki",
-      "destination": "/lp-zakupki.html"
+      "destination": "/zakupki.html"
     },
     {
       "source": "/zakupki/",
-      "destination": "/lp-zakupki.html"
+      "destination": "/zakupki.html"
     },
     {
       "source": "/api/telegram-webhook",
