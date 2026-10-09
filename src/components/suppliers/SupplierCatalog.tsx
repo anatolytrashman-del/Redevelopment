@@ -133,6 +133,7 @@ export function SupplierCatalog({
   offers,
   requests,
   snapshotByHost,
+  snapshotsLoading = false,
   emails,
   quotes,
   orders,
@@ -144,6 +145,8 @@ export function SupplierCatalog({
   offers: SupplierOffer[];
   requests: SupplierRequest[];
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
+  // Снимки сайтов ещё догружаются — хабы уже на экране, числа уточнятся.
+  snapshotsLoading?: boolean;
   emails: SupplierOfferEmail[];
   quotes: SupplierQuote[];
   orders: PurchaseOrder[];
@@ -375,7 +378,14 @@ export function SupplierCatalog({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-lg font-bold tracking-tight text-ink">Каталог поставщиков</span>
-          <span className="text-xs text-ink-muted">Сверху — с кем уже работали. Поиск — по карточке, бренду и позициям КП.</span>
+          <span className="text-xs text-ink-muted">
+            Сверху — с кем уже работали. Поиск — по карточке, бренду и позициям КП.
+            {snapshotsLoading && (
+              <span className="ml-1 inline-flex items-center gap-1 text-ink-faint">
+                · сверяем с сайтами…
+              </span>
+            )}
+          </span>
         </div>
         <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
           <Button type="button" icon={<Send className="h-4 w-4" />} onClick={onRequestPrices} className="px-4 py-1.5 text-sm">

@@ -1406,15 +1406,11 @@ export function Suppliers() {
   const reliabilityByInn = useMemo(() => new Map(reliability.map((r) => [r.inn, r])), [reliability]);
   // Снимки сайтов (что поставляет компания) — по домену, см.
   // data/supplierSiteSnapshots.ts; карточка находит свой по websiteUrl.
-  // Табл. большая (~1400 строк) и грузится отдельным независимым запросом
-  // (см. useEffect ниже) — заметно дольше, чем offers/requests, которые
-  // решают общий `loading`. Раньше `SupplierCatalog`/`SupplierVerificationTab`
-  // открывались сразу по `!loading`, ещё до того, как siteSnapshots долетели:
-  // числа на плитках каталога сперва считались только по "домашней" категории
-  // строки закупки (snapshotByHost пуст), а через момент подскакивали вверх,
-  // когда снимки дозагружались и добавляли совпадения по товарным группам —
-  // видимый баг "сначала маленькая цифра, потом большая" (владелец,
-  // 2026-09-13). siteSnapshotsLoading — отдельный флаг именно под это.
+  // Табл. большая (~1400 строк) и грузится отдельно. С 2026-10-09 каталог
+  // больше НЕ ждёт полный проход: хабы рисуются сразу по offers, а числа
+  // добираются по мере прихода страниц снимков (onPartial). Раньше ждали
+  // всё целиком из-за «прыжка» цифр (2026-09-13) — для демо важнее быстрый
+  // общий список; уточнение идёт полоской «Сверяем с сайтами…».
   const [siteSnapshots, setSiteSnapshots] = useState<SupplierSiteSnapshot[]>([]);
   const [siteSnapshotsLoading, setSiteSnapshotsLoading] = useState(true);
   const snapshotByHost = useMemo(() => new Map(siteSnapshots.map((s) => [s.host, s])), [siteSnapshots]);
@@ -1438,18 +1434,42 @@ export function Suppliers() {
   }
 
   useEffect(() => {
-    Promise.all([fetchSupplierRequests(), fetchSupplierOffers()])
-      .then(([r, o]) => {
-        setRequests(r);
-        setOffers(o);
+    let cancelled = false;
+    // Каталог открываем, как только есть первая порция карточек + запросы:
+    // не ждём хвост >1000 и не ждём снимки сайтов.
+    Promise.all([
+      fetchSupplierRequests().then((r) => {
+        if (!cancelled) setRequests(r);
+        return r;
+      }),
+      fetchSupplierOffers((partial) => {
+        if (cancelled) return;
+        setOffers(partial);
+        setLoading(false);
+      }),
+    ])
+      .then(([, o]) => {
+        if (!cancelled) setOffers(o);
       })
-      .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить поставщиков')))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!cancelled) setLoadError(errorMessage(err, 'Не удалось загрузить поставщиков'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     fetchSupplierReliability().then(setReliability).catch(() => setReliability([]));
-    fetchSupplierSiteSnapshots()
-      .then(setSiteSnapshots)
-      .catch(() => setSiteSnapshots([]))
-      .finally(() => setSiteSnapshotsLoading(false));
+    fetchSupplierSiteSnapshots((partial) => {
+      if (!cancelled) setSiteSnapshots(partial);
+    })
+      .then((all) => {
+        if (!cancelled) setSiteSnapshots(all);
+      })
+      .catch(() => {
+        if (!cancelled) setSiteSnapshots([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSiteSnapshotsLoading(false);
+      });
     fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchLegalEntities().then(setLegalEntities).catch(() => setLegalEntities([]));
@@ -1474,6 +1494,9 @@ export function Suppliers() {
     fetchPurchaseOrders().then(setPurchaseOrders).catch(() => setPurchaseOrders([]));
     fetchTodayRate().then(setRate).catch(() => setRate(undefined));
     fetchSupplierEnrichmentJobs().then(setEnrichmentJobs).catch(() => setEnrichmentJobs([]));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Владелец, 2026-10-09: в ведомости по умолчанию «Смета Зелёный» (общая
@@ -2578,7 +2601,7 @@ export function Suppliers() {
 
       {tab === 'Поставщики' && (
       <div className="mt-6 flex flex-col gap-8">
-        {(loading || siteSnapshotsLoading) && (
+        {loading && offers.length === 0 && (
           <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
             Загружаем поставщиков...
@@ -2586,18 +2609,15 @@ export function Suppliers() {
         )}
         {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
-        {/* Каталог поставщиков: хабы → категории → компании, как большие
-            карточки у ВсеИнструменты (владелец, 2026-09-12). Числа на плитках
-            считаются и по «домашним» карточкам категории, и по товарным
-            группам со снимков сайтов — см. components/suppliers/SupplierCatalog.
-            Ждём siteSnapshotsLoading, а не только loading — иначе цифры сперва
-            посчитаны без снимков сайтов (меньше) и через момент подскакивают
-            вверх, когда снимки дозагрузятся (см. комментарий у siteSnapshots). */}
-        {!loading && !loadError && !siteSnapshotsLoading && (
+        {/* Каталог: хабы сразу после первой порции offers. Снимки сайтов
+            догружаются частями — числа на плитках уточняются без блокировки
+            общего списка (владелец, 2026-10-09). */}
+        {!loadError && offers.length > 0 && (
           <SupplierCatalog
             offers={offers}
             requests={requests}
             snapshotByHost={snapshotByHost}
+            snapshotsLoading={siteSnapshotsLoading}
             emails={supplierEmails}
             quotes={supplierQuotes}
             orders={purchaseOrders}
@@ -2629,7 +2649,7 @@ export function Suppliers() {
             перезагружала бы всех поставщиков и снимки заново. Счётчик очереди
             переехал сюда же с верхней пилюли; когда очередь пуста, число не
             рисуем вовсе (0 в бейдже выглядел бы как «есть задача»). */}
-        {!loading && !loadError && !siteSnapshotsLoading && (
+        {!loadError && offers.length > 0 && (
           <button
             type="button"
             onClick={() => setTab('Верификация')}
@@ -2649,16 +2669,16 @@ export function Suppliers() {
 
       {tab === 'Верификация' && (
         <div className="mt-6">
-          {/* Тот же баг, что у каталога (см. комментарий у siteSnapshots) —
-              очередь верификации тоже читает snapshotByHost, ждём и её. */}
-          {(loading || siteSnapshotsLoading) && (
+          {/* Верификация тоже не ждёт полный проход снимков: очередь живая
+              по уже пришедшим страницам, остальное дорисуется. */}
+          {loading && offers.length === 0 && (
             <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
               Загружаем поставщиков...
             </Card>
           )}
           {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-          {!loading && !loadError && !siteSnapshotsLoading && (
+          {!loadError && offers.length > 0 && (
             <SupplierVerificationTab
               offers={offers}
               snapshots={siteSnapshots}

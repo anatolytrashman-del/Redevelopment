@@ -48,7 +48,11 @@ const COLUMNS =
 // выглядело это не как ошибка, а как «сайт ещё не разобран».
 const SNAPSHOTS_PAGE_SIZE = 1000;
 
-export function fetchSupplierSiteSnapshots(): Promise<SupplierSiteSnapshot[]> {
+// onPartial — страница за страницей: каталог уже на экране, числа на плитках
+// добираются по мере прихода снимков (владелец, 2026-10-09: не ждать всё).
+export function fetchSupplierSiteSnapshots(
+  onPartial?: (snapshots: SupplierSiteSnapshot[]) => void,
+): Promise<SupplierSiteSnapshot[]> {
   return withRetry(async () => {
     const { count, error: countError } = await supabase
       .from('supplier_site_snapshots')
@@ -56,12 +60,21 @@ export function fetchSupplierSiteSnapshots(): Promise<SupplierSiteSnapshot[]> {
     if (countError) throw countError;
 
     const total = count ?? 0;
-    if (total === 0) return [];
+    if (total === 0) {
+      onPartial?.([]);
+      return [];
+    }
 
     const pageStarts: number[] = [];
     for (let from = 0; from < total; from += SNAPSHOTS_PAGE_SIZE) pageStarts.push(from);
 
-    const pages = await Promise.all(
+    const byHost = new Map<string, SupplierSiteSnapshot>();
+    const emit = () => {
+      if (!onPartial) return;
+      onPartial([...byHost.values()]);
+    };
+
+    await Promise.all(
       pageStarts.map(async (from) => {
         const { data, error } = await supabase
           .from('supplier_site_snapshots')
@@ -69,10 +82,14 @@ export function fetchSupplierSiteSnapshots(): Promise<SupplierSiteSnapshot[]> {
           .order('host', { ascending: true })
           .range(from, from + SNAPSHOTS_PAGE_SIZE - 1);
         if (error) throw error;
-        return ((data ?? []) as unknown as SupplierSiteSnapshotRow[]).map(fromRow);
+        for (const row of (data ?? []) as unknown as SupplierSiteSnapshotRow[]) {
+          const snap = fromRow(row);
+          byHost.set(snap.host, snap);
+        }
+        emit();
       }),
     );
-    return pages.flat();
+    return [...byHost.values()];
   });
 }
 
