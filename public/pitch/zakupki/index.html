@@ -156,9 +156,16 @@
     /* —— Hero —— */
     .hero {
       display: grid;
-      gap: 1.75rem;
-      padding: 1.75rem 1.5rem;
+      gap: 1.5rem;
+      padding: 1.35rem 1.15rem;
       align-items: stretch;
+    }
+
+    @media (min-width: 640px) {
+      .hero {
+        gap: 1.75rem;
+        padding: 1.75rem 1.5rem;
+      }
     }
 
     @media (min-width: 900px) {
@@ -191,21 +198,22 @@
     }
 
     h1 {
-      margin: 0 0 1.35rem;
-      font-size: 1.7rem;
+      margin: 0 0 1.1rem;
+      font-size: 1.45rem;
       font-weight: 800;
-      line-height: 1.2;
+      line-height: 1.22;
       letter-spacing: -0.02em;
       color: var(--ink);
       max-width: none;
+      overflow-wrap: anywhere;
     }
 
     @media (min-width: 640px) {
-      h1 { font-size: 2.2rem; }
+      h1 { font-size: 2.1rem; margin-bottom: 1.35rem; overflow-wrap: normal; }
     }
 
     @media (min-width: 900px) {
-      h1 { font-size: 2.4rem; }
+      h1 { font-size: 2.35rem; }
     }
 
     .lede {
@@ -293,7 +301,7 @@
 
     /* —— Section shell —— */
     .section {
-      padding: 1.5rem;
+      padding: 1.25rem 1.1rem;
     }
 
     @media (min-width: 640px) {
@@ -320,6 +328,14 @@
 
     @media (min-width: 1100px) {
       .save-head h2 { white-space: nowrap; }
+    }
+
+    @media (max-width: 639px) {
+      .save-pill { font-size: 0.64rem; }
+      .claude-panel { padding: 1.15rem 1.1rem; }
+      .claude-panel li { font-size: 0.82rem; }
+      .sch-d { font-size: 0.74rem; }
+      .wrap { padding-left: 0.85rem; padding-right: 0.85rem; }
     }
 
     .section-head p {
@@ -447,7 +463,7 @@
       top: 0.9rem;
       bottom: 0.9rem;
       width: 2px;
-      background: linear-gradient(180deg, var(--border), rgba(217, 119, 87, 0.45), var(--border));
+      background: linear-gradient(180deg, var(--border), rgba(20, 21, 26, 0.18), var(--border));
     }
 
     .sch-step {
@@ -561,8 +577,9 @@
       justify-content: center;
       font-size: 0.85rem;
       font-weight: 800;
-      color: var(--primary);
-      background: var(--primary-soft);
+      color: var(--ink-muted);
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
       letter-spacing: -0.02em;
     }
 
@@ -578,10 +595,16 @@
 
     .j-t {
       margin: 0;
-      font-size: 1.05rem;
+      font-size: 0.98rem;
       font-weight: 800;
       color: var(--ink);
       letter-spacing: -0.015em;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    @media (min-width: 640px) {
+      .j-t { font-size: 1.05rem; overflow-wrap: normal; }
     }
 
     .j-demo {
@@ -675,46 +698,40 @@
     .rank-row.win .rn { color: var(--success); }
     .rank-row .rp { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-    /* Excel pain mock */
+    /* Было: искали файл в чате */
     .excel-pain {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.7rem;
       margin-top: 0.9rem;
-      padding: 0.75rem 0.9rem;
+      padding: 0.7rem 0.85rem;
       border-radius: 0.9rem;
-      border: 1px dashed rgba(210, 30, 52, 0.35);
-      background: rgba(253, 227, 229, 0.45);
-      max-width: 28rem;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.85);
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    @media (min-width: 640px) {
+      .excel-pain { max-width: 28rem; }
     }
 
     .excel-icon {
       flex-shrink: 0;
-      width: 2.4rem;
-      height: 2.85rem;
-      border-radius: 0.35rem 0.55rem 0.35rem 0.35rem;
-      background: linear-gradient(160deg, #21a366, #107c41);
-      box-shadow: 0 4px 12px rgba(16, 124, 65, 0.25);
-      position: relative;
+      width: 2.35rem;
+      height: 2.35rem;
+      border-radius: 0.65rem;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
       display: flex;
-      align-items: flex-end;
+      align-items: center;
       justify-content: center;
-      padding-bottom: 0.35rem;
-      color: #fff;
-      font-size: 0.65rem;
+      color: var(--ink-muted);
+      font-size: 0.58rem;
       font-weight: 800;
       letter-spacing: -0.02em;
-    }
-
-    .excel-icon::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 0;
-      border-width: 0 0.55rem 0.55rem 0;
-      border-style: solid;
-      border-color: transparent #0b5c30 transparent transparent;
-      filter: brightness(1.15);
+      line-height: 1.1;
+      text-align: center;
     }
 
     .excel-meta {
@@ -730,6 +747,13 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .excel-sub {
+      margin: 0.2rem 0 0;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--ink-faint);
     }
 
     .clicks {
@@ -757,7 +781,7 @@
       font-size: 0.68rem;
       font-weight: 700;
       letter-spacing: 0.04em;
-      color: var(--primary);
+      color: var(--ink-muted);
     }
 
     .click .ct {
@@ -785,10 +809,10 @@
             Для <b>Михаила Зуева</b> · <b>Основа</b> ·
             стройка в&nbsp;посёлке Зелёном
           </p>
-          <h1>Умный модуль закупок стройматериалов</h1>
+          <h1>Умный модуль закупки стройматериалов</h1>
           <p class="lede">
             Экономит на&nbsp;закупках и&nbsp;ФОТ: больше конкуренции между поставщиками,
-            меньше ручной работы. Решения принимает человек, рутину закрывает Claude.
+            меньше ручной работы. Решения принимает человек, рутину закрывает&nbsp;Claude.
           </p>
         </div>
         <aside class="claude-panel" aria-label="Claude">
@@ -808,7 +832,7 @@
       <!-- Как экономит деньги -->
       <section class="glass section rise rise-d1">
         <div class="section-head save-head">
-          <h2>Как модуль сэкономит деньги на&nbsp;стройке в&nbsp;Зелёном и&nbsp;других проектах</h2>
+          <h2>Как модуль сэкономит деньги на&nbsp;стройке в&nbsp;Зелёном и других проектах</h2>
         </div>
 
         <div class="save-grid">
@@ -956,16 +980,18 @@
             <div class="j-n">01</div>
             <div class="j-body">
               <div class="j-head">
-                <h3 class="j-t">Одна ведомость вместо файловой каши</h3>
+                <h3 class="j-t">Актуальная ведомость всегда в&nbsp;модуле — не&nbsp;в&nbsp;переписке</h3>
               </div>
               <p class="j-d">
-                Заявка от руководителя стройки живёт в&nbsp;модуле. Изменения видит закупщик сразу —
-                <strong>нет пересылки «финальных» Excel</strong> и&nbsp;<strong>нет ошибок при заказе</strong>.
+                Не&nbsp;надо искать последнюю версию в&nbsp;чате Битрикса.
+                Изменения видит закупщик сразу — <strong>нет пересылки</strong>
+                и&nbsp;<strong>нет ошибок при заказе</strong>.
               </p>
               <div class="excel-pain" title="Как было без платформы">
-                <div class="excel-icon" aria-hidden="true">XLS</div>
+                <div class="excel-icon" aria-hidden="true">чат</div>
                 <div class="excel-meta">
                   <p class="excel-name">ведомость радиаторы финальная (3).xlsx</p>
+                  <p class="excel-sub">искали в&nbsp;чате Битрикса</p>
                 </div>
               </div>
             </div>
