@@ -7,169 +7,639 @@
     }
   },
   "functions": {
-    "api/transcribe.js": { "maxDuration": 300 },
-    "api/purchase-email-webhook.js": { "maxDuration": 300 },
-    "api/meeting-ai.js": { "maxDuration": 300 },
-    "api/supplier-web-search.js": { "maxDuration": 300 },
-    "api/tinypng-compress.js": { "maxDuration": 30 },
-    "api/telegram-avatar.js": { "maxDuration": 120 }
+    "api/transcribe.js": {
+      "maxDuration": 300
+    },
+    "api/purchase-email-webhook.js": {
+      "maxDuration": 300
+    },
+    "api/meeting-ai.js": {
+      "maxDuration": 300
+    },
+    "api/supplier-web-search.js": {
+      "maxDuration": 300
+    },
+    "api/tinypng-compress.js": {
+      "maxDuration": 30
+    },
+    "api/telegram-avatar.js": {
+      "maxDuration": 120
+    }
   },
   "headers": [
     {
       "source": "/assets/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
       "source": "/fonts/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
       "source": "/images/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000"
+        }
+      ]
     },
     {
       "source": "/icons/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=2592000"
+        }
+      ]
     },
     {
       "source": "/og/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
     },
     {
       "source": "/data/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=600, must-revalidate" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=600, must-revalidate"
+        }
+      ]
     },
     {
       "source": "/minsk/tc/store/(.*)",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }]
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
     },
     {
       "source": "/pitch/(.*)",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     },
     {
       "source": "/zakupki/(.*)",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     },
     {
       "source": "/zakupki",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "redirects": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
       "destination": "https://redevelopment.pro/$1",
       "permanent": true
     },
-    { "source": "/pitch/zakupki", "destination": "/zakupki", "permanent": true },
-    { "source": "/pitch/zakupki/(.*)", "destination": "/zakupki/$1", "permanent": true },
-    { "source": "/", "destination": "/minsk", "permanent": false },
-    { "source": "/one", "destination": "/minsk/one", "permanent": true },
-    { "source": "/redstorage", "destination": "/minsk/redstorage", "permanent": true },
-    { "source": "/rayon-minsk-mir", "destination": "/minsk/minsk-mir", "permanent": true },
-    { "source": "/minsk/bcminsk/reyting{/}?", "destination": "/minsk/bc/rating", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/grushevka{/}?", "destination": "/minsk/bc/metro/grushevka", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/uruchye{/}?", "destination": "/minsk/bc/metro/uruchye", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/kamennaya-gorka{/}?", "destination": "/minsk/bc/metro/kamennaya-gorka", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/suharevo{/}?", "destination": "/minsk/bc/street/lobanka", "permanent": true },
-    { "source": "/minsk/bcminsk/stroyashchiesya{/}?", "destination": "/minsk/bc/new", "permanent": true },
-    { "source": "/minsk/bcminsk/gid{/}?", "destination": "/minsk/bc/guide", "permanent": true },
-    { "source": "/minsk/bcminsk/rating/samye-dostupnye{/}?", "destination": "/minsk/bc/rating/affordable", "permanent": true },
-    { "source": "/minsk/bcminsk/rating/samye-bolshie{/}?", "destination": "/minsk/bc/rating/largest", "permanent": true },
-    { "source": "/minsk/bcminsk/rating/b-plus{/}?", "destination": "/minsk/bc/rating/class-b-plus", "permanent": true },
-    { "source": "/minsk/bcminsk/rating/b-c{/}?", "destination": "/minsk/bc/rating/class-b-c", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/pr-t-pobediteley{/}?", "destination": "/minsk/bc/street/prospekt-pobediteley", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/pr-t-nezavisimosti{/}?", "destination": "/minsk/bc/street/prospekt-nezavisimosti", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/pr-t-dzerzhinskogo{/}?", "destination": "/minsk/bc/street/prospekt-dzerzhinskogo", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-pritytskogo{/}?", "destination": "/minsk/bc/street/pritytskogo", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-surganova{/}?", "destination": "/minsk/bc/street/surganova", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-platonova{/}?", "destination": "/minsk/bc/street/platonova", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-klary-tsetkin{/}?", "destination": "/minsk/bc/street/klary-tsetkin", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/per-kozlova{/}?", "destination": "/minsk/bc/street/pereulok-kozlova", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/pr-t-partizanskiy{/}?", "destination": "/minsk/bc/street/prospekt-partizanskiy", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-horuzhey{/}?", "destination": "/minsk/bc/street/horuzhey", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-filimonova{/}?", "destination": "/minsk/bc/street/filimonova", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-nemiga{/}?", "destination": "/minsk/bc/street/nemiga", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-melezha{/}?", "destination": "/minsk/bc/street/melezha", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-tolbuhina{/}?", "destination": "/minsk/bc/street/tolbuhina", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-zheleznodorozhnaya{/}?", "destination": "/minsk/bc/street/zheleznodorozhnaya", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-internatsionalnaya{/}?", "destination": "/minsk/bc/street/internatsionalnaya", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-lobanka{/}?", "destination": "/minsk/bc/street/lobanka", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-olshevskogo{/}?", "destination": "/minsk/bc/street/olshevskogo", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-sverdlova{/}?", "destination": "/minsk/bc/street/sverdlova", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-skryganova{/}?", "destination": "/minsk/bc/street/skryganova", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-timiryazeva{/}?", "destination": "/minsk/bc/street/timiryazeva", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/ul-skoriny{/}?", "destination": "/minsk/bc/street/skoriny", "permanent": true },
-    { "source": "/minsk/bcminsk/ulitsa/:slug{/}?", "destination": "/minsk/bc/street/:slug", "permanent": true },
-    { "source": "/minsk/bcminsk/raion/:slug{/}?", "destination": "/minsk/bc/district/:slug", "permanent": true },
-    { "source": "/minsk/bcminsk/class/:cls/raion/:slug{/}?", "destination": "/minsk/bc/class/:cls/district/:slug", "permanent": true },
-    { "source": "/minsk/bcminsk/microrayon/:slug{/}?", "destination": "/minsk/bc/area/:slug", "permanent": true },
-    { "source": "/minsk/bcminsk/port-2{/}?", "destination": "/minsk/bc/port", "permanent": true },
-    { "source": "/minsk/bcminsk{/}?", "destination": "/minsk/bc", "permanent": true },
-    { "source": "/minsk/bcminsk/:path*{/}?", "destination": "/minsk/bc/:path*", "permanent": true },
-    { "source": "/minsk/bc/reyting{/}?", "destination": "/minsk/bc/rating", "permanent": true },
-    { "source": "/minsk/bc/port-2{/}?", "destination": "/minsk/bc/port", "permanent": true },
-    { "source": "/minsk/bc/area/grushevka{/}?", "destination": "/minsk/bc/metro/grushevka", "permanent": true },
-    { "source": "/minsk/bc/area/uruchye{/}?", "destination": "/minsk/bc/metro/uruchye", "permanent": true },
-    { "source": "/minsk/bc/area/kamennaya-gorka{/}?", "destination": "/minsk/bc/metro/kamennaya-gorka", "permanent": true },
-    { "source": "/minsk/bc/area/suharevo{/}?", "destination": "/minsk/bc/street/lobanka", "permanent": true },
-    { "source": "/minsk/bc/stroyashchiesya{/}?", "destination": "/minsk/bc/new", "permanent": true },
-    { "source": "/minsk/bc/gid{/}?", "destination": "/minsk/bc/guide", "permanent": true },
-    { "source": "/minsk/bc/rating/samye-dostupnye{/}?", "destination": "/minsk/bc/rating/affordable", "permanent": true },
-    { "source": "/minsk/bc/rating/samye-bolshie{/}?", "destination": "/minsk/bc/rating/largest", "permanent": true },
-    { "source": "/minsk/bc/rating/b-plus{/}?", "destination": "/minsk/bc/rating/class-b-plus", "permanent": true },
-    { "source": "/minsk/bc/rating/b-c{/}?", "destination": "/minsk/bc/rating/class-b-c", "permanent": true },
-    { "source": "/minsk/tc/with/zara{/}?", "destination": "/minsk/tc/store/zara", "permanent": true },
-    { "source": "/minsk/tc/with/gold-apple{/}?", "destination": "/minsk/tc/store/gold-apple", "permanent": true },
-    { "source": "/minsk/tc/with/bershka{/}?", "destination": "/minsk/tc/store/bershka", "permanent": true },
-    { "source": "/minsk/tc/with/nike{/}?", "destination": "/minsk/tc/store/nike", "permanent": true },
-    { "source": "/minsk/tc/with/adidas{/}?", "destination": "/minsk/tc/store/adidas", "permanent": true },
-    { "source": "/minsk/tc/with/massimo-dutti{/}?", "destination": "/minsk/tc/store/massimo-dutti", "permanent": true },
-    { "source": "/minsk/tc/with/stradivarius{/}?", "destination": "/minsk/tc/store/stradivarius", "permanent": true },
-    { "source": "/minsk/tc/with/gloria-jeans{/}?", "destination": "/minsk/tc/store/gloria-jeans", "permanent": true },
-    { "source": "/minsk/tc/with/sinsay{/}?", "destination": "/minsk/tc/store/sinsay", "permanent": true },
-    { "source": "/minsk/tc/with/new-yorker{/}?", "destination": "/minsk/tc/store/new-yorker", "permanent": true },
-    { "source": "/minsk/tc/with/lc-waikiki{/}?", "destination": "/minsk/tc/store/lc-waikiki", "permanent": true },
-    { "source": "/minsk/tc/with/pull-and-bear{/}?", "destination": "/minsk/tc/store/pull-and-bear", "permanent": true },
-    { "source": "/minsk/tc/with/sportmaster{/}?", "destination": "/minsk/tc/store/sportmaster", "permanent": true },
-    { "source": "/minsk/tc/with/mango{/}?", "destination": "/minsk/tc/store/mango", "permanent": true },
-    { "source": "/minsk/tc/with/reserved{/}?", "destination": "/minsk/tc/store/reserved", "permanent": true },
-    { "source": "/minsk/tc/with/cropp{/}?", "destination": "/minsk/tc/store/cropp", "permanent": true },
-    { "source": "/minsk/tc/with/house{/}?", "destination": "/minsk/tc/store/house", "permanent": true },
-    { "source": "/minsk/tc/with/defacto{/}?", "destination": "/minsk/tc/store/defacto", "permanent": true },
-    { "source": "/minsk/tc/with/mohito{/}?", "destination": "/minsk/tc/store/mohito", "permanent": true },
-    { "source": "/minsk/tc/with/oysho{/}?", "destination": "/minsk/tc/store/oysho", "permanent": true },
-    { "source": "/minsk/tc/with/familia{/}?", "destination": "/minsk/tc/store/familia", "permanent": true },
-    { "source": "/minsk/tc/with/milavitsa{/}?", "destination": "/minsk/tc/store/milavitsa", "permanent": true },
-    { "source": "/minsk/tc/with/mark-formelle{/}?", "destination": "/minsk/tc/store/mark-formelle", "permanent": true },
-    { "source": "/minsk/tc/with/kari{/}?", "destination": "/minsk/tc/store/kari", "permanent": true },
-    { "source": "/minsk/tc/with/detmir{/}?", "destination": "/minsk/tc/store/detmir", "permanent": true },
-    { "source": "/minsk/tc/with/5-element{/}?", "destination": "/minsk/tc/store/5-element", "permanent": true },
-    { "source": "/minsk/tc/with/miniso{/}?", "destination": "/minsk/tc/store/miniso", "permanent": true }
+    {
+      "source": "/pitch/zakupki",
+      "destination": "/zakupki",
+      "permanent": true
+    },
+    {
+      "source": "/pitch/zakupki/(.*)",
+      "destination": "/zakupki/$1",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "destination": "/minsk",
+      "permanent": false
+    },
+    {
+      "source": "/one",
+      "destination": "/minsk/one",
+      "permanent": true
+    },
+    {
+      "source": "/redstorage",
+      "destination": "/minsk/redstorage",
+      "permanent": true
+    },
+    {
+      "source": "/rayon-minsk-mir",
+      "destination": "/minsk/minsk-mir",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/reyting{/}?",
+      "destination": "/minsk/bc/rating",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/grushevka{/}?",
+      "destination": "/minsk/bc/metro/grushevka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/uruchye{/}?",
+      "destination": "/minsk/bc/metro/uruchye",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/kamennaya-gorka{/}?",
+      "destination": "/minsk/bc/metro/kamennaya-gorka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/suharevo{/}?",
+      "destination": "/minsk/bc/street/lobanka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/stroyashchiesya{/}?",
+      "destination": "/minsk/bc/new",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/gid{/}?",
+      "destination": "/minsk/bc/guide",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/rating/samye-dostupnye{/}?",
+      "destination": "/minsk/bc/rating/affordable",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/rating/samye-bolshie{/}?",
+      "destination": "/minsk/bc/rating/largest",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/rating/b-plus{/}?",
+      "destination": "/minsk/bc/rating/class-b-plus",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/rating/b-c{/}?",
+      "destination": "/minsk/bc/rating/class-b-c",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/pr-t-pobediteley{/}?",
+      "destination": "/minsk/bc/street/prospekt-pobediteley",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/pr-t-nezavisimosti{/}?",
+      "destination": "/minsk/bc/street/prospekt-nezavisimosti",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/pr-t-dzerzhinskogo{/}?",
+      "destination": "/minsk/bc/street/prospekt-dzerzhinskogo",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-pritytskogo{/}?",
+      "destination": "/minsk/bc/street/pritytskogo",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-surganova{/}?",
+      "destination": "/minsk/bc/street/surganova",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-platonova{/}?",
+      "destination": "/minsk/bc/street/platonova",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-klary-tsetkin{/}?",
+      "destination": "/minsk/bc/street/klary-tsetkin",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/per-kozlova{/}?",
+      "destination": "/minsk/bc/street/pereulok-kozlova",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/pr-t-partizanskiy{/}?",
+      "destination": "/minsk/bc/street/prospekt-partizanskiy",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-horuzhey{/}?",
+      "destination": "/minsk/bc/street/horuzhey",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-filimonova{/}?",
+      "destination": "/minsk/bc/street/filimonova",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-nemiga{/}?",
+      "destination": "/minsk/bc/street/nemiga",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-melezha{/}?",
+      "destination": "/minsk/bc/street/melezha",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-tolbuhina{/}?",
+      "destination": "/minsk/bc/street/tolbuhina",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-zheleznodorozhnaya{/}?",
+      "destination": "/minsk/bc/street/zheleznodorozhnaya",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-internatsionalnaya{/}?",
+      "destination": "/minsk/bc/street/internatsionalnaya",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-lobanka{/}?",
+      "destination": "/minsk/bc/street/lobanka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-olshevskogo{/}?",
+      "destination": "/minsk/bc/street/olshevskogo",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-sverdlova{/}?",
+      "destination": "/minsk/bc/street/sverdlova",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-skryganova{/}?",
+      "destination": "/minsk/bc/street/skryganova",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-timiryazeva{/}?",
+      "destination": "/minsk/bc/street/timiryazeva",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/ul-skoriny{/}?",
+      "destination": "/minsk/bc/street/skoriny",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/ulitsa/:slug{/}?",
+      "destination": "/minsk/bc/street/:slug",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/raion/:slug{/}?",
+      "destination": "/minsk/bc/district/:slug",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/class/:cls/raion/:slug{/}?",
+      "destination": "/minsk/bc/class/:cls/district/:slug",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/microrayon/:slug{/}?",
+      "destination": "/minsk/bc/area/:slug",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/port-2{/}?",
+      "destination": "/minsk/bc/port",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk{/}?",
+      "destination": "/minsk/bc",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/:path*{/}?",
+      "destination": "/minsk/bc/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/reyting{/}?",
+      "destination": "/minsk/bc/rating",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/port-2{/}?",
+      "destination": "/minsk/bc/port",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/area/grushevka{/}?",
+      "destination": "/minsk/bc/metro/grushevka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/area/uruchye{/}?",
+      "destination": "/minsk/bc/metro/uruchye",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/area/kamennaya-gorka{/}?",
+      "destination": "/minsk/bc/metro/kamennaya-gorka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/area/suharevo{/}?",
+      "destination": "/minsk/bc/street/lobanka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/stroyashchiesya{/}?",
+      "destination": "/minsk/bc/new",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/gid{/}?",
+      "destination": "/minsk/bc/guide",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/rating/samye-dostupnye{/}?",
+      "destination": "/minsk/bc/rating/affordable",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/rating/samye-bolshie{/}?",
+      "destination": "/minsk/bc/rating/largest",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/rating/b-plus{/}?",
+      "destination": "/minsk/bc/rating/class-b-plus",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/rating/b-c{/}?",
+      "destination": "/minsk/bc/rating/class-b-c",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/zara{/}?",
+      "destination": "/minsk/tc/store/zara",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/gold-apple{/}?",
+      "destination": "/minsk/tc/store/gold-apple",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/bershka{/}?",
+      "destination": "/minsk/tc/store/bershka",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/nike{/}?",
+      "destination": "/minsk/tc/store/nike",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/adidas{/}?",
+      "destination": "/minsk/tc/store/adidas",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/massimo-dutti{/}?",
+      "destination": "/minsk/tc/store/massimo-dutti",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/stradivarius{/}?",
+      "destination": "/minsk/tc/store/stradivarius",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/gloria-jeans{/}?",
+      "destination": "/minsk/tc/store/gloria-jeans",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/sinsay{/}?",
+      "destination": "/minsk/tc/store/sinsay",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/new-yorker{/}?",
+      "destination": "/minsk/tc/store/new-yorker",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/lc-waikiki{/}?",
+      "destination": "/minsk/tc/store/lc-waikiki",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/pull-and-bear{/}?",
+      "destination": "/minsk/tc/store/pull-and-bear",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/sportmaster{/}?",
+      "destination": "/minsk/tc/store/sportmaster",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/mango{/}?",
+      "destination": "/minsk/tc/store/mango",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/reserved{/}?",
+      "destination": "/minsk/tc/store/reserved",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/cropp{/}?",
+      "destination": "/minsk/tc/store/cropp",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/house{/}?",
+      "destination": "/minsk/tc/store/house",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/defacto{/}?",
+      "destination": "/minsk/tc/store/defacto",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/mohito{/}?",
+      "destination": "/minsk/tc/store/mohito",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/oysho{/}?",
+      "destination": "/minsk/tc/store/oysho",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/familia{/}?",
+      "destination": "/minsk/tc/store/familia",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/milavitsa{/}?",
+      "destination": "/minsk/tc/store/milavitsa",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/mark-formelle{/}?",
+      "destination": "/minsk/tc/store/mark-formelle",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/kari{/}?",
+      "destination": "/minsk/tc/store/kari",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/detmir{/}?",
+      "destination": "/minsk/tc/store/detmir",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/5-element{/}?",
+      "destination": "/minsk/tc/store/5-element",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/with/miniso{/}?",
+      "destination": "/minsk/tc/store/miniso",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/api/telegram-webhook", "destination": "/api/telegram-avatar" },
-    { "source": "/api/import-business-center-reviews", "destination": "/api/exchange-rate" },
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/tz/(.*)", "destination": "/tz.html" },
-    { "source": "/estimate/(.*)", "destination": "/estimate.html" },
-    { "source": "/plan/(.*)", "destination": "/plan.html" },
-    { "source": "/summary/(.*)", "destination": "/summary.html" },
-    { "source": "/business-upload", "destination": "/business-upload.html" },
-    { "source": "/favorites/(.*)", "destination": "/favorites.html" },
-    { "source": "/bc/:slug", "destination": "/minsk/bc/:slug/index.html" },
-    { "source": "/admin/objects/(.*)", "destination": "/admin/objects/index.html" },
-    { "source": "/admin/estimates/(.*)", "destination": "/admin/estimates/index.html" },
-    { "source": "/admin/finmodels/(.*)", "destination": "/admin/finmodels/index.html" },
-    { "source": "/admin/design-projects/(.*)", "destination": "/admin/design-projects/index.html" },
-    { "source": "/admin/documents/(.*)", "destination": "/admin/documents/index.html" },
-    { "source": "/admin/meeting-summaries/(.*)", "destination": "/admin/meeting-summaries/index.html" },
-    { "source": "/admin/transactions/(.*)", "destination": "/admin/transactions/index.html" },
-    { "source": "/admin/(.*)", "destination": "/admin/index.html" },
-    { "source": "/zakupki", "destination": "/zakupki/index.html" },
-    { "source": "/zakupki/", "destination": "/zakupki/index.html" },
-    { "source": "/((?!\\.well-known/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/telegram-webhook",
+      "destination": "/api/telegram-avatar"
+    },
+    {
+      "source": "/api/import-business-center-reviews",
+      "destination": "/api/exchange-rate"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/tz/(.*)",
+      "destination": "/tz.html"
+    },
+    {
+      "source": "/estimate/(.*)",
+      "destination": "/estimate.html"
+    },
+    {
+      "source": "/plan/(.*)",
+      "destination": "/plan.html"
+    },
+    {
+      "source": "/summary/(.*)",
+      "destination": "/summary.html"
+    },
+    {
+      "source": "/business-upload",
+      "destination": "/business-upload.html"
+    },
+    {
+      "source": "/favorites/(.*)",
+      "destination": "/favorites.html"
+    },
+    {
+      "source": "/bc/:slug",
+      "destination": "/minsk/bc/:slug/index.html"
+    },
+    {
+      "source": "/admin/objects/(.*)",
+      "destination": "/admin/objects/index.html"
+    },
+    {
+      "source": "/admin/estimates/(.*)",
+      "destination": "/admin/estimates/index.html"
+    },
+    {
+      "source": "/admin/finmodels/(.*)",
+      "destination": "/admin/finmodels/index.html"
+    },
+    {
+      "source": "/admin/design-projects/(.*)",
+      "destination": "/admin/design-projects/index.html"
+    },
+    {
+      "source": "/admin/documents/(.*)",
+      "destination": "/admin/documents/index.html"
+    },
+    {
+      "source": "/admin/meeting-summaries/(.*)",
+      "destination": "/admin/meeting-summaries/index.html"
+    },
+    {
+      "source": "/admin/transactions/(.*)",
+      "destination": "/admin/transactions/index.html"
+    },
+    {
+      "source": "/admin/(.*)",
+      "destination": "/admin/index.html"
+    },
+    {
+      "source": "/zakupki",
+      "destination": "/zakupki.html"
+    },
+    {
+      "source": "/zakupki/",
+      "destination": "/zakupki.html"
+    },
+    {
+      "source": "/((?!\\.well-known/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
