@@ -558,6 +558,14 @@
   ],
   "rewrites": [
     {
+      "source": "/zakupki",
+      "destination": "/zakupki.html"
+    },
+    {
+      "source": "/zakupki/",
+      "destination": "/zakupki.html"
+    },
+    {
       "source": "/api/telegram-webhook",
       "destination": "/api/telegram-avatar"
     },
@@ -628,14 +636,6 @@
     {
       "source": "/admin/(.*)",
       "destination": "/admin/index.html"
-    },
-    {
-      "source": "/zakupki",
-      "destination": "/zakupki.html"
-    },
-    {
-      "source": "/zakupki/",
-      "destination": "/zakupki.html"
     },
     {
       "source": "/((?!\\.well-known/).*)",
