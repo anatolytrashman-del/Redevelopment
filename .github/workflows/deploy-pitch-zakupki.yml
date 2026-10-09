@@ -9,8 +9,8 @@ on:
       - preview
       - 'cursor/**'
     paths:
-      - 'public/zakupki.html
-      - 'public/zakupki-static/**''
+      - 'public/zakupki.html'
+      - 'public/zakupki-static/**'
       - '.github/workflows/deploy-pitch-zakupki.yml'
   workflow_dispatch:
 
