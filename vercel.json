@@ -4,7 +4,8 @@
       "**": false,
       "main": true,
       "claude/redevelopment-platform-prototype-oodobu": true,
-      "preview": true
+      "preview": true,
+      "cursor/**": true
     }
   },
   "functions": {
