@@ -83,8 +83,10 @@ import { tradeCenterPaths } from './_tcPaths.mjs';
 import {
   DEPLOYED_SITE_MODE,
   MALLS_ORIGIN,
+  OFFICES_ORIGIN,
   PLATFORM_ORIGIN,
   REDIRECT_MALLS_ENABLED,
+  REDIRECT_OFFICES_ENABLED,
 } from './domainSplit.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
@@ -92,6 +94,8 @@ const DIST_DIR = join(ROOT_DIR, 'dist');
 const PORT = 4173;
 const BASE_URL = `http://localhost:${PORT}`;
 const IS_MALLS_DEPLOY = DEPLOYED_SITE_MODE === 'malls';
+const IS_OFFICES_DEPLOY = DEPLOYED_SITE_MODE === 'offices';
+const IS_CATALOG_DEPLOY = IS_MALLS_DEPLOY || IS_OFFICES_DEPLOY;
 
 // Публичный anon-ключ (см. src/lib/supabase.ts) — тот же, что зашит в
 // клиентский бандл, отдельного секрета для сборки не требует.
@@ -103,10 +107,14 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_
 // api/*.js) — новый секрет от владельца не требуется.
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Источник эталонных снапшотов ТЦ — всегда платформа (там уже полный
-// пререндер каталога). Для malllist копии переписываем на MALLS_ORIGIN.
+// Источник эталонных снапшотов каталогов — всегда платформа (там уже полный
+// пререндер). Для malllist/officelist копии переписываем на свой origin.
 const SITE_ORIGIN = PLATFORM_ORIGIN;
-const PUBLIC_ORIGIN = IS_MALLS_DEPLOY ? MALLS_ORIGIN : PLATFORM_ORIGIN;
+const PUBLIC_ORIGIN = IS_MALLS_DEPLOY
+  ? MALLS_ORIGIN
+  : IS_OFFICES_DEPLOY
+    ? OFFICES_ORIGIN
+    : PLATFORM_ORIGIN;
 // Сборка, запущенная Deploy Hook'ом (реальное изменение данных), должна
 // успеть дойти до этой проверки, пока triggered_at ещё «свежий» — щедрый
 // запас на очередь Vercel + предыдущие шаги сборки (tsc/vite build/сгенери-
@@ -208,12 +216,13 @@ const ALWAYS_FULL_RENDER_PATHS = new Set(
   IS_MALLS_DEPLOY ? ['', 'minsk/minsk-mir', 'minsk/one'] : ['minsk/minsk-mir', 'minsk/one'],
 );
 
-/** Копия с платформы → URL/бренд malllist (каноникал, og, JSON-LD). */
+/** Копия с платформы → URL/бренд каталожного домена (каноникал, og, JSON-LD). */
 function rewriteSnapshotForPublicOrigin(html) {
-  if (!IS_MALLS_DEPLOY || PUBLIC_ORIGIN === SITE_ORIGIN) return html;
+  if (!IS_CATALOG_DEPLOY || PUBLIC_ORIGIN === SITE_ORIGIN) return html;
+  const brand = IS_MALLS_DEPLOY ? 'MallList' : 'OfficeList';
   return html
     .replaceAll(SITE_ORIGIN, PUBLIC_ORIGIN)
-    .replace(/(<meta property="og:site_name" content=")[^"]*(")/, '$1MallList$2');
+    .replace(/(<meta property="og:site_name" content=")[^"]*(")/, `$1${brand}$2`);
 }
 
 const STATIC_PATHS = [
@@ -864,15 +873,21 @@ const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел Б�
 async function decidePrerenderMode() {
   if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
   if (process.env.PRERENDER_FORCE_FULL === '1') return { full: true, scope: 'all', reason: 'PRERENDER_FORCE_FULL=1' };
-  // malllist: эталон ТЦ уже на платформе — копируем снапшоты оттуда
-  // (adoptBuildAssets + rewrite origin), главную рендерим честно
-  // (ALWAYS_FULL_RENDER_PATHS содержит ''). Полный headless ~165 путей
+  // malllist / officelist: эталон каталога уже на платформе — копируем
+  // снапшоты оттуда (adoptBuildAssets + rewrite origin). Полный headless
   // здесь не нужен: разметка каталога та же, что на redevelopment.pro.
   if (IS_MALLS_DEPLOY) {
     return {
       full: false,
       scope: 'all',
       reason: 'malls: копия ТЦ с платформы + честный рендер главной',
+    };
+  }
+  if (IS_OFFICES_DEPLOY) {
+    return {
+      full: false,
+      scope: 'all',
+      reason: 'offices: копия БЦ с платформы',
     };
   }
   if (!process.env.VERCEL) {
@@ -1033,7 +1048,7 @@ async function fetchPathLive(path) {
     const dir = path ? join(DIST_DIR, path) : DIST_DIR;
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'index.html'), rewritten);
-    const label = IS_MALLS_DEPLOY ? 'скопировано с платформы' : 'скопировано с прода';
+    const label = IS_CATALOG_DEPLOY ? 'скопировано с платформы' : 'скопировано с прода';
     console.log(`[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${label}, ${Math.round(rewritten.length / 1024)} КБ)`);
     return { ok: true };
   } catch (err) {
@@ -1057,24 +1072,37 @@ async function main() {
   }
   if (!existsSync(DIST_DIR)) throw new Error('dist/ не найден — запускать после vite build');
 
-  const landingPaths = IS_MALLS_DEPLOY ? [] : await fetchLandingPaths();
-  // malllist: только главная + privacy + каталог ТЦ (эталонные снапшоты
-  // копируются с платформы). Остальной сайт на этом деплое не отдаётся.
-  // Платформа при redirects.malls: ТЦ не пререндерим — иначе статика в
-  // dist/minsk/tc могла бы ответить 200 до Edge-редиректа.
+  const landingPaths = IS_CATALOG_DEPLOY ? [] : await fetchLandingPaths();
+  // malllist: только главная + privacy + каталог ТЦ.
+  // officelist: privacy + каталог БЦ (корень редиректит на /minsk/bc).
+  // Платформа при redirects.*: уехавший каталог не пререндерим — иначе
+  // статика в dist могла бы ответить 200 до Edge-редиректа.
   const includeTcOnPlatform = !REDIRECT_MALLS_ENABLED;
+  const includeBcOnPlatform = !REDIRECT_OFFICES_ENABLED;
+  const bcCatalogPaths = async () => [
+    ...(await fetchBusinessCenterPaths()),
+    ...(await fetchClassDistrictComboPaths()),
+    ...(await fetchMicrodistrictHubPaths()),
+    ...(await fetchMetroHubPaths()),
+    ...(await fetchStreetHubPaths()),
+  ];
   const paths = IS_MALLS_DEPLOY
     ? ['', 'privacy', ...tradeCenterCatalogPaths()]
-    : [
-        ...landingPaths,
-        ...(await fetchBusinessCenterPaths()),
-        ...(await fetchClassDistrictComboPaths()),
-        ...(await fetchMicrodistrictHubPaths()),
-        ...(await fetchMetroHubPaths()),
-        ...(await fetchStreetHubPaths()),
-        ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
-        ...STATIC_PATHS,
-      ];
+    : IS_OFFICES_DEPLOY
+      ? [
+          'privacy',
+          ...STATIC_PATHS.filter((p) => p === 'minsk/bc' || p.startsWith('minsk/bc/')),
+          ...(await bcCatalogPaths()),
+        ]
+      : [
+          ...landingPaths,
+          ...(includeBcOnPlatform ? await bcCatalogPaths() : []),
+          ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
+          ...STATIC_PATHS.filter((p) => {
+            if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
+            return true;
+          }),
+        ];
   if (paths.length === 0) {
     console.warn('[prerender] пререндерить нечего — нет ни объектов с landing_slug, ни статических страниц');
     return;
@@ -1083,8 +1111,17 @@ async function main() {
     console.log(
       `[prerender] режим malls: ${paths.length} путей (главная + privacy + ТЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
     );
-  } else if (REDIRECT_MALLS_ENABLED) {
-    console.log('[prerender] redirects.malls: каталог ТЦ не пререндерю (живёт на malllist.pro)');
+  } else if (IS_OFFICES_DEPLOY) {
+    console.log(
+      `[prerender] режим offices: ${paths.length} путей (privacy + БЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
+    );
+  } else if (REDIRECT_MALLS_ENABLED || REDIRECT_OFFICES_ENABLED) {
+    if (REDIRECT_MALLS_ENABLED) {
+      console.log('[prerender] redirects.malls: каталог ТЦ не пререндерю (живёт на malllist.pro)');
+    }
+    if (REDIRECT_OFFICES_ENABLED) {
+      console.log('[prerender] redirects.offices: каталог БЦ не пререндерю (живёт на officelist.pro)');
+    }
   }
   // PRERENDER_ONLY=префикс[,префикс…] — только для локальных замеров/отладки:
   // оставить пути, начинающиеся с одного из префиксов (например
@@ -1104,7 +1141,15 @@ async function main() {
   // деплой, но полный список пропущенных путей всё равно печатается ниже.
   const criticalPaths = IS_MALLS_DEPLOY
     ? new Set(['', 'privacy', 'minsk/tc'])
-    : new Set([...landingPaths, ...STATIC_PATHS]);
+    : IS_OFFICES_DEPLOY
+      ? new Set(['privacy', 'minsk/bc'])
+      : new Set([
+          ...landingPaths,
+          ...STATIC_PATHS.filter((p) => {
+            if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
+            return true;
+          }),
+        ]);
 
   // История (важно для будущих правок этого файла, четыре захода подряд):
   // 1) Исходно — новый браузер на КАЖДУЮ страницу и КАЖДУЮ попытку. Со

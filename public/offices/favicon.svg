@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OfficeList">
+  <!-- Redevelopment-style tile: rounded square + mark O. Brand red. -->
+  <rect width="64" height="64" rx="14" fill="#e4152b" />
+  <text
+    x="32"
+    y="34"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="Arial Black, Arial, Helvetica, sans-serif"
+    font-weight="900"
+    font-size="40"
+    fill="#ffffff"
+  >O</text>
+</svg>

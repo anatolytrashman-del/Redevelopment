@@ -56,6 +56,19 @@
       ]
     },
     {
+      "source": "/sitemap-offices.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
       "source": "/assets/(.*)",
       "headers": [
         {
@@ -646,26 +659,6 @@
     }
   ],
   "rewrites": [
-    {
-      "source": "/sitemap.xml",
-      "has": [
-        {
-          "type": "host",
-          "value": "officelist.pro"
-        }
-      ],
-      "destination": "/sitemap-offices.xml"
-    },
-    {
-      "source": "/sitemap.xml",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.officelist.pro"
-        }
-      ],
-      "destination": "/sitemap-offices.xml"
-    },
     {
       "source": "/zakupki",
       "destination": "/zakupki.html"

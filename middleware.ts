@@ -164,6 +164,10 @@ const MALLLIST_NOT_FOUND_HTML = NOT_FOUND_HTML
   .replace('— REDEVELOPMENT', '— MallList')
   .replace('<b>RED</b>EVELOPMENT', 'Mall<span style="color:#e4152b">List</span>');
 
+const OFFICELIST_NOT_FOUND_HTML = NOT_FOUND_HTML
+  .replace('— REDEVELOPMENT', '— OfficeList')
+  .replace('<b>RED</b>EVELOPMENT', 'Office<span style="color:#e4152b">List</span>');
+
 export const config = {
   runtime: 'edge',
 };
@@ -189,6 +193,31 @@ function isMallsSitePath(pathname: string): boolean {
   if (normalized === '/privacy') return true;
   if (normalized === '/favorites' || normalized.startsWith('/favorites/')) return true;
   if (normalized === '/minsk/tc' || normalized.startsWith('/minsk/tc/')) return true;
+  if (normalized === '/api' || normalized.startsWith('/api/')) return true;
+  if (normalized === '/_vercel' || normalized.startsWith('/_vercel/')) return true;
+  if (normalized === '/.well-known' || normalized.startsWith('/.well-known/')) return true;
+  if (
+    normalized === '/robots.txt' ||
+    normalized === '/sitemap.xml' ||
+    normalized === '/favicon.ico' ||
+    normalized === '/favicon.svg' ||
+    normalized === '/favicon.png' ||
+    normalized === '/apple-touch-icon.png'
+  ) {
+    return true;
+  }
+  return hasKnownStaticExtension(normalized);
+}
+
+/** Пути отдельного проекта officelist (только каталог БЦ). */
+function isOfficesSitePath(pathname: string): boolean {
+  const normalized = normalizePathname(pathname);
+  if (normalized === '/' || normalized === '') return true;
+  if (normalized === '/privacy') return true;
+  if (normalized === '/favorites' || normalized.startsWith('/favorites/')) return true;
+  if (normalized === '/minsk/bc' || normalized.startsWith('/minsk/bc/')) return true;
+  if (normalized === '/minsk/bcminsk' || normalized.startsWith('/minsk/bcminsk/')) return true;
+  if (normalized === '/bc' || normalized.startsWith('/bc/')) return true;
   if (normalized === '/api' || normalized.startsWith('/api/')) return true;
   if (normalized === '/_vercel' || normalized.startsWith('/_vercel/')) return true;
   if (normalized === '/.well-known' || normalized.startsWith('/.well-known/')) return true;
@@ -251,6 +280,25 @@ export default function middleware(request: Request) {
     if (normalized === '/' || normalized === '' || normalized === '/minsk') {
       return Response.redirect(new URL('/minsk/bc', url), 307);
     }
+    if (pathname === '/robots.txt') {
+      return new Response(`${CATALOG_ROBOTS}Sitemap: https://officelist.pro/sitemap.xml\n`, {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'public, max-age=600',
+        },
+      });
+    }
+    if (!isOfficesSitePath(pathname)) {
+      return new Response(OFFICELIST_NOT_FOUND_HTML, {
+        status: 404,
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+        },
+      });
+    }
+    return next();
   }
 
   if (siteMode === 'platform' && (normalized === '/' || normalized === '')) {

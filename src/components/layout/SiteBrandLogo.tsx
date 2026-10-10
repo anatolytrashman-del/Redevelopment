@@ -5,25 +5,29 @@ import { deployedSiteMode } from '../../lib/sites';
 /**
  * Текстовый логотип сайта.
  * Платформа: RED(красным)EVELOPMENT.
- * Malllist: как CasinoList — то же начертание у обеих частей, List только цветом.
+ * Malllist / Officelist: то же начертание у обеих частей, List только цветом.
  */
 export function SiteBrandLogo({
   to,
   className,
   as = 'link',
 }: {
-  /** Куда ведёт клик. По умолчанию: malls → `/`, иначе `/minsk`. */
+  /** Куда ведёт клик. По умолчанию: malls → `/`, offices → `/minsk/bc`, иначе `/minsk`. */
   to?: string;
   className?: string;
   /** `span` — без ссылки (например, центрированная шапка хаба). */
   as?: 'link' | 'span';
 }) {
   const mode = deployedSiteMode();
-  const href = to ?? (mode === 'malls' ? '/' : '/minsk');
+  const href = to ?? (mode === 'malls' ? '/' : mode === 'offices' ? '/minsk/bc' : '/minsk');
   const mark =
     mode === 'malls' ? (
       <>
         Mall<span className="text-primary">List</span>
+      </>
+    ) : mode === 'offices' ? (
+      <>
+        Office<span className="text-primary">List</span>
       </>
     ) : (
       <>

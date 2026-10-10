@@ -13,6 +13,10 @@ import { catalogOrigin, DEPLOYED_SITE_MODE, REDIRECT_MALLS_ENABLED } from './dom
 
 // На платформе после переезда ТЦ шеллы /minsk/tc/store/* не кладём в dist —
 // иначе статикой мог бы уехать 200 вместо 301 на malllist.
+if (DEPLOYED_SITE_MODE === 'offices') {
+  console.log('[tc-store-seo-shells] режим offices — пропускаю (ТЦ не на этом деплое)');
+  process.exit(0);
+}
 if (DEPLOYED_SITE_MODE === 'platform' && REDIRECT_MALLS_ENABLED) {
   console.log('[tc-store-seo-shells] redirects.malls — пропускаю (шеллы только на malllist)');
   process.exit(0);
