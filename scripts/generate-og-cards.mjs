@@ -56,7 +56,7 @@ const SKIP_FILES = new Set(['index.html', '404.html']);
 // страницы уже однозначно говорит, что это за раздел.
 function sectionKicker(path) {
   if (DEPLOYED_SITE_MODE === 'malls') {
-    if (path.startsWith('minsk/tc')) return 'Независимый каталог торговых центров · MallList';
+    if (path.startsWith('minsk/tc')) return 'Каталог торговых центров · MallList';
     if (path === 'privacy') return 'Политика конфиденциальности · MallList';
     return 'MallList · malllist.pro';
   }
