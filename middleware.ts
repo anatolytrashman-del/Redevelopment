@@ -206,15 +206,22 @@ export default function middleware(request: Request) {
   const { pathname } = url;
   const host = request.headers.get('host') ?? url.host;
   // Edge: дублируем VITE_PUBLIC_SITE в PUBLIC_SITE на Vercel (см. docs/domain-split.md).
-  const edgeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
-    ?.env;
-  const siteMode = normalizeSiteMode(edgeEnv?.PUBLIC_SITE || edgeEnv?.VITE_PUBLIC_SITE);
+  const gProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  const siteMode = normalizeSiteMode(gProcess?.env?.PUBLIC_SITE || gProcess?.env?.VITE_PUBLIC_SITE);
 
   // Отдельный Vercel-проект malllist: корень → каталог ТЦ, чужие пути — 404.
+  // Важно: в vercel.json есть redirect "/" → "/minsk" (для платформы). На
+  // malllist он срабатывает раньше SPA; поэтому и "/", и голый "/minsk"
+  // явно ведём на /minsk/tc, иначе главная домена выглядит «мёртвой».
   if (siteMode === 'malls') {
     const normalized = normalizePathname(pathname);
-    if (normalized === '/' || normalized === '') {
-      return Response.redirect(new URL('/minsk/tc', url).toString(), 302);
+    if (
+      normalized === '/' ||
+      normalized === '' ||
+      normalized === '/minsk'
+    ) {
+      const target = new URL('/minsk/tc', url);
+      return Response.redirect(target, 307);
     }
     if (pathname === '/robots.txt') {
       return new Response(`${CATALOG_ROBOTS}Sitemap: https://malllist.pro/sitemap.xml\n`, {
