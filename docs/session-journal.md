@@ -3,6 +3,11 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — БЦ cutover на officelist.pro.** `redirects.offices=true`:
+  301 с redevelopment → officelist, sitemap платформы без `/minsk/bc`,
+  IndexNow `indexnow-offices-migration.mjs`. Vercel-проект officelist
+  из Redevelopment, Production Branch `main` (= tip oodobu).
+
 - **2026-10-10 — officelist: режим PUBLIC_SITE=offices.** Как malllist:
   OfficelistRoutes, middleware path-filter, shell/brand (фавикон O),
   пререндер БЦ с платформы + OG, sitemap только `/minsk/bc…`. Редиректы

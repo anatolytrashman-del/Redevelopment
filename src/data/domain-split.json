@@ -2,7 +2,7 @@
   "enabled": false,
   "redirects": {
     "malls": true,
-    "offices": false
+    "offices": true
   },
   "verifications": {
     "malls": {
