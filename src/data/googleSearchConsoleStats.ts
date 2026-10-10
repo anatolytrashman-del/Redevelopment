@@ -12,8 +12,13 @@
 // нет API для истории этого показателя по дням) — в остальных строках null.
 // impressions/clicks/avgPosition могут быть null, если Search Console ещё
 // не обработал этот день (обычный лаг 2-3 дня).
+import type { PageViewSiteId } from './pageViews';
+
+export type GscSiteId = PageViewSiteId;
+
 export interface GoogleSearchConsoleStat {
   date: string;
+  site: GscSiteId;
   pagesSubmitted: number | null;
   pagesIndexed: number | null;
   impressions: number | null;
@@ -23,6 +28,7 @@ export interface GoogleSearchConsoleStat {
 
 export interface GoogleSearchConsoleStatRow {
   date: string;
+  site: string;
   pages_submitted: number | null;
   pages_indexed: number | null;
   impressions: number | null;
@@ -44,6 +50,7 @@ export interface GoogleSearchConsoleStatRow {
 // объяснять это причиной, а не молчаливым «данных нет».
 export interface GoogleSearchConsoleQuery {
   query: string;
+  site: GscSiteId;
   impressions: number | null;
   clicks: number | null;
   ctr: number | null;
@@ -55,6 +62,7 @@ export interface GoogleSearchConsoleQuery {
 
 export interface GoogleSearchConsoleQueryRow {
   query: string;
+  site: string;
   impressions: number | null;
   clicks: number | null;
   ctr: number | null;
@@ -69,6 +77,7 @@ export interface GoogleSearchConsoleQueryRow {
 // от разбивки по запросам. Старые адреса каталога синк уже свёл к новым.
 export interface GoogleSearchConsolePage {
   page: string;
+  site: GscSiteId;
   impressions: number | null;
   clicks: number | null;
   avgPosition: number | null;
@@ -78,6 +87,7 @@ export interface GoogleSearchConsolePage {
 
 export interface GoogleSearchConsolePageRow {
   page: string;
+  site: string;
   impressions: number | null;
   clicks: number | null;
   ctr: number | null;

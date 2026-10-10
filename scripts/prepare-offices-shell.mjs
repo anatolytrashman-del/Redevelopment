@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEPLOYED_SITE_MODE, OFFICES_ORIGIN } from './domainSplit.mjs';
+import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 
 if (DEPLOYED_SITE_MODE !== 'offices') {
   process.exit(0);
@@ -101,6 +102,8 @@ html = html
     `<div id="root"><h1>${escapeHtml(TITLE)}</h1><p>${escapeHtml(DESCRIPTION)}</p><p><a href="/minsk/bc">Каталог Минска</a></p></div>`,
   );
 
+html = stripThirdPartyAnalytics(html);
+
 writeFileSync(indexPath, html);
 writeFileSync(join(DIST_DIR, '404.html'), html);
-console.log('[prepare-offices-shell] dist/index.html и 404.html — meta OfficeList');
+console.log('[prepare-offices-shell] dist/index.html и 404.html — meta OfficeList, без Метрики/VK');

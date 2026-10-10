@@ -13,8 +13,13 @@
 // supabase/functions/sync-yandex-webmaster). pagesInSearch за сегодняшний
 // день — живое число страниц в поиске, за прошлые дни — история от
 // Яндекса, которая обновляется по апдейтам поисковой базы и отстаёт.
+import type { PageViewSiteId } from './pageViews';
+
+export type WebmasterSiteId = PageViewSiteId;
+
 export interface YandexWebmasterStat {
   date: string;
+  site: WebmasterSiteId;
   pagesInSearch: number | null;
   impressions: number | null;
   clicks: number | null;
@@ -24,6 +29,7 @@ export interface YandexWebmasterStat {
 
 export interface YandexWebmasterStatRow {
   date: string;
+  site: string;
   pages_in_search: number | null;
   impressions: number | null;
   clicks: number | null;
@@ -46,6 +52,7 @@ export interface YandexWebmasterStatRow {
 // синка (позицию клика считать не по чему).
 export interface YandexWebmasterQuery {
   query: string;
+  site: WebmasterSiteId;
   impressions: number | null;
   clicks: number | null;
   avgPosition: number | null;
@@ -57,6 +64,7 @@ export interface YandexWebmasterQuery {
 
 export interface YandexWebmasterQueryRow {
   query: string;
+  site: string;
   impressions: number | null;
   clicks: number | null;
   avg_position: number | null;
