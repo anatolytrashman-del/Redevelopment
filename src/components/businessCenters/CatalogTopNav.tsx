@@ -65,8 +65,8 @@ function CatalogNavLink({
 // ВАЖНО про «остальной сайт»: владелец там же — «по остальному сайту ещё
 // продумаем». Шапка сознательно НЕ ставится на /minsk, остальные
 // /minsk/analytics/* и продающие лендинги. Исключение — /minsk/minsk-mir
-// (гид по району): с 2026-10-10 живёт на officelist, пункт «Аналитика по
-// районам» в шапке БЦ.
+// (гид по району): с 2026-10-10 живёт на officelist; в шапке БЦ — общая
+// вкладка «Аналитика» (Коммерция в Минск Мире + рынок БЦ).
 
 // Метро — особый случай: не плоский список, а группы по ветке со своим
 // цветным кружком (владелец, 2026-09-22: «расположи по веткам с цветным
@@ -106,7 +106,7 @@ export type CatalogTopNavProps = {
 type TopNavEntry =
   | { kind: 'link'; to: string; label: string }
   | { kind: 'ratings' }
-  | { kind: 'districts' };
+  | { kind: 'analytics' };
 
 // Каталоги БЦ и ТЦ — соседние вкладки шапки (владелец, 2026-09-23:
 // «каталоги БЦ и ТЦ будут разными вкладками»). Кнопка с выпадающим меню —
@@ -114,8 +114,7 @@ type TopNavEntry =
 // Аналитика и справочник — только у БЦ; рейтинги есть у обоих каталогов.
 const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
   bc: [
-    { kind: 'link', to: '/minsk/bc/analytics', label: 'Аналитика' },
-    { kind: 'districts' },
+    { kind: 'analytics' },
     { kind: 'ratings' },
     { kind: 'link', to: '/minsk/bc/guide', label: 'Справочник' },
     { kind: 'link', to: '/minsk/tc', label: 'Торговые центры' },
@@ -128,10 +127,11 @@ const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
   ],
 };
 
-// «Аналитика по районам» — выпадающий список (владелец, 2026-10-10):
-// пункт в шапке, внутри — Минск Мир (позже другие районы).
-const DISTRICT_ANALYTICS_LINKS: { to: string; label: string }[] = [
-  { to: '/minsk/minsk-mir', label: 'Минск Мир' },
+// Одна вкладка «Аналитика» (владелец, 2026-10-10): без отдельного пункта
+// «Аналитика по районам», чтобы не путать с рынком БЦ.
+const ANALYTICS_LINKS: { to: string; label: string }[] = [
+  { to: '/minsk/minsk-mir', label: 'Коммерция в Минск Мире' },
+  { to: '/minsk/bc/analytics', label: 'Рынок БЦ' },
 ];
 
 // «Рейтинги» — единственный пункт с подменю (владелец, 2026-09-22: «добавляй
@@ -234,7 +234,7 @@ function NavDropdown({
       {open && (
         <div
           id={panelId}
-          className="absolute left-0 top-full z-50 mt-1 min-w-[210px] rounded-xl border border-border bg-bg py-2"
+          className="absolute left-0 top-full z-50 mt-1 min-w-[240px] rounded-xl border border-border bg-bg py-2"
           style={{ boxShadow: '0 16px 32px rgba(0,0,0,0.12)' }}
         >
           {links.map((link) => (
@@ -261,8 +261,11 @@ function ratingsLinkActive(pathname: string, to: string): boolean {
   return pathname === to;
 }
 
-function districtLinkActive(pathname: string, to: string): boolean {
-  return pathname === to || pathname.startsWith(`${to}/`);
+function analyticsLinkActive(pathname: string, to: string): boolean {
+  if (to === '/minsk/minsk-mir') {
+    return pathname === to || pathname.startsWith(`${to}/`);
+  }
+  return pathname === to;
 }
 
 export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffsetClassName }: CatalogTopNavProps) {
@@ -335,14 +338,14 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     | Extract<TopNavEntry, { kind: 'link' }>
     | undefined;
   const ratingsActive = ratingLinks.some((l) => ratingsLinkActive(pathname, l.to));
-  const districtsActive = DISTRICT_ANALYTICS_LINKS.some((l) => districtLinkActive(pathname, l.to));
+  const analyticsActive = ANALYTICS_LINKS.some((l) => analyticsLinkActive(pathname, l.to));
   // Всё остальное под /minsk/bc (каталог, хабы, карточки) плюс
-  // избранное — это «Бизнес-центры». Страницы рейтингов и гидов по
-  // районам исключены — иначе подсвечивались бы сразу два пункта шапки.
+  // избранное — это «Бизнес-центры». Страницы рейтингов и аналитики
+  // исключены — иначе подсвечивались бы сразу два пункта шапки.
   const catalogActive =
     !activeTop &&
     !ratingsActive &&
-    !districtsActive &&
+    !analyticsActive &&
     (pathname === V.basePath || pathname.startsWith(`${V.basePath}/`) || pathname.startsWith('/favorites/'));
 
   const linkClass = (active: boolean) =>
@@ -403,14 +406,14 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
                 links={ratingLinks}
                 isActive={ratingsLinkActive}
               />
-            ) : entry.kind === 'districts' ? (
+            ) : entry.kind === 'analytics' ? (
               <NavDropdown
-                key="districts"
-                label="Аналитика по районам"
-                panelId="districts-menu-panel"
+                key="analytics"
+                label="Аналитика"
+                panelId="analytics-menu-panel"
                 pathname={pathname}
-                links={DISTRICT_ANALYTICS_LINKS}
-                isActive={districtLinkActive}
+                links={ANALYTICS_LINKS}
+                isActive={analyticsLinkActive}
               />
             ) : (
               <CatalogNavLink
@@ -571,50 +574,47 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
               значит, попасть в них можно лишь отсюда. */}
           <div className="flex flex-col gap-0.5 border-t border-border pt-4 md:hidden">
             {topLinks.map((entry) =>
-              entry.kind === 'ratings' || entry.kind === 'districts' ? (
+              entry.kind === 'ratings' || entry.kind === 'analytics' ? (
                 <div key={entry.kind} className="flex flex-col gap-0.5">
                   <button
                     type="button"
-                    aria-expanded={expandedGroup === (entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика по районам')}
+                    aria-expanded={expandedGroup === (entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика')}
                     onClick={() =>
                       setExpandedGroup((v) => {
-                        const key = entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика по районам';
+                        const key = entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика';
                         return v === key ? null : key;
                       })
                     }
                     className={cn(
                       'flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-surface-muted',
-                      (entry.kind === 'ratings' ? ratingsActive : districtsActive)
+                      (entry.kind === 'ratings' ? ratingsActive : analyticsActive)
                         ? 'text-ink'
                         : 'text-ink-muted hover:text-ink',
                     )}
                   >
-                    {entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика по районам'}
+                    {entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика'}
                     <ChevronDown
                       aria-hidden="true"
                       className={cn(
                         'h-4 w-4 transition-transform',
-                        expandedGroup === (entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика по районам') &&
-                          'rotate-180',
+                        expandedGroup === (entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика') && 'rotate-180',
                       )}
                     />
                   </button>
                   <div
                     className={cn(
                       'flex-col gap-0.5 pl-3',
-                      expandedGroup === (entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика по районам')
-                        ? 'flex'
-                        : 'hidden',
+                      expandedGroup === (entry.kind === 'ratings' ? 'Рейтинги' : 'Аналитика') ? 'flex' : 'hidden',
                     )}
                   >
-                    {(entry.kind === 'ratings' ? ratingLinks : DISTRICT_ANALYTICS_LINKS).map((link) => (
+                    {(entry.kind === 'ratings' ? ratingLinks : ANALYTICS_LINKS).map((link) => (
                       <CatalogNavLink
                         key={link.to}
                         to={link.to}
                         className={rowLinkClass(
                           entry.kind === 'ratings'
                             ? ratingsLinkActive(pathname, link.to)
-                            : districtLinkActive(pathname, link.to),
+                            : analyticsLinkActive(pathname, link.to),
                         )}
                       >
                         {link.label}

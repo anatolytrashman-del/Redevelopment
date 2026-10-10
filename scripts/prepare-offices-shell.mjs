@@ -21,7 +21,7 @@ const TITLE = 'OfficeList — каталог бизнес-центров Мин�
 const DESCRIPTION =
   'Каталог бизнес-центров Минска: классы, районы, метро, улицы. Карточки объектов и подборки.';
 const URL = `${OFFICES_ORIGIN}/minsk/bc`;
-const ASSET_V = '20261010o';
+const ASSET_V = '20261010o2';
 const domainSplit = JSON.parse(
   readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/data/domain-split.json'), 'utf8'),
 );

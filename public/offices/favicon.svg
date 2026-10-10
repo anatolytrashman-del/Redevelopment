@@ -1,14 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OfficeList">
-  <!-- Redevelopment-style tile: rounded square + mark O. Brand red. -->
+  <!-- Full-tile O: outer almost to the rim (like R/M), thick stroke so it reads full-size. -->
   <rect width="64" height="64" rx="14" fill="#e4152b" />
-  <text
-    x="32"
-    y="34"
-    text-anchor="middle"
-    dominant-baseline="central"
-    font-family="Arial Black, Arial, Helvetica, sans-serif"
-    font-weight="900"
-    font-size="40"
+  <path
     fill="#ffffff"
-  >O</text>
+    fill-rule="evenodd"
+    d="M32 6c-14.359 0-26 11.641-26 26s11.641 26 26 26 26-11.641 26-26S46.359 6 32 6zm0 15c6.075 0 11 4.925 11 11s-4.925 11-11 11-11-4.925-11-11 4.925-11 11-11z"
+  />
 </svg>
