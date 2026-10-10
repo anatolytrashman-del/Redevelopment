@@ -12,6 +12,8 @@ import {
 } from '../../lib/catalogSlices';
 import type { BusinessCenter } from '../../data/businessCenters';
 import { useCatalogKind, type CatalogKind } from '../../lib/catalogKind';
+import { SiteBrandLogo } from '../layout/SiteBrandLogo';
+import { deployedSiteMode } from '../../lib/sites';
 
 // Сквозная верхняя шапка каталога БЦ (владелец, 2026-09-22: «делаем верхнее
 // меню, пусть оно будет сквозным для каталога БЦ»). До неё каждая из пяти
@@ -247,7 +249,11 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     return [groups.slice(0, 1), groups.slice(1, 2), groups.slice(2)].filter((c) => c.length > 0);
   }, [groups]);
 
-  const topLinks = TOP_LINKS[V.kind];
+  // На отдельном проекте malllist соседний каталог БЦ недоступен — ссылку прячем.
+  const topLinks = TOP_LINKS[V.kind].filter((entry) => {
+    if (deployedSiteMode() !== 'malls') return true;
+    return !(entry.kind === 'link' && entry.to === '/minsk/bc');
+  });
   const ratingLinks = RATING_LINKS_BY_KIND[V.kind];
   const activeTop = topLinks.find((l) => l.kind === 'link' && l.to === pathname) as
     | Extract<TopNavEntry, { kind: 'link' }>
@@ -286,9 +292,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
           бургер, и он прижимается к правому краю (justify-between), иначе
           прилипнет к логотипу и промахнуться по нему станет легко. */}
       <div className={cn('mx-auto flex items-center justify-between px-4 py-4 sm:px-8 md:justify-start', width)}>
-        <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
-          <span className="font-black text-primary">RED</span>EVELOPMENT
-        </Link>
+        <SiteBrandLogo />
 
         <nav aria-label="Разделы каталога" className={cn('flex items-center gap-1 md:ml-10', navOffsetClassName)}>
           <button

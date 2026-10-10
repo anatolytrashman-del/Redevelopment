@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
+import { SiteBrandLogo } from '../components/layout/SiteBrandLogo';
 
 const TITLE = 'Политика обработки персональных данных';
 const DESCRIPTION =
@@ -33,9 +33,7 @@ export function PrivacyPolicyPage() {
     <div className="min-h-svh bg-bg">
       <div className="border-b border-border py-5">
         <div className="mx-auto flex max-w-5xl items-center justify-center px-4 sm:px-8">
-          <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </Link>
+          <SiteBrandLogo />
         </div>
       </div>
 

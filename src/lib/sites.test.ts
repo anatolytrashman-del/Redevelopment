@@ -76,7 +76,9 @@ describe('sites / domain split (логика при enabled)', () => {
     }
     if (bare === 'offiselist.pro' || bare === 'malllist.pro') {
       if (path === '/' || path === '') {
-        return bare === 'malllist.pro' ? `${malls}/minsk/tc` : `${offices}/minsk/bc`;
+        // malllist — своя главная; offiselist пока уходит в каталог БЦ.
+        if (bare === 'malllist.pro') return null;
+        return `${offices}/minsk/bc`;
       }
       return `${platform}${pathname}`;
     }
@@ -101,9 +103,10 @@ describe('sites / domain split (логика при enabled)', () => {
     expect(redirectWhenEnabled('redevelopment.pro', '/minsk/tc/dana-mall')).toBe('https://malllist.pro/minsk/tc/dana-mall');
   });
 
-  it('корень каталожного домена → корень каталога', () => {
+  it('корень каталожного домена', () => {
     expect(redirectWhenEnabled('offiselist.pro', '/')).toBe('https://offiselist.pro/minsk/bc');
-    expect(redirectWhenEnabled('malllist.pro', '/')).toBe('https://malllist.pro/minsk/tc');
+    // У malllist своя главная — с корня никуда не уводим.
+    expect(redirectWhenEnabled('malllist.pro', '/')).toBeNull();
   });
 
   it('www схлопывается в apex', () => {

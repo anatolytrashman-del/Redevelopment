@@ -160,6 +160,10 @@ const NOT_FOUND_HTML = `<!doctype html>
 </html>
 `;
 
+const MALLLIST_NOT_FOUND_HTML = NOT_FOUND_HTML
+  .replace('— REDEVELOPMENT', '— MallList')
+  .replace('<b>RED</b>EVELOPMENT', 'Mall<b>List</b>');
+
 export const config = {
   runtime: 'edge',
 };
@@ -216,10 +220,10 @@ export default function middleware(request: Request) {
   const normalized = normalizePathname(pathname);
 
   // Корень сайта — в middleware (не в vercel.json): иначе на malllist
-  // redirect "/"→"/minsk" из vercel.json срабатывает до Edge и главная
-  // домена уходит в 404. Платформа: / → /minsk; каталоги: / и /minsk → каталог.
+  // старый redirect "/"→"/minsk" из vercel.json срабатывал до Edge.
+  // Платформа: / → /minsk. Malllist: / — своя главная; /minsk → каталог ТЦ.
   if (siteMode === 'malls') {
-    if (normalized === '/' || normalized === '' || normalized === '/minsk') {
+    if (normalized === '/minsk') {
       return Response.redirect(new URL('/minsk/tc', url), 307);
     }
     if (pathname === '/robots.txt') {
@@ -232,7 +236,7 @@ export default function middleware(request: Request) {
       });
     }
     if (!isMallsSitePath(pathname)) {
-      return new Response(NOT_FOUND_HTML, {
+      return new Response(MALLLIST_NOT_FOUND_HTML, {
         status: 404,
         headers: {
           'content-type': 'text/html; charset=utf-8',

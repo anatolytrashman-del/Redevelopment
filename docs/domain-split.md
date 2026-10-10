@@ -19,7 +19,7 @@ SEO. Смена path → отдельный заход после стабили
 | Значение | Что отдаёт деплой |
 |---|---|
 | `platform` (по умолчанию) | полный сайт, как сейчас на redevelopment.pro |
-| `malls` | только `/minsk/tc/*` (+ `/privacy`, `/favorites`), `/` и `/minsk` → `/minsk/tc` |
+| `malls` | главная `/` (MallList) + `/minsk/tc/*` (+ `/privacy`, `/favorites`); `/minsk` → `/minsk/tc` |
 | `offices` | (заготовка) только каталог БЦ; `/` и `/minsk` → `/minsk/bc` |
 
 Корень (`/`) для платформы и каталогов ведёт middleware (`middleware.ts`),
@@ -88,7 +88,7 @@ curl -sI 'https://redevelopment.pro/minsk/bc/titan' | head -5
 curl -sI 'https://redevelopment.pro/minsk/tc' | head -5
 curl -sI 'https://redevelopment.pro/bc/titan' | head -5
 curl -sI 'https://offiselist.pro/' | head -5   # → /minsk/bc
-curl -sI 'https://malllist.pro/' | head -5     # → /minsk/tc
+curl -sI 'https://malllist.pro/' | head -5     # → 200 главная MallList
 ```
 
 5. Canonical на карточке: в HTML `offiselist.pro`, не `redevelopment.pro`.
@@ -145,7 +145,7 @@ curl -sI 'https://malllist.pro/' | head -5     # → /minsk/tc
 | `redevelopment.pro/minsk/tc…` | `malllist.pro/minsk/tc…` |
 | `www.*.pro/…` | apex того же домена |
 | `offiselist.pro/` | `offiselist.pro/minsk/bc` |
-| `malllist.pro/` | `malllist.pro/minsk/tc` |
+| `malllist.pro/` | остаётся главной MallList (без 301 на каталог) |
 | чужой path на каталожном домене (не статика) | `redevelopment.pro` + тот же path |
 
 Внутрикаталожные legacy-редиректы (`/minsk/bcminsk/…` → `/minsk/bc/…` в

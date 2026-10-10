@@ -153,11 +153,13 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
     return `${MALLS.origin}${path}`;
   }
 
-  // На каталожных доменах чужой контент платформы → на платформу
+  // На каталожных доменах чужой контент платформы → на платформу.
+  // Корень malllist — своя главная (не редирект на /minsk/tc).
+  // Корень offiselist пока ведём в каталог БЦ (отдельной главной ещё нет).
   if (bare === OFFICES.host || bare === MALLS.host) {
     if (path === '/' || path === '') {
-      const home = bare === MALLS.host ? MALLS.pathPrefix! : OFFICES.pathPrefix!;
-      return `${bare === MALLS.host ? MALLS.origin : OFFICES.origin}${home}`;
+      if (bare === MALLS.host) return null;
+      return `${OFFICES.origin}${OFFICES.pathPrefix!}`;
     }
     // Статика, api, пререндер-ассеты — остаются; остальное платформенное — на платформу
     if (

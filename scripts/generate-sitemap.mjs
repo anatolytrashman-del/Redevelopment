@@ -349,7 +349,8 @@ async function main() {
   // Отдельный Vercel-проект malllist: в sitemap.xml только ТЦ.
   if (DEPLOYED_SITE_MODE === 'malls') {
     const entries = [
-      urlEntry(`${MALLS_ORIGIN}/minsk/tc`, today, '1.0'),
+      urlEntry(`${MALLS_ORIGIN}/`, today, '1.0'),
+      urlEntry(`${MALLS_ORIGIN}/minsk/tc`, today, '0.9'),
       ...tcUrls.map((u) => urlEntry(u, today, u.includes('/minsk/tc/') && !u.slice(`${MALLS_ORIGIN}/minsk/tc/`.length).includes('/') ? '0.8' : '0.6')),
     ];
     // tcUrls уже включает хаб /minsk/tc — не дублируем

@@ -32,6 +32,7 @@ import { AnalyticsMethodologyPage } from './pages/AnalyticsMethodologyPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { MalllistHomePage } from './pages/MalllistHomePage';
 import { NotFound } from './pages/NotFound';
 import { CookieBanner } from './components/layout/CookieBanner';
 import { metrikaHit } from './lib/metrika';
@@ -272,11 +273,12 @@ function AdminChunkFallback() {
   );
 }
 
-/** Маршруты отдельного проекта malllist.pro — только каталог ТЦ. */
+/** Маршруты отдельного проекта malllist.pro — главная + каталог ТЦ. */
 function MalllistRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/minsk/tc" replace />} />
+      <Route path="/" element={<MalllistHomePage />} />
+      <Route path="/minsk" element={<Navigate to="/minsk/tc" replace />} />
       <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
       <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
       <Route

@@ -9,7 +9,7 @@ import { pluralRu } from './pluralRu';
 import { fullName, shortAddress, shortName } from './businessCenterDisplay';
 import { fitsSerpTitle } from './serpTitleWidth';
 import type { CatalogKind } from './catalogKind';
-import { catalogSiteUrl, platformOrigin } from './sites';
+import { catalogSiteUrl, deployedSiteMode, platformOrigin, SITES } from './sites';
 
 export interface PageMeta {
   title: string;
@@ -280,6 +280,17 @@ export function setOrganizationJsonLd(enabled: boolean) {
   if (!ld) return;
   if (!enabled) {
     ld.textContent = '';
+    return;
+  }
+  if (deployedSiteMode() === 'malls') {
+    ld.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: SITES.malls.brand,
+      url: SITES.malls.origin,
+      description: 'Независимый список торговых центров. Каталог ТЦ по городам, начиная с Минска.',
+      areaServed: { '@type': 'City', name: 'Минск' },
+    });
     return;
   }
   ld.textContent = JSON.stringify({

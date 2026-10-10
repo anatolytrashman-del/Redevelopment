@@ -15,7 +15,7 @@
   "malls": {
     "host": "malllist.pro",
     "origin": "https://malllist.pro",
-    "brand": "Malllist",
+    "brand": "MallList",
     "pathPrefix": "/minsk/tc"
   }
 }
