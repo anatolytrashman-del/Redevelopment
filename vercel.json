@@ -122,6 +122,30 @@
   ],
   "redirects": [
     {
+      "source": "/minsk/tc",
+      "has": [{ "type": "host", "value": "redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/:path*",
+      "has": [{ "type": "host", "value": "redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc",
+      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/:path*",
+      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc/:path*",
+      "permanent": true
+    },
+    {
       "source": "/(.*)",
       "has": [
         {
@@ -152,30 +176,6 @@
         }
       ],
       "destination": "https://malllist.pro/$1",
-      "permanent": true
-    },
-    {
-      "source": "/minsk/tc",
-      "has": [{ "type": "host", "value": "redevelopment.pro" }],
-      "destination": "https://malllist.pro/minsk/tc",
-      "permanent": true
-    },
-    {
-      "source": "/minsk/tc/:path*",
-      "has": [{ "type": "host", "value": "redevelopment.pro" }],
-      "destination": "https://malllist.pro/minsk/tc/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/minsk/tc",
-      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
-      "destination": "https://malllist.pro/minsk/tc",
-      "permanent": true
-    },
-    {
-      "source": "/minsk/tc/:path*",
-      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
-      "destination": "https://malllist.pro/minsk/tc/:path*",
       "permanent": true
     },
     {
