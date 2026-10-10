@@ -3,6 +3,12 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — SEO cutover ТЦ в вебмастерах.** Яндекс: sitemap malllist
+  добавлен, переобход 6 старых + 40 новых хабов. IndexNow 207 URL OK.
+  GSC: свойство malllist ещё `siteUnverifiedUser` у OAuth-аккаунта /
+  без scope Submit — sitemap в консоли нужно добавить руками;
+  Change of Address не использовать. www→malllist одним hop (#798).
+
 - **2026-10-10 — ТЦ cutover + счётчик malllist.** `redirects.malls=true`:
   301 с redevelopment → malllist, sitemap платформы без `/minsk/tc`,
   пререндер/шеллы ТЦ только на malllist, IndexNow host-aware +

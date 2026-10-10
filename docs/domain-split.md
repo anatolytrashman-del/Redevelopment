@@ -145,36 +145,31 @@ curl -s 'https://malllist.pro/' | rg yandex-verification
 
 ### 3. Google Search Console
 
-1. Добавить **доменные** свойства `offiselist.pro` и `malllist.pro`
-   (DNS-подтверждение).
-2. Отправить sitemap:
-   - `https://offiselist.pro/sitemap.xml`
-   - `https://malllist.pro/sitemap.xml`
-3. В старом свойстве `sc-domain:redevelopment.pro`:
-   - Settings → **Change of Address** — только если уводите *весь* домен.
-     Здесь уводим **часть** URL, Change of Address не подходит.
-   - Вместо этого: 301 уже делают работу; в URL Inspection выборочно
-     проверить старые URL («Page with redirect»).
-4. Обновить ссылки в Search Console / любых внешних отчётах.
+1. Добавить **доменное** свойство `malllist.pro` (DNS TXT) и дождаться
+   статуса Verified / Owner (не «ожидает подтверждения»).
+2. Sitemaps → добавить `https://malllist.pro/sitemap.xml`.
+3. В `sc-domain:redevelopment.pro` **не** включать Change of Address
+   (уходит только часть URL). URL Inspection — выборочно старые
+   `/minsk/tc…` («Page with redirect»).
+4. OAuth-токен синка (`external_api_tokens` / google_search_console) сейчас
+   без scope на Submit sitemap и без Owner на malllist — sitemap в GSC
+   для malllist пока только руками в UI (2026-10-10).
 
 ### 4. Яндекс.Вебмастер
 
-1. Добавить сайты `offiselist.pro` и `malllist.pro`, подтвердить DNS/meta.
-2. Индексирование → Файлы Sitemap — добавить sitemap каждого домена.
-3. **Переезд сайта** в Вебмастере — только для полного переезда домена.
-   Для частичного: достаточно 301 + новые sitemap; в «Переобход страниц»
-   можно кинуть главные хабы каталога на старых URL, чтобы быстрее
-   подхватили редиректы.
-4. Главное зеркало: apex без www (www уже 301 в `vercel.json` +
-   middleware).
+Сделано API (2026-10-10) для malllist:
+
+1. Сайт `https://malllist.pro/` подтверждён.
+2. Sitemap `https://malllist.pro/sitemap.xml` добавлен (user-added).
+3. Переобход: 6 старых URL на redevelopment + 40 хабов на malllist.
+4. **Переезд сайта** не трогать — частичный перенос, не весь домен.
+5. Главное зеркало: apex без www.
 
 ### 5. IndexNow / внутренние пинги
 
-`scripts/notify-indexnow.mjs` берёт host из `DEPLOYED_SITE_MODE`
-(platform → redevelopment.pro, malls → malllist.pro). Разовый пинг
-переезда ТЦ: `node scripts/indexnow-malls-migration.mjs --from-live`
-(ключ `public/<key>.txt` общий). Change of Address / «Переезд сайта» в
-GSC/Вебмастере для частичного переноса не использовать.
+`scripts/notify-indexnow.mjs` — host из `DEPLOYED_SITE_MODE`.
+Разовый пинг переезда: `node scripts/indexnow-malls-migration.mjs --from-live`
+(2026-10-10: 207 URL, HTTP 200). Ключ `public/<key>.txt` общий.
 
 ### 6. Аналитика
 
