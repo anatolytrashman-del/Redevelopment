@@ -3,6 +3,8 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — officelist GSC sitemap.** Файл уже валидный XML (`application/xml`, 236 URL), как после фикса malllist #800; rewrite в HTML нет. «Couldn\'t fetch» на новом домене — ждать/Retry в UI (у malllist так же лагало). Redeploy Production для свежего edge.
+
 - **2026-10-10 — officelist в Яндекс.Вебмастере.** https VERIFIED, sitemap user-added, переобход 111+6 URL. GSC — руками (токен readonly).
 
 - **2026-10-10 — officelist: yandex-verification.** Meta
