@@ -35,6 +35,13 @@ export function deployedSiteMode() {
 
 export const DEPLOYED_SITE_MODE = deployedSiteMode();
 
+/** Meta yandex-verification для каталожного деплоя (пусто — не трогаем). */
+export function catalogYandexVerification() {
+  if (DEPLOYED_SITE_MODE === 'malls') return CONFIG.verifications?.malls?.yandex || '';
+  if (DEPLOYED_SITE_MODE === 'offices') return CONFIG.verifications?.offices?.yandex || '';
+  return '';
+}
+
 export function catalogOrigin(kind) {
   if (DEPLOYED_SITE_MODE === 'malls') return MALLS_ORIGIN;
   if (DEPLOYED_SITE_MODE === 'offices') return OFFICES_ORIGIN;
