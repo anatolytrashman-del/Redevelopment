@@ -1,2 +1,12 @@
-https://officelist.pro/minsk/analytics/minsk-mir
-https://redevelopment.pro/minsk/analytics/minsk-mir
+https://officelist.pro/minsk/minsk-mir
+https://officelist.pro/minsk/minsk-mir/biznes-centr
+https://officelist.pro/minsk/minsk-mir/kovorking
+https://officelist.pro/minsk/minsk-mir/kupit-ofis
+https://officelist.pro/minsk/minsk-mir/arenda-ofisa
+https://officelist.pro/minsk/minsk-mir/kommercheskie-pomeshcheniya
+https://redevelopment.pro/minsk/minsk-mir
+https://redevelopment.pro/minsk/minsk-mir/biznes-centr
+https://redevelopment.pro/minsk/minsk-mir/kovorking
+https://redevelopment.pro/minsk/minsk-mir/kupit-ofis
+https://redevelopment.pro/minsk/minsk-mir/arenda-ofisa
+https://redevelopment.pro/minsk/minsk-mir/kommercheskie-pomeshcheniya

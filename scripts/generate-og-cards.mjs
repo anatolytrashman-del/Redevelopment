@@ -68,7 +68,7 @@ function sectionKicker(path) {
   }
   if (DEPLOYED_SITE_MODE === 'offices') {
     if (path.startsWith('minsk/bc')) return 'Каталог бизнес-центров · OfficeList';
-    if (path === 'minsk/analytics/minsk-mir') return 'Аналитика Минск Мира · OfficeList';
+    if (path.startsWith('minsk/minsk-mir')) return 'Аналитика по районам · OfficeList';
     if (path === 'privacy') return 'Политика конфиденциальности · OfficeList';
     return 'OfficeList · officelist.pro';
   }
@@ -76,7 +76,7 @@ function sectionKicker(path) {
   if (path.startsWith('minsk/analytics')) return 'Аналитика рынка · redevelopment.pro';
   if (path.startsWith('minsk/bc')) return 'Справочник бизнес-центров Минска';
   if (path.startsWith('minsk/tc')) return 'Справочник торговых центров Минска';
-  if (path.startsWith('minsk/minsk-mir')) return 'Гид по району · redevelopment.pro';
+  if (path.startsWith('minsk/minsk-mir')) return 'Гид по району · officelist.pro';
   if (path === 'tz') return 'Просчёт объёмов работ по объекту';
   if (path === 'estimate') return 'Смета на ремонт помещения';
   if (path === 'plan') return 'Свободные кабинеты и рабочие места';

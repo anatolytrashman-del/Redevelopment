@@ -7,6 +7,7 @@ import { setBreadcrumbJsonLd, setDatasetJsonLd, setGenericPageMeta, setOrganizat
 import { fetchExternalMetricsBySource, fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import { absolutePublicUrl } from '../lib/sites';
+// absolutePublicUrl — гид /minsk/minsk-mir на officelist
 
 const TITLE = 'Цены на коммерческую недвижимость в Минске — Redevelopment';
 const DESCRIPTION =
@@ -463,8 +464,8 @@ export function MarketAnalyticsHub() {
         <section className="flex flex-col gap-4">
           <h2 className="text-lg font-bold text-ink">По району</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <a
-              href={absolutePublicUrl('/minsk/analytics/minsk-mir')}
+            <Link
+              to="/minsk/analytics/minsk-mir"
               className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
               style={glassCardShadow}
             >
@@ -473,7 +474,7 @@ export function MarketAnalyticsHub() {
                 <span className="text-xs text-ink-muted">Бизнес-апартаменты от застройщика + объявления Kufar и Realt</span>
               </span>
               <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
-            </a>
+            </Link>
             <Link
               to="/minsk/analytics/rajony"
               className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
@@ -517,9 +518,9 @@ export function MarketAnalyticsHub() {
               каталоге бизнес-центров
             </Link>
             . Про сам квартал Минск Мир, а не только его рынок недвижимости, — отдельный{' '}
-            <Link to="/minsk/minsk-mir" className="text-primary-hover hover:underline">
+            <a href={absolutePublicUrl('/minsk/minsk-mir')} className="text-primary-hover hover:underline">
               гид по району
-            </Link>
+            </a>
             .
           </p>
         </section>

@@ -50,6 +50,11 @@ export function catalogOrigin(kind) {
   return PLATFORM_ORIGIN;
 }
 
+/** Гид по району и посадочные — на officelist. */
+export function isOfficesDistrictPath(path) {
+  return path === '/minsk/minsk-mir' || path.startsWith('/minsk/minsk-mir/') || path === '/rayon-minsk-mir';
+}
+
 /** path вида /minsk/bc/... или /minsk/tc/... → абсолютный URL нужного сайта. */
 export function absoluteUrlForPath(path) {
   const normalized = path.startsWith('/') ? path : `/${path}`;
@@ -61,11 +66,11 @@ export function absoluteUrlForPath(path) {
     normalized.startsWith('/minsk/bc/') ||
     normalized === '/minsk/bcminsk' ||
     normalized.startsWith('/minsk/bcminsk/') ||
-    normalized === '/minsk/analytics/minsk-mir'
+    isOfficesDistrictPath(normalized)
   ) {
     const pathOnOffices =
-      normalized === '/minsk/analytics/minsk-mir'
-        ? normalized
+      normalized === '/rayon-minsk-mir'
+        ? '/minsk/minsk-mir'
         : normalized.replace(/^\/minsk\/bcminsk/, '/minsk/bc');
     return `${catalogOrigin('bc')}${pathOnOffices}`;
   }
@@ -78,17 +83,17 @@ export function isCatalogPath(path) {
     path.startsWith('/minsk/bc/') ||
     path === '/minsk/tc' ||
     path.startsWith('/minsk/tc/') ||
-    path === '/minsk/analytics/minsk-mir'
+    isOfficesDistrictPath(path)
   );
 }
 
-/** Путь каталога БЦ / аналитики Минск Мира на officelist. */
+/** Путь каталога БЦ / гида по районам на officelist. */
 export function isOfficesCatalogPath(path) {
   return (
     path === '/minsk/bc' ||
     path.startsWith('/minsk/bc/') ||
     path === '/minsk/bcminsk' ||
     path.startsWith('/minsk/bcminsk/') ||
-    path === '/minsk/analytics/minsk-mir'
+    isOfficesDistrictPath(path)
   );
 }

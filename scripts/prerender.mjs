@@ -117,6 +117,13 @@ const PUBLIC_ORIGIN = IS_MALLS_DEPLOY
   : IS_OFFICES_DEPLOY
     ? OFFICES_ORIGIN
     : PLATFORM_ORIGIN;
+// h1, который prepare-*-shell кладёт в #root до React. waitForSelector('h1')
+// иначе снимает шелл мгновенно — на officelist так уехали все снапшоты БЦ.
+const CATALOG_SHELL_H1 = IS_OFFICES_DEPLOY
+  ? 'OfficeList — каталог бизнес-центров Минска'
+  : IS_MALLS_DEPLOY
+    ? 'MallList — каталог торговых центров'
+    : null;
 // Сборка, запущенная Deploy Hook'ом (реальное изменение данных), должна
 // успеть дойти до этой проверки, пока triggered_at ещё «свежий» — щедрый
 // запас на очередь Vercel + предыдущие шаги сборки (tsc/vite build/сгенери-
@@ -216,8 +223,8 @@ const MINSK_MIR_TOPIC_SLUGS = ['biznes-centr', 'kovorking', 'kupit-ofis', 'arend
 const ALWAYS_FULL_RENDER_PATHS = new Set([
   'minsk/minsk-mir',
   'minsk/one',
-  // После переноса на officelist копия с платформы даёт 301 — рендерим честно.
-  'minsk/analytics/minsk-mir',
+  // Посадочные гида — на officelist; копия с платформы даёт 301.
+  ...MINSK_MIR_TOPIC_SLUGS.map((s) => `minsk/minsk-mir/${s}`),
 ]);
 
 /** Копия с платформы → URL/бренд каталожного домена (каноникал, og, JSON-LD). */
@@ -1052,27 +1059,65 @@ function currentBuildBlocks() {
 
 const assetExistsInDist = (name) => existsSync(join(DIST_DIR, 'assets', name));
 
+function isCatalogShellHtml(html) {
+  if (!CATALOG_SHELL_H1) return false;
+  // prepare-*-shell: <div id="root"><h1>TITLE</h1>...
+  return html.includes(`<h1>${CATALOG_SHELL_H1}</h1>`);
+}
+
 // { ok: true } — снапшот записан; { ok: false, reason } — копию использовать
 // нельзя, вызывающий код рендерит путь честно и учитывает причину в сводке.
 async function fetchPathLive(path) {
-  try {
-    const url = path ? `${SITE_ORIGIN}/${path}` : `${SITE_ORIGIN}/`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return { ok: false, reason: `прод ответил ${res.status}` };
-    const html = await res.text();
-    if (!/<h1[\s>]/i.test(html)) return { ok: false, reason: 'на проде нет снапшота (голый SPA-шелл без <h1>)' };
-    const adopted = adoptBuildAssets(html, currentBuildBlocks(), assetExistsInDist);
-    if (!adopted.html) return { ok: false, reason: adopted.reason };
-    const rewritten = rewriteSnapshotForPublicOrigin(adopted.html);
-    const dir = path ? join(DIST_DIR, path) : DIST_DIR;
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'index.html'), rewritten);
-    const label = IS_CATALOG_DEPLOY ? 'скопировано с платформы' : 'скопировано с прода';
-    console.log(`[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${label}, ${Math.round(rewritten.length / 1024)} КБ)`);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, reason: `не удалось скачать живую копию: ${err instanceof Error ? err.message : err}` };
+  // Каталожный деплой: сначала свой прод (уже честные снапшоты), потом
+  // платформа. redirect: 'manual' — иначе 301 платформы → свой шелл
+  // принимался как «живая копия» и навсегда зацикливал пустые страницы.
+  const origins = IS_CATALOG_DEPLOY ? [PUBLIC_ORIGIN, SITE_ORIGIN] : [SITE_ORIGIN];
+  let lastReason = 'нет источника';
+  for (const origin of origins) {
+    try {
+      const url = path ? `${origin}/${path}` : `${origin}/`;
+      const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+      if (res.status >= 300 && res.status < 400) {
+        lastReason = `${origin} ответил ${res.status} (редирект)`;
+        continue;
+      }
+      if (!res.ok) {
+        lastReason = `${origin} ответил ${res.status}`;
+        continue;
+      }
+      const html = await res.text();
+      if (!/<h1[\s>]/i.test(html)) {
+        lastReason = `${origin}: нет снапшота (голый SPA-шелл без <h1>)`;
+        continue;
+      }
+      if (isCatalogShellHtml(html)) {
+        lastReason = `${origin}: SPA-шелл каталога, не страница`;
+        continue;
+      }
+      const adopted = adoptBuildAssets(html, currentBuildBlocks(), assetExistsInDist);
+      if (!adopted.html) {
+        lastReason = adopted.reason;
+        continue;
+      }
+      const rewritten = rewriteSnapshotForPublicOrigin(adopted.html);
+      const dir = path ? join(DIST_DIR, path) : DIST_DIR;
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), rewritten);
+      const label =
+        origin === PUBLIC_ORIGIN && IS_CATALOG_DEPLOY
+          ? 'скопировано с своего прода'
+          : IS_CATALOG_DEPLOY
+            ? 'скопировано с платформы'
+            : 'скопировано с прода';
+      console.log(
+        `[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${label}, ${Math.round(rewritten.length / 1024)} КБ)`,
+      );
+      return { ok: true };
+    } catch (err) {
+      lastReason = `не удалось скачать ${origin}: ${err instanceof Error ? err.message : err}`;
+    }
   }
+  return { ok: false, reason: lastReason };
 }
 
 async function main() {
@@ -1110,7 +1155,11 @@ async function main() {
       ? [
           'privacy',
           ...STATIC_PATHS.filter(
-            (p) => p === 'minsk/bc' || p.startsWith('minsk/bc/') || p === 'minsk/analytics/minsk-mir',
+            (p) =>
+              p === 'minsk/bc' ||
+              p.startsWith('minsk/bc/') ||
+              p === 'minsk/minsk-mir' ||
+              p.startsWith('minsk/minsk-mir/'),
           ),
           ...(await bcCatalogPaths()),
         ]
@@ -1120,8 +1169,8 @@ async function main() {
           ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
           ...STATIC_PATHS.filter((p) => {
             if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
-            // Аналитика Минск Мира уехала на officelist вместе с каталогом БЦ.
-            if (!includeBcOnPlatform && p === 'minsk/analytics/minsk-mir') return false;
+            // Гид по Минск Миру уехал на officelist вместе с каталогом БЦ.
+            if (!includeBcOnPlatform && (p === 'minsk/minsk-mir' || p.startsWith('minsk/minsk-mir/'))) return false;
             return true;
           }),
         ];
@@ -1164,12 +1213,12 @@ async function main() {
   const criticalPaths = IS_MALLS_DEPLOY
     ? new Set(['privacy', 'minsk/tc'])
     : IS_OFFICES_DEPLOY
-      ? new Set(['privacy', 'minsk/bc', 'minsk/analytics/minsk-mir'])
+      ? new Set(['privacy', 'minsk/bc', 'minsk/minsk-mir'])
       : new Set([
           ...landingPaths,
           ...STATIC_PATHS.filter((p) => {
             if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
-            if (!includeBcOnPlatform && p === 'minsk/analytics/minsk-mir') return false;
+            if (!includeBcOnPlatform && (p === 'minsk/minsk-mir' || p.startsWith('minsk/minsk-mir/'))) return false;
             return true;
           }),
         ]);
@@ -1340,7 +1389,22 @@ async function main() {
         // Supabase (см. состояние loading) — h1 в разметке появляется
         // только у реального контента, это и есть сигнал готовности
         // (для статических страниц вроде DistrictGuidePage h1 есть сразу).
-        await page.waitForSelector('h1', { timeout: 20_000 });
+        // На malllist/officelist в #root уже лежит h1 шелла (prepare-*-shell) —
+        // ждём, пока React подменит его на заголовок страницы.
+        if (CATALOG_SHELL_H1) {
+          await page.waitForFunction(
+            (shellH1) => {
+              const h1 = document.querySelector('h1');
+              if (!h1) return false;
+              const text = (h1.textContent || '').trim();
+              return text.length > 0 && text !== shellH1;
+            },
+            CATALOG_SHELL_H1,
+            { timeout: 25_000 },
+          );
+        } else {
+          await page.waitForSelector('h1', { timeout: 20_000 });
+        }
         // У гида района h1 статический и появляется ДО прихода данных из
         // Supabase — таблицы первичного/вторичного рынка в этот момент ещё
         // показывают плейсхолдер «Загрузка…», и он попадал в снапшот

@@ -56,6 +56,10 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setFaqJsonLd, setBreadcrumbJsonLd } from '../lib/pageMeta';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
+import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import type { BusinessCenter } from '../data/businessCenters';
+import { absolutePublicUrl, catalogSiteUrl, platformOrigin } from '../lib/sites';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
@@ -93,7 +97,8 @@ const DistrictMap = lazy(() =>
 
 // Переехала с /rayon-minsk-mir на /minsk/minsk-mir (см. docs/session-journal.md, урл-
 // структура /minsk/...) — старый адрес редиректит сюда (App.tsx).
-const PAGE_URL = 'https://redevelopment.pro/minsk/minsk-mir';
+const PAGE_URL = absolutePublicUrl('/minsk/minsk-mir');
+const PLATFORM = platformOrigin();
 // TITLE — для <title>/og/canonical, не трогаем: уже подобран под целевые
 // запросы, длиннее рискует обрезаться в поисковой выдаче. PAGE_H1 — то, что
 // реально видит посетитель на странице, может быть многословнее и точнее
@@ -1380,11 +1385,18 @@ const SECTION_NAV: { id: string; label: string; icon: LucideIcon }[] = [
 // отдельная, более осмысленная для нас фраза. Обратной ссылки с /one сюда
 // нет осознанно — решение владельца не отвлекать с продающей страницы.
 export function DistrictGuidePage() {
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [marketOffers, setMarketOffers] = useState<MarketOffer[] | null>(null);
   const [marketDealType, setMarketDealType] = useState<'Продажа' | 'Аренда'>('Продажа');
   const [marketFinish, setMarketFinish] = useState<(typeof MARKET_FINISH_OPTIONS)[number]>('С отделкой');
   const [primaryMarketOffers, setPrimaryMarketOffers] = useState<PrimaryMarketOffer[] | null>(null);
   const [primaryMarketProKey, setPrimaryMarketProKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchBusinessCenters()
+      .then(setCenters)
+      .catch(() => setCenters((prev) => prev ?? []));
+  }, []);
 
   // Владелец, 2026-09-10: "Если свежей статистики у нас нет, то не выводи
   // этот блок на странице вообще" — блок "Продажи застройщика" (см. ниже)
@@ -1429,7 +1441,8 @@ export function DistrictGuidePage() {
     });
     // После setGenericPageMeta (тот сбрасывает крошки) — порядок важен.
     setBreadcrumbJsonLd([
-      { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+      { name: 'Коммерческая недвижимость в Минске', url: `${PLATFORM}/minsk` },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: 'Район Минск Мир' },
     ]);
     setFaqJsonLd(districtFaq);
@@ -1614,50 +1627,11 @@ export function DistrictGuidePage() {
           сам `nav` ниже, а исходный логотип в шапке скрываем на lg+, чтобы
           не было двух логотипов одновременно (тот же приём, что и с пустой
           первой колонкой-заглушкой под fixed-сайдбар в сетке контента ниже). */}
-      <Link
-        to="/minsk"
-        className="fixed top-6 z-40 hidden shrink-0 text-lg font-extrabold tracking-wide text-ink lg:block"
-        style={navBox ? { left: navBox.left } : { visibility: 'hidden' }}
-      >
-        <span className="font-black text-primary">RED</span>EVELOPMENT
-      </Link>
-
-      {/* На мобильном (<sm) шапка отдельным баром с большими отступами
-          создавала лишний "воздух" сверху страницы (владелец, скриншот:
-          "очень много воздуха сверху... я бы вписал логотип в основной
-          блок, просто сделал отступ") — на телефоне здесь и так нет ничего,
-          кроме логотипа (меню — hidden ... sm:flex, см. ниже), отдельный
-          бар с бордером/паддингом был чистым накладным расходом высоты.
-          Ниже sm бар скрыт целиком, логотип переехал в обычный поток
-          контента (см. "mx-auto flex max-w-3xl flex-col" ниже) с обычным
-          отступом по сетке колонки, не фиксированной высотой бара. */}
-      <div className="hidden border-b border-border py-5 sm:block">
-        <div className="mx-auto max-w-6xl px-4 sm:px-8">
-          <div className="flex items-center justify-between lg:grid lg:grid-cols-[200px_1fr] lg:items-center lg:gap-10">
-            <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink lg:invisible">
-              <span className="font-black text-primary">RED</span>EVELOPMENT
-            </Link>
-            <div className="lg:mx-auto lg:w-full lg:max-w-3xl">
-              <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-                {/* Владелец, 2026-09-16: пункт «Деловой центр Red One» →
-                    /minsk/one убран — пока здание не куплено, продавать его
-                    нечего, и гид по району на него не ссылается. Вместе с
-                    ним убраны CTA-блок Red One внизу страницы, упоминания
-                    объекта в FAQ и пункт бокового меню. Вернуть, когда
-                    здание будет куплено.
-                    Аудит поиска 2026-09-07 добавил сюда пункт «Бизнес-центры
-                    Минска» → /minsk/bc (каталог был «островом» без
-                    входящих ссылок). Владелец, 2026-09-16: каталог БЦ ещё не
-                    доделан — пока он не готов, гид по району на него не
-                    ссылается вообще. Текст про БЦ в самом районе остаётся,
-                    убраны только ссылки на наши страницы каталога. Вернуть
-                    этот пункт (и ссылки в секции #business-centers ниже),
-                    когда блок бизнес-центров будет закончен. */}
-              </nav>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Шапка каталога OfficeList (владелец, 2026-10-10): гид по району
+          переехал на officelist, пункт «Аналитика по районам» в меню.
+          Фиксированный логотип над оглавлением больше не нужен — sticky
+          CatalogTopNav всегда на экране. */}
+      <CatalogTopNav centers={centers} width="max-w-6xl" navOffsetClassName="lg:ml-[calc(200px+2.5rem)]" />
 
       {/* <main> — единственный main-landmark страницы (PageSpeed
           Accessibility «Document does not have a main landmark»): шапка с
@@ -3171,7 +3145,7 @@ export function DistrictGuidePage() {
               МФЦ Минск Мир в каталоге БЦ
             </Link>
             <a
-              href="https://officelist.pro/minsk/analytics/minsk-mir"
+              href={`${PLATFORM}/minsk/analytics/minsk-mir`}
               className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
             >
               Аналитика рынка Минск Мира

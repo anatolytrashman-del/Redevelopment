@@ -673,10 +673,10 @@ export function BusinessCentersGuidePage() {
               </Link>
             </li>
             <li>
-              <Link to="/minsk/minsk-mir" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <a href="https://officelist.pro/minsk/minsk-mir" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Гид по кварталу Минск Мир
-              </Link>
+              </a>
             </li>
           </ul>
         </div>
