@@ -78,6 +78,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
+import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
 import { tradeCenterPaths } from './_tcPaths.mjs';
 import {
@@ -221,7 +222,9 @@ const ALWAYS_FULL_RENDER_PATHS = new Set(
 function rewriteSnapshotForPublicOrigin(html) {
   if (!IS_CATALOG_DEPLOY || PUBLIC_ORIGIN === SITE_ORIGIN) return html;
   const brand = IS_MALLS_DEPLOY ? 'MallList' : 'OfficeList';
-  let out = html
+  // Снапшоты тянем с redevelopment.pro — там Метрика/VK платформы. На
+  // каталожных доменах их быть не должно (свой счётчик pageViewTracker).
+  let out = stripThirdPartyAnalytics(html)
     .replaceAll(SITE_ORIGIN, PUBLIC_ORIGIN)
     .replace(/(<meta property="og:site_name" content=")[^"]*(")/, `$1${brand}$2`);
   // Вебмастер проверяет meta на финальной странице (/ у officelist → /minsk/bc).
