@@ -225,6 +225,18 @@ const ALWAYS_FULL_RENDER_PATHS = new Set([
   'minsk/one',
   // Посадочные гида — на officelist; копия с платформы даёт 301.
   ...MINSK_MIR_TOPIC_SLUGS.map((s) => `minsk/minsk-mir/${s}`),
+  // Хабы с CatalogTopNav на officelist: иначе быстрый режим копирует старый
+  // HTML с прода и в снапшоте остаётся прошлое меню (2026-10-10 — после
+  // смены «Аналитика по районам» на общую вкладку «Аналитика»).
+  'minsk/bc',
+  'minsk/bc/analytics',
+  'minsk/bc/guide',
+  'minsk/bc/new',
+  'minsk/bc/rating',
+  'minsk/bc/rating/largest',
+  'minsk/bc/rating/class-b-plus',
+  'minsk/bc/rating/class-b-c',
+  'minsk/bc/rating/affordable',
 ]);
 
 /** Копия с платформы → URL/бренд каталожного домена (каноникал, og, JSON-LD). */
