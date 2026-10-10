@@ -162,7 +162,7 @@ const NOT_FOUND_HTML = `<!doctype html>
 
 const MALLLIST_NOT_FOUND_HTML = NOT_FOUND_HTML
   .replace('— REDEVELOPMENT', '— MallList')
-  .replace('<b>RED</b>EVELOPMENT', 'Mall<b>List</b>');
+  .replace('<b>RED</b>EVELOPMENT', 'Mall<span style="color:#e4152b">List</span>');
 
 export const config = {
   runtime: 'edge',

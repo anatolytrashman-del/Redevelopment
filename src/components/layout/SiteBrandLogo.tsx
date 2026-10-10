@@ -5,7 +5,7 @@ import { deployedSiteMode } from '../../lib/sites';
 /**
  * Текстовый логотип сайта.
  * Платформа: RED(красным)EVELOPMENT.
- * Malllist: Mall + List(красным) — по аналогии с CasinoList.
+ * Malllist: как CasinoList — то же начертание у обеих частей, List только цветом.
  */
 export function SiteBrandLogo({
   to,
@@ -23,7 +23,7 @@ export function SiteBrandLogo({
   const mark =
     mode === 'malls' ? (
       <>
-        Mall<span className="font-black text-primary">List</span>
+        Mall<span className="text-primary">List</span>
       </>
     ) : (
       <>
