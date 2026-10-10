@@ -36,18 +36,14 @@ PUBLIC_SITE=malls
 Плюс `VITE_SUPABASE_*` как на платформе. Framework Preset → Vite,
 Output Directory → `dist`.
 
-**Build Command** проекта malllist (не дефолтный `npm run build`):
+**Build Command** — достаточно `npm run build:app` (как сейчас): при
+`PUBLIC_SITE=malls` в конце сам вызывается пререндер ТЦ + OG
+(`malls-prerender-if-needed.mjs`). Алиас `npm run build:malls` = то же
+самое. Каталог копируется с эталона на `redevelopment.pro` (~300 КБ HTML),
+origin → `malllist.pro`, главная `/` рендерится честно.
 
-```
-npm run build:malls
-```
-
-Это `build:app` + пререндер + OG: каталог ТЦ копируется с эталона на
-`redevelopment.pro` (те же LCP/HTML ~300 КБ), origin переписывается на
-`malllist.pro`, главная `/` рендерится честно (у платформы другой корень).
-Обычный `npm run build` на malllist тоже сработает, но `build:malls`
-явно фиксирует пайплайн каталога и не зовёт `record-deployment`
-платформы.
+Не ставить на malllist полный `npm run build` платформы: там ещё
+`record-deployment` и логика прод-платформы.
 
 После этого обычный `git push` в Redevelopment сам запускает деплой
 проекта malllist. В `vercel.json` для веток агента включено

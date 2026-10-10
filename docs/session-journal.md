@@ -4,11 +4,11 @@
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
 - **2026-10-10 — malllist: эталонный пререндер ТЦ «под ключ».**
-  `npm run build:malls` = build:app + prerender + og-cards. В режиме
-  `PUBLIC_SITE=malls` пререндер копирует снапшоты `/minsk/tc/*` с
-  redevelopment.pro (adopt ассетов + rewrite на malllist.pro), главную
-  `/` рендерит честно; `prepare-malls-shell.mjs` патчит meta SPA-шелла.
-  На Vercel malllist Build Command → `npm run build:malls`.
+  При `PUBLIC_SITE=malls` `build:app` сам гоняет пререндер+OG
+  (`malls-prerender-if-needed.mjs`): снапшоты `/minsk/tc/*` с
+  redevelopment.pro (adopt + rewrite на malllist.pro), главная `/`
+  честно; `prepare-malls-shell.mjs` — meta SPA. Отдельный Build Command
+  на Vercel не нужен — хватает текущего `npm run build:app`.
 
 - **2026-10-10 — malllist: один GitHub, два Vercel.** Деплой каталога
   из того же `Redevelopment` (отдельный Vercel-проект + env `malls`),
