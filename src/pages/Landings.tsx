@@ -2,6 +2,7 @@ import { BadgeCheck, Clock, ExternalLink, Globe } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
+import { catalogSiteUrl } from '../lib/sites';
 import { MINSK_MIR_TOPIC_SLUGS, MINSK_MIR_TOPIC_LABELS, minskMirTopicUrl } from '../data/minskMirTopics';
 import type { MinskMirTopicSlug } from '../data/minskMirTopics';
 
@@ -77,7 +78,7 @@ const LANDINGS: LandingEntry[] = [
   {
     title: 'Бизнес-центры Минска',
     description: 'Справочник бизнес-центров города: адреса, класс, площадь, год постройки — по данным веб-ресерча, фото добавляет владелец.',
-    url: 'https://redevelopment.pro/minsk/bc',
+    url: catalogSiteUrl('bc'),
     status: 'done',
   },
   // Бывшая «Очередь 1» (ТЗ 20.09.2026). Каталог /minsk/tc открыт на проде;
@@ -86,7 +87,7 @@ const LANDINGS: LandingEntry[] = [
     title: 'Торговые центры Минска',
     description:
       'Каталог торговых центров города: адреса, формат, метро, арендаторы, часы, парковка, рейтинги и подборки — /minsk/tc.',
-    url: 'https://redevelopment.pro/minsk/tc',
+    url: catalogSiteUrl('tc'),
     status: 'done',
   },
   // Посадочные под подсказки Google по Минск Миру (аудит поиска 2026-09-07,

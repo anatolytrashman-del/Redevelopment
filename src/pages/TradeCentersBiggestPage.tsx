@@ -4,6 +4,7 @@ import { ArrowRight, Award } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
+import { catalogSiteUrl } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenter } from '../data/businessCenters';
@@ -18,7 +19,7 @@ import { buildTcLargest, buildTcLargestEligible, TC_LARGEST_LIMIT } from '../lib
 import { tcTopicHubUrl, TC_TOPIC_HUBS } from '../lib/tradeCenterHubs';
 
 const DATE_PUBLISHED = '2026-10-04';
-const PAGE_URL = 'https://redevelopment.pro/minsk/tc/rating/largest';
+const PAGE_URL = `${catalogSiteUrl('tc')}/rating/largest`;
 const PAGE_H1 = 'Самые большие торговые центры Минска';
 const TITLE = 'Самые большие торговые центры Минска: топ-10 по площади';
 const DESCRIPTION =
@@ -100,13 +101,13 @@ export function TradeCentersBiggestPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Торговые центры Минска', url: 'https://redevelopment.pro/minsk/tc' },
+      { name: 'Торговые центры Минска', url: catalogSiteUrl('tc') },
       { name: PAGE_H1 },
     ]);
   }, []);
 
   useEffect(() => {
-    setItemListJsonLd(displayed.map((center) => ({ name: shortName(center), url: `https://redevelopment.pro/minsk/tc/${center.slug}` })));
+    setItemListJsonLd(displayed.map((center) => ({ name: shortName(center), url: `${catalogSiteUrl('tc')}/${center.slug}` })));
     setFaqJsonLd(faqItems);
   }, [displayed, faqItems]);
 

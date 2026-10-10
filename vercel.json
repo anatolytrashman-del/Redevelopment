@@ -131,6 +131,28 @@
       "permanent": true
     },
     {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.offiselist.pro"
+        }
+      ],
+      "destination": "https://offiselist.pro/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.malllist.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/$1",
+      "permanent": true
+    },
+    {
       "source": "/pitch/zakupki",
       "destination": "/zakupki",
       "permanent": true
@@ -557,6 +579,26 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "offiselist.pro" }],
+      "destination": "/sitemap-offices.xml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "www.offiselist.pro" }],
+      "destination": "/sitemap-offices.xml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "malllist.pro" }],
+      "destination": "/sitemap-malls.xml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "www.malllist.pro" }],
+      "destination": "/sitemap-malls.xml"
+    },
     {
       "source": "/zakupki",
       "destination": "/zakupki.html"

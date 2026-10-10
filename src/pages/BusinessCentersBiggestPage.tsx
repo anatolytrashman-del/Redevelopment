@@ -4,6 +4,7 @@ import { ArrowRight, Award } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
+import { catalogSiteUrl } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -19,7 +20,7 @@ import { nearestMetroStation } from '../lib/metroStations';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 
 const DATE_PUBLISHED = '2026-09-22';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bc/rating/largest';
+const PAGE_URL = `${catalogSiteUrl('bc')}/rating/largest`;
 const PAGE_H1 = 'Самые большие бизнес-центры Минска';
 const TITLE = 'Самые большие бизнес-центры Минска: топ-20 по площади';
 const DESCRIPTION = `Топ-20 бизнес-центров Минска по общей площади здания: все классы, только сданные здания в черте города. Общая и офисная площадь, год постройки и метро.`;
@@ -155,14 +156,14 @@ export function BusinessCentersBiggestPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: PAGE_H1 },
     ]);
   }, []);
 
   useEffect(() => {
     setItemListJsonLd(
-      displayed.map((center) => ({ name: shortName(center), url: `https://redevelopment.pro/minsk/bc/${center.slug}` })),
+      displayed.map((center) => ({ name: shortName(center), url: `${catalogSiteUrl('bc')}/${center.slug}` })),
     );
     setFaqJsonLd(faqItems);
   }, [displayed, faqItems]);

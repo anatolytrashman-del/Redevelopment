@@ -19,11 +19,23 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
 import { tradeCenterPaths } from './_tcPaths.mjs';
+import {
+  CATALOG_DOMAIN_SPLIT_ENABLED,
+  PLATFORM_ORIGIN,
+  OFFICES_ORIGIN,
+  MALLS_ORIGIN,
+  absoluteUrlForPath,
+  isCatalogPath,
+} from './domainSplit.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-const SITE = 'https://redevelopment.pro';
+// SITE — origin для путей каталога БЦ в динамических URL. После сплита
+// доменов карточки БЦ живут на offiselist.pro; до включения — на платформе.
+const SITE = CATALOG_DOMAIN_SPLIT_ENABLED ? OFFICES_ORIGIN : PLATFORM_ORIGIN;
 const SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap.xml');
+const OFFICES_SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap-offices.xml');
+const MALLS_SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap-malls.xml');
 
 // Запрос к Supabase с повторами (2026-09-12) — та же защита, что в
 // scripts/prerender.mjs: free-tier отдаёт разовые 504 на обычный select, и
@@ -289,7 +301,40 @@ function tradeCenterUrls() {
     metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
     tcFilters,
     includeStores: false,
-  }).map((path) => `${SITE}/${path}`);
+  }).map((path) => absoluteUrlForPath(`/${path}`.replace(/^\/\//, '/')));
+}
+
+function urlEntry(url, today, priority = '0.6') {
+  return `  <url>\n    <loc>${escapeXml(url)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+}
+
+function wrapUrlset(entries) {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
+}
+
+/** Убирает из sitemap платформы все URL каталогов БЦ/ТЦ (после сплита). */
+function stripCatalogUrls(xml) {
+  let removed = 0;
+  const out = xml.replace(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g, (block) => {
+    const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+    let path = '';
+    try {
+      path = new URL(loc).pathname;
+    } catch {
+      return block;
+    }
+    if (!isCatalogPath(path) && !path.startsWith('/minsk/bcminsk')) return block;
+    removed += 1;
+    return '';
+  });
+  return { xml: out, removed };
+}
+
+/** Переписывает <loc> каталога на новый origin (пути те же). */
+function rewriteCatalogOrigins(xml) {
+  return xml
+    .replaceAll(`${PLATFORM_ORIGIN}/minsk/bc`, `${OFFICES_ORIGIN}/minsk/bc`)
+    .replaceAll(`${PLATFORM_ORIGIN}/minsk/tc`, `${MALLS_ORIGIN}/minsk/tc`);
 }
 
 function escapeXml(s) {
@@ -304,8 +349,7 @@ async function main() {
     console.warn(`[generate-sitemap] карточки БЦ не добавлены: ${err instanceof Error ? err.message : err}`);
     return;
   }
-  const xml = readFileSync(SITEMAP_PATH, 'utf8');
-  const existing = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]));
+  let xml = readFileSync(SITEMAP_PATH, 'utf8');
   const today = new Date().toISOString().slice(0, 10);
   let metroSlugs = [];
   try {
@@ -319,22 +363,85 @@ async function main() {
   } catch (err) {
     console.warn(`[generate-sitemap] срезы каталога не пересчитаны: ${err instanceof Error ? err.message : err}`);
   }
-  const entries = [
+
+  const bcDynamicUrls = [
     ...metroSlugs.map((slug) => `${SITE}/minsk/bc/metro/${slug}`),
     ...(hubs ? hubs.streets.map((path) => `${SITE}${path}`) : []),
     ...slugs.map((slug) => `${SITE}/minsk/bc/${slug}`),
-    ...tradeCenterUrls(),
-  ]
-    .filter((url) => !existing.has(url))
-    .map(
-      (url) =>
-        `  <url>\n    <loc>${escapeXml(url)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`,
+  ];
+  const tcUrls = tradeCenterUrls();
+
+  if (CATALOG_DOMAIN_SPLIT_ENABLED) {
+    // 1) Платформенный sitemap — без каталогов.
+    const stripped = stripCatalogUrls(xml);
+    xml = stripped.xml;
+    writeFileSync(SITEMAP_PATH, xml);
+    const platformTotal = [...xml.matchAll(/<loc>/g)].length;
+    console.log(
+      `[generate-sitemap] сплит доменов: из sitemap.xml убрано каталожных URL: ${stripped.removed} (осталось <loc>: ${platformTotal})`,
     );
+
+    // 2) Sitemap БЦ на offiselist.pro — статические хабы из public + динамика.
+    // Берём исходный public-файл (dist уже без каталогов после стрипа выше).
+    const publicXml = readFileSync(resolve(process.cwd(), 'public/sitemap.xml'), 'utf8');
+    const staticBcEntries = [...publicXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)]
+      .map((m) => m[0])
+      .filter((block) => {
+        const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+        try {
+          return isCatalogPath(new URL(loc).pathname) && new URL(loc).pathname.startsWith('/minsk/bc');
+        } catch {
+          return false;
+        }
+      })
+      .map((block) => rewriteCatalogOrigins(block).trimEnd());
+    let officesXml = wrapUrlset([
+      ...staticBcEntries,
+      ...bcDynamicUrls.map((url) => urlEntry(url, today)),
+    ]);
+    if (hubs) {
+      const pruned = pruneThinHubs(officesXml, hubs.keep);
+      // pruneThinHubs сравнивает path относительно SITE (offices origin) —
+      // SITE уже OFFICES_ORIGIN при сплите.
+      officesXml = pruned.xml;
+      writeFileSync(OFFICES_SITEMAP_PATH, officesXml);
+      console.log(
+        `[generate-sitemap] sitemap-offices.xml: ${[...officesXml.matchAll(/<loc>/g)].length} URL (тонких срезов убрано: ${pruned.removed})`,
+      );
+    } else {
+      writeFileSync(OFFICES_SITEMAP_PATH, officesXml);
+      console.log(`[generate-sitemap] sitemap-offices.xml: ${[...officesXml.matchAll(/<loc>/g)].length} URL`);
+    }
+
+    // 3) Sitemap ТЦ на malllist.pro
+    const staticTcEntries = [...publicXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)]
+      .map((m) => m[0])
+      .filter((block) => {
+        const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+        try {
+          return new URL(loc).pathname === '/minsk/tc' || new URL(loc).pathname.startsWith('/minsk/tc/');
+        } catch {
+          return false;
+        }
+      })
+      .map((block) => rewriteCatalogOrigins(block).trimEnd());
+    const mallsXml = wrapUrlset([
+      ...staticTcEntries,
+      ...tcUrls.map((url) => urlEntry(url, today)),
+    ]);
+    writeFileSync(MALLS_SITEMAP_PATH, mallsXml);
+    console.log(`[generate-sitemap] sitemap-malls.xml: ${[...mallsXml.matchAll(/<loc>/g)].length} URL`);
+    return;
+  }
+
+  // Режим без сплита — прежнее поведение: всё в одном sitemap.xml.
+  const existing = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]));
+  const entries = [...bcDynamicUrls, ...tcUrls]
+    .filter((url) => !existing.has(url))
+    .map((url) => urlEntry(url, today));
   const closing = xml.lastIndexOf('</urlset>');
   if (closing === -1) throw new Error('dist/sitemap.xml: не найден закрывающий </urlset>');
   const withEntries = entries.length ? `${xml.slice(0, closing)}${entries.join('\n')}\n</urlset>\n` : xml;
-  // Чистка идёт последней и по всему файлу: тонкие срезы есть и среди
-  // добавленных сейчас, и среди статических записей public/sitemap.xml.
   const { xml: pruned, removed } = hubs ? pruneThinHubs(withEntries, hubs.keep) : { xml: withEntries, removed: 0 };
   writeFileSync(SITEMAP_PATH, pruned);
   const total = [...pruned.matchAll(/<loc>/g)].length;

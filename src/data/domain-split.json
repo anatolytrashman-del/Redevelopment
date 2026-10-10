@@ -1,0 +1,21 @@
+{
+  "enabled": false,
+  "platform": {
+    "host": "redevelopment.pro",
+    "origin": "https://redevelopment.pro",
+    "brand": "Redevelopment"
+  },
+  "offices": {
+    "host": "offiselist.pro",
+    "origin": "https://offiselist.pro",
+    "brand": "Offiselist",
+    "pathPrefix": "/minsk/bc",
+    "legacyPrefixes": ["/minsk/bcminsk", "/bc"]
+  },
+  "malls": {
+    "host": "malllist.pro",
+    "origin": "https://malllist.pro",
+    "brand": "Malllist",
+    "pathPrefix": "/minsk/tc"
+  }
+}

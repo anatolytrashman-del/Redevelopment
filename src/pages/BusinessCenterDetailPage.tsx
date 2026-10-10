@@ -69,6 +69,7 @@ import {
   setPlaceJsonLd,
 } from '../lib/pageMeta';
 import { useCatalogKind } from '../lib/catalogKind';
+import { absoluteCatalogUrl, catalogSiteUrl } from '../lib/sites';
 import {
   fullName,
   shortAddress,
@@ -2261,7 +2262,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
         { name: V.catalogTitle, url: V.siteUrl },
         ...(formatHub && formatHubSize >= tcFormatHubMinCenters(formatHub.slug)
-          ? [{ name: formatHub.label, url: `https://redevelopment.pro${tcFormatHubUrl(formatHub, V.basePath)}` }]
+          ? [{ name: formatHub.label, url: absoluteCatalogUrl('tc', tcFormatHubUrl(formatHub, V.basePath)) }]
           : []),
         { name: shortName(center) },
       ]);
@@ -2285,7 +2286,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     );
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: shortName(center) },
     ]);
     // Б12: разметка самого здания. Удобства берём из уже собранных фактов
@@ -2294,7 +2295,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     setPlaceJsonLd({
       name: fullName(center),
       altNames: center.altNames,
-      url: `https://redevelopment.pro/minsk/bc/${center.slug}`,
+      url: `${catalogSiteUrl('bc')}/${center.slug}`,
       address: center.address,
       image: center.photos[0] ? withBcPhotoVersion(center.photos[0]) : undefined,
       lat: center.lat,
