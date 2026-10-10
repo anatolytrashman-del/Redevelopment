@@ -177,11 +177,13 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
   }
 
   // На каталожных доменах чужой контент платформы → на платформу.
-  // Корень malllist — своя главная (не редирект на /minsk/tc).
-  // Корень officelist пока ведём в каталог БЦ (отдельной главной ещё нет).
+  // Корень обоих каталогов ведём в каталог города (отдельной главной пока нет).
   if (bare === OFFICES.host || bare === MALLS.host) {
     if (path === '/' || path === '') {
-      if (bare === MALLS.host) return null;
+      if (bare === MALLS.host) {
+        if (!REDIRECT_MALLS_ENABLED) return null;
+        return `${MALLS.origin}${MALLS.pathPrefix!}`;
+      }
       if (!REDIRECT_OFFICES_ENABLED) return null;
       return `${OFFICES.origin}${OFFICES.pathPrefix!}`;
     }

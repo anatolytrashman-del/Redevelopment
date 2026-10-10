@@ -250,7 +250,8 @@ export default function middleware(request: Request) {
 
   // Корень сайта — в middleware (не в vercel.json): иначе на malllist
   // старый redirect "/"→"/minsk" из vercel.json срабатывал до Edge.
-  // Платформа: / → /minsk. Malllist: / — своя главная; /minsk → каталог ТЦ.
+  // Платформа: / → /minsk. Malllist: / — index.html (meta Вебмастера) +
+  // SPA Navigate на /minsk/tc; /minsk → каталог ТЦ.
   if (siteMode === 'malls') {
     if (normalized === '/minsk') {
       return Response.redirect(new URL('/minsk/tc', url), 307);
