@@ -1,17 +1,41 @@
 # Разнос проектов по доменам
 
-Решение владельца (2026-10-10): один репозиторий и один Vercel-проект, три
-публичных домена.
+Решение владельца (2026-10-10, уточнение в тот же день): **три отдельных
+Vercel-проекта и три GitHub-репозитория**, не алиасы на одном проекте.
 
-| Домен | Роль | Было на redevelopment.pro |
-|---|---|---|
-| **redevelopment.pro** | Платформа сервисов в недвижимости (CRM, закупки `/zakupki`, объекты, аналитика, гиды) | всё |
-| **offiselist.pro** | Каталог бизнес-центров | `/minsk/bc/*`, `/minsk/bcminsk/*`, `/bc/:slug` |
-| **malllist.pro** | Каталог торговых центров | `/minsk/tc/*` |
+| Домен | Vercel / GitHub | Роль | Было на redevelopment.pro |
+|---|---|---|---|
+| **redevelopment.pro** | текущий Redevelopment | Платформа (CRM, закупки `/zakupki`, объекты, аналитика) | всё |
+| **offiselist.pro** | отдельный проект (позже) | Каталог БЦ | `/minsk/bc/*`, `/minsk/bcminsk/*`, `/bc/:slug` |
+| **malllist.pro** | `malllist` ← `anatolytrashman-del/malllist` | Каталог ТЦ | `/minsk/tc/*` |
 
 Пути каталогов **не меняем** (`/minsk/bc/...`, `/minsk/tc/...`) — 1:1 для
-сохранения SEO-сигнала. Смена path → отдельный заход после стабилизации
-индекса на новых доменах.
+SEO. Смена path → отдельный заход после стабилизации индекса.
+
+## Режим деплоя (`PUBLIC_SITE` / `VITE_PUBLIC_SITE`)
+
+Один кодовый базис, разные env на Vercel-проекте:
+
+| Значение | Что отдаёт деплой |
+|---|---|
+| `platform` (по умолчанию) | полный сайт, как сейчас на redevelopment.pro |
+| `malls` | только `/minsk/tc/*` (+ `/privacy`, `/favorites`), `/` → `/minsk/tc` |
+| `offices` | (заготовка) только каталог БЦ |
+
+Для **malllist** в Vercel → Settings → Environment Variables (Production +
+Preview):
+
+```
+VITE_PUBLIC_SITE=malls
+PUBLIC_SITE=malls
+```
+
+Плюс те же Supabase/прочие ключи, что на платформе (хотя бы
+`VITE_SUPABASE_*`). После сохранения — Redeploy.
+
+В `vercel.json` автодеплой включён для ветки `main` (нужно отдельным
+проектам каталогов). На платформе Production Branch остаётся
+`claude/redevelopment-platform-prototype-oodobu`.
 
 ## Рубильник
 
@@ -140,5 +164,5 @@ curl -sI 'https://malllist.pro/' | head -5     # → /minsk/tc
 
 - Отдельные брендинг/дизайн offiselist и malllist (шапка, лого, og)
 - Укорочение путей (`offiselist.pro/titan` вместо `/minsk/bc/titan`)
-- Отдельные Vercel-проекты / репозитории
+- Вырезание мёртвого кода CRM из репозитория malllist (пока общий снимок)
 - Перенос счётчиков и почтовых ящиков на новые домены

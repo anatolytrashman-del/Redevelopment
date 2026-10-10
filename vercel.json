@@ -2,6 +2,7 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
+      "main": true,
       "claude/redevelopment-platform-prototype-oodobu": true,
       "preview": true
     }

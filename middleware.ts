@@ -1,5 +1,10 @@
 import { next } from '@vercel/functions';
-import { crossDomainRedirect, robotsSitemapLine, CATALOG_DOMAIN_SPLIT_ENABLED } from './src/lib/sites';
+import {
+  crossDomainRedirect,
+  robotsSitemapLine,
+  CATALOG_DOMAIN_SPLIT_ENABLED,
+  normalizeSiteMode,
+} from './src/lib/sites';
 
 // Vercel Routing Middleware — реальный HTTP 404 для несуществующих страниц.
 // Плюс (2026-10-10) междоменные 301 каталогов БЦ/ТЦ на offiselist.pro /
@@ -173,10 +178,64 @@ Disallow: /*/draft
 
 `;
 
+/** Пути, которые отдаёт отдельный проект malllist (только каталог ТЦ). */
+function isMallsSitePath(pathname: string): boolean {
+  const normalized = normalizePathname(pathname);
+  if (normalized === '/' || normalized === '') return true;
+  if (normalized === '/privacy') return true;
+  if (normalized === '/favorites' || normalized.startsWith('/favorites/')) return true;
+  if (normalized === '/minsk/tc' || normalized.startsWith('/minsk/tc/')) return true;
+  if (normalized === '/api' || normalized.startsWith('/api/')) return true;
+  if (normalized === '/_vercel' || normalized.startsWith('/_vercel/')) return true;
+  if (normalized === '/.well-known' || normalized.startsWith('/.well-known/')) return true;
+  if (
+    normalized === '/robots.txt' ||
+    normalized === '/sitemap.xml' ||
+    normalized === '/favicon.ico' ||
+    normalized === '/favicon.svg' ||
+    normalized === '/favicon.png' ||
+    normalized === '/apple-touch-icon.png'
+  ) {
+    return true;
+  }
+  return hasKnownStaticExtension(normalized);
+}
+
 export default function middleware(request: Request) {
   const url = new URL(request.url);
   const { pathname } = url;
   const host = request.headers.get('host') ?? url.host;
+  // Edge: дублируем VITE_PUBLIC_SITE в PUBLIC_SITE на Vercel (см. docs/domain-split.md).
+  const edgeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  const siteMode = normalizeSiteMode(edgeEnv?.PUBLIC_SITE || edgeEnv?.VITE_PUBLIC_SITE);
+
+  // Отдельный Vercel-проект malllist: корень → каталог ТЦ, чужие пути — 404.
+  if (siteMode === 'malls') {
+    const normalized = normalizePathname(pathname);
+    if (normalized === '/' || normalized === '') {
+      return Response.redirect(new URL('/minsk/tc', url).toString(), 302);
+    }
+    if (pathname === '/robots.txt') {
+      return new Response(`${CATALOG_ROBOTS}Sitemap: https://malllist.pro/sitemap.xml\n`, {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'public, max-age=600',
+        },
+      });
+    }
+    if (!isMallsSitePath(pathname)) {
+      return new Response(NOT_FOUND_HTML, {
+        status: 404,
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+        },
+      });
+    }
+    return next();
+  }
 
   // Междоменные 301 каталогов — раньше 404 и SPA-рерайта, чтобы Google/
   // Яндекс сразу увидели permanent redirect со старого URL.

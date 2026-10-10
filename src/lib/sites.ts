@@ -8,6 +8,10 @@
 // (см. docs/domain-split.md). Пока false, каталоги живут на платформе.
 import domainSplit from '../data/domain-split.json';
 
+// vite.config.ts define; объявлено здесь, потому что middleware.ts импортирует
+// этот файл и tsconfig.middleware не подхватывает src/vite-env.d.ts.
+declare const __DEPLOYED_SITE_MODE__: string | undefined;
+
 export type PublicSiteId = 'platform' | 'offices' | 'malls';
 
 export interface PublicSite {
@@ -47,7 +51,32 @@ export const SITES = { platform: PLATFORM, offices: OFFICES, malls: MALLS } as c
 /** true — каталоги на своих доменах, с платформы 301. */
 export const CATALOG_DOMAIN_SPLIT_ENABLED = domainSplit.enabled === true;
 
+/** Нормализация значения env PUBLIC_SITE / VITE_PUBLIC_SITE. */
+export function normalizeSiteMode(raw: string | undefined | null): PublicSiteId {
+  const v = String(raw ?? 'platform')
+    .trim()
+    .toLowerCase();
+  if (v === 'malls' || v === 'malllist' || v === 'tc') return 'malls';
+  if (v === 'offices' || v === 'offiselist' || v === 'bc') return 'offices';
+  return 'platform';
+}
+
+/**
+ * Какой сайт собирает клиентский бандл.
+ * Vercel → VITE_PUBLIC_SITE=malls|offices|platform (см. vite.config.ts define).
+ * Edge middleware читает process.env.PUBLIC_SITE сам, без этой функции.
+ */
+export function deployedSiteMode(): PublicSiteId {
+  const injected = typeof __DEPLOYED_SITE_MODE__ === 'string' ? __DEPLOYED_SITE_MODE__ : 'platform';
+  return normalizeSiteMode(injected);
+}
+
 export function catalogSiteOrigin(kind: 'bc' | 'tc'): string {
+  const mode = deployedSiteMode();
+  // Отдельный проект каталога — canonical сразу на свой домен, даже если
+  // глобальный рубильник domain-split ещё false (платформа не редиректит).
+  if (mode === 'malls') return MALLS.origin;
+  if (mode === 'offices') return OFFICES.origin;
   if (!CATALOG_DOMAIN_SPLIT_ENABLED) return PLATFORM.origin;
   return kind === 'tc' ? MALLS.origin : OFFICES.origin;
 }

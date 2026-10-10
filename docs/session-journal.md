@@ -3,6 +3,14 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — malllist: режим `PUBLIC_SITE=malls` (только ТЦ).**
+  Владелец разнёс на отдельные Vercel/GitHub-проекты (не алиасы). В коде:
+  `deployedSiteMode()` из `VITE_PUBLIC_SITE`/`PUBLIC_SITE`; при `malls` —
+  App и middleware отдают только `/minsk/tc/*` (+ privacy/favorites),
+  `/` → `/minsk/tc`, sitemap только ТЦ, canonical на malllist.pro.
+  `vercel.json`: автодеплой ветки `main`. На Vercel malllist выставить
+  оба env = `malls` и перекатить деплой. Домен наружу пока не открывать.
+
 - **2026-10-10 — Разнос каталогов на offiselist.pro / malllist.pro (каркас).**
   Владелец: платформа сервисов остаётся на redevelopment.pro (закупки —
   начало), каталог БЦ → offiselist.pro, каталог ТЦ → malllist.pro, с 301

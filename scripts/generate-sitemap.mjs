@@ -21,6 +21,7 @@ import { fallbackRows, offlineRows } from './_buildFallback.mjs';
 import { tradeCenterPaths } from './_tcPaths.mjs';
 import {
   CATALOG_DOMAIN_SPLIT_ENABLED,
+  DEPLOYED_SITE_MODE,
   PLATFORM_ORIGIN,
   OFFICES_ORIGIN,
   MALLS_ORIGIN,
@@ -342,6 +343,29 @@ function escapeXml(s) {
 }
 
 async function main() {
+  const today = new Date().toISOString().slice(0, 10);
+  const tcUrls = tradeCenterUrls();
+
+  // Отдельный Vercel-проект malllist: в sitemap.xml только ТЦ.
+  if (DEPLOYED_SITE_MODE === 'malls') {
+    const entries = [
+      urlEntry(`${MALLS_ORIGIN}/minsk/tc`, today, '1.0'),
+      ...tcUrls.map((u) => urlEntry(u, today, u.includes('/minsk/tc/') && !u.slice(`${MALLS_ORIGIN}/minsk/tc/`.length).includes('/') ? '0.8' : '0.6')),
+    ];
+    // tcUrls уже включает хаб /minsk/tc — не дублируем
+    const seen = new Set();
+    const deduped = [];
+    for (const block of entries) {
+      const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1];
+      if (!loc || seen.has(loc)) continue;
+      seen.add(loc);
+      deduped.push(block);
+    }
+    writeFileSync(SITEMAP_PATH, wrapUrlset(deduped));
+    console.log(`[generate-sitemap] режим malls: sitemap.xml — ${deduped.length} URL каталога ТЦ`);
+    return;
+  }
+
   let slugs;
   try {
     slugs = await fetchBusinessCenterSlugs();
@@ -350,7 +374,6 @@ async function main() {
     return;
   }
   let xml = readFileSync(SITEMAP_PATH, 'utf8');
-  const today = new Date().toISOString().slice(0, 10);
   let metroSlugs = [];
   try {
     metroSlugs = await fetchMetroHubStations();
@@ -369,7 +392,6 @@ async function main() {
     ...(hubs ? hubs.streets.map((path) => `${SITE}${path}`) : []),
     ...slugs.map((slug) => `${SITE}/minsk/bc/${slug}`),
   ];
-  const tcUrls = tradeCenterUrls();
 
   if (CATALOG_DOMAIN_SPLIT_ENABLED) {
     // 1) Платформенный sitemap — без каталогов.

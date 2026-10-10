@@ -16,7 +16,21 @@ export const PLATFORM_HOST = CONFIG.platform.host;
 export const OFFICES_HOST = CONFIG.offices.host;
 export const MALLS_HOST = CONFIG.malls.host;
 
+/** Отдельный Vercel-проект: PUBLIC_SITE / VITE_PUBLIC_SITE = malls|offices|platform */
+export function deployedSiteMode() {
+  const raw = String(process.env.PUBLIC_SITE || process.env.VITE_PUBLIC_SITE || 'platform')
+    .trim()
+    .toLowerCase();
+  if (raw === 'malls' || raw === 'malllist' || raw === 'tc') return 'malls';
+  if (raw === 'offices' || raw === 'offiselist' || raw === 'bc') return 'offices';
+  return 'platform';
+}
+
+export const DEPLOYED_SITE_MODE = deployedSiteMode();
+
 export function catalogOrigin(kind) {
+  if (DEPLOYED_SITE_MODE === 'malls') return MALLS_ORIGIN;
+  if (DEPLOYED_SITE_MODE === 'offices') return OFFICES_ORIGIN;
   if (!CATALOG_DOMAIN_SPLIT_ENABLED) return PLATFORM_ORIGIN;
   return kind === 'tc' ? MALLS_ORIGIN : OFFICES_ORIGIN;
 }
