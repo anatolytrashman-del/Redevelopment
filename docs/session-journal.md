@@ -3,6 +3,59 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — ТЦ cutover + счётчик malllist.** `redirects.malls=true`:
+  301 с redevelopment → malllist, sitemap платформы без `/minsk/tc`,
+  пререндер/шеллы ТЦ только на malllist, IndexNow host-aware +
+  `indexnow-malls-migration.mjs`. Свой счётчик: колонка `site` в
+  `page_views_daily`/`search_visits_daily` (platform|malls|offices) —
+  задел под общий дашборд; трекер пишет и на malllist.pro.
+
+- **2026-10-10 — malllist: бренд, главная, редиректы, Яндекс.** OG-карточки
+  с «M»/malllist.pro (не копия с платформы); фавикон красная M;
+  главная по ритму CasinoList без манифеста «честной модели»;
+  `yandex-verification=5893ee662c25f112`; в `domain-split.json` точечные
+  `redirects.malls|offices` (пока false) — malllist можно включить отдельно.
+
+- **2026-10-10 — malllist: эталонный пререндер ТЦ «под ключ».**
+  При `PUBLIC_SITE=malls` `build:app` сам гоняет пререндер+OG
+  (`malls-prerender-if-needed.mjs`): снапшоты `/minsk/tc/*` с
+  redevelopment.pro (adopt + rewrite на malllist.pro), главная `/`
+  честно; `prepare-malls-shell.mjs` — meta SPA. Отдельный Build Command
+  на Vercel не нужен — хватает текущего `npm run build:app`.
+
+- **2026-10-10 — malllist: один GitHub, два Vercel.** Деплой каталога
+  из того же `Redevelopment` (отдельный Vercel-проект + env `malls`),
+  без ручного пуша в `anatolytrashman-del/malllist`. В `vercel.json`
+  включён автодеплой `cursor/**`. Подключение Git — владельцем в UI.
+
+- **2026-10-10 — malllist: главная + логотип MallList.** Лого
+  `Mall`+`List`(красный) в шапке каталога; `/` — базовая главная
+  (независимый список ТЦ + каталог городов с Минском); `/minsk` →
+  `/minsk/tc`. Полные УТП главной — позже.
+
+- **2026-10-10 — malllist: корень домена.** Убран `"/"→"/minsk"` из
+  `vercel.json` (на malllist он срабатывал до Edge и давал `/minsk`→404).
+  Корень ведёт `middleware.ts`: platform `/`→`/minsk`; malls — своя
+  главная на `/`, `/minsk`→`/minsk/tc`.
+
+- **2026-10-10 — malllist: режим `PUBLIC_SITE=malls` (только ТЦ).**
+  Владелец разнёс на отдельные Vercel/GitHub-проекты (не алиасы). В коде:
+  `deployedSiteMode()` из `VITE_PUBLIC_SITE`/`PUBLIC_SITE`; при `malls` —
+  App и middleware отдают только `/minsk/tc/*` (+ privacy/favorites),
+  `/` → `/minsk/tc`, sitemap только ТЦ, canonical на malllist.pro.
+  `vercel.json`: автодеплой ветки `main`. На Vercel malllist выставить
+  оба env = `malls` и перекатить деплой. Домен наружу пока не открывать.
+
+- **2026-10-10 — Разнос каталогов на offiselist.pro / malllist.pro (каркас).**
+  Владелец: платформа сервисов остаётся на redevelopment.pro (закупки —
+  начало), каталог БЦ → offiselist.pro, каталог ТЦ → malllist.pro, с 301
+  под уже идущую индексацию Google/Яндекс. В коде: `src/data/domain-split.json`
+  (рубильник `enabled: false` до DNS), `src/lib/sites.ts` + middleware 301,
+  `catalogSiteUrl` в словаре каталога и SEO-страницах, раздельная генерация
+  sitemap при включении, www-редиректы и host-rewrite sitemap в vercel.json.
+  Инструкция включения и Search Console / Вебмастер — `docs/domain-split.md`.
+  В прод-рубильник не трогать, пока домены не в Vercel со SSL.
+
 - **2026-10-09** — Карточка поставщика быстрее (шапка без писем/КП; письма без body; запросы/реестр точечно); виды товара группами по плиткам каталога; % ответов capped 100%.
 - **2026-10-09** — Карточка поставщика: «Запросить цены», кликабельные KPI, % ответов и категории в шапке, пустые состояния с CTA, копирование реквизитов, лента истории.
 - **2026-10-09** — Каталог быстрее: хабы сразу после первой порции offers, снимки сайтов догружаются частями; убран хаб «Оснащение и услуги»; предложение структуры ≤3 ур. — `docs/supplier-catalog-structure-proposal.md`.

@@ -6,6 +6,7 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { DISTRICTS, DISTRICTS_WITH_GUIDE } from '../data/districts';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
+import { REDIRECT_MALLS_ENABLED, REDIRECT_OFFICES_ENABLED, catalogSiteUrl } from '../lib/sites';
 
 // Хаб раздела "Минск" (SEO_PLAN.md, урл-структура /minsk/...) — только
 // гиды по районам, под общим city-scoped префиксом. Корень сайта (/)
@@ -43,10 +44,22 @@ import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 // роутов в App.tsx для них соответственно тоже нет.
 // Владелец, 2026-09-30: каталог ТЦ открыт — плашка стала ссылкой на /minsk/tc.
 const CATALOGS = [
-  { name: 'Бизнес-центры', icon: Building2, href: '/minsk/bc' },
-  { name: 'Торговые центры', icon: ShoppingBag, href: '/minsk/tc' },
-  { name: 'Коворкинги', icon: Users, href: null },
-  { name: 'Склады', icon: Warehouse, href: null },
+  {
+    name: 'Бизнес-центры',
+    icon: Building2,
+    // После сплита доменов — абсолютная ссылка на offiselist.pro (иначе
+    // SPA Link остался бы на redevelopment.pro и упёрся в 301).
+    href: REDIRECT_OFFICES_ENABLED ? catalogSiteUrl('bc') : '/minsk/bc',
+    external: REDIRECT_OFFICES_ENABLED,
+  },
+  {
+    name: 'Торговые центры',
+    icon: ShoppingBag,
+    href: REDIRECT_MALLS_ENABLED ? catalogSiteUrl('tc') : '/minsk/tc',
+    external: REDIRECT_MALLS_ENABLED,
+  },
+  { name: 'Коворкинги', icon: Users, href: null, external: false },
+  { name: 'Склады', icon: Warehouse, href: null, external: false },
 ] as const;
 
 const TITLE = 'Коммерческая недвижимость в Минске — Redevelopment';
@@ -80,19 +93,26 @@ export function MinskHub() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {CATALOGS.map((c) => {
               const Icon = c.icon;
-              return c.href ? (
-                <Link
-                  key={c.name}
-                  to={c.href}
-                  className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
-                  style={glassCardShadow}
-                >
+              const className = cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass);
+              const body = (
+                <>
                   <span className="flex items-center gap-2.5 font-medium text-ink">
                     <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
                     {c.name}
                   </span>
                   <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
-                </Link>
+                </>
+              );
+              return c.href ? (
+                c.external ? (
+                  <a key={c.name} href={c.href} className={className} style={glassCardShadow}>
+                    {body}
+                  </a>
+                ) : (
+                  <Link key={c.name} to={c.href} className={className} style={glassCardShadow}>
+                    {body}
+                  </Link>
+                )
               ) : (
                 <div
                   key={c.name}

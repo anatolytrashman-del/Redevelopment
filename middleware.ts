@@ -1,6 +1,14 @@
 import { next } from '@vercel/functions';
+import {
+  crossDomainRedirect,
+  robotsSitemapLine,
+  CATALOG_DOMAIN_SPLIT_ENABLED,
+  normalizeSiteMode,
+} from './src/lib/sites';
 
 // Vercel Routing Middleware — реальный HTTP 404 для несуществующих страниц.
+// Плюс (2026-10-10) междоменные 301 каталогов БЦ/ТЦ на offiselist.pro /
+// malllist.pro, когда включён domain-split (src/data/domain-split.json).
 //
 // 2026-09-06: Яндекс.Вебмастер пожаловался, что ЛЮБОЙ путь (в т.ч. заведомо
 // несуществующий) отдаёт 200 — см. комментарий в src/pages/NotFound.tsx.
@@ -152,12 +160,123 @@ const NOT_FOUND_HTML = `<!doctype html>
 </html>
 `;
 
+const MALLLIST_NOT_FOUND_HTML = NOT_FOUND_HTML
+  .replace('— REDEVELOPMENT', '— MallList')
+  .replace('<b>RED</b>EVELOPMENT', 'Mall<span style="color:#e4152b">List</span>');
+
 export const config = {
   runtime: 'edge',
 };
 
+const PLATFORM_ROBOTS = `User-agent: *
+Disallow: /admin
+Disallow: /pitch
+Disallow: /*/draft
+
+`;
+
+const CATALOG_ROBOTS = `User-agent: *
+Disallow: /admin
+Disallow: /pitch
+Disallow: /*/draft
+
+`;
+
+/** Пути, которые отдаёт отдельный проект malllist (только каталог ТЦ). */
+function isMallsSitePath(pathname: string): boolean {
+  const normalized = normalizePathname(pathname);
+  if (normalized === '/' || normalized === '') return true;
+  if (normalized === '/privacy') return true;
+  if (normalized === '/favorites' || normalized.startsWith('/favorites/')) return true;
+  if (normalized === '/minsk/tc' || normalized.startsWith('/minsk/tc/')) return true;
+  if (normalized === '/api' || normalized.startsWith('/api/')) return true;
+  if (normalized === '/_vercel' || normalized.startsWith('/_vercel/')) return true;
+  if (normalized === '/.well-known' || normalized.startsWith('/.well-known/')) return true;
+  if (
+    normalized === '/robots.txt' ||
+    normalized === '/sitemap.xml' ||
+    normalized === '/favicon.ico' ||
+    normalized === '/favicon.svg' ||
+    normalized === '/favicon.png' ||
+    normalized === '/apple-touch-icon.png'
+  ) {
+    return true;
+  }
+  return hasKnownStaticExtension(normalized);
+}
+
+function edgeSiteMode(): ReturnType<typeof normalizeSiteMode> {
+  // Edge: дублируем VITE_PUBLIC_SITE в PUBLIC_SITE на Vercel (см. docs/domain-split.md).
+  // Vite-define (__DEPLOYED_SITE_MODE__) сюда не попадает — только process.env.
+  const gProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  return normalizeSiteMode(gProcess?.env?.PUBLIC_SITE || gProcess?.env?.VITE_PUBLIC_SITE);
+}
+
 export default function middleware(request: Request) {
-  const { pathname } = new URL(request.url);
+  const url = new URL(request.url);
+  const { pathname } = url;
+  const host = request.headers.get('host') ?? url.host;
+  const siteMode = edgeSiteMode();
+  const normalized = normalizePathname(pathname);
+
+  // Корень сайта — в middleware (не в vercel.json): иначе на malllist
+  // старый redirect "/"→"/minsk" из vercel.json срабатывал до Edge.
+  // Платформа: / → /minsk. Malllist: / — своя главная; /minsk → каталог ТЦ.
+  if (siteMode === 'malls') {
+    if (normalized === '/minsk') {
+      return Response.redirect(new URL('/minsk/tc', url), 307);
+    }
+    if (pathname === '/robots.txt') {
+      return new Response(`${CATALOG_ROBOTS}Sitemap: https://malllist.pro/sitemap.xml\n`, {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'public, max-age=600',
+        },
+      });
+    }
+    if (!isMallsSitePath(pathname)) {
+      return new Response(MALLLIST_NOT_FOUND_HTML, {
+        status: 404,
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+        },
+      });
+    }
+    return next();
+  }
+
+  if (siteMode === 'offices') {
+    if (normalized === '/' || normalized === '' || normalized === '/minsk') {
+      return Response.redirect(new URL('/minsk/bc', url), 307);
+    }
+  }
+
+  if (siteMode === 'platform' && (normalized === '/' || normalized === '')) {
+    return Response.redirect(new URL('/minsk', url), 307);
+  }
+
+  // Междоменные 301 каталогов — раньше 404 и SPA-рерайта, чтобы Google/
+  // Яндекс сразу увидели permanent redirect со старого URL.
+  const cross = crossDomainRedirect(host, pathname);
+  if (cross) {
+    return Response.redirect(cross, 301);
+  }
+
+  // robots.txt с правильным Sitemap под хост (после включения сплита).
+  if (pathname === '/robots.txt' && CATALOG_DOMAIN_SPLIT_ENABLED) {
+    const bare = host.replace(/^www\./, '').toLowerCase();
+    const body =
+      bare === 'offiselist.pro' || bare === 'malllist.pro' ? CATALOG_ROBOTS : PLATFORM_ROBOTS;
+    return new Response(`${body}${robotsSitemapLine(host)}\n`, {
+      status: 200,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'cache-control': 'public, max-age=600',
+      },
+    });
+  }
 
   if (isKnownPath(pathname)) {
     return next();

@@ -9,9 +9,17 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectTcStoreHubs } from './_tcPaths.mjs';
+import { catalogOrigin, DEPLOYED_SITE_MODE, REDIRECT_MALLS_ENABLED } from './domainSplit.mjs';
+
+// На платформе после переезда ТЦ шеллы /minsk/tc/store/* не кладём в dist —
+// иначе статикой мог бы уехать 200 вместо 301 на malllist.
+if (DEPLOYED_SITE_MODE === 'platform' && REDIRECT_MALLS_ENABLED) {
+  console.log('[tc-store-seo-shells] redirects.malls — пропускаю (шеллы только на malllist)');
+  process.exit(0);
+}
 
 const DIST_DIR = 'dist';
-const SITE_ORIGIN = 'https://redevelopment.pro';
+const SITE_ORIGIN = catalogOrigin('tc');
 const DESCRIPTION_BUDGET = 160;
 const TC_HUB_SNIPPET_ITEMS = [
   'адреса и форматы',
@@ -94,7 +102,8 @@ function buildShell(template, { slug, label, count }) {
         '$1$2',
       )
       // <h1> в #root — сигнал ботам без JS; React сносит содержимое при монтировании.
-      .replace(/<div id="root"><\/div>/, `<div id="root"><h1>${h1}</h1></div>`)
+      // Корень может быть уже заполнен (prepare-malls-shell) — заменяем целиком.
+      .replace(/<div id="root">[\s\S]*?<\/div>/, `<div id="root"><h1>${h1}</h1></div>`)
   );
 }
 

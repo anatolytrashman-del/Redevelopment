@@ -32,6 +32,7 @@ import { AnalyticsMethodologyPage } from './pages/AnalyticsMethodologyPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { MalllistHomePage } from './pages/MalllistHomePage';
 import { NotFound } from './pages/NotFound';
 import { CookieBanner } from './components/layout/CookieBanner';
 import { metrikaHit } from './lib/metrika';
@@ -40,6 +41,7 @@ import { useOnlinePresenceTracker } from './lib/onlinePresence';
 import { trackPageView } from './lib/pageViewTracker';
 import { FavoritesProvider } from './lib/favoritesContext';
 import { CatalogKindProvider } from './lib/catalogKind';
+import { deployedSiteMode } from './lib/sites';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -271,6 +273,46 @@ function AdminChunkFallback() {
   );
 }
 
+/** Маршруты отдельного проекта malllist.pro — главная + каталог ТЦ. */
+function MalllistRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<MalllistHomePage />} />
+      <Route path="/minsk" element={<Navigate to="/minsk/tc" replace />} />
+      <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
+      <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
+      <Route
+        path="/minsk/tc/rating/largest"
+        element={<CatalogKindProvider kind="tc"><TradeCentersBiggestPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/district/:districtSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/metro/:metroSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/format/:formatSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/with/:topicSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/store/:storeSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
+      <Route path="/favorites/:id" element={<FavoritesPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   usePreventPageZoom();
   useScrollToTopOnNavigate();
@@ -278,6 +320,17 @@ export default function App() {
   useVkPageGoals();
   useOnlineVisitorPresence();
   useOwnPageViewCounter();
+
+  // Отдельный Vercel-проект malllist: env VITE_PUBLIC_SITE=malls.
+  if (deployedSiteMode() === 'malls') {
+    return (
+      <FavoritesProvider>
+        <MalllistRoutes />
+        <CookieBanner />
+      </FavoritesProvider>
+    );
+  }
+
   return (
     <FavoritesProvider>
     <Routes>

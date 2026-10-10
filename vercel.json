@@ -2,8 +2,10 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
+      "main": true,
       "claude/redevelopment-platform-prototype-oodobu": true,
-      "preview": true
+      "preview": true,
+      "cursor/**": true
     }
   },
   "functions": {
@@ -131,6 +133,52 @@
       "permanent": true
     },
     {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.offiselist.pro"
+        }
+      ],
+      "destination": "https://offiselist.pro/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.malllist.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/$1",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc",
+      "has": [{ "type": "host", "value": "redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/:path*",
+      "has": [{ "type": "host", "value": "redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc",
+      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/:path*",
+      "has": [{ "type": "host", "value": "www.redevelopment.pro" }],
+      "destination": "https://malllist.pro/minsk/tc/:path*",
+      "permanent": true
+    },
+    {
       "source": "/pitch/zakupki",
       "destination": "/zakupki",
       "permanent": true
@@ -139,11 +187,6 @@
       "source": "/pitch/zakupki/(.*)",
       "destination": "/zakupki/$1",
       "permanent": true
-    },
-    {
-      "source": "/",
-      "destination": "/minsk",
-      "permanent": false
     },
     {
       "source": "/one",
@@ -557,6 +600,26 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "offiselist.pro" }],
+      "destination": "/sitemap-offices.xml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "www.offiselist.pro" }],
+      "destination": "/sitemap-offices.xml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "malllist.pro" }],
+      "destination": "/sitemap-malls.xml"
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [{ "type": "host", "value": "www.malllist.pro" }],
+      "destination": "/sitemap-malls.xml"
+    },
     {
       "source": "/zakupki",
       "destination": "/zakupki.html"

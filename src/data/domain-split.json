@@ -1,0 +1,30 @@
+{
+  "enabled": false,
+  "redirects": {
+    "malls": true,
+    "offices": false
+  },
+  "verifications": {
+    "malls": {
+      "yandex": "5893ee662c25f112"
+    }
+  },
+  "platform": {
+    "host": "redevelopment.pro",
+    "origin": "https://redevelopment.pro",
+    "brand": "Redevelopment"
+  },
+  "offices": {
+    "host": "offiselist.pro",
+    "origin": "https://offiselist.pro",
+    "brand": "Offiselist",
+    "pathPrefix": "/minsk/bc",
+    "legacyPrefixes": ["/minsk/bcminsk", "/bc"]
+  },
+  "malls": {
+    "host": "malllist.pro",
+    "origin": "https://malllist.pro",
+    "brand": "MallList",
+    "pathPrefix": "/minsk/tc"
+  }
+}

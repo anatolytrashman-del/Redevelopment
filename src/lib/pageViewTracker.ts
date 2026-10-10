@@ -1,15 +1,20 @@
 import { supabase } from './supabase';
 import { isLikelyBot } from './botDetection';
 import { aiSourceFromHostname } from './aiReferrer';
+import { siteIdFromHostname, type PublicSiteId } from './sites';
 
 // Собственный счётчик посещаемости без cookie (владелец, 2026-09-28) — см.
 // supabase/migrations/20260928-page-views-daily.sql и src/data/pageViews.ts.
-// Считает только два числа на пару (день, путь): просмотры и визиты (первый
-// просмотр загрузки страницы). Никаких cookie/localStorage/sessionStorage —
-// пишет напрямую в Supabase через track_page_view (RPC, SECURITY DEFINER),
-// fire-and-forget: ошибка сети не должна ничего ломать и не должна шуметь в
-// консоли (в отличие от withRetry-обёрнутых запросов админки, тут это не
-// критичная операция — один потерянный просмотр не стоит повторов/таймаутов).
+// Считает только два числа на пару (день, путь, сайт): просмотры и визиты
+// (первый просмотр загрузки страницы). Никаких cookie/localStorage/
+// sessionStorage — пишет напрямую в Supabase через track_page_view (RPC,
+// SECURITY DEFINER), fire-and-forget: ошибка сети не должна ничего ломать и
+// не должна шуметь в консоли (в отличие от withRetry-обёрнутых запросов
+// админки, тут это не критичная операция — один потерянный просмотр не
+// стоит повторов/таймаутов).
+//
+// site (platform | malls | offices) — чтобы хиты redevelopment.pro и
+// malllist.pro не смешивались; позже сводятся в один дашборд «Показатели».
 //
 // entries=true — только для ПЕРВОЙ отслеженной страницы этой загрузки
 // документа, когда document.referrer пуст или ведёт на другой хост (значит
@@ -29,12 +34,13 @@ let hasTrackedEntryThisLoad = false;
 // (не завязан на dev/prod), поэтому заодно гасит и любые другие двойные
 // срабатывания эффекта на неизменившемся пути.
 let lastTrackedPath: string | null = null;
+let lastTrackedSite: PublicSiteId | null = null;
 
-function isOwnHost(): boolean {
+function currentSiteId(): PublicSiteId | null {
   try {
-    return window.location.hostname === 'redevelopment.pro';
+    return siteIdFromHostname(window.location.hostname);
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -76,7 +82,8 @@ function searchSourceFromReferrer(): string | null {
 // переключение фильтра каталога через URL) не считается новым просмотром
 // страницы для этого счётчика.
 export function trackPageView(pathname: string): void {
-  if (!isOwnHost()) return; // превью/localhost/GH-зеркало (если вдруг) не должны засорять прод-статистику
+  const site = currentSiteId();
+  if (!site) return; // превью/localhost не засоряют прод-статистику
   if (pathname.startsWith('/admin')) return; // считаем только публичную часть
   if (isLikelyBot()) return;
   try {
@@ -85,8 +92,9 @@ export function trackPageView(pathname: string): void {
     // не должен падать в браузере, но на всякий случай просто не считаем
     return;
   }
-  if (pathname === lastTrackedPath) return; // StrictMode/повторный вызов на тот же путь
+  if (pathname === lastTrackedPath && site === lastTrackedSite) return;
   lastTrackedPath = pathname;
+  lastTrackedSite = site;
 
   const isEntry = !hasTrackedEntryThisLoad && referrerIsExternal();
   hasTrackedEntryThisLoad = true;
@@ -94,12 +102,12 @@ export function trackPageView(pathname: string): void {
   const searchSource = isEntry ? searchSourceFromReferrer() : null;
   if (searchSource) {
     void supabase
-      .rpc('track_search_visit', { p_source: searchSource })
+      .rpc('track_search_visit', { p_source: searchSource, p_site: site })
       .then(() => undefined, () => undefined);
   }
 
   void supabase
-    .rpc('track_page_view', { p_path: pathname, p_entry: isEntry })
+    .rpc('track_page_view', { p_path: pathname, p_entry: isEntry, p_site: site })
     .then(
       () => undefined,
       () => undefined,

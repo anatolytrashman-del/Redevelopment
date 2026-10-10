@@ -80,11 +80,18 @@ import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
 import { tradeCenterPaths } from './_tcPaths.mjs';
+import {
+  DEPLOYED_SITE_MODE,
+  MALLS_ORIGIN,
+  PLATFORM_ORIGIN,
+  REDIRECT_MALLS_ENABLED,
+} from './domainSplit.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
 const DIST_DIR = join(ROOT_DIR, 'dist');
 const PORT = 4173;
 const BASE_URL = `http://localhost:${PORT}`;
+const IS_MALLS_DEPLOY = DEPLOYED_SITE_MODE === 'malls';
 
 // Публичный anon-ключ (см. src/lib/supabase.ts) — тот же, что зашит в
 // клиентский бандл, отдельного секрета для сборки не требует.
@@ -96,7 +103,10 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_
 // api/*.js) — новый секрет от владельца не требуется.
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const SITE_ORIGIN = 'https://redevelopment.pro';
+// Источник эталонных снапшотов ТЦ — всегда платформа (там уже полный
+// пререндер каталога). Для malllist копии переписываем на MALLS_ORIGIN.
+const SITE_ORIGIN = PLATFORM_ORIGIN;
+const PUBLIC_ORIGIN = IS_MALLS_DEPLOY ? MALLS_ORIGIN : PLATFORM_ORIGIN;
 // Сборка, запущенная Deploy Hook'ом (реальное изменение данных), должна
 // успеть дойти до этой проверки, пока triggered_at ещё «свежий» — щедрый
 // запас на очередь Vercel + предыдущие шаги сборки (tsc/vite build/сгенери-
@@ -193,7 +203,18 @@ const MINSK_MIR_TOPIC_SLUGS = ['biznes-centr', 'kovorking', 'kupit-ofis', 'arend
 // которой критично не зависать на устаревшем JS. Если тот же симптом
 // повторится на других лендингах объектов — добавлять их сюда по
 // одному, не переводить всю сотню сразу.
-const ALWAYS_FULL_RENDER_PATHS = new Set(['minsk/minsk-mir', 'minsk/one']);
+// '' — корень malllist (MalllistHomePage): на платформе другой /, копии нет.
+const ALWAYS_FULL_RENDER_PATHS = new Set(
+  IS_MALLS_DEPLOY ? ['', 'minsk/minsk-mir', 'minsk/one'] : ['minsk/minsk-mir', 'minsk/one'],
+);
+
+/** Копия с платформы → URL/бренд malllist (каноникал, og, JSON-LD). */
+function rewriteSnapshotForPublicOrigin(html) {
+  if (!IS_MALLS_DEPLOY || PUBLIC_ORIGIN === SITE_ORIGIN) return html;
+  return html
+    .replaceAll(SITE_ORIGIN, PUBLIC_ORIGIN)
+    .replace(/(<meta property="og:site_name" content=")[^"]*(")/, '$1MallList$2');
+}
 
 const STATIC_PATHS = [
   'minsk',
@@ -638,7 +659,11 @@ let executablePathPromise = null;
 async function chromiumExecutable() {
   if (!executablePathPromise) {
     executablePathPromise = (async () => {
-      if (!process.env.VERCEL) return { executablePath: '/opt/pw-browsers/chromium', args: [] };
+      // Облачные агенты/CI часто без /opt/pw-browsers — тот же @sparticuz, что на Vercel.
+      const localPw = '/opt/pw-browsers/chromium';
+      if (!process.env.VERCEL && existsSync(localPw)) {
+        return { executablePath: localPw, args: [] };
+      }
       const sparticuzChromium = (await import('@sparticuz/chromium')).default;
       return { executablePath: await sparticuzChromium.executablePath(), args: sparticuzChromium.args };
     })();
@@ -839,6 +864,17 @@ const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел Б�
 async function decidePrerenderMode() {
   if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
   if (process.env.PRERENDER_FORCE_FULL === '1') return { full: true, scope: 'all', reason: 'PRERENDER_FORCE_FULL=1' };
+  // malllist: эталон ТЦ уже на платформе — копируем снапшоты оттуда
+  // (adoptBuildAssets + rewrite origin), главную рендерим честно
+  // (ALWAYS_FULL_RENDER_PATHS содержит ''). Полный headless ~165 путей
+  // здесь не нужен: разметка каталога та же, что на redevelopment.pro.
+  if (IS_MALLS_DEPLOY) {
+    return {
+      full: false,
+      scope: 'all',
+      reason: 'malls: копия ТЦ с платформы + честный рендер главной',
+    };
+  }
   if (!process.env.VERCEL) {
     // Локальный/ручной прогон — как и раньше, всегда полный; PRERENDER_SCOPE
     // (objects|all) — только чтобы прогнать частичный режим локально.
@@ -986,16 +1022,19 @@ const assetExistsInDist = (name) => existsSync(join(DIST_DIR, 'assets', name));
 // нельзя, вызывающий код рендерит путь честно и учитывает причину в сводке.
 async function fetchPathLive(path) {
   try {
-    const res = await fetch(`${SITE_ORIGIN}/${path}`, { signal: AbortSignal.timeout(10_000) });
+    const url = path ? `${SITE_ORIGIN}/${path}` : `${SITE_ORIGIN}/`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return { ok: false, reason: `прод ответил ${res.status}` };
     const html = await res.text();
     if (!/<h1[\s>]/i.test(html)) return { ok: false, reason: 'на проде нет снапшота (голый SPA-шелл без <h1>)' };
     const adopted = adoptBuildAssets(html, currentBuildBlocks(), assetExistsInDist);
     if (!adopted.html) return { ok: false, reason: adopted.reason };
-    const dir = join(DIST_DIR, path);
+    const rewritten = rewriteSnapshotForPublicOrigin(adopted.html);
+    const dir = path ? join(DIST_DIR, path) : DIST_DIR;
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'index.html'), adopted.html);
-    console.log(`[prerender] /${path} → dist/${path}/index.html (скопировано с прода, ${Math.round(adopted.html.length / 1024)} КБ)`);
+    writeFileSync(join(dir, 'index.html'), rewritten);
+    const label = IS_MALLS_DEPLOY ? 'скопировано с платформы' : 'скопировано с прода';
+    console.log(`[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${label}, ${Math.round(rewritten.length / 1024)} КБ)`);
     return { ok: true };
   } catch (err) {
     return { ok: false, reason: `не удалось скачать живую копию: ${err instanceof Error ? err.message : err}` };
@@ -1018,20 +1057,34 @@ async function main() {
   }
   if (!existsSync(DIST_DIR)) throw new Error('dist/ не найден — запускать после vite build');
 
-  const landingPaths = await fetchLandingPaths();
-  const paths = [
-    ...landingPaths,
-    ...(await fetchBusinessCenterPaths()),
-    ...(await fetchClassDistrictComboPaths()),
-    ...(await fetchMicrodistrictHubPaths()),
-    ...(await fetchMetroHubPaths()),
-    ...(await fetchStreetHubPaths()),
-    ...tradeCenterCatalogPaths(),
-    ...STATIC_PATHS,
-  ];
+  const landingPaths = IS_MALLS_DEPLOY ? [] : await fetchLandingPaths();
+  // malllist: только главная + privacy + каталог ТЦ (эталонные снапшоты
+  // копируются с платформы). Остальной сайт на этом деплое не отдаётся.
+  // Платформа при redirects.malls: ТЦ не пререндерим — иначе статика в
+  // dist/minsk/tc могла бы ответить 200 до Edge-редиректа.
+  const includeTcOnPlatform = !REDIRECT_MALLS_ENABLED;
+  const paths = IS_MALLS_DEPLOY
+    ? ['', 'privacy', ...tradeCenterCatalogPaths()]
+    : [
+        ...landingPaths,
+        ...(await fetchBusinessCenterPaths()),
+        ...(await fetchClassDistrictComboPaths()),
+        ...(await fetchMicrodistrictHubPaths()),
+        ...(await fetchMetroHubPaths()),
+        ...(await fetchStreetHubPaths()),
+        ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
+        ...STATIC_PATHS,
+      ];
   if (paths.length === 0) {
     console.warn('[prerender] пререндерить нечего — нет ни объектов с landing_slug, ни статических страниц');
     return;
+  }
+  if (IS_MALLS_DEPLOY) {
+    console.log(
+      `[prerender] режим malls: ${paths.length} путей (главная + privacy + ТЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
+    );
+  } else if (REDIRECT_MALLS_ENABLED) {
+    console.log('[prerender] redirects.malls: каталог ТЦ не пререндерю (живёт на malllist.pro)');
   }
   // PRERENDER_ONLY=префикс[,префикс…] — только для локальных замеров/отладки:
   // оставить пути, начинающиеся с одного из префиксов (например
@@ -1049,7 +1102,9 @@ async function main() {
   // (в т.ч. /minsk/minsk-mir). Карточки БЦ и хабы класса×района сюда
   // намеренно не входят — их 150+, единичный сбой не должен ронять весь
   // деплой, но полный список пропущенных путей всё равно печатается ниже.
-  const criticalPaths = new Set([...landingPaths, ...STATIC_PATHS]);
+  const criticalPaths = IS_MALLS_DEPLOY
+    ? new Set(['', 'privacy', 'minsk/tc'])
+    : new Set([...landingPaths, ...STATIC_PATHS]);
 
   // История (важно для будущих правок этого файла, четыре захода подряд):
   // 1) Исходно — новый браузер на КАЖДУЮ страницу и КАЖДУЮ попытку. Со
@@ -1241,14 +1296,14 @@ async function main() {
         await page.evaluate(() => {
           document.querySelectorAll('[data-entry-injected]').forEach((el) => el.remove());
         });
-        const html = await page.content();
+        const html = rewriteSnapshotForPublicOrigin(await page.content());
         if (!html.includes('data-entry-loader')) {
           throw new Error('в снапшоте нет лоадера главного JS (data-entry-loader) — defer-entry-script.mjs не отработал?');
         }
-        const dir = join(DIST_DIR, path);
+        const dir = path ? join(DIST_DIR, path) : DIST_DIR;
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'index.html'), html);
-        console.log(`[prerender] /${path} → dist/${path}/index.html (${Math.round(html.length / 1024)} КБ)`);
+        console.log(`[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${Math.round(html.length / 1024)} КБ)`);
         return;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -1400,7 +1455,23 @@ async function main() {
   // контента. Теперь пропуск критичного пути валит сборку явно — Vercel
   // покажет красный деплой и оставит прод на прошлой рабочей версии, а не
   // тихо задеплоит регресс.
-  const failedCritical = failedPaths.filter((p) => criticalPaths.has(p));
+  // malllist: главная могла остаться на prepare-malls-shell (с <h1>) —
+  // это валидный SEO-фолбэк, если Chromium не поднялся.
+  const failedCritical = failedPaths.filter((p) => {
+    if (!criticalPaths.has(p)) return false;
+    if (IS_MALLS_DEPLOY && p === '') {
+      try {
+        const home = readFileSync(join(DIST_DIR, 'index.html'), 'utf8');
+        if (/<h1[\s>]/i.test(home) && /MallList/i.test(home)) {
+          console.warn('[prerender] / — headless не снял, оставляю SEO-шелл MallList с <h1>');
+          return false;
+        }
+      } catch {
+        // нет файла — критично
+      }
+    }
+    return true;
+  });
   if (failedCritical.length > 0) {
     console.error(
       `[prerender] СБОЙ: ${failedCritical.length} критичных путей остались без снапшота:\n` +

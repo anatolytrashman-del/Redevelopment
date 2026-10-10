@@ -9,6 +9,7 @@ import { pluralRu } from './pluralRu';
 import { fullName, shortAddress, shortName } from './businessCenterDisplay';
 import { fitsSerpTitle } from './serpTitleWidth';
 import type { CatalogKind } from './catalogKind';
+import { catalogSiteUrl, deployedSiteMode, platformOrigin, SITES } from './sites';
 
 export interface PageMeta {
   title: string;
@@ -279,6 +280,18 @@ export function setOrganizationJsonLd(enabled: boolean) {
   if (!ld) return;
   if (!enabled) {
     ld.textContent = '';
+    return;
+  }
+  if (deployedSiteMode() === 'malls') {
+    ld.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: SITES.malls.brand,
+      url: SITES.malls.origin,
+      logo: `${SITES.malls.origin}/apple-touch-icon.png`,
+      description: 'Каталог торговых центров по городам. Карточки объектов, подборки и карта — начиная с Минска.',
+      areaServed: { '@type': 'City', name: 'Минск' },
+    });
     return;
   }
   ld.textContent = JSON.stringify({
@@ -587,12 +600,12 @@ export function setBusinessCenterPageMeta(
   // fallbackBusinessCenterMeta) ждёт его внутри записи — у одного здания,
   // «МФЦ (Минск Мир)», короткое имя задано именно по слагу.
   const meta = fallbackBusinessCenterMeta({ ...center, slug }, composition);
-  const url = `https://redevelopment.pro/minsk/bc/${slug}`;
+  const url = `${catalogSiteUrl('bc')}/${slug}`;
   // Фото БЦ хранятся локальными путями (public/images/business-centers/...,
   // см. data/businessCenters.ts), не абсолютными URL, как у Supabase Storage
   // объектов — og:image/JSON-LD image по спецификации должны быть абсолютными
   // (соцсети/краулеры фетчат их напрямую, не относительно страницы).
-  const absoluteImage = image ? new URL(image, 'https://redevelopment.pro').toString() : undefined;
+  const absoluteImage = image ? new URL(image, platformOrigin()).toString() : undefined;
 
   document.title = meta.title;
   setMetaContent('meta[name="description"]', meta.description);

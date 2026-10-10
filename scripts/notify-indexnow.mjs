@@ -6,43 +6,32 @@
 // о страницах почти сразу.
 //
 // Ключ подтверждения владения — статический файл public/<key>.txt (копия
-// content = сам ключ), Vite копирует public/ в корень dist как есть, так
-// что https://redevelopment.pro/<key>.txt доступен без отдельного кода на
-// сервере. Проверка владения — тот факт, что engine может скачать файл по
-// этому пути и увидеть внутри тот же ключ, что в теле запроса.
+// content = сам ключ), Vite копирует public/ в корень dist как есть.
+// На malllist.pro тот же ключ (отдельный Vercel-проект, тот же public/).
 //
-// Запускается в `npm run build` сразу после generate-sitemap.mjs (нужен
-// уже дополненный dist/sitemap.xml — карточки БЦ/хабы метро/улиц). Как и
-// у generate-sitemap.mjs — сетевая ошибка НЕ валит сборку, только
-// предупреждение в лог.
+// Запускается в `npm run build` сразу после generate-sitemap.mjs.
+// Только на реальных прод-сборках Vercel.
 //
-// Только на реальных сборках Vercel (process.env.VERCEL) — локальные/
-// дев-прогоны в песочнице не должны спамить внешний API одним и тем же
-// списком URL при каждой отладочной сборке.
-//
-// 2026-09-23 — пинг только при изменениях и не чаще раза в неделю (решение
-// владельца). Раньше список уходил на КАЖДОЙ прод-сборке, а их бывало под
-// сотню в сутки (22.09 — 96) — одни и те же 257 URL сотню раз подряд
-// поисковик вправе счесть спамом и перестать слушать. Теперь:
-// - «изменения» — отпечаток из кода публичных страниц (public-build-id),
-//   набора URL карты сайта и данных каталога БЦ (dist/data, без даты
-//   сборки). Правки объектов в админке в отпечаток не входят — их страниц
-//   единицы, их поисковик подхватит по карте сайта;
-// - память между сборками — файл dist/indexnow-state.json ({ sentAt,
-//   fingerprint }), который следующая сборка читает с прода, тот же приём,
-//   что /public-build-id.txt у пререндера. Не отправили — переносим прежнее
-//   состояние как есть, поэтому изменение, придержанное недельным окном,
-//   уйдёт первой сборкой после его конца.
+// 2026-09-23 — пинг только при изменениях и не чаще раза в неделю.
+// 2026-10-10 — host берётся из DEPLOYED_SITE_MODE (platform | malls).
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
+import {
+  DEPLOYED_SITE_MODE,
+  MALLS_ORIGIN,
+  PLATFORM_ORIGIN,
+} from './domainSplit.mjs';
 
-const HOST = 'redevelopment.pro';
-const SITE = `https://${HOST}`;
 const INDEXNOW_KEY = '8749bf38ccefd4070d1d1cbb901a168f';
+const SITE = DEPLOYED_SITE_MODE === 'malls' ? MALLS_ORIGIN : PLATFORM_ORIGIN;
+const HOST = new URL(SITE).host;
 const SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap.xml');
-const CATALOG_PATH = resolve(process.cwd(), 'dist/data/business-centers.json');
+const CATALOG_PATH = resolve(
+  process.cwd(),
+  DEPLOYED_SITE_MODE === 'malls' ? 'dist/data/trade-centers.json' : 'dist/data/business-centers.json',
+);
 const STATE_PATH = resolve(process.cwd(), 'dist/indexnow-state.json');
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -51,6 +40,8 @@ const MIN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 function fingerprint(urlList) {
   const hash = createHash('sha256');
   hash.update(computePublicBuildId().id);
+  hash.update('\n');
+  hash.update(HOST);
   hash.update('\n');
   hash.update([...urlList].sort().join('\n'));
   hash.update('\n');
@@ -61,15 +52,11 @@ function fingerprint(urlList) {
   return hash.digest('hex').slice(0, 32);
 }
 
-// undefined — прод недоступен (не знаем, когда пинговали: лучше промолчать),
-// null — состояния на проде ещё нет (первая сборка с этой логикой).
 async function previousState() {
   try {
     const res = await fetch(`${SITE}/indexnow-state.json`, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
     if (res.status === 404) return null;
     if (!res.ok) return undefined;
-    // Файла ещё нет — Vercel отдаёт не 404, а SPA-шелл (index.html) с 200:
-    // это «состояния нет», а не «прод недоступен».
     if (!(res.headers.get('content-type') ?? '').includes('json')) return null;
     const state = await res.json().catch(() => null);
     return typeof state?.sentAt === 'string' && typeof state?.fingerprint === 'string' ? state : null;
@@ -105,9 +92,6 @@ async function main() {
     console.warn('[notify-indexnow] не удалось прочитать /indexnow-state.json с прода — пропускаем, чтобы не пинговать вслепую');
     return;
   }
-  // База закрыта (2026-09-23, 402) — сборка копирует СТАРУЮ разметку с прода
-  // (см. prerender.mjs, режим outage): звать поисковик сейчас — потратить
-  // недельное окно на прошлую версию страниц.
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/business_centers?select=slug&limit=1`, {
       headers: { apikey: SUPABASE_ANON_KEY },
@@ -123,7 +107,7 @@ async function main() {
   }
   if (prev?.fingerprint === current) {
     keepState(prev);
-    console.log(`[notify-indexnow] страницы не менялись с отправки ${prev.sentAt} — пропускаем`);
+    console.log('[notify-indexnow] страницы не менялись с отправки ' + prev.sentAt + ' — пропускаем');
     return;
   }
   if (prev && Date.now() - new Date(prev.sentAt).getTime() < MIN_INTERVAL_MS) {
@@ -143,11 +127,9 @@ async function main() {
       }),
       signal: AbortSignal.timeout(20_000),
     });
-    // IndexNow отвечает 200 (принято) или 202 (принято, ключ ещё не проверен
-    // по всем участникам) — оба означают "успешно отправлено".
     if (res.ok || res.status === 202) {
       writeFileSync(STATE_PATH, JSON.stringify({ sentAt: new Date().toISOString(), fingerprint: current }));
-      console.log(`[notify-indexnow] отправлено ${urlList.length} URL, статус ${res.status}`);
+      console.log(`[notify-indexnow] ${HOST}: отправлено ${urlList.length} URL, статус ${res.status}`);
     } else {
       keepState(prev);
       const body = await res.text().catch(() => '');
@@ -161,6 +143,5 @@ async function main() {
 
 main().catch((err) => {
   console.error(err);
-  // Не роняем сборку — тот же принцип, что и у generate-sitemap.mjs.
   process.exitCode = 0;
 });

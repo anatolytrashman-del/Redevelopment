@@ -31,12 +31,15 @@ import { chromium } from 'playwright-core';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import os from 'node:os';
+import { DEPLOYED_SITE_MODE, MALLS_ORIGIN, PLATFORM_ORIGIN } from './domainSplit.mjs';
 
 const DIST_DIR = 'dist';
 const FONTS_DIR = 'public/fonts';
 const PUBLIC_OG_DIR = 'public/og';
 const CARDS_DIR = join(DIST_DIR, 'og');
-const SITE_ORIGIN = 'https://redevelopment.pro';
+// PNG обложек ТЦ берём с платформы (там эталон); в HTML пишем URL своего origin.
+const SNAPSHOT_ORIGIN = PLATFORM_ORIGIN;
+const SITE_ORIGIN = DEPLOYED_SITE_MODE === 'malls' ? MALLS_ORIGIN : PLATFORM_ORIGIN;
 const RED = '#e4152b';
 
 // Ручные обложки в public/og/{slug}.png — не перерисовывать генератором
@@ -52,6 +55,11 @@ const SKIP_FILES = new Set(['index.html', '404.html']);
 // Подпись под заголовком — по разделу сайта, без обращения к данным: адрес
 // страницы уже однозначно говорит, что это за раздел.
 function sectionKicker(path) {
+  if (DEPLOYED_SITE_MODE === 'malls') {
+    if (path.startsWith('minsk/tc')) return 'Каталог торговых центров · MallList';
+    if (path === 'privacy') return 'Политика конфиденциальности · MallList';
+    return 'MallList · malllist.pro';
+  }
   if (path === 'minsk') return 'Объекты, аналитика, справочник бизнес-центров';
   if (path.startsWith('minsk/analytics')) return 'Аналитика рынка · redevelopment.pro';
   if (path.startsWith('minsk/bc')) return 'Справочник бизнес-центров Минска';
@@ -83,7 +91,8 @@ const normalize = (text) =>
 function kickerFor(path, title) {
   const kicker = sectionKicker(path);
   const [a, b] = [normalize(kicker), normalize(title)];
-  return a && b && (b.includes(a) || a.includes(b)) ? 'redevelopment.pro' : kicker;
+  const fallback = DEPLOYED_SITE_MODE === 'malls' ? 'malllist.pro' : 'redevelopment.pro';
+  return a && b && (b.includes(a) || a.includes(b)) ? fallback : kicker;
 }
 
 // Путь → имя файла карточки: /minsk/bc/one → dist/og/minsk-bc-one.png.
@@ -100,6 +109,10 @@ const cardSlug = (path) => path.replace(/\//g, '-') || 'index';
 // двоеточие вместо тире короче на пару символов и переносится ровно на
 // границах слов «Коммерческая / недвижимость Минск / Мира: цены и аналитика».
 const CARD_TEXT_OVERRIDES = {
+  '': {
+    title: 'Каталог торговых центров',
+    kicker: 'MallList · полный список ТЦ по городам',
+  },
   'minsk/minsk-mir': {
     title: 'Коммерческая недвижимость Минск Мира: цены и аналитика',
     // Без "· redevelopment.pro" — домен уже есть в шапке карточки рядом с
@@ -182,8 +195,10 @@ const FIT_SCRIPT = `(function () {
 })()`;
 
 function cardHtml(title, kicker) {
+  const mark = DEPLOYED_SITE_MODE === 'malls' ? 'M' : 'R';
+  const site = DEPLOYED_SITE_MODE === 'malls' ? 'malllist.pro' : 'redevelopment.pro';
   return `<html><head><style>${fontFaces()}${CARD_CSS}</style></head><body><div class="card">
-  <div class="top"><span class="mark">R</span><span class="site">redevelopment.pro</span></div>
+  <div class="top"><span class="mark">${mark}</span><span class="site">${site}</span></div>
   <div class="title">${escapeHtml(title)}</div>
   <div class="kicker">${escapeHtml(kicker)}</div>
 </div></body></html>`;
@@ -207,15 +222,16 @@ function trimTitle(title) {
 const SINGLE_PROCESS = process.env.PRERENDER_SINGLE_PROCESS === '1';
 
 async function launchBrowser() {
-  if (process.env.VERCEL) {
-    const sparticuzChromium = (await import('@sparticuz/chromium')).default;
-    return chromium.launch({
-      args: SINGLE_PROCESS ? sparticuzChromium.args : sparticuzChromium.args.filter((a) => a !== '--single-process'),
-      executablePath: await sparticuzChromium.executablePath(),
-      headless: true,
-    });
+  const localPw = '/opt/pw-browsers/chromium';
+  if (!process.env.VERCEL && existsSync(localPw)) {
+    return chromium.launch({ executablePath: localPw, headless: true });
   }
-  return chromium.launch({ executablePath: '/opt/pw-browsers/chromium', headless: true });
+  const sparticuzChromium = (await import('@sparticuz/chromium')).default;
+  return chromium.launch({
+    args: SINGLE_PROCESS ? sparticuzChromium.args : sparticuzChromium.args.filter((a) => a !== '--single-process'),
+    executablePath: await sparticuzChromium.executablePath(),
+    headless: true,
+  });
 }
 
 // 2026-09-12 — обложки в быстром режиме пререндера берём с прода, а не
@@ -249,7 +265,7 @@ function readCopiedFromProd() {
 
 async function copyCardFromLive(slug) {
   try {
-    const res = await fetch(`${SITE_ORIGIN}/og/${slug}.png`, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(`${SNAPSHOT_ORIGIN}/og/${slug}.png`, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return false;
     const buf = Buffer.from(await res.arrayBuffer());
     // SPA-рерайт vercel.json отдаёт на несуществующий путь index.html с кодом
@@ -267,18 +283,34 @@ async function main() {
     console.warn('[og-cards] нет каталога dist — нечего обрабатывать');
     return;
   }
-  const copiedFromProd = readCopiedFromProd();
+  // malllist: карточки платформы с «R» не копируем — рисуем свои с «M».
+  const copiedFromProd = DEPLOYED_SITE_MODE === 'malls' ? new Set() : readCopiedFromProd();
   const pages = [];
   for (const file of collectHtmlFiles(DIST_DIR)) {
     const rel = relative(DIST_DIR, file);
-    if (SKIP_FILES.has(rel)) continue;
+    // Главную malllist (dist/index.html) тоже покрываем фирменной карточкой.
+    if (SKIP_FILES.has(rel) && !(DEPLOYED_SITE_MODE === 'malls' && rel === 'index.html')) continue;
     const html = readFileSync(file, 'utf8');
     const title = readTitle(html);
     if (!title) {
       console.warn(`[og-cards] ${rel}: не нашёл og:title/<title> — оставляю прежнюю обложку`);
       continue;
     }
-    const path = rel.endsWith('/index.html') ? rel.slice(0, -'/index.html'.length) : rel.slice(0, -'.html'.length);
+    const path =
+      rel === 'index.html'
+        ? ''
+        : rel.endsWith('/index.html')
+          ? rel.slice(0, -'/index.html'.length)
+          : rel.slice(0, -'.html'.length);
+    // malllist: только главная + privacy + каталог ТЦ; store-шеллы не трогаем.
+    if (DEPLOYED_SITE_MODE === 'malls') {
+      const ok =
+        path === '' ||
+        path === 'privacy' ||
+        path === 'minsk/tc' ||
+        (path.startsWith('minsk/tc/') && !path.startsWith('minsk/tc/store/'));
+      if (!ok) continue;
+    }
     pages.push({ file, html, path, title: trimTitle(CARD_TEXT_OVERRIDES[path]?.title ?? title) });
   }
   if (pages.length === 0) {
@@ -415,6 +447,15 @@ async function main() {
       // уже закрыт
     }
   }
+  // Главная malllist: карточку index.png дублируем в og-image.png (meta по умолчанию).
+  if (DEPLOYED_SITE_MODE === 'malls') {
+    const homeCard = join(CARDS_DIR, 'index.png');
+    if (existsSync(homeCard)) {
+      copyFileSync(homeCard, join(DIST_DIR, 'og-image.png'));
+      copyFileSync(homeCard, join(CARDS_DIR, 'home.png'));
+    }
+  }
+
   console.log(
     `[og-cards] готово: ${handcrafted + copied + rendered} страниц со своей обложкой (dist/og/*.png; ручных ${handcrafted}, с прода ${copied}, отрендерено ${rendered})`,
   );

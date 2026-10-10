@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { pluralRu } from './pluralRu';
+import { catalogSiteUrl } from './sites';
 
 // Два каталога на одном шаблоне (2026-09-23): бизнес-центры (/minsk/bc) и
 // торговые центры (/minsk/tc). Данные лежат в одной таблице business_centers
@@ -10,6 +11,9 @@ import { pluralRu } from './pluralRu';
 // Слова даны готовыми падежными формами, а не склоняются на лету: у
 // «торговый центр» склоняются оба слова, и правило «добавь окончание»
 // тут не работает.
+//
+// siteUrl — абсолютный корень каталога. При включённом domain-split
+// (src/data/domain-split.json) указывает на offiselist.pro / malllist.pro.
 
 export type CatalogKind = 'bc' | 'tc';
 
@@ -51,7 +55,7 @@ export const CATALOG_VOCABULARY: Record<CatalogKind, CatalogVocabulary> = {
   bc: {
     kind: 'bc',
     basePath: '/minsk/bc',
-    siteUrl: 'https://redevelopment.pro/minsk/bc',
+    siteUrl: catalogSiteUrl('bc'),
     listFile: 'business-centers.json',
     abbr: 'БЦ',
     one: 'бизнес-центр',
@@ -69,7 +73,7 @@ export const CATALOG_VOCABULARY: Record<CatalogKind, CatalogVocabulary> = {
   tc: {
     kind: 'tc',
     basePath: '/minsk/tc',
-    siteUrl: 'https://redevelopment.pro/minsk/tc',
+    siteUrl: catalogSiteUrl('tc'),
     listFile: 'trade-centers.json',
     abbr: 'ТЦ',
     one: 'торговый центр',
