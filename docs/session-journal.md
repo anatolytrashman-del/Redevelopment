@@ -3,6 +3,11 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — officelist: yandex-verification.** Meta
+  `7055f1dec94e1e7e` в `domain-split.json` + rewrite снапшотов БЦ
+  (главная редиректит на `/minsk/bc`). Дальше Verify в Вебмастере и
+  sitemap/recrawl API.
+
 - **2026-10-10 — БЦ cutover на officelist.pro.** `redirects.offices=true`:
   301 с redevelopment → officelist, sitemap платформы без `/minsk/bc`,
   IndexNow 236 URL OK. www.redevelopment `/minsk/bc` → officelist одним

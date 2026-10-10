@@ -277,7 +277,9 @@ export default function middleware(request: Request) {
   }
 
   if (siteMode === 'offices') {
-    if (normalized === '/' || normalized === '' || normalized === '/minsk') {
+    // / — отдаём index.html (meta yandex-verification для Вебмастера +
+    // SPA Navigate на /minsk/bc). 307 с корня ломал HTML-meta проверку.
+    if (normalized === '/minsk') {
       return Response.redirect(new URL('/minsk/bc', url), 307);
     }
     if (pathname === '/robots.txt') {

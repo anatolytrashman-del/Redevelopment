@@ -87,6 +87,7 @@ import {
   PLATFORM_ORIGIN,
   REDIRECT_MALLS_ENABLED,
   REDIRECT_OFFICES_ENABLED,
+  catalogYandexVerification,
 } from './domainSplit.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
@@ -220,9 +221,22 @@ const ALWAYS_FULL_RENDER_PATHS = new Set(
 function rewriteSnapshotForPublicOrigin(html) {
   if (!IS_CATALOG_DEPLOY || PUBLIC_ORIGIN === SITE_ORIGIN) return html;
   const brand = IS_MALLS_DEPLOY ? 'MallList' : 'OfficeList';
-  return html
+  let out = html
     .replaceAll(SITE_ORIGIN, PUBLIC_ORIGIN)
     .replace(/(<meta property="og:site_name" content=")[^"]*(")/, `$1${brand}$2`);
+  // Вебмастер проверяет meta на финальной странице (/ у officelist → /minsk/bc).
+  const yandex = catalogYandexVerification();
+  if (yandex) {
+    if (/<meta name="yandex-verification"/i.test(out)) {
+      out = out.replace(
+        /(<meta name="yandex-verification" content=")[^"]*(")/i,
+        `$1${yandex}$2`,
+      );
+    } else {
+      out = out.replace('</head>', `<meta name="yandex-verification" content="${yandex}" />\n</head>`);
+    }
+  }
+  return out;
 }
 
 const STATIC_PATHS = [

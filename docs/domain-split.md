@@ -93,17 +93,19 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 **Не включать редиректы в прод, пока не выполнены шаги ниже для того
 каталога, который уезжает.** Иначе 301 поведут на неготовый домен.
 
-### Верификация вебмастеров (malllist)
+### Верификация вебмастеров
 
-В `domain-split.json` → `verifications.malls.yandex` и в шелл сборки
-(`prepare-malls-shell.mjs`) уже прописано:
+В `domain-split.json` → `verifications.*.yandex` + шеллы сборки:
 
 ```html
+<!-- malllist -->
 <meta name="yandex-verification" content="5893ee662c25f112" />
+<!-- officelist -->
+<meta name="yandex-verification" content="7055f1dec94e1e7e" />
 ```
 
-Google Search Console — добавить meta/DNS, когда появится токен (поле
-`verifications.malls.google` + правка шелла).
+Google Search Console — meta/DNS в `verifications.*.google` + шелл, когда
+появится токен.
 
 ## Чеклист перед включением
 
