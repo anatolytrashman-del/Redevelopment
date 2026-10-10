@@ -15,9 +15,9 @@
     "brand": "Redevelopment"
   },
   "offices": {
-    "host": "offiselist.pro",
-    "origin": "https://offiselist.pro",
-    "brand": "Offiselist",
+    "host": "officelist.pro",
+    "origin": "https://officelist.pro",
+    "brand": "OfficeList",
     "pathPrefix": "/minsk/bc",
     "legacyPrefixes": ["/minsk/bcminsk", "/bc"]
   },

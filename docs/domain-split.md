@@ -10,7 +10,7 @@
 | Домен | Vercel-проект | GitHub | Роль |
 |---|---|---|---|
 | **redevelopment.pro** | текущий (платформа) | Redevelopment | CRM, закупки, объекты, аналитика |
-| **offiselist.pro** | отдельный (позже) | тот же Redevelopment | Каталог БЦ |
+| **officelist.pro** | отдельный (позже) | тот же Redevelopment | Каталог БЦ |
 | **malllist.pro** | `malllist` | тот же Redevelopment | Каталог ТЦ / MallList |
 
 Пути каталогов **не меняем** (`/minsk/bc/...`, `/minsk/tc/...`) — 1:1 для
@@ -81,7 +81,7 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 |---|---|
 | `"enabled": true` | оба каталога сразу (301 + canonical + sitemap) |
 | `"redirects.malls": true` | только ТЦ → malllist.pro (БЦ остаётся на платформе) |
-| `"redirects.offices": true` | только БЦ → offiselist.pro |
+| `"redirects.offices": true` | только БЦ → officelist.pro |
 
 Сейчас: `"redirects.malls": true`, `"redirects.offices": false`.
 Каталог ТЦ уехал на malllist.pro (301 с платформы, sitemap без `/minsk/tc`,
@@ -109,19 +109,17 @@ Google Search Console — добавить meta/DNS, когда появится
 
 ### 1. DNS и Vercel
 
-1. Зарегистрировать `offiselist.pro` и `malllist.pro` (имя с одной `f` —
-   осознанный бренд, не опечатка `office`).
-2. В Vercel → проект redevelopment → Domains добавить:
-   - `offiselist.pro`, `www.offiselist.pro`
-   - `malllist.pro`, `www.malllist.pro`
-3. У регистратора — DNS как скажет Vercel (обычно A/`76.76.21.21` или
-   nameservers Vercel). Дождаться SSL `Valid`.
-4. Проверка: `curl -I https://offiselist.pro/minsk/bc` отдаёт 200
-   (пока `enabled: false` — тот же контент, что на платформе).
+1. Домены: `officelist.pro` (office + list) и `malllist.pro` — куплены.
+2. Отдельный Vercel-проект на каждый каталог (как malllist), домен
+   подключить к своему проекту. DNS — **ровно** IP/CNAME из карточки
+   Domains этого проекта (не обязательно `76.76.21.21`).
+3. `www` — либо CNAME на Vercel, либо не заводить, пока не добавлен в проект.
+4. Проверка: `curl -I https://officelist.pro/minsk/bc` → 200 на проекте
+   с `PUBLIC_SITE=offices` (не `DEPLOYMENT_NOT_FOUND`).
 
 ### 2. Включение в коде
 
-**Сначала только malllist** (offiselist позже):
+**Сначала только malllist** (officelist позже):
 
 1. В Вебмастере/GSC подтвердить `malllist.pro`, отправить
    `https://malllist.pro/sitemap.xml`.
@@ -182,12 +180,12 @@ curl -s 'https://malllist.pro/' | rg yandex-verification
 
 | Откуда (host + path) | Куда |
 |---|---|
-| `redevelopment.pro/minsk/bc…` | `offiselist.pro/minsk/bc…` |
-| `redevelopment.pro/minsk/bcminsk…` | `offiselist.pro/minsk/bc…` |
-| `redevelopment.pro/bc/:slug` | `offiselist.pro/minsk/bc/:slug` |
+| `redevelopment.pro/minsk/bc…` | `officelist.pro/minsk/bc…` |
+| `redevelopment.pro/minsk/bcminsk…` | `officelist.pro/minsk/bc…` |
+| `redevelopment.pro/bc/:slug` | `officelist.pro/minsk/bc/:slug` |
 | `redevelopment.pro/minsk/tc…` | `malllist.pro/minsk/tc…` |
 | `www.*.pro/…` | apex того же домена |
-| `offiselist.pro/` | `offiselist.pro/minsk/bc` |
+| `officelist.pro/` | `officelist.pro/minsk/bc` |
 | `malllist.pro/` | остаётся главной MallList (без 301 на каталог) |
 | чужой path на каталожном домене (не статика) | `redevelopment.pro` + тот же path |
 
@@ -210,7 +208,7 @@ curl -s 'https://malllist.pro/' | rg yandex-verification
 
 ## Вне скоупа этого захода
 
-- Отдельные брендинг/дизайн offiselist и malllist (шапка, лого, og)
-- Укорочение путей (`offiselist.pro/titan` вместо `/minsk/bc/titan`)
+- Отдельные брендинг/дизайн officelist и malllist (шапка, лого, og)
+- Укорочение путей (`officelist.pro/titan` вместо `/minsk/bc/titan`)
 - Вырезание мёртвого кода CRM из репозитория malllist (пока общий снимок)
 - Перенос счётчиков и почтовых ящиков на новые домены

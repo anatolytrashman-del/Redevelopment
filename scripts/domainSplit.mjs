@@ -29,7 +29,7 @@ export function deployedSiteMode() {
     .trim()
     .toLowerCase();
   if (raw === 'malls' || raw === 'malllist' || raw === 'tc') return 'malls';
-  if (raw === 'offices' || raw === 'offiselist' || raw === 'bc') return 'offices';
+  if (raw === 'offices' || raw === 'officelist' || raw === 'offiselist' || raw === 'bc') return 'offices';
   return 'platform';
 }
 

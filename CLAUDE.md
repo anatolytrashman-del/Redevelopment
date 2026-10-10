@@ -63,7 +63,7 @@ data/linkbuilding/ — трекер кампании линкбилдинга (C
 | FAQ и блока источников на публичных страницах | `docs/claude/public-pages.md` |
 | мок-теста UI, веток, порядка публикации, передачи задач Codex | `docs/claude/workflow.md` |
 | журнала сессий и рабочих планов (SEO, линкбилдинг, закупки, каталог БЦ, автоответы) | `docs/claude/working-docs.md` |
-| разноса каталогов на offiselist.pro / malllist.pro, 301 и Search Console / Вебмастер | `docs/domain-split.md` |
+| разноса каталогов на officelist.pro / malllist.pro, 301 и Search Console / Вебмастер | `docs/domain-split.md` |
 
 ## Жёсткие правила (кратко — подробности по ссылкам)
 

@@ -7,7 +7,7 @@ import {
 } from './src/lib/sites';
 
 // Vercel Routing Middleware — реальный HTTP 404 для несуществующих страниц.
-// Плюс (2026-10-10) междоменные 301 каталогов БЦ/ТЦ на offiselist.pro /
+// Плюс (2026-10-10) междоменные 301 каталогов БЦ/ТЦ на officelist.pro /
 // malllist.pro, когда включён domain-split (src/data/domain-split.json).
 //
 // 2026-09-06: Яндекс.Вебмастер пожаловался, что ЛЮБОЙ путь (в т.ч. заведомо
@@ -268,7 +268,7 @@ export default function middleware(request: Request) {
   if (pathname === '/robots.txt' && CATALOG_DOMAIN_SPLIT_ENABLED) {
     const bare = host.replace(/^www\./, '').toLowerCase();
     const body =
-      bare === 'offiselist.pro' || bare === 'malllist.pro' ? CATALOG_ROBOTS : PLATFORM_ROBOTS;
+      bare === 'officelist.pro' || bare === 'malllist.pro' ? CATALOG_ROBOTS : PLATFORM_ROBOTS;
     return new Response(`${body}${robotsSitemapLine(host)}\n`, {
       status: 200,
       headers: {
