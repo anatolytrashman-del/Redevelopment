@@ -83,9 +83,9 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 | `"redirects.malls": true` | только ТЦ → malllist.pro (БЦ остаётся на платформе) |
 | `"redirects.offices": true` | только БЦ → officelist.pro |
 
-Сейчас: `"redirects.malls": true`, `"redirects.offices": false`.
-Каталог ТЦ уехал на malllist.pro (301 с платформы, sitemap без `/minsk/tc`,
-свой счётчик с `site=malls`). БЦ пока на redevelopment.pro.
+Сейчас: `"redirects.malls": true`, `"redirects.offices": true`.
+Оба каталога на своих доменах (301 с платформы, sitemap платформы без
+`/minsk/tc` и `/minsk/bc`, счётчики `site=malls|offices`).
 
 Дубликат логики для Node-скриптов: `scripts/domainSplit.mjs`.
 Правила редиректа: `src/lib/sites.ts` (`crossDomainRedirect`).
@@ -134,15 +134,11 @@ OfficeList (фавикон O), sitemap только `/minsk/bc…`.
 
 **malllist** — уже включён (`redirects.malls: true`).
 
-**officelist** — только после того, как `officelist.pro/minsk/bc` отдаёт 200:
+**officelist** — включено (2026-10-10), после READY на Vercel-проекте:
 
-1. В Вебмастере/GSC подтвердить `officelist.pro`, отправить
-   `https://officelist.pro/sitemap.xml` (можно сразу после деплоя проекта).
-2. В `src/data/domain-split.json` поставить
-   `"redirects": { "malls": true, "offices": true }`.
-3. Смержить в прод платформы — из platform sitemap убраны `/minsk/bc…`,
-   в логе `sitemap-offices.xml`.
-4. Проверки:
+1. `"redirects": { "malls": true, "offices": true }` в `domain-split.json`.
+2. Платформа: 301 `/minsk/bc…` → officelist, sitemap без БЦ.
+3. Проверки:
 
 ```bash
 curl -sI 'https://redevelopment.pro/minsk/bc' | head -5          # → 301 officelist
@@ -151,7 +147,9 @@ curl -sI 'https://officelist.pro/minsk/bc' | head -5             # → 200
 curl -sI 'https://officelist.pro/' | head -5                     # → 307 /minsk/bc
 ```
 
-5. Canonical на карточке БЦ: `officelist.pro`, не `redevelopment.pro`.
+4. Вебмастер/GSC: свойство `officelist.pro`, sitemap
+   `https://officelist.pro/sitemap.xml` (Change of Address не использовать).
+5. IndexNow: `node scripts/indexnow-offices-migration.mjs --from-live`.
 
 **Оба каталога разом:** `"enabled": true` (или оба флага в `redirects`).
 
