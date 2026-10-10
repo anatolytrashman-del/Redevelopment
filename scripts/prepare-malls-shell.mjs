@@ -22,6 +22,8 @@ const URL = `${MALLS_ORIGIN}/`;
 
 const escapeAttr = (text) =>
   String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+const escapeHtml = (text) =>
+  String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 let html = readFileSync(indexPath, 'utf8');
 html = html
@@ -31,8 +33,10 @@ html = html
   .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escapeAttr(TITLE)}$2`)
   .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${escapeAttr(DESCRIPTION)}$2`)
   .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${escapeAttr(URL)}$2`)
+  .replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${escapeAttr(`${MALLS_ORIGIN}/og-image.png`)}$2`)
   .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${escapeAttr(TITLE)}$2`)
   .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${escapeAttr(DESCRIPTION)}$2`)
+  .replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${escapeAttr(`${MALLS_ORIGIN}/og-image.png`)}$2`)
   .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${escapeAttr(URL)}$2`)
   .replace(
     /(<script type="application\/ld\+json" id="organization-json-ld">)[\s\S]*?(<\/script>)/,
@@ -47,6 +51,12 @@ html = html
   .replace(
     /(<script type="application\/ld\+json" id="object-json-ld">)[\s\S]*?(<\/script>)/,
     '$1$2',
+  )
+  // h1 в #root — сигнал ботам без JS и запасной снапшот, если headless
+  // главной не поднялся (нет Chromium). React сносит #root при монтировании.
+  .replace(
+    /<div id="root"><\/div>/,
+    `<div id="root"><h1>${escapeHtml(TITLE)}</h1><p>${escapeHtml(DESCRIPTION)}</p><p><a href="/minsk/tc">Каталог Минска</a></p></div>`,
   );
 
 writeFileSync(indexPath, html);

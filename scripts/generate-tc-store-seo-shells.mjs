@@ -95,7 +95,8 @@ function buildShell(template, { slug, label, count }) {
         '$1$2',
       )
       // <h1> в #root — сигнал ботам без JS; React сносит содержимое при монтировании.
-      .replace(/<div id="root"><\/div>/, `<div id="root"><h1>${h1}</h1></div>`)
+      // Корень может быть уже заполнен (prepare-malls-shell) — заменяем целиком.
+      .replace(/<div id="root">[\s\S]*?<\/div>/, `<div id="root"><h1>${h1}</h1></div>`)
   );
 }
 

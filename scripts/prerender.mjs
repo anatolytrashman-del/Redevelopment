@@ -654,7 +654,11 @@ let executablePathPromise = null;
 async function chromiumExecutable() {
   if (!executablePathPromise) {
     executablePathPromise = (async () => {
-      if (!process.env.VERCEL) return { executablePath: '/opt/pw-browsers/chromium', args: [] };
+      // Облачные агенты/CI часто без /opt/pw-browsers — тот же @sparticuz, что на Vercel.
+      const localPw = '/opt/pw-browsers/chromium';
+      if (!process.env.VERCEL && existsSync(localPw)) {
+        return { executablePath: localPw, args: [] };
+      }
       const sparticuzChromium = (await import('@sparticuz/chromium')).default;
       return { executablePath: await sparticuzChromium.executablePath(), args: sparticuzChromium.args };
     })();
@@ -1282,14 +1286,14 @@ async function main() {
         await page.evaluate(() => {
           document.querySelectorAll('[data-entry-injected]').forEach((el) => el.remove());
         });
-        const html = await page.content();
+        const html = rewriteSnapshotForPublicOrigin(await page.content());
         if (!html.includes('data-entry-loader')) {
           throw new Error('в снапшоте нет лоадера главного JS (data-entry-loader) — defer-entry-script.mjs не отработал?');
         }
-        const dir = join(DIST_DIR, path);
+        const dir = path ? join(DIST_DIR, path) : DIST_DIR;
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'index.html'), html);
-        console.log(`[prerender] /${path} → dist/${path}/index.html (${Math.round(html.length / 1024)} КБ)`);
+        console.log(`[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${Math.round(html.length / 1024)} КБ)`);
         return;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -1441,7 +1445,23 @@ async function main() {
   // контента. Теперь пропуск критичного пути валит сборку явно — Vercel
   // покажет красный деплой и оставит прод на прошлой рабочей версии, а не
   // тихо задеплоит регресс.
-  const failedCritical = failedPaths.filter((p) => criticalPaths.has(p));
+  // malllist: главная могла остаться на prepare-malls-shell (с <h1>) —
+  // это валидный SEO-фолбэк, если Chromium не поднялся.
+  const failedCritical = failedPaths.filter((p) => {
+    if (!criticalPaths.has(p)) return false;
+    if (IS_MALLS_DEPLOY && p === '') {
+      try {
+        const home = readFileSync(join(DIST_DIR, 'index.html'), 'utf8');
+        if (/<h1[\s>]/i.test(home) && /MallList/i.test(home)) {
+          console.warn('[prerender] / — headless не снял, оставляю SEO-шелл MallList с <h1>');
+          return false;
+        }
+      } catch {
+        // нет файла — критично
+      }
+    }
+    return true;
+  });
   if (failedCritical.length > 0) {
     console.error(
       `[prerender] СБОЙ: ${failedCritical.length} критичных путей остались без снапшота:\n` +

@@ -215,15 +215,16 @@ function trimTitle(title) {
 const SINGLE_PROCESS = process.env.PRERENDER_SINGLE_PROCESS === '1';
 
 async function launchBrowser() {
-  if (process.env.VERCEL) {
-    const sparticuzChromium = (await import('@sparticuz/chromium')).default;
-    return chromium.launch({
-      args: SINGLE_PROCESS ? sparticuzChromium.args : sparticuzChromium.args.filter((a) => a !== '--single-process'),
-      executablePath: await sparticuzChromium.executablePath(),
-      headless: true,
-    });
+  const localPw = '/opt/pw-browsers/chromium';
+  if (!process.env.VERCEL && existsSync(localPw)) {
+    return chromium.launch({ executablePath: localPw, headless: true });
   }
-  return chromium.launch({ executablePath: '/opt/pw-browsers/chromium', headless: true });
+  const sparticuzChromium = (await import('@sparticuz/chromium')).default;
+  return chromium.launch({
+    args: SINGLE_PROCESS ? sparticuzChromium.args : sparticuzChromium.args.filter((a) => a !== '--single-process'),
+    executablePath: await sparticuzChromium.executablePath(),
+    headless: true,
+  });
 }
 
 // 2026-09-12 — обложки в быстром режиме пререндера берём с прода, а не
@@ -287,6 +288,14 @@ async function main() {
       continue;
     }
     const path = rel.endsWith('/index.html') ? rel.slice(0, -'/index.html'.length) : rel.slice(0, -'.html'.length);
+    // malllist: только каталог ТЦ (+ privacy); store-шеллы и превью платформы не трогаем.
+    if (DEPLOYED_SITE_MODE === 'malls') {
+      const ok =
+        path === 'privacy' ||
+        path === 'minsk/tc' ||
+        (path.startsWith('minsk/tc/') && !path.startsWith('minsk/tc/store/'));
+      if (!ok) continue;
+    }
     pages.push({ file, html, path, title: trimTitle(CARD_TEXT_OVERRIDES[path]?.title ?? title) });
   }
   if (pages.length === 0) {
