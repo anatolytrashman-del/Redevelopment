@@ -213,7 +213,12 @@ const MINSK_MIR_TOPIC_SLUGS = ['biznes-centr', 'kovorking', 'kupit-ofis', 'arend
 // которой критично не зависать на устаревшем JS. Если тот же симптом
 // повторится на других лендингах объектов — добавлять их сюда по
 // одному, не переводить всю сотню сразу.
-const ALWAYS_FULL_RENDER_PATHS = new Set(['minsk/minsk-mir', 'minsk/one']);
+const ALWAYS_FULL_RENDER_PATHS = new Set([
+  'minsk/minsk-mir',
+  'minsk/one',
+  // После переноса на officelist копия с платформы даёт 301 — рендерим честно.
+  'minsk/analytics/minsk-mir',
+]);
 
 /** Копия с платформы → URL/бренд каталожного домена (каноникал, og, JSON-LD). */
 function rewriteSnapshotForPublicOrigin(html) {
@@ -1104,7 +1109,9 @@ async function main() {
     : IS_OFFICES_DEPLOY
       ? [
           'privacy',
-          ...STATIC_PATHS.filter((p) => p === 'minsk/bc' || p.startsWith('minsk/bc/')),
+          ...STATIC_PATHS.filter(
+            (p) => p === 'minsk/bc' || p.startsWith('minsk/bc/') || p === 'minsk/analytics/minsk-mir',
+          ),
           ...(await bcCatalogPaths()),
         ]
       : [
@@ -1113,6 +1120,8 @@ async function main() {
           ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
           ...STATIC_PATHS.filter((p) => {
             if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
+            // Аналитика Минск Мира уехала на officelist вместе с каталогом БЦ.
+            if (!includeBcOnPlatform && p === 'minsk/analytics/minsk-mir') return false;
             return true;
           }),
         ];
@@ -1155,11 +1164,12 @@ async function main() {
   const criticalPaths = IS_MALLS_DEPLOY
     ? new Set(['privacy', 'minsk/tc'])
     : IS_OFFICES_DEPLOY
-      ? new Set(['privacy', 'minsk/bc'])
+      ? new Set(['privacy', 'minsk/bc', 'minsk/analytics/minsk-mir'])
       : new Set([
           ...landingPaths,
           ...STATIC_PATHS.filter((p) => {
             if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
+            if (!includeBcOnPlatform && p === 'minsk/analytics/minsk-mir') return false;
             return true;
           }),
         ]);

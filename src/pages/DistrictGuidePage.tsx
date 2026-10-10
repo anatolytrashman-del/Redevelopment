@@ -3170,12 +3170,12 @@ export function DistrictGuidePage() {
             >
               МФЦ Минск Мир в каталоге БЦ
             </Link>
-            <Link
-              to="/minsk/analytics/minsk-mir"
+            <a
+              href="https://officelist.pro/minsk/analytics/minsk-mir"
               className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-primary hover:text-primary-hover"
             >
               Аналитика рынка Минск Мира
-            </Link>
+            </a>
           </div>
         </div>
 

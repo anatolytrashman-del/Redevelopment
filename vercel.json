@@ -227,6 +227,17 @@
       "permanent": true
     },
     {
+      "source": "/minsk/analytics/minsk-mir",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/analytics/minsk-mir",
+      "permanent": true
+    },
+    {
       "source": "/minsk/bc",
       "has": [
         {
@@ -246,6 +257,17 @@
         }
       ],
       "destination": "https://officelist.pro/minsk/bc/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/analytics/minsk-mir",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/analytics/minsk-mir",
       "permanent": true
     },
     {

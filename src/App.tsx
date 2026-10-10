@@ -342,13 +342,14 @@ const businessCenterCatalogRoutes = (
   </>
 );
 
-/** Маршруты отдельного проекта officelist.pro — только каталог БЦ. */
+/** Маршруты отдельного проекта officelist.pro — каталог БЦ + аналитика Минск Мира. */
 function OfficelistRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/minsk/bc" replace />} />
       <Route path="/minsk" element={<Navigate to="/minsk/bc" replace />} />
       {businessCenterCatalogRoutes}
+      <Route path="/minsk/analytics/minsk-mir" element={<MinskMirAnalyticsPage />} />
       <Route path="/favorites/:id" element={<FavoritesPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="*" element={<NotFound />} />
