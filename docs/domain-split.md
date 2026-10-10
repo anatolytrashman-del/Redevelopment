@@ -1,16 +1,53 @@
 # Разнос проектов по доменам
 
-Решение владельца (2026-10-10, уточнение в тот же день): **три отдельных
-Vercel-проекта и три GitHub-репозитория**, не алиасы на одном проекте.
+Решение владельца (2026-10-10): **отдельные Vercel-проекты** (отдельные
+деплои, env, домены) — не алиасы на одном проекте. GitHub при этом
+**один** (`anatolytrashman-del/Redevelopment`): иначе агент не может
+деплоить каталог (у него доступ только к Redevelopment). Отдельный
+репозиторий `anatolytrashman-del/malllist` больше не нужен как источник
+деплоя.
 
-| Домен | Vercel / GitHub | Роль | Было на redevelopment.pro |
+| Домен | Vercel-проект | GitHub | Роль |
 |---|---|---|---|
-| **redevelopment.pro** | текущий Redevelopment | Платформа (CRM, закупки `/zakupki`, объекты, аналитика) | всё |
-| **offiselist.pro** | отдельный проект (позже) | Каталог БЦ | `/minsk/bc/*`, `/minsk/bcminsk/*`, `/bc/:slug` |
-| **malllist.pro** | `malllist` ← `anatolytrashman-del/malllist` | Каталог ТЦ | `/minsk/tc/*` |
+| **redevelopment.pro** | текущий (платформа) | Redevelopment | CRM, закупки, объекты, аналитика |
+| **offiselist.pro** | отдельный (позже) | тот же Redevelopment | Каталог БЦ |
+| **malllist.pro** | `malllist` | тот же Redevelopment | Каталог ТЦ / MallList |
 
 Пути каталогов **не меняем** (`/minsk/bc/...`, `/minsk/tc/...`) — 1:1 для
 SEO. Смена path → отдельный заход после стабилизации индекса.
+
+## Как подключить malllist к Redevelopment (один раз)
+
+В Vercel → проект **malllist** → Settings → Git:
+
+1. Disconnect от `anatolytrashman-del/malllist` (если ещё подключён).
+2. Connect → `anatolytrashman-del/Redevelopment`.
+3. Production Branch — пока рабочая ветка агента
+   (`cursor/domain-split-catalogs-5bba`), позже можно сменить на
+   `claude/redevelopment-platform-prototype-oodobu` (прод платформы и
+   каталога из одного мержа, но **два** деплоя Vercel с разным env).
+4. Environment Variables (Production + Preview) уже должны быть:
+
+```
+VITE_PUBLIC_SITE=malls
+PUBLIC_SITE=malls
+```
+
+Плюс `VITE_SUPABASE_*` как на платформе. Framework Preset → Vite,
+Output Directory → `dist`.
+
+После этого обычный `git push` в Redevelopment сам запускает деплой
+проекта malllist. В `vercel.json` для веток агента включено
+`cursor/**` (рядом с `main` / `oodobu` / `preview`).
+
+На **платформенном** проекте, если лишние preview-сборки с `cursor/*`
+мешают, в Settings → Git → Ignored Build Step:
+
+```bash
+[[ "$VERCEL_GIT_COMMIT_REF" == cursor/* ]] && exit 0; exit 1
+```
+
+(exit 0 = пропустить сборку). У проекта malllist этот ignore не ставить.
 
 ## Режим деплоя (`PUBLIC_SITE` / `VITE_PUBLIC_SITE`)
 
@@ -26,21 +63,6 @@ SEO. Смена path → отдельный заход после стабили
 не `vercel.json`: иначе на отдельном проекте malllist редирект
 `"/" → "/minsk"` из vercel.json перехватывает запрос до Edge и главная
 домена уходит в 404.
-
-Для **malllist** в Vercel → Settings → Environment Variables (Production +
-Preview):
-
-```
-VITE_PUBLIC_SITE=malls
-PUBLIC_SITE=malls
-```
-
-Плюс те же Supabase/прочие ключи, что на платформе (хотя бы
-`VITE_SUPABASE_*`). После сохранения — Redeploy.
-
-В `vercel.json` автодеплой включён для ветки `main` (нужно отдельным
-проектам каталогов). На платформе Production Branch остаётся
-`claude/redevelopment-platform-prototype-oodobu`.
 
 ## Рубильник
 
