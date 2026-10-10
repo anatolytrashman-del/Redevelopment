@@ -169,13 +169,13 @@ curl -sI 'https://officelist.pro/' | head -5                     # → 307 /mins
 
 ### 4. Яндекс.Вебмастер
 
-Сделано API (2026-10-10) для malllist:
+**malllist** (2026-10-10): сайт подтверждён, sitemap user-added, переобход
+хабов + старых URL. Переезд сайта не трогать.
 
-1. Сайт `https://malllist.pro/` подтверждён.
-2. Sitemap `https://malllist.pro/sitemap.xml` добавлен (user-added).
-3. Переобход: 6 старых URL на redevelopment + 40 хабов на malllist.
-4. **Переезд сайта** не трогать — частичный перенос, не весь домен.
-5. Главное зеркало: apex без www.
+**officelist** (2026-10-10): `https://officelist.pro/` VERIFIED (META_TAG),
+sitemap `https://officelist.pro/sitemap.xml` user-added, переобход 111 URL
+на officelist + 6 старых `/minsk/bc` на redevelopment. Переезд сайта не
+трогать. Главное зеркало — apex без www.
 
 ### 5. IndexNow / внутренние пинги
 
