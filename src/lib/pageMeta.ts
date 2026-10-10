@@ -294,6 +294,18 @@ export function setOrganizationJsonLd(enabled: boolean) {
     });
     return;
   }
+  if (deployedSiteMode() === 'offices') {
+    ld.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: SITES.offices.brand,
+      url: SITES.offices.origin,
+      logo: `${SITES.offices.origin}/apple-touch-icon.png`,
+      description: 'Каталог бизнес-центров Минска: классы, районы, метро, улицы. Карточки объектов и подборки.',
+      areaServed: { '@type': 'City', name: 'Минск' },
+    });
+    return;
+  }
   ld.textContent = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'Organization',

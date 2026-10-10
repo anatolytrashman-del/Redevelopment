@@ -3,6 +3,12 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — officelist: режим PUBLIC_SITE=offices.** Как malllist:
+  OfficelistRoutes, middleware path-filter, shell/brand (фавикон O),
+  пререндер БЦ с платформы + OG, sitemap только `/minsk/bc…`. Редиректы
+  с платформы ещё `false` — ждём Vercel-проект officelist (сейчас
+  DEPLOYMENT_NOT_FOUND). Канон домена — купленный `officelist.pro`.
+
 - **2026-10-10 — домен БЦ: officelist.pro.** Канон — купленный
   `officelist.pro` (office+list); черновик `offiselist` убран из конфига.
   Дальше cutover БЦ по тому же сценарию, что malllist.

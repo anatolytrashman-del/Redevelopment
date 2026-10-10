@@ -28,14 +28,14 @@ import {
   REDIRECT_MALLS_ENABLED,
   REDIRECT_OFFICES_ENABLED,
   absoluteUrlForPath,
+  catalogOrigin,
   isCatalogPath,
 } from './domainSplit.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-// SITE — origin для путей каталога БЦ в динамических URL. После сплита
-// доменов карточки БЦ живут на officelist.pro; до включения — на платформе.
-const SITE = REDIRECT_OFFICES_ENABLED ? OFFICES_ORIGIN : PLATFORM_ORIGIN;
+// SITE — origin для путей каталога БЦ в динамических URL.
+const SITE = catalogOrigin('bc');
 const SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap.xml');
 const OFFICES_SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap-offices.xml');
 const MALLS_SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap-malls.xml');
@@ -379,6 +379,77 @@ async function main() {
     // упасть в SPA HTML — GSC «Couldn't fetch».
     writeFileSync(MALLS_SITEMAP_PATH, mallsXml);
     console.log(`[generate-sitemap] режим malls: sitemap.xml — ${deduped.length} URL каталога ТЦ`);
+    return;
+  }
+
+  // Отдельный Vercel-проект officelist: в sitemap.xml только БЦ.
+  if (DEPLOYED_SITE_MODE === 'offices') {
+    let slugs = [];
+    try {
+      slugs = await fetchBusinessCenterSlugs();
+    } catch (err) {
+      console.warn(`[generate-sitemap] карточки БЦ не добавлены: ${err instanceof Error ? err.message : err}`);
+    }
+    let metroSlugs = [];
+    try {
+      metroSlugs = await fetchMetroHubStations();
+    } catch (err) {
+      console.warn(`[generate-sitemap] хабы метро не добавлены: ${err instanceof Error ? err.message : err}`);
+    }
+    let hubs = null;
+    try {
+      hubs = await fetchHubPaths();
+    } catch (err) {
+      console.warn(`[generate-sitemap] срезы каталога не пересчитаны: ${err instanceof Error ? err.message : err}`);
+    }
+    const publicXml = existsSync(resolve(process.cwd(), 'public/sitemap.xml'))
+      ? readFileSync(resolve(process.cwd(), 'public/sitemap.xml'), 'utf8')
+      : '';
+    const staticBcEntries = [...publicXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)]
+      .map((m) => m[0])
+      .filter((block) => {
+        const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+        try {
+          const path = new URL(loc).pathname;
+          return path === '/minsk/bc' || path.startsWith('/minsk/bc/');
+        } catch {
+          return false;
+        }
+      })
+      .map((block) =>
+        block
+          .replaceAll(PLATFORM_ORIGIN, OFFICES_ORIGIN)
+          .replaceAll('https://redevelopment.pro', OFFICES_ORIGIN)
+          .trimEnd(),
+      );
+    const bcDynamicUrls = [
+      ...metroSlugs.map((slug) => `${OFFICES_ORIGIN}/minsk/bc/metro/${slug}`),
+      ...(hubs ? hubs.streets.map((path) => `${OFFICES_ORIGIN}${path}`) : []),
+      ...slugs.map((slug) => `${OFFICES_ORIGIN}/minsk/bc/${slug}`),
+    ];
+    let officesXml = wrapUrlset([
+      urlEntry(`${OFFICES_ORIGIN}/minsk/bc`, today, '1.0'),
+      ...staticBcEntries,
+      ...bcDynamicUrls.map((url) => urlEntry(url, today)),
+    ]);
+    if (hubs) {
+      const pruned = pruneThinHubs(officesXml, hubs.keep);
+      officesXml = pruned.xml;
+    }
+    // Дедуп по <loc>
+    const seen = new Set();
+    const blocks = [...officesXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)].map((m) => m[0]);
+    const deduped = [];
+    for (const block of blocks) {
+      const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1];
+      if (!loc || seen.has(loc)) continue;
+      seen.add(loc);
+      deduped.push(block.trimEnd());
+    }
+    officesXml = wrapUrlset(deduped);
+    writeFileSync(SITEMAP_PATH, officesXml);
+    writeFileSync(OFFICES_SITEMAP_PATH, officesXml);
+    console.log(`[generate-sitemap] режим offices: sitemap.xml — ${deduped.length} URL каталога БЦ`);
     return;
   }
 

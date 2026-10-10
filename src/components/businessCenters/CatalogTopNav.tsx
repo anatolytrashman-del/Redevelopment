@@ -288,10 +288,12 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     return [groups.slice(0, 1), groups.slice(1, 2), groups.slice(2)].filter((c) => c.length > 0);
   }, [groups]);
 
-  // На отдельном проекте malllist соседний каталог БЦ недоступен — ссылку прячем.
+  // На отдельном каталожном проекте соседний каталог недоступен — ссылку прячем.
   const topLinks = TOP_LINKS[V.kind].filter((entry) => {
-    if (deployedSiteMode() !== 'malls') return true;
-    return !(entry.kind === 'link' && entry.to === '/minsk/bc');
+    const mode = deployedSiteMode();
+    if (mode === 'malls' && entry.kind === 'link' && entry.to === '/minsk/bc') return false;
+    if (mode === 'offices' && entry.kind === 'link' && entry.to === '/minsk/tc') return false;
+    return true;
   });
   const ratingLinks = RATING_LINKS_BY_KIND[V.kind];
   const activeTop = topLinks.find((l) => l.kind === 'link' && l.to === pathname) as

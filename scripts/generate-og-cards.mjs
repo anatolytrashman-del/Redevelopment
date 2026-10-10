@@ -31,16 +31,22 @@ import { chromium } from 'playwright-core';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import os from 'node:os';
-import { DEPLOYED_SITE_MODE, MALLS_ORIGIN, PLATFORM_ORIGIN } from './domainSplit.mjs';
+import { DEPLOYED_SITE_MODE, MALLS_ORIGIN, OFFICES_ORIGIN, PLATFORM_ORIGIN } from './domainSplit.mjs';
 
 const DIST_DIR = 'dist';
 const FONTS_DIR = 'public/fonts';
 const PUBLIC_OG_DIR = 'public/og';
 const CARDS_DIR = join(DIST_DIR, 'og');
-// PNG обложек ТЦ берём с платформы (там эталон); в HTML пишем URL своего origin.
+// PNG обложек каталогов берём с платформы (там эталон); в HTML пишем URL своего origin.
 const SNAPSHOT_ORIGIN = PLATFORM_ORIGIN;
-const SITE_ORIGIN = DEPLOYED_SITE_MODE === 'malls' ? MALLS_ORIGIN : PLATFORM_ORIGIN;
+const SITE_ORIGIN =
+  DEPLOYED_SITE_MODE === 'malls'
+    ? MALLS_ORIGIN
+    : DEPLOYED_SITE_MODE === 'offices'
+      ? OFFICES_ORIGIN
+      : PLATFORM_ORIGIN;
 const RED = '#e4152b';
+const IS_CATALOG_DEPLOY = DEPLOYED_SITE_MODE === 'malls' || DEPLOYED_SITE_MODE === 'offices';
 
 // Ручные обложки в public/og/{slug}.png — не перерисовывать генератором
 // (Vite уже копирует их в dist/og/, здесь только закрепляем и не затираем).
@@ -59,6 +65,11 @@ function sectionKicker(path) {
     if (path.startsWith('minsk/tc')) return 'Каталог торговых центров · MallList';
     if (path === 'privacy') return 'Политика конфиденциальности · MallList';
     return 'MallList · malllist.pro';
+  }
+  if (DEPLOYED_SITE_MODE === 'offices') {
+    if (path.startsWith('minsk/bc')) return 'Каталог бизнес-центров · OfficeList';
+    if (path === 'privacy') return 'Политика конфиденциальности · OfficeList';
+    return 'OfficeList · officelist.pro';
   }
   if (path === 'minsk') return 'Объекты, аналитика, справочник бизнес-центров';
   if (path.startsWith('minsk/analytics')) return 'Аналитика рынка · redevelopment.pro';
@@ -91,7 +102,12 @@ const normalize = (text) =>
 function kickerFor(path, title) {
   const kicker = sectionKicker(path);
   const [a, b] = [normalize(kicker), normalize(title)];
-  const fallback = DEPLOYED_SITE_MODE === 'malls' ? 'malllist.pro' : 'redevelopment.pro';
+  const fallback =
+    DEPLOYED_SITE_MODE === 'malls'
+      ? 'malllist.pro'
+      : DEPLOYED_SITE_MODE === 'offices'
+        ? 'officelist.pro'
+        : 'redevelopment.pro';
   return a && b && (b.includes(a) || a.includes(b)) ? fallback : kicker;
 }
 
@@ -195,8 +211,14 @@ const FIT_SCRIPT = `(function () {
 })()`;
 
 function cardHtml(title, kicker) {
-  const mark = DEPLOYED_SITE_MODE === 'malls' ? 'M' : 'R';
-  const site = DEPLOYED_SITE_MODE === 'malls' ? 'malllist.pro' : 'redevelopment.pro';
+  const mark =
+    DEPLOYED_SITE_MODE === 'malls' ? 'M' : DEPLOYED_SITE_MODE === 'offices' ? 'O' : 'R';
+  const site =
+    DEPLOYED_SITE_MODE === 'malls'
+      ? 'malllist.pro'
+      : DEPLOYED_SITE_MODE === 'offices'
+        ? 'officelist.pro'
+        : 'redevelopment.pro';
   return `<html><head><style>${fontFaces()}${CARD_CSS}</style></head><body><div class="card">
   <div class="top"><span class="mark">${mark}</span><span class="site">${site}</span></div>
   <div class="title">${escapeHtml(title)}</div>
@@ -283,8 +305,8 @@ async function main() {
     console.warn('[og-cards] нет каталога dist — нечего обрабатывать');
     return;
   }
-  // malllist: карточки платформы с «R» не копируем — рисуем свои с «M».
-  const copiedFromProd = DEPLOYED_SITE_MODE === 'malls' ? new Set() : readCopiedFromProd();
+  // Каталожные проекты: карточки платформы с «R» не копируем — рисуем свои.
+  const copiedFromProd = IS_CATALOG_DEPLOY ? new Set() : readCopiedFromProd();
   const pages = [];
   for (const file of collectHtmlFiles(DIST_DIR)) {
     const rel = relative(DIST_DIR, file);
@@ -309,6 +331,10 @@ async function main() {
         path === 'privacy' ||
         path === 'minsk/tc' ||
         (path.startsWith('minsk/tc/') && !path.startsWith('minsk/tc/store/'));
+      if (!ok) continue;
+    }
+    if (DEPLOYED_SITE_MODE === 'offices') {
+      const ok = path === 'privacy' || path === 'minsk/bc' || path.startsWith('minsk/bc/');
       if (!ok) continue;
     }
     pages.push({ file, html, path, title: trimTitle(CARD_TEXT_OVERRIDES[path]?.title ?? title) });
@@ -453,6 +479,14 @@ async function main() {
     if (existsSync(homeCard)) {
       copyFileSync(homeCard, join(DIST_DIR, 'og-image.png'));
       copyFileSync(homeCard, join(CARDS_DIR, 'home.png'));
+    }
+  }
+  // Хаб БЦ на officelist — запасной og-image, если prepare-offices-brand не нарисовал.
+  if (DEPLOYED_SITE_MODE === 'offices') {
+    const hubCard = join(CARDS_DIR, 'minsk-bc.png');
+    if (existsSync(hubCard) && !existsSync(join(DIST_DIR, 'og-image.png'))) {
+      copyFileSync(hubCard, join(DIST_DIR, 'og-image.png'));
+      copyFileSync(hubCard, join(CARDS_DIR, 'home.png'));
     }
   }
 

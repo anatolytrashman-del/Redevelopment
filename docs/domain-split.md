@@ -10,7 +10,7 @@
 | Домен | Vercel-проект | GitHub | Роль |
 |---|---|---|---|
 | **redevelopment.pro** | текущий (платформа) | Redevelopment | CRM, закупки, объекты, аналитика |
-| **officelist.pro** | отдельный (позже) | тот же Redevelopment | Каталог БЦ |
+| **officelist.pro** | `officelist` (создать) | тот же Redevelopment | Каталог БЦ / OfficeList |
 | **malllist.pro** | `malllist` | тот же Redevelopment | Каталог ТЦ / MallList |
 
 Пути каталогов **не меняем** (`/minsk/bc/...`, `/minsk/tc/...`) — 1:1 для
@@ -66,7 +66,7 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 |---|---|
 | `platform` (по умолчанию) | полный сайт, как сейчас на redevelopment.pro |
 | `malls` | главная `/` (MallList) + `/minsk/tc/*` (+ `/privacy`, `/favorites`); `/minsk` → `/minsk/tc` |
-| `offices` | (заготовка) только каталог БЦ; `/` и `/minsk` → `/minsk/bc` |
+| `offices` | только каталог БЦ; `/` и `/minsk` → `/minsk/bc`; sitemap/OG/бренд OfficeList |
 
 Корень (`/`) для платформы и каталогов ведёт middleware (`middleware.ts`),
 не `vercel.json`: иначе на отдельном проекте malllist редирект
@@ -117,27 +117,41 @@ Google Search Console — добавить meta/DNS, когда появится
 4. Проверка: `curl -I https://officelist.pro/minsk/bc` → 200 на проекте
    с `PUBLIC_SITE=offices` (не `DEPLOYMENT_NOT_FOUND`).
 
+### Как подключить officelist (один раз)
+
+Как malllist, но env:
+
+```
+VITE_PUBLIC_SITE=offices
+PUBLIC_SITE=offices
+```
+
+Build Command: `npm run build:app` (алиас `build:offices`). При
+`PUBLIC_SITE=offices` в конце — пререндер БЦ + OG с платформы, бренд
+OfficeList (фавикон O), sitemap только `/minsk/bc…`.
+
 ### 2. Включение в коде
 
-**Сначала только malllist** (officelist позже):
+**malllist** — уже включён (`redirects.malls: true`).
 
-1. В Вебмастере/GSC подтвердить `malllist.pro`, отправить
-   `https://malllist.pro/sitemap.xml`.
+**officelist** — только после того, как `officelist.pro/minsk/bc` отдаёт 200:
+
+1. В Вебмастере/GSC подтвердить `officelist.pro`, отправить
+   `https://officelist.pro/sitemap.xml` (можно сразу после деплоя проекта).
 2. В `src/data/domain-split.json` поставить
-   `"redirects": { "malls": true, "offices": false }`.
-3. Собрать/смёржить в прод **платформы** — в логе `sitemap-malls.xml`,
-   из platform sitemap убраны `/minsk/tc…`.
+   `"redirects": { "malls": true, "offices": true }`.
+3. Смержить в прод платформы — из platform sitemap убраны `/minsk/bc…`,
+   в логе `sitemap-offices.xml`.
 4. Проверки:
 
 ```bash
-curl -sI 'https://redevelopment.pro/minsk/tc' | head -5          # → 301 malllist
-curl -sI 'https://redevelopment.pro/minsk/tc/dana-mall' | head -5
-curl -sI 'https://malllist.pro/' | head -5                       # → 200
-curl -s 'https://malllist.pro/' | rg yandex-verification
+curl -sI 'https://redevelopment.pro/minsk/bc' | head -5          # → 301 officelist
+curl -sI 'https://redevelopment.pro/minsk/bc/titan' | head -5
+curl -sI 'https://officelist.pro/minsk/bc' | head -5             # → 200
+curl -sI 'https://officelist.pro/' | head -5                     # → 307 /minsk/bc
 ```
 
-5. Canonical на карточке ТЦ: `malllist.pro`, не `redevelopment.pro`.
-6. БЦ пока без 301: `redevelopment.pro/minsk/bc` остаётся 200.
+5. Canonical на карточке БЦ: `officelist.pro`, не `redevelopment.pro`.
 
 **Оба каталога разом:** `"enabled": true` (или оба флага в `redirects`).
 

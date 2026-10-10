@@ -313,6 +313,48 @@ function MalllistRoutes() {
   );
 }
 
+/**
+ * Общие маршруты каталога БЦ — фрагмент (не компонент): `<Routes>` разворачивает
+ * только Fragment/Route как прямых детей, кастомный компонент не видит.
+ * ФАЙЛ-БЛИЗНЕЦ: односегментные /minsk/bc/<слово> ↔ sections в index.html
+ * (тест src/lib/businessCentersApi.test.ts).
+ */
+const businessCenterCatalogRoutes = (
+  <>
+    <Route path="/minsk/bc" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/new" element={<BusinessCentersMinskPage underConstruction />} />
+    <Route path="/minsk/bc/rating" element={<BusinessCentersRankingPage />} />
+    <Route path="/minsk/bc/rating/largest" element={<BusinessCentersBiggestPage />} />
+    <Route path="/minsk/bc/rating/class-b-plus" element={<BusinessCentersRankingBPlusPage />} />
+    <Route path="/minsk/bc/rating/class-b-c" element={<BusinessCentersRankingBCPage />} />
+    <Route path="/minsk/bc/rating/affordable" element={<BusinessCentersAffordablePage />} />
+    <Route path="/minsk/bc/guide" element={<BusinessCentersGuidePage />} />
+    <Route path="/minsk/bc/analytics" element={<BusinessCentersAnalyticsPage />} />
+    <Route path="/minsk/bc/class/:classSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/district/:districtSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/class/:classSlug/district/:districtSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/area/:microdistrictSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/metro/:metroSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/street/:streetSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
+    <Route path="/bc/:slug" element={<BusinessCenterDetailPage ownerMode />} />
+  </>
+);
+
+/** Маршруты отдельного проекта officelist.pro — только каталог БЦ. */
+function OfficelistRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/minsk/bc" replace />} />
+      <Route path="/minsk" element={<Navigate to="/minsk/bc" replace />} />
+      {businessCenterCatalogRoutes}
+      <Route path="/favorites/:id" element={<FavoritesPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   usePreventPageZoom();
   useScrollToTopOnNavigate();
@@ -326,6 +368,16 @@ export default function App() {
     return (
       <FavoritesProvider>
         <MalllistRoutes />
+        <CookieBanner />
+      </FavoritesProvider>
+    );
+  }
+
+  // Отдельный Vercel-проект officelist: env VITE_PUBLIC_SITE=offices.
+  if (deployedSiteMode() === 'offices') {
+    return (
+      <FavoritesProvider>
+        <OfficelistRoutes />
         <CookieBanner />
       </FavoritesProvider>
     );
@@ -361,45 +413,7 @@ export default function App() {
       <Route path="/minsk/analytics/rajony" element={<DistrictsAnalyticsPage />} />
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/minsk/minsk-mir/:topic" element={<MinskMirTopicPage />} />
-      <Route path="/minsk/bc" element={<BusinessCentersMinskPage />} />
-      {/* ФАЙЛ-БЛИЗНЕЦ: каждый односегментный статический маршрут ниже
-          (/minsk/bc/<слово>, не ":slug") должен стоять и в списке
-          sections инлайн-скрипта index.html — иначе он примет раздел за
-          слаг здания и сходит за /data/bc/<слово>.json, которого нет.
-          Сверяет тест в src/lib/businessCentersApi.test.ts. */}
-      {/* Хаб-страницы по классу/району (Fable-анализ, 2026-09-06) — тот же
-          компонент, фильтр читается из useParams(), см. комментарий там же.
-          Регистрируются ДО ":slug", чтобы не конфликтовать с ним. */}
-      {/* Ось «строящиеся» (аудит поиска 2026-09-07) — тот же компонент с пропом. */}
-      <Route path="/minsk/bc/new" element={<BusinessCentersMinskPage underConstruction />} />
-      {/* Рейтинг «Лучшие бизнес-центры Минска» (аудит 2026-09-07) — отдельный компонент, не хаб-фильтр. */}
-      <Route path="/minsk/bc/rating" element={<BusinessCentersRankingPage />} />
-      <Route path="/minsk/bc/rating/largest" element={<BusinessCentersBiggestPage />} />
-      <Route path="/minsk/bc/rating/class-b-plus" element={<BusinessCentersRankingBPlusPage />} />
-      <Route path="/minsk/bc/rating/class-b-c" element={<BusinessCentersRankingBCPage />} />
-      <Route path="/minsk/bc/rating/affordable" element={<BusinessCentersAffordablePage />} />
-      <Route path="/minsk/bc/guide" element={<BusinessCentersGuidePage />} />
-      {/* Аналитика каталога БЦ (владелец, 2026-09-22) — вынесена сюда с
-          подвала каталога, см. комментарий в BusinessCentersAnalyticsPage.tsx. */}
-      <Route path="/minsk/bc/analytics" element={<BusinessCentersAnalyticsPage />} />
-      <Route path="/minsk/bc/class/:classSlug" element={<BusinessCentersMinskPage />} />
-      <Route path="/minsk/bc/district/:districtSlug" element={<BusinessCentersMinskPage />} />
-      {/* Пересечение класс×район (владелец, 2026-09-06: "структура урлов...
-          точечные страницы будут хорошо приняты поиском") — тот же
-          компонент, оба параметра сразу, регистрируется ПОСЛЕ одноосевых
-          хабов (react-router не заботит порядок непересекающихся паттернов,
-          но так рядом с ними явно видно, что это третий, более узкий
-          вариант того же роута), тоже ДО ":slug". */}
-      <Route path="/minsk/bc/class/:classSlug/district/:districtSlug" element={<BusinessCentersMinskPage />} />
-      {/* Хаб по неформальному микрорайону ("Уручье", "Малиновка" — владелец,
-          2026-09-07) — отдельная, не пересекающаяся с классом/районом ось,
-          не комбинируется с ними (см. комментарий у MICRODISTRICT_SLUGS). */}
-      <Route path="/minsk/bc/area/:microdistrictSlug" element={<BusinessCentersMinskPage />} />
-      {/* Хаб по станции метро (аудит 2026-09-07) — независимая ось, см. METRO_STATION_SLUGS. */}
-      <Route path="/minsk/bc/metro/:metroSlug" element={<BusinessCentersMinskPage />} />
-      {/* Хаб по улице (аудит 2026-09-07) — независимая ось, см. STREET_SLUGS. */}
-      <Route path="/minsk/bc/street/:streetSlug" element={<BusinessCentersMinskPage />} />
-      <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
+      {businessCenterCatalogRoutes}
       {/* Каталог торговых центров (2026-09-23) — те же компоненты, что у
           каталога БЦ, со словарём и корнем /minsk/tc (src/lib/catalogKind.tsx).
           Оси: район, метро, формат, тематические /with/*, магазины /store/*; рейтинги
@@ -434,10 +448,6 @@ export default function App() {
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
       <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
-      {/* Карточка БЦ для ссылки с сайта самого здания (владелец, 2026-09-24):
-          без шапки, соседей и объявлений, canonical — на /minsk/bc/:slug,
-          см. ownerMode в BusinessCenterDetailPage и rewrite в vercel.json. */}
-      <Route path="/bc/:slug" element={<BusinessCenterDetailPage ownerMode />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />

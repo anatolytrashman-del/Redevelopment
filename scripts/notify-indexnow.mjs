@@ -13,7 +13,7 @@
 // Только на реальных прод-сборках Vercel.
 //
 // 2026-09-23 — пинг только при изменениях и не чаще раза в неделю.
-// 2026-10-10 — host берётся из DEPLOYED_SITE_MODE (platform | malls).
+// 2026-10-10 — host берётся из DEPLOYED_SITE_MODE (platform | malls | offices).
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -21,11 +21,17 @@ import { computePublicBuildId } from './public-build-id.mjs';
 import {
   DEPLOYED_SITE_MODE,
   MALLS_ORIGIN,
+  OFFICES_ORIGIN,
   PLATFORM_ORIGIN,
 } from './domainSplit.mjs';
 
 const INDEXNOW_KEY = '8749bf38ccefd4070d1d1cbb901a168f';
-const SITE = DEPLOYED_SITE_MODE === 'malls' ? MALLS_ORIGIN : PLATFORM_ORIGIN;
+const SITE =
+  DEPLOYED_SITE_MODE === 'malls'
+    ? MALLS_ORIGIN
+    : DEPLOYED_SITE_MODE === 'offices'
+      ? OFFICES_ORIGIN
+      : PLATFORM_ORIGIN;
 const HOST = new URL(SITE).host;
 const SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap.xml');
 const CATALOG_PATH = resolve(
