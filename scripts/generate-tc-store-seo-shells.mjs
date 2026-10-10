@@ -9,9 +9,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectTcStoreHubs } from './_tcPaths.mjs';
+import { catalogOrigin } from './domainSplit.mjs';
 
 const DIST_DIR = 'dist';
-const SITE_ORIGIN = 'https://redevelopment.pro';
+const SITE_ORIGIN = catalogOrigin('tc');
 const DESCRIPTION_BUDGET = 160;
 const TC_HUB_SNIPPET_ITEMS = [
   'адреса и форматы',

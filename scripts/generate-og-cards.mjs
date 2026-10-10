@@ -31,12 +31,15 @@ import { chromium } from 'playwright-core';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import os from 'node:os';
+import { DEPLOYED_SITE_MODE, MALLS_ORIGIN, PLATFORM_ORIGIN } from './domainSplit.mjs';
 
 const DIST_DIR = 'dist';
 const FONTS_DIR = 'public/fonts';
 const PUBLIC_OG_DIR = 'public/og';
 const CARDS_DIR = join(DIST_DIR, 'og');
-const SITE_ORIGIN = 'https://redevelopment.pro';
+// PNG обложек ТЦ берём с платформы (там эталон); в HTML пишем URL своего origin.
+const SNAPSHOT_ORIGIN = PLATFORM_ORIGIN;
+const SITE_ORIGIN = DEPLOYED_SITE_MODE === 'malls' ? MALLS_ORIGIN : PLATFORM_ORIGIN;
 const RED = '#e4152b';
 
 // Ручные обложки в public/og/{slug}.png — не перерисовывать генератором
@@ -52,6 +55,11 @@ const SKIP_FILES = new Set(['index.html', '404.html']);
 // Подпись под заголовком — по разделу сайта, без обращения к данным: адрес
 // страницы уже однозначно говорит, что это за раздел.
 function sectionKicker(path) {
+  if (DEPLOYED_SITE_MODE === 'malls') {
+    if (path.startsWith('minsk/tc')) return 'Независимый каталог торговых центров · MallList';
+    if (path === 'privacy') return 'Политика конфиденциальности · MallList';
+    return 'MallList · malllist.pro';
+  }
   if (path === 'minsk') return 'Объекты, аналитика, справочник бизнес-центров';
   if (path.startsWith('minsk/analytics')) return 'Аналитика рынка · redevelopment.pro';
   if (path.startsWith('minsk/bc')) return 'Справочник бизнес-центров Минска';
@@ -249,7 +257,7 @@ function readCopiedFromProd() {
 
 async function copyCardFromLive(slug) {
   try {
-    const res = await fetch(`${SITE_ORIGIN}/og/${slug}.png`, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(`${SNAPSHOT_ORIGIN}/og/${slug}.png`, { signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return false;
     const buf = Buffer.from(await res.arrayBuffer());
     // SPA-рерайт vercel.json отдаёт на несуществующий путь index.html с кодом

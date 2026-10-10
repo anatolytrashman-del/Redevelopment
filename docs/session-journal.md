@@ -3,6 +3,13 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — malllist: эталонный пререндер ТЦ «под ключ».**
+  `npm run build:malls` = build:app + prerender + og-cards. В режиме
+  `PUBLIC_SITE=malls` пререндер копирует снапшоты `/minsk/tc/*` с
+  redevelopment.pro (adopt ассетов + rewrite на malllist.pro), главную
+  `/` рендерит честно; `prepare-malls-shell.mjs` патчит meta SPA-шелла.
+  На Vercel malllist Build Command → `npm run build:malls`.
+
 - **2026-10-10 — malllist: один GitHub, два Vercel.** Деплой каталога
   из того же `Redevelopment` (отдельный Vercel-проект + env `malls`),
   без ручного пуша в `anatolytrashman-del/malllist`. В `vercel.json`
