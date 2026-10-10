@@ -201,27 +201,26 @@ function isMallsSitePath(pathname: string): boolean {
   return hasKnownStaticExtension(normalized);
 }
 
+function edgeSiteMode(): ReturnType<typeof normalizeSiteMode> {
+  // Edge: дублируем VITE_PUBLIC_SITE в PUBLIC_SITE на Vercel (см. docs/domain-split.md).
+  // Vite-define (__DEPLOYED_SITE_MODE__) сюда не попадает — только process.env.
+  const gProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  return normalizeSiteMode(gProcess?.env?.PUBLIC_SITE || gProcess?.env?.VITE_PUBLIC_SITE);
+}
+
 export default function middleware(request: Request) {
   const url = new URL(request.url);
   const { pathname } = url;
   const host = request.headers.get('host') ?? url.host;
-  // Edge: дублируем VITE_PUBLIC_SITE в PUBLIC_SITE на Vercel (см. docs/domain-split.md).
-  const gProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
-  const siteMode = normalizeSiteMode(gProcess?.env?.PUBLIC_SITE || gProcess?.env?.VITE_PUBLIC_SITE);
+  const siteMode = edgeSiteMode();
+  const normalized = normalizePathname(pathname);
 
-  // Отдельный Vercel-проект malllist: корень → каталог ТЦ, чужие пути — 404.
-  // Важно: в vercel.json есть redirect "/" → "/minsk" (для платформы). На
-  // malllist он срабатывает раньше SPA; поэтому и "/", и голый "/minsk"
-  // явно ведём на /minsk/tc, иначе главная домена выглядит «мёртвой».
+  // Корень сайта — в middleware (не в vercel.json): иначе на malllist
+  // redirect "/"→"/minsk" из vercel.json срабатывает до Edge и главная
+  // домена уходит в 404. Платформа: / → /minsk; каталоги: / и /minsk → каталог.
   if (siteMode === 'malls') {
-    const normalized = normalizePathname(pathname);
-    if (
-      normalized === '/' ||
-      normalized === '' ||
-      normalized === '/minsk'
-    ) {
-      const target = new URL('/minsk/tc', url);
-      return Response.redirect(target, 307);
+    if (normalized === '/' || normalized === '' || normalized === '/minsk') {
+      return Response.redirect(new URL('/minsk/tc', url), 307);
     }
     if (pathname === '/robots.txt') {
       return new Response(`${CATALOG_ROBOTS}Sitemap: https://malllist.pro/sitemap.xml\n`, {
@@ -242,6 +241,16 @@ export default function middleware(request: Request) {
       });
     }
     return next();
+  }
+
+  if (siteMode === 'offices') {
+    if (normalized === '/' || normalized === '' || normalized === '/minsk') {
+      return Response.redirect(new URL('/minsk/bc', url), 307);
+    }
+  }
+
+  if (siteMode === 'platform' && (normalized === '/' || normalized === '')) {
+    return Response.redirect(new URL('/minsk', url), 307);
   }
 
   // Междоменные 301 каталогов — раньше 404 и SPA-рерайта, чтобы Google/

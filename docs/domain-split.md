@@ -19,8 +19,13 @@ SEO. Смена path → отдельный заход после стабили
 | Значение | Что отдаёт деплой |
 |---|---|
 | `platform` (по умолчанию) | полный сайт, как сейчас на redevelopment.pro |
-| `malls` | только `/minsk/tc/*` (+ `/privacy`, `/favorites`), `/` → `/minsk/tc` |
-| `offices` | (заготовка) только каталог БЦ |
+| `malls` | только `/minsk/tc/*` (+ `/privacy`, `/favorites`), `/` и `/minsk` → `/minsk/tc` |
+| `offices` | (заготовка) только каталог БЦ; `/` и `/minsk` → `/minsk/bc` |
+
+Корень (`/`) для платформы и каталогов ведёт middleware (`middleware.ts`),
+не `vercel.json`: иначе на отдельном проекте malllist редирект
+`"/" → "/minsk"` из vercel.json перехватывает запрос до Edge и главная
+домена уходит в 404.
 
 Для **malllist** в Vercel → Settings → Environment Variables (Production +
 Preview):

@@ -3,6 +3,12 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — malllist: корень домена.** Убран `"/"→"/minsk"` из
+  `vercel.json` (на malllist он срабатывал до Edge и давал `/minsk`→404).
+  Корень ведёт `middleware.ts`: platform `/`→`/minsk`, malls `/` и
+  `/minsk`→`/minsk/tc`. После мержа/пуша в `malllist` main перепроверить
+  `curl -sI https://malllist.vercel.app/`.
+
 - **2026-10-10 — malllist: режим `PUBLIC_SITE=malls` (только ТЦ).**
   Владелец разнёс на отдельные Vercel/GitHub-проекты (не алиасы). В коде:
   `deployedSiteMode()` из `VITE_PUBLIC_SITE`/`PUBLIC_SITE`; при `malls` —

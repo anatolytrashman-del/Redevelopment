@@ -164,11 +164,6 @@
       "permanent": true
     },
     {
-      "source": "/",
-      "destination": "/minsk",
-      "permanent": false
-    },
-    {
       "source": "/one",
       "destination": "/minsk/one",
       "permanent": true
