@@ -1,14 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MallList">
-  <!-- Redevelopment-style tile: rounded square + mark M. Brand red. -->
+  <!-- Full-tile mark M (path, same optical weight as R/O). Brand red. -->
   <rect width="64" height="64" rx="14" fill="#e4152b" />
-  <text
-    x="32"
-    y="34"
-    text-anchor="middle"
-    dominant-baseline="central"
-    font-family="Arial Black, Arial, Helvetica, sans-serif"
-    font-weight="900"
-    font-size="40"
+  <path
     fill="#ffffff"
-  >M</text>
+    d="M12 52V12h11.2l8.8 18.6L40.8 12H52v40H42.2V27.4L34.6 44.2h-5.2L21.8 27.4V52H12z"
+  />
 </svg>

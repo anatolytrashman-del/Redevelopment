@@ -21,7 +21,7 @@ const TITLE = 'MallList — каталог торговых центров';
 const DESCRIPTION =
   'Каталог торговых центров по городам. Карточки объектов, подборки, карта — начиная с Минска.';
 const URL = `${MALLS_ORIGIN}/minsk/tc`;
-const ASSET_V = '20261010m';
+const ASSET_V = '20261010m2';
 const domainSplit = JSON.parse(
   readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/data/domain-split.json'), 'utf8'),
 );
