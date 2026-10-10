@@ -116,11 +116,24 @@ export function siteIdForPath(pathname: string): PublicSiteId {
     path === '/minsk/bcminsk' ||
     path.startsWith('/minsk/bcminsk/') ||
     path === '/bc' ||
-    path.startsWith('/bc/')
+    path.startsWith('/bc/') ||
+    // Аналитика Минск Мира — на officelist (рядом с каталогом БЦ).
+    path === '/minsk/analytics/minsk-mir'
   ) {
     return 'offices';
   }
   return 'platform';
+}
+
+/** Абсолютный URL публичного пути на «своём» домене после сплита. */
+export function absolutePublicUrl(path: string): string {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  const siteId = siteIdForPath(normalized);
+  if (siteId === 'offices' && REDIRECT_OFFICES_ENABLED) return `${OFFICES.origin}${normalized}`;
+  if (siteId === 'malls' && REDIRECT_MALLS_ENABLED) return `${MALLS.origin}${normalized}`;
+  if (deployedSiteMode() === 'offices' && siteId === 'offices') return `${OFFICES.origin}${normalized}`;
+  if (deployedSiteMode() === 'malls' && siteId === 'malls') return `${MALLS.origin}${normalized}`;
+  return `${PLATFORM.origin}${normalized}`;
 }
 
 /**

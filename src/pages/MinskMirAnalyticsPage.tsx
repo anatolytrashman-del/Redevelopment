@@ -4,6 +4,7 @@ import { TrendingUp } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import {
   setArticleJsonLd,
   setBreadcrumbJsonLd,
@@ -14,8 +15,11 @@ import {
 } from '../lib/pageMeta';
 import { fetchPublicMarketOffers } from '../lib/marketOffersApi';
 import { fetchPrimaryMarketOffers } from '../lib/primaryMarketOffersApi';
+import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import type { BusinessCenter } from '../data/businessCenters';
 import { AREA_BUCKET_ORDER, MARKET_PROPERTY_TYPES, areaBucket, netPricePerSqm, netSize, type MarketOffer } from '../data/marketOffers';
 import { buildPrimaryMarketPivot, buildPrimarySalesSummary, earliestSoldAt, type PrimaryMarketOffer } from '../data/primaryMarketOffers';
+import { absolutePublicUrl, catalogSiteUrl, platformOrigin } from '../lib/sites';
 
 // Сводные таблицы вторичного рынка (buildMarketPivot/countSmallFinishedOffices/
 // median) — та же логика, что и в DistrictGuidePage.tsx (её собственный блок
@@ -64,18 +68,23 @@ const MARKET_FINISH_TO_DB: Record<(typeof MARKET_FINISH_OPTIONS)[number], string
   'Без отделки': 'без отделки',
 };
 
-const TITLE = 'Цены на коммерческую недвижимость в Минск Мире — Redevelopment';
+const TITLE = 'Цены на коммерческую недвижимость в Минск Мире';
 const DESCRIPTION =
   'Первичный и вторичный рынок коммерческой недвижимости в Минск Мире: цены на бизнес-апартаменты, торговые и офисные помещения, по данным bir.by, Kufar и Realt.';
-const URL = 'https://redevelopment.pro/minsk/analytics/minsk-mir';
+const URL = absolutePublicUrl('/minsk/analytics/minsk-mir');
+const PLATFORM = platformOrigin();
 
 export function MinskMirAnalyticsPage() {
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [marketOffers, setMarketOffers] = useState<MarketOffer[] | null>(null);
   const [primaryOffers, setPrimaryOffers] = useState<PrimaryMarketOffer[] | null>(null);
   const [marketDealType, setMarketDealType] = useState<'Продажа' | 'Аренда'>('Продажа');
   const [marketFinish, setMarketFinish] = useState<(typeof MARKET_FINISH_OPTIONS)[number]>('С отделкой');
 
   useEffect(() => {
+    fetchBusinessCenters()
+      .then(setCenters)
+      .catch(() => setCenters((prev) => prev ?? []));
     fetchPublicMarketOffers()
       .then(setMarketOffers)
       .catch(() => setMarketOffers([]));
@@ -98,8 +107,8 @@ export function MinskMirAnalyticsPage() {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: URL, ogType: 'article' });
     setOrganizationJsonLd(false);
     setBreadcrumbJsonLd([
-      { name: 'Минск', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Аналитика рынка', url: 'https://redevelopment.pro/minsk/analytics' },
+      { name: 'Коммерческая недвижимость в Минске', url: `${PLATFORM}/minsk` },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: 'Минск Мир' },
     ]);
     const now = new Date().toISOString().slice(0, 10);
@@ -141,22 +150,22 @@ export function MinskMirAnalyticsPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-5xl items-center justify-center px-4 sm:px-8">
-          <Link to="/minsk" className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </Link>
-        </div>
-      </div>
+      <CatalogTopNav centers={centers} width="max-w-5xl" />
 
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-10 sm:px-8">
+        <nav aria-label="Хлебные крошки" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+          <a href={`${PLATFORM}/minsk`} className="hover:text-ink">
+            Минск
+          </a>
+          <span aria-hidden="true">/</span>
+          <Link to="/minsk/bc" className="hover:text-ink">
+            Бизнес-центры
+          </Link>
+          <span aria-hidden="true">/</span>
+          <span className="text-ink">Минск Мир</span>
+        </nav>
+
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-ink-faint">
-            <Link to="/minsk/analytics" className="hover:text-primary-hover">
-              Аналитика рынка
-            </Link>{' '}
-            / Минск Мир
-          </span>
           <h1 className="text-2xl font-extrabold text-ink sm:text-3xl">Цены на коммерческую недвижимость в Минск Мире</h1>
           <p className="max-w-2xl text-sm text-ink-muted">
             Первичный рынок (застройщик, bir.by) и вторичный рынок (объявления собственников, Kufar и Realt.by) в
@@ -341,13 +350,13 @@ export function MinskMirAnalyticsPage() {
           </p>
           <p className="text-sm text-ink-muted">
             Подробный гид по району (застройщик, транспорт, инфраструктура, аналитика по нишам бизнеса) —{' '}
-            <Link to="/minsk/minsk-mir" className="text-primary-hover hover:underline">
+            <a href={`${PLATFORM}/minsk/minsk-mir`} className="text-primary-hover hover:underline">
               на отдельной странице
-            </Link>
+            </a>
             . Методика расчёта общих аналитических страниц — на{' '}
-            <Link to="/minsk/analytics/metodika" className="text-primary-hover hover:underline">
+            <a href={`${PLATFORM}/minsk/analytics/metodika`} className="text-primary-hover hover:underline">
               странице методики
-            </Link>
+            </a>
             .
           </p>
         </section>

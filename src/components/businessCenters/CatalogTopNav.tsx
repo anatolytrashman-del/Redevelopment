@@ -15,6 +15,7 @@ import { useCatalogKind, type CatalogKind } from '../../lib/catalogKind';
 import { SiteBrandLogo } from '../layout/SiteBrandLogo';
 import {
   absoluteCatalogUrl,
+  absolutePublicUrl,
   deployedSiteMode,
   REDIRECT_MALLS_ENABLED,
   REDIRECT_OFFICES_ENABLED,
@@ -33,6 +34,7 @@ function CatalogNavLink({
   const mode = deployedSiteMode();
   const isTc = to === '/minsk/tc' || to.startsWith('/minsk/tc/');
   const isBc = to === '/minsk/bc' || to.startsWith('/minsk/bc/');
+  const isOfficesExtra = to === '/minsk/analytics/minsk-mir';
   if (REDIRECT_MALLS_ENABLED && mode !== 'malls' && isTc) {
     return (
       <a href={absoluteCatalogUrl('tc', to)} className={className}>
@@ -40,9 +42,9 @@ function CatalogNavLink({
       </a>
     );
   }
-  if (REDIRECT_OFFICES_ENABLED && mode !== 'offices' && isBc) {
+  if (REDIRECT_OFFICES_ENABLED && mode !== 'offices' && (isBc || isOfficesExtra)) {
     return (
-      <a href={absoluteCatalogUrl('bc', to)} className={className}>
+      <a href={isOfficesExtra ? absolutePublicUrl(to) : absoluteCatalogUrl('bc', to)} className={className}>
         {children}
       </a>
     );
@@ -62,8 +64,8 @@ function CatalogNavLink({
 //
 // ВАЖНО про «остальной сайт»: владелец там же — «по остальному сайту ещё
 // продумаем». Шапка сознательно НЕ ставится на /minsk, /minsk/minsk-mir,
-// /minsk/analytics/* и продающие лендинги: у них своя навигация и свои
-// разделы, и общее меню для них ещё не решено.
+// остальные /minsk/analytics/* и продающие лендинги. Исключение —
+// /minsk/analytics/minsk-mir: с 2026-10-10 живёт на officelist и в шапке БЦ.
 
 // Метро — особый случай: не плоский список, а группы по ветке со своим
 // цветным кружком (владелец, 2026-09-22: «расположи по веткам с цветным
@@ -109,6 +111,7 @@ type TopNavEntry = { kind: 'link'; to: string; label: string } | { kind: 'rating
 const TOP_LINKS: Record<CatalogKind, TopNavEntry[]> = {
   bc: [
     { kind: 'link', to: '/minsk/bc/analytics', label: 'Аналитика' },
+    { kind: 'link', to: '/minsk/analytics/minsk-mir', label: 'Минск Мир' },
     { kind: 'ratings' },
     { kind: 'link', to: '/minsk/bc/guide', label: 'Справочник' },
     { kind: 'link', to: '/minsk/tc', label: 'Торговые центры' },
@@ -301,12 +304,13 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     | undefined;
   const ratingsActive = ratingLinks.some((l) => l.to === pathname);
   // Всё остальное под /minsk/bc (каталог, хабы, карточки) плюс
-  // избранное — это «Бизнес-центры». Страницы рейтингов тоже живут под
-  // /minsk/bc/, поэтому явно исключены — иначе подсвечивались бы сразу
-  // два пункта шапки.
+  // избранное — это «Бизнес-центры». Страницы рейтингов и «Минск Мир»
+  // тоже живут рядом с каталогом, поэтому явно исключены — иначе
+  // подсвечивались бы сразу два пункта шапки.
   const catalogActive =
     !activeTop &&
     !ratingsActive &&
+    pathname !== '/minsk/analytics/minsk-mir' &&
     (pathname === V.basePath || pathname.startsWith(`${V.basePath}/`) || pathname.startsWith('/favorites/'));
 
   const linkClass = (active: boolean) =>

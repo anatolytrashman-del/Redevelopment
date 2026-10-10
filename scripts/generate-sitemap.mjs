@@ -30,6 +30,7 @@ import {
   absoluteUrlForPath,
   catalogOrigin,
   isCatalogPath,
+  isOfficesCatalogPath,
 } from './domainSplit.mjs';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
@@ -327,10 +328,7 @@ function stripCatalogUrls(xml, { malls = true, offices = true } = {}) {
       return block;
     }
     const isTc = path === '/minsk/tc' || path.startsWith('/minsk/tc/');
-    const isBc =
-      path === '/minsk/bc' ||
-      path.startsWith('/minsk/bc/') ||
-      path.startsWith('/minsk/bcminsk');
+    const isBc = isOfficesCatalogPath(path);
     if ((malls && isTc) || (offices && isBc)) {
       removed += 1;
       return '';
@@ -345,7 +343,10 @@ function stripCatalogUrls(xml, { malls = true, offices = true } = {}) {
 function rewriteCatalogOrigins(xml) {
   return xml
     .replaceAll(`${PLATFORM_ORIGIN}/minsk/bc`, `${OFFICES_ORIGIN}/minsk/bc`)
-    .replaceAll(`${PLATFORM_ORIGIN}/minsk/tc`, `${MALLS_ORIGIN}/minsk/tc`);
+    .replaceAll(`${PLATFORM_ORIGIN}/minsk/analytics/minsk-mir`, `${OFFICES_ORIGIN}/minsk/analytics/minsk-mir`)
+    .replaceAll(`${PLATFORM_ORIGIN}/minsk/tc`, `${MALLS_ORIGIN}/minsk/tc`)
+    // public/sitemap.xml уже может содержать officelist.pro для Минск Мира
+    .replaceAll(`https://redevelopment.pro/minsk/analytics/minsk-mir`, `${OFFICES_ORIGIN}/minsk/analytics/minsk-mir`);
 }
 
 function escapeXml(s) {
@@ -410,17 +411,17 @@ async function main() {
       .filter((block) => {
         const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
         try {
-          const path = new URL(loc).pathname;
-          return path === '/minsk/bc' || path.startsWith('/minsk/bc/');
+          return isOfficesCatalogPath(new URL(loc).pathname);
         } catch {
           return false;
         }
       })
       .map((block) =>
-        block
-          .replaceAll(PLATFORM_ORIGIN, OFFICES_ORIGIN)
-          .replaceAll('https://redevelopment.pro', OFFICES_ORIGIN)
-          .trimEnd(),
+        rewriteCatalogOrigins(
+          block
+            .replaceAll(PLATFORM_ORIGIN, OFFICES_ORIGIN)
+            .replaceAll('https://redevelopment.pro', OFFICES_ORIGIN),
+        ).trimEnd(),
       );
     const bcDynamicUrls = [
       ...metroSlugs.map((slug) => `${OFFICES_ORIGIN}/minsk/bc/metro/${slug}`),
@@ -511,7 +512,7 @@ async function main() {
         .filter((block) => {
           const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
           try {
-            return isCatalogPath(new URL(loc).pathname) && new URL(loc).pathname.startsWith('/minsk/bc');
+            return isOfficesCatalogPath(new URL(loc).pathname);
           } catch {
             return false;
           }

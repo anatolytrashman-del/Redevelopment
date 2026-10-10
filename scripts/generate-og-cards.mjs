@@ -68,6 +68,7 @@ function sectionKicker(path) {
   }
   if (DEPLOYED_SITE_MODE === 'offices') {
     if (path.startsWith('minsk/bc')) return 'Каталог бизнес-центров · OfficeList';
+    if (path === 'minsk/analytics/minsk-mir') return 'Аналитика Минск Мира · OfficeList';
     if (path === 'privacy') return 'Политика конфиденциальности · OfficeList';
     return 'OfficeList · officelist.pro';
   }

@@ -60,9 +60,14 @@ export function absoluteUrlForPath(path) {
     normalized === '/minsk/bc' ||
     normalized.startsWith('/minsk/bc/') ||
     normalized === '/minsk/bcminsk' ||
-    normalized.startsWith('/minsk/bcminsk/')
+    normalized.startsWith('/minsk/bcminsk/') ||
+    normalized === '/minsk/analytics/minsk-mir'
   ) {
-    return `${catalogOrigin('bc')}${normalized.replace(/^\/minsk\/bcminsk/, '/minsk/bc')}`;
+    const pathOnOffices =
+      normalized === '/minsk/analytics/minsk-mir'
+        ? normalized
+        : normalized.replace(/^\/minsk\/bcminsk/, '/minsk/bc');
+    return `${catalogOrigin('bc')}${pathOnOffices}`;
   }
   return `${PLATFORM_ORIGIN}${normalized}`;
 }
@@ -72,6 +77,18 @@ export function isCatalogPath(path) {
     path === '/minsk/bc' ||
     path.startsWith('/minsk/bc/') ||
     path === '/minsk/tc' ||
-    path.startsWith('/minsk/tc/')
+    path.startsWith('/minsk/tc/') ||
+    path === '/minsk/analytics/minsk-mir'
+  );
+}
+
+/** Путь каталога БЦ / аналитики Минск Мира на officelist. */
+export function isOfficesCatalogPath(path) {
+  return (
+    path === '/minsk/bc' ||
+    path.startsWith('/minsk/bc/') ||
+    path === '/minsk/bcminsk' ||
+    path.startsWith('/minsk/bcminsk/') ||
+    path === '/minsk/analytics/minsk-mir'
   );
 }
