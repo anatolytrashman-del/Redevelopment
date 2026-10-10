@@ -64,7 +64,7 @@ describe('sites / domain split', () => {
     );
     expect(crossDomainRedirect('redevelopment.pro', '/bc/titan')).toBe('https://officelist.pro/minsk/bc/titan');
     expect(crossDomainRedirect('malllist.pro', '/minsk/tc')).toBeNull();
-    expect(crossDomainRedirect('malllist.pro', '/')).toBeNull();
+    expect(crossDomainRedirect('malllist.pro', '/')).toBe('https://malllist.pro/minsk/tc');
     expect(crossDomainRedirect('officelist.pro', '/minsk/bc')).toBeNull();
     expect(crossDomainRedirect('officelist.pro', '/')).toBe('https://officelist.pro/minsk/bc');
     expect(crossDomainRedirect('www.officelist.pro', '/minsk/bc')).toBe('https://officelist.pro/minsk/bc');

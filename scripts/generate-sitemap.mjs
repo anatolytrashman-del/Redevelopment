@@ -547,8 +547,8 @@ async function main() {
           }
         })
         .map((block) => rewriteCatalogOrigins(block).trimEnd());
+      // Корень SPA-редиректит на /minsk/tc — в sitemap только каталог, без «/».
       const mallsXml = wrapUrlset([
-        urlEntry(`${MALLS_ORIGIN}/`, today, '1.0'),
         ...staticTcEntries,
         ...tcUrls.map((url) => urlEntry(url, today)),
       ]);

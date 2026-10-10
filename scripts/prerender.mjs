@@ -213,10 +213,7 @@ const MINSK_MIR_TOPIC_SLUGS = ['biznes-centr', 'kovorking', 'kupit-ofis', 'arend
 // которой критично не зависать на устаревшем JS. Если тот же симптом
 // повторится на других лендингах объектов — добавлять их сюда по
 // одному, не переводить всю сотню сразу.
-// '' — корень malllist (MalllistHomePage): на платформе другой /, копии нет.
-const ALWAYS_FULL_RENDER_PATHS = new Set(
-  IS_MALLS_DEPLOY ? ['', 'minsk/minsk-mir', 'minsk/one'] : ['minsk/minsk-mir', 'minsk/one'],
-);
+const ALWAYS_FULL_RENDER_PATHS = new Set(['minsk/minsk-mir', 'minsk/one']);
 
 /** Копия с платформы → URL/бренд каталожного домена (каноникал, og, JSON-LD). */
 function rewriteSnapshotForPublicOrigin(html) {
@@ -1090,8 +1087,7 @@ async function main() {
   if (!existsSync(DIST_DIR)) throw new Error('dist/ не найден — запускать после vite build');
 
   const landingPaths = IS_CATALOG_DEPLOY ? [] : await fetchLandingPaths();
-  // malllist: только главная + privacy + каталог ТЦ.
-  // officelist: privacy + каталог БЦ (корень редиректит на /minsk/bc).
+  // malllist / officelist: privacy + каталог (корень — SPA Navigate на каталог).
   // Платформа при redirects.*: уехавший каталог не пререндерим — иначе
   // статика в dist могла бы ответить 200 до Edge-редиректа.
   const includeTcOnPlatform = !REDIRECT_MALLS_ENABLED;
@@ -1104,7 +1100,7 @@ async function main() {
     ...(await fetchStreetHubPaths()),
   ];
   const paths = IS_MALLS_DEPLOY
-    ? ['', 'privacy', ...tradeCenterCatalogPaths()]
+    ? ['privacy', ...tradeCenterCatalogPaths()]
     : IS_OFFICES_DEPLOY
       ? [
           'privacy',
@@ -1126,7 +1122,7 @@ async function main() {
   }
   if (IS_MALLS_DEPLOY) {
     console.log(
-      `[prerender] режим malls: ${paths.length} путей (главная + privacy + ТЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
+      `[prerender] режим malls: ${paths.length} путей (privacy + ТЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
     );
   } else if (IS_OFFICES_DEPLOY) {
     console.log(
@@ -1157,7 +1153,7 @@ async function main() {
   // намеренно не входят — их 150+, единичный сбой не должен ронять весь
   // деплой, но полный список пропущенных путей всё равно печатается ниже.
   const criticalPaths = IS_MALLS_DEPLOY
-    ? new Set(['', 'privacy', 'minsk/tc'])
+    ? new Set(['privacy', 'minsk/tc'])
     : IS_OFFICES_DEPLOY
       ? new Set(['privacy', 'minsk/bc'])
       : new Set([
@@ -1517,23 +1513,7 @@ async function main() {
   // контента. Теперь пропуск критичного пути валит сборку явно — Vercel
   // покажет красный деплой и оставит прод на прошлой рабочей версии, а не
   // тихо задеплоит регресс.
-  // malllist: главная могла остаться на prepare-malls-shell (с <h1>) —
-  // это валидный SEO-фолбэк, если Chromium не поднялся.
-  const failedCritical = failedPaths.filter((p) => {
-    if (!criticalPaths.has(p)) return false;
-    if (IS_MALLS_DEPLOY && p === '') {
-      try {
-        const home = readFileSync(join(DIST_DIR, 'index.html'), 'utf8');
-        if (/<h1[\s>]/i.test(home) && /MallList/i.test(home)) {
-          console.warn('[prerender] / — headless не снял, оставляю SEO-шелл MallList с <h1>');
-          return false;
-        }
-      } catch {
-        // нет файла — критично
-      }
-    }
-    return true;
-  });
+  const failedCritical = failedPaths.filter((p) => criticalPaths.has(p));
   if (failedCritical.length > 0) {
     console.error(
       `[prerender] СБОЙ: ${failedCritical.length} критичных путей остались без снапшота:\n` +

@@ -12,14 +12,14 @@ export function SiteBrandLogo({
   className,
   as = 'link',
 }: {
-  /** Куда ведёт клик. По умолчанию: malls → `/`, offices → `/minsk/bc`, иначе `/minsk`. */
+  /** Куда ведёт клик. По умолчанию: malls → `/minsk/tc`, offices → `/minsk/bc`, иначе `/minsk`. */
   to?: string;
   className?: string;
   /** `span` — без ссылки (например, центрированная шапка хаба). */
   as?: 'link' | 'span';
 }) {
   const mode = deployedSiteMode();
-  const href = to ?? (mode === 'malls' ? '/' : mode === 'offices' ? '/minsk/bc' : '/minsk');
+  const href = to ?? (mode === 'malls' ? '/minsk/tc' : mode === 'offices' ? '/minsk/bc' : '/minsk');
   const mark =
     mode === 'malls' ? (
       <>
