@@ -106,6 +106,12 @@ export function platformOrigin(): string {
   return PLATFORM.origin;
 }
 
+/** Гид по району и посадочные (/minsk/minsk-mir…) — на officelist. */
+export function isOfficesDistrictPath(pathname: string): boolean {
+  const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  return path === '/minsk/minsk-mir' || path.startsWith('/minsk/minsk-mir/') || path === '/rayon-minsk-mir';
+}
+
 /** Какой сайт обслуживает pathname (по префиксу пути). */
 export function siteIdForPath(pathname: string): PublicSiteId {
   const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
@@ -117,8 +123,7 @@ export function siteIdForPath(pathname: string): PublicSiteId {
     path.startsWith('/minsk/bcminsk/') ||
     path === '/bc' ||
     path.startsWith('/bc/') ||
-    // Аналитика Минск Мира — на officelist (рядом с каталогом БЦ).
-    path === '/minsk/analytics/minsk-mir'
+    isOfficesDistrictPath(path)
   ) {
     return 'offices';
   }
@@ -134,6 +139,12 @@ export function absolutePublicUrl(path: string): string {
   if (deployedSiteMode() === 'offices' && siteId === 'offices') return `${OFFICES.origin}${normalized}`;
   if (deployedSiteMode() === 'malls' && siteId === 'malls') return `${MALLS.origin}${normalized}`;
   return `${PLATFORM.origin}${normalized}`;
+}
+
+/** Канонический путь на officelist (старые алиасы → /minsk/bc…, /minsk/minsk-mir). */
+function canonicalizeOfficesPath(path: string): string {
+  if (path === '/rayon-minsk-mir') return '/minsk/minsk-mir';
+  return path.replace(/^\/minsk\/bcminsk/, '/minsk/bc').replace(/^\/bc(?=\/|$)/, '/minsk/bc');
 }
 
 /**
@@ -155,19 +166,12 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
     if (!REDIRECT_OFFICES_ENABLED) {
       // offices ещё не уехал — ниже схлопнем www→apex при необходимости
     } else if (bare === OFFICES.host) {
-      // /bc/:slug на officelist → канонический /minsk/bc/:slug
-      if (path === '/bc' || path.startsWith('/bc/')) {
-        const slug = path === '/bc' ? '' : path.slice('/bc'.length);
-        return `${OFFICES.origin}/minsk/bc${slug}`;
-      }
-      // старый /minsk/bcminsk → /minsk/bc
-      if (path === '/minsk/bcminsk' || path.startsWith('/minsk/bcminsk/')) {
-        return `${OFFICES.origin}${path.replace(/^\/minsk\/bcminsk/, '/minsk/bc')}`;
-      }
+      const canonical = canonicalizeOfficesPath(path);
+      if (canonical !== path) return `${OFFICES.origin}${canonical}`;
       if (isWww) return `${OFFICES.origin}${pathname}`;
       return null;
     } else {
-      return `${OFFICES.origin}${path.replace(/^\/minsk\/bcminsk/, '/minsk/bc').replace(/^\/bc(?=\/|$)/, '/minsk/bc')}`;
+      return `${OFFICES.origin}${canonicalizeOfficesPath(path)}`;
     }
   }
 

@@ -3,9 +3,13 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
-- **2026-10-10 — аналитика Минск Мира → officelist.** `/minsk/analytics/minsk-mir`
-  на OfficeList (шапка «Минск Мир»), 301 с платформы, sitemap/GSC/prerender/vercel
-  one-hop; IndexNow — `data/indexnow/minsk-mir-analytics-officelist-2026-10-10.txt`.
+- **2026-10-10 — гид Минск Мира → officelist.** `/minsk/minsk-mir` (+topics) на
+  OfficeList; в шапке «Аналитика по районам» → выпадающий «Минск Мир». Аналитика
+  цен `/minsk/analytics/minsk-mir` остаётся на платформе. 301/sitemap/prerender;
+  IndexNow — `data/indexnow/minsk-mir-analytics-officelist-2026-10-10.txt`.
+
+- **2026-10-10 — (ошибка, откатили) аналитика цен minsk-mir на officelist.**
+  Нужен был гид `/minsk/minsk-mir`, не `/minsk/analytics/minsk-mir`.
 
 - **2026-10-10 — malllist: лого → каталог Минска.** Как officelist: `/` SPA→`/minsk/tc`,
   логотип на каталог; отдельную главную не держим (файл страницы оставлен на потом).

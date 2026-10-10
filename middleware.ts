@@ -209,7 +209,7 @@ function isMallsSitePath(pathname: string): boolean {
   return hasKnownStaticExtension(normalized);
 }
 
-/** Пути отдельного проекта officelist (каталог БЦ + аналитика Минск Мира). */
+/** Пути отдельного проекта officelist (каталог БЦ + гид по районам). */
 function isOfficesSitePath(pathname: string): boolean {
   const normalized = normalizePathname(pathname);
   if (normalized === '/' || normalized === '') return true;
@@ -218,7 +218,8 @@ function isOfficesSitePath(pathname: string): boolean {
   if (normalized === '/minsk/bc' || normalized.startsWith('/minsk/bc/')) return true;
   if (normalized === '/minsk/bcminsk' || normalized.startsWith('/minsk/bcminsk/')) return true;
   if (normalized === '/bc' || normalized.startsWith('/bc/')) return true;
-  if (normalized === '/minsk/analytics/minsk-mir') return true;
+  if (normalized === '/minsk/minsk-mir' || normalized.startsWith('/minsk/minsk-mir/')) return true;
+  if (normalized === '/rayon-minsk-mir') return true;
   if (normalized === '/api' || normalized.startsWith('/api/')) return true;
   if (normalized === '/_vercel' || normalized.startsWith('/_vercel/')) return true;
   if (normalized === '/.well-known' || normalized.startsWith('/.well-known/')) return true;

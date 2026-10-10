@@ -227,14 +227,36 @@
       "permanent": true
     },
     {
-      "source": "/minsk/analytics/minsk-mir",
+      "source": "/minsk/minsk-mir",
       "has": [
         {
           "type": "host",
           "value": "redevelopment.pro"
         }
       ],
-      "destination": "https://officelist.pro/minsk/analytics/minsk-mir",
+      "destination": "https://officelist.pro/minsk/minsk-mir",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/minsk-mir/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/minsk-mir/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/rayon-minsk-mir",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/minsk-mir",
       "permanent": true
     },
     {
@@ -260,14 +282,36 @@
       "permanent": true
     },
     {
-      "source": "/minsk/analytics/minsk-mir",
+      "source": "/minsk/minsk-mir",
       "has": [
         {
           "type": "host",
           "value": "www.redevelopment.pro"
         }
       ],
-      "destination": "https://officelist.pro/minsk/analytics/minsk-mir",
+      "destination": "https://officelist.pro/minsk/minsk-mir",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/minsk-mir/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/minsk-mir/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/rayon-minsk-mir",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/minsk-mir",
       "permanent": true
     },
     {

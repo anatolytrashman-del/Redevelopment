@@ -66,7 +66,7 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 |---|---|
 | `platform` (по умолчанию) | полный сайт, как сейчас на redevelopment.pro |
 | `malls` | главная `/` (MallList) + `/minsk/tc/*` (+ `/privacy`, `/favorites`); `/minsk` → `/minsk/tc` |
-| `offices` | каталог БЦ + `/minsk/analytics/minsk-mir`; `/` и `/minsk` → `/minsk/bc`; sitemap/OG/бренд OfficeList |
+| `offices` | каталог БЦ + `/minsk/minsk-mir` (гид по районам); `/` и `/minsk` → `/minsk/bc`; sitemap/OG/бренд OfficeList |
 
 Корень (`/`) для платформы и каталогов ведёт middleware (`middleware.ts`),
 не `vercel.json`: иначе на отдельном проекте malllist редирект

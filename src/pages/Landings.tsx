@@ -66,7 +66,7 @@ const LANDINGS: LandingEntry[] = [
   {
     title: 'Страница про Минск-Мир',
     description: 'Гид и аналитика по офисам и коммерческим помещениям в районе Минск Мир — контентная SEO-страница.',
-    url: 'https://redevelopment.pro/minsk/minsk-mir',
+    url: 'https://officelist.pro/minsk/minsk-mir',
     status: 'done',
   },
   {
@@ -148,8 +148,8 @@ const LANDINGS: LandingEntry[] = [
   },
   {
     title: 'Аналитика: Минск Мир',
-    description: 'Первичный и вторичный рынок конкретно в Минск Мире — officelist.pro/minsk/analytics/minsk-mir.',
-    url: 'https://officelist.pro/minsk/analytics/minsk-mir',
+    description: 'Первичный и вторичный рынок конкретно в Минск Мире — /minsk/analytics/minsk-mir.',
+    url: 'https://redevelopment.pro/minsk/analytics/minsk-mir',
     status: 'in-progress',
   },
   {

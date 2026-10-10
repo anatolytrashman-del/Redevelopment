@@ -34,7 +34,10 @@ describe('sites / domain split', () => {
     expect(siteIdForPath('/minsk/bc/titan')).toBe('offices');
     expect(siteIdForPath('/minsk/bcminsk/gid')).toBe('offices');
     expect(siteIdForPath('/bc/titan')).toBe('offices');
-    expect(siteIdForPath('/minsk/analytics/minsk-mir')).toBe('offices');
+    expect(siteIdForPath('/minsk/minsk-mir')).toBe('offices');
+    expect(siteIdForPath('/minsk/minsk-mir/biznes-centr')).toBe('offices');
+    expect(siteIdForPath('/rayon-minsk-mir')).toBe('offices');
+    expect(siteIdForPath('/minsk/analytics/minsk-mir')).toBe('platform');
     expect(siteIdForPath('/minsk/analytics')).toBe('platform');
     expect(siteIdForPath('/minsk/tc')).toBe('malls');
     expect(siteIdForPath('/minsk/tc/dana-mall')).toBe('malls');
@@ -71,18 +74,23 @@ describe('sites / domain split', () => {
     expect(crossDomainRedirect('officelist.pro', '/minsk/bc')).toBeNull();
     expect(crossDomainRedirect('officelist.pro', '/')).toBe('https://officelist.pro/minsk/bc');
     expect(crossDomainRedirect('www.officelist.pro', '/minsk/bc')).toBe('https://officelist.pro/minsk/bc');
-    expect(crossDomainRedirect('redevelopment.pro', '/minsk/analytics/minsk-mir')).toBe(
-      'https://officelist.pro/minsk/analytics/minsk-mir',
+    expect(crossDomainRedirect('redevelopment.pro', '/minsk/minsk-mir')).toBe(
+      'https://officelist.pro/minsk/minsk-mir',
     );
-    expect(crossDomainRedirect('www.redevelopment.pro', '/minsk/analytics/minsk-mir')).toBe(
-      'https://officelist.pro/minsk/analytics/minsk-mir',
+    expect(crossDomainRedirect('www.redevelopment.pro', '/minsk/minsk-mir/biznes-centr')).toBe(
+      'https://officelist.pro/minsk/minsk-mir/biznes-centr',
     );
-    expect(crossDomainRedirect('officelist.pro', '/minsk/analytics/minsk-mir')).toBeNull();
+    expect(crossDomainRedirect('redevelopment.pro', '/rayon-minsk-mir')).toBe(
+      'https://officelist.pro/minsk/minsk-mir',
+    );
+    expect(crossDomainRedirect('officelist.pro', '/minsk/minsk-mir')).toBeNull();
+    expect(crossDomainRedirect('redevelopment.pro', '/minsk/analytics/minsk-mir')).toBeNull();
   });
 
-  it('absolutePublicUrl: Минск Мир → officelist', () => {
+  it('absolutePublicUrl: гид Минск Мир → officelist, аналитика цен → платформа', () => {
+    expect(absolutePublicUrl('/minsk/minsk-mir')).toBe('https://officelist.pro/minsk/minsk-mir');
     expect(absolutePublicUrl('/minsk/analytics/minsk-mir')).toBe(
-      'https://officelist.pro/minsk/analytics/minsk-mir',
+      'https://redevelopment.pro/minsk/analytics/minsk-mir',
     );
     expect(absolutePublicUrl('/minsk/analytics')).toBe('https://redevelopment.pro/minsk/analytics');
   });

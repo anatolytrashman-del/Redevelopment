@@ -343,10 +343,9 @@ function stripCatalogUrls(xml, { malls = true, offices = true } = {}) {
 function rewriteCatalogOrigins(xml) {
   return xml
     .replaceAll(`${PLATFORM_ORIGIN}/minsk/bc`, `${OFFICES_ORIGIN}/minsk/bc`)
-    .replaceAll(`${PLATFORM_ORIGIN}/minsk/analytics/minsk-mir`, `${OFFICES_ORIGIN}/minsk/analytics/minsk-mir`)
+    .replaceAll(`${PLATFORM_ORIGIN}/minsk/minsk-mir`, `${OFFICES_ORIGIN}/minsk/minsk-mir`)
     .replaceAll(`${PLATFORM_ORIGIN}/minsk/tc`, `${MALLS_ORIGIN}/minsk/tc`)
-    // public/sitemap.xml уже может содержать officelist.pro для Минск Мира
-    .replaceAll(`https://redevelopment.pro/minsk/analytics/minsk-mir`, `${OFFICES_ORIGIN}/minsk/analytics/minsk-mir`);
+    .replaceAll(`https://redevelopment.pro/minsk/minsk-mir`, `${OFFICES_ORIGIN}/minsk/minsk-mir`);
 }
 
 function escapeXml(s) {
