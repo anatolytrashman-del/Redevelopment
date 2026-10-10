@@ -372,7 +372,12 @@ async function main() {
       seen.add(loc);
       deduped.push(block);
     }
-    writeFileSync(SITEMAP_PATH, wrapUrlset(deduped));
+    const mallsXml = wrapUrlset(deduped);
+    writeFileSync(SITEMAP_PATH, mallsXml);
+    // Дубль под старый rewrite vercel.json (sitemap.xml → sitemap-malls.xml):
+    // если статика sitemap.xml вдруг не отдалась, rewrite не должен
+    // упасть в SPA HTML — GSC «Couldn't fetch».
+    writeFileSync(MALLS_SITEMAP_PATH, mallsXml);
     console.log(`[generate-sitemap] режим malls: sitemap.xml — ${deduped.length} URL каталога ТЦ`);
     return;
   }
