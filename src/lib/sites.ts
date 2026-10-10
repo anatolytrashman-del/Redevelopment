@@ -1,6 +1,6 @@
 // Три публичных сайта в одном репозитории (2026-10-10):
 //   redevelopment.pro — платформа сервисов в недвижимости (CRM, закупки, объекты);
-//   offiselist.pro    — каталог бизнес-центров (бывший /minsk/bc);
+//   officelist.pro    — каталог бизнес-центров (бывший /minsk/bc);
 //   malllist.pro      — каталог торговых центров (бывший /minsk/tc).
 //
 // Пути каталогов пока те же (/minsk/bc/..., /minsk/tc/...) — 1:1 для SEO.
@@ -53,7 +53,7 @@ const redirects = (domainSplit as { redirects?: { malls?: boolean; offices?: boo
 
 /** 301 /minsk/tc… → malllist.pro (или enabled на оба каталога). */
 export const REDIRECT_MALLS_ENABLED = domainSplit.enabled === true || redirects?.malls === true;
-/** 301 /minsk/bc… → offiselist.pro (или enabled на оба каталога). */
+/** 301 /minsk/bc… → officelist.pro (или enabled на оба каталога). */
 export const REDIRECT_OFFICES_ENABLED = domainSplit.enabled === true || redirects?.offices === true;
 
 /** true — хотя бы один каталог уехал на свой домен. */
@@ -65,7 +65,8 @@ export function normalizeSiteMode(raw: string | undefined | null): PublicSiteId 
     .trim()
     .toLowerCase();
   if (v === 'malls' || v === 'malllist' || v === 'tc') return 'malls';
-  if (v === 'offices' || v === 'offiselist' || v === 'bc') return 'offices';
+  // officelist — канон; offiselist — старый алиас из черновика бренда
+  if (v === 'offices' || v === 'officelist' || v === 'offiselist' || v === 'bc') return 'offices';
   return 'platform';
 }
 
@@ -136,12 +137,12 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
 
   // Каталоги раньше www→apex: иначе www.redevelopment.pro/minsk/tc даёт
   // два 301 (apex, потом malllist). Поисковики хотят один hop.
-  // Каталог БЦ на платформе или на чужом каталожном домене → offiselist
+  // Каталог БЦ на платформе или на чужом каталожном домене → officelist
   if (siteId === 'offices') {
     if (!REDIRECT_OFFICES_ENABLED) {
       // offices ещё не уехал — ниже схлопнем www→apex при необходимости
     } else if (bare === OFFICES.host) {
-      // /bc/:slug на offiselist → канонический /minsk/bc/:slug
+      // /bc/:slug на officelist → канонический /minsk/bc/:slug
       if (path === '/bc' || path.startsWith('/bc/')) {
         const slug = path === '/bc' ? '' : path.slice('/bc'.length);
         return `${OFFICES.origin}/minsk/bc${slug}`;
@@ -157,7 +158,7 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
     }
   }
 
-  // Каталог ТЦ на платформе или на offiselist → malllist
+  // Каталог ТЦ на платформе или на officelist → malllist
   if (siteId === 'malls') {
     if (!REDIRECT_MALLS_ENABLED) {
       // malls ещё не уехал
@@ -177,7 +178,7 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
 
   // На каталожных доменах чужой контент платформы → на платформу.
   // Корень malllist — своя главная (не редирект на /minsk/tc).
-  // Корень offiselist пока ведём в каталог БЦ (отдельной главной ещё нет).
+  // Корень officelist пока ведём в каталог БЦ (отдельной главной ещё нет).
   if (bare === OFFICES.host || bare === MALLS.host) {
     if (path === '/' || path === '') {
       if (bare === MALLS.host) return null;

@@ -34,7 +34,7 @@ import {
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 // SITE — origin для путей каталога БЦ в динамических URL. После сплита
-// доменов карточки БЦ живут на offiselist.pro; до включения — на платформе.
+// доменов карточки БЦ живут на officelist.pro; до включения — на платформе.
 const SITE = REDIRECT_OFFICES_ENABLED ? OFFICES_ORIGIN : PLATFORM_ORIGIN;
 const SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap.xml');
 const OFFICES_SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap-offices.xml');

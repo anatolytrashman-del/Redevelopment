@@ -29,7 +29,7 @@ README),
 не финал** — владелец ещё дополняет файл, не исполнять как готовое ТЗ, ждать
 команды вернуться к нему);
 `docs/domain-split.md` (2026-10-10: разнос на redevelopment.pro /
-offiselist.pro / malllist.pro — рубильник `domain-split.json`, карта 301,
+officelist.pro / malllist.pro — рубильник `domain-split.json`, карта 301,
 чеклист DNS/GSC/Вебмастер); в `docs/` —
 `docs/bc-catalog-redesign-plan.md` (переосмысление каталога и карточки БЦ,
 2026-09-16: диагноз, 31 предложение в трёх волнах, чекбоксы).

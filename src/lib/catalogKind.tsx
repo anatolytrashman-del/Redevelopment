@@ -13,7 +13,7 @@ import { catalogSiteUrl } from './sites';
 // тут не работает.
 //
 // siteUrl — абсолютный корень каталога. При включённом domain-split
-// (src/data/domain-split.json) указывает на offiselist.pro / malllist.pro.
+// (src/data/domain-split.json) указывает на officelist.pro / malllist.pro.
 
 export type CatalogKind = 'bc' | 'tc';
 

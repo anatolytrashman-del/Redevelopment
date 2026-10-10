@@ -207,10 +207,10 @@
       "has": [
         {
           "type": "host",
-          "value": "www.offiselist.pro"
+          "value": "www.officelist.pro"
         }
       ],
-      "destination": "https://offiselist.pro/$1",
+      "destination": "https://officelist.pro/$1",
       "permanent": true
     },
     {
@@ -651,7 +651,7 @@
       "has": [
         {
           "type": "host",
-          "value": "offiselist.pro"
+          "value": "officelist.pro"
         }
       ],
       "destination": "/sitemap-offices.xml"
@@ -661,7 +661,7 @@
       "has": [
         {
           "type": "host",
-          "value": "www.offiselist.pro"
+          "value": "www.officelist.pro"
         }
       ],
       "destination": "/sitemap-offices.xml"

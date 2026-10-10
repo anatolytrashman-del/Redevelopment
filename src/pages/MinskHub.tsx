@@ -47,7 +47,7 @@ const CATALOGS = [
   {
     name: 'Бизнес-центры',
     icon: Building2,
-    // После сплита доменов — абсолютная ссылка на offiselist.pro (иначе
+    // После сплита доменов — абсолютная ссылка на officelist.pro (иначе
     // SPA Link остался бы на redevelopment.pro и упёрся в 301).
     href: REDIRECT_OFFICES_ENABLED ? catalogSiteUrl('bc') : '/minsk/bc',
     external: REDIRECT_OFFICES_ENABLED,

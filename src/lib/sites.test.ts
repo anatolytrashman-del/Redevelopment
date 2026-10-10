@@ -45,7 +45,7 @@ describe('sites / domain split', () => {
     expect(siteIdFromHostname('www.redevelopment.pro')).toBe('platform');
     expect(siteIdFromHostname('malllist.pro')).toBe('malls');
     expect(siteIdFromHostname('www.malllist.pro')).toBe('malls');
-    expect(siteIdFromHostname('offiselist.pro')).toBe('offices');
+    expect(siteIdFromHostname('officelist.pro')).toBe('offices');
     expect(siteIdFromHostname('localhost')).toBeNull();
     expect(siteIdFromHostname('domain-split-catalogs-5bba.vercel.app')).toBeNull();
   });
@@ -69,18 +69,18 @@ describe('sites / domain split (логика при enabled обоих)', () => 
   function redirectWhenEnabled(host: string, pathname: string): string | null {
     const bare = host.replace(/^www\./, '').toLowerCase();
     const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-    const offices = 'https://offiselist.pro';
+    const offices = 'https://officelist.pro';
     const malls = 'https://malllist.pro';
     const platform = 'https://redevelopment.pro';
 
-    if (host.toLowerCase().startsWith('www.') && (bare === 'redevelopment.pro' || bare === 'offiselist.pro' || bare === 'malllist.pro')) {
-      const origin = bare === 'offiselist.pro' ? offices : bare === 'malllist.pro' ? malls : platform;
+    if (host.toLowerCase().startsWith('www.') && (bare === 'redevelopment.pro' || bare === 'officelist.pro' || bare === 'malllist.pro')) {
+      const origin = bare === 'officelist.pro' ? offices : bare === 'malllist.pro' ? malls : platform;
       return `${origin}${pathname}`;
     }
 
     const siteId = siteIdForPath(path);
     if (siteId === 'offices') {
-      if (bare === 'offiselist.pro') {
+      if (bare === 'officelist.pro') {
         if (path === '/bc' || path.startsWith('/bc/')) {
           const slug = path === '/bc' ? '' : path.slice('/bc'.length);
           return `${offices}/minsk/bc${slug}`;
@@ -96,9 +96,9 @@ describe('sites / domain split (логика при enabled обоих)', () => 
       if (bare === 'malllist.pro') return null;
       return `${malls}${path}`;
     }
-    if (bare === 'offiselist.pro' || bare === 'malllist.pro') {
+    if (bare === 'officelist.pro' || bare === 'malllist.pro') {
       if (path === '/' || path === '') {
-        // malllist — своя главная; offiselist пока уходит в каталог БЦ.
+        // malllist — своя главная; officelist пока уходит в каталог БЦ.
         if (bare === 'malllist.pro') return null;
         return `${offices}/minsk/bc`;
       }
@@ -107,17 +107,17 @@ describe('sites / domain split (логика при enabled обоих)', () => 
     return null;
   }
 
-  it('с платформы каталог БЦ уходит на offiselist с тем же путём', () => {
-    expect(redirectWhenEnabled('redevelopment.pro', '/minsk/bc')).toBe('https://offiselist.pro/minsk/bc');
-    expect(redirectWhenEnabled('redevelopment.pro', '/minsk/bc/titan')).toBe('https://offiselist.pro/minsk/bc/titan');
+  it('с платформы каталог БЦ уходит на officelist с тем же путём', () => {
+    expect(redirectWhenEnabled('redevelopment.pro', '/minsk/bc')).toBe('https://officelist.pro/minsk/bc');
+    expect(redirectWhenEnabled('redevelopment.pro', '/minsk/bc/titan')).toBe('https://officelist.pro/minsk/bc/titan');
     expect(redirectWhenEnabled('redevelopment.pro', '/minsk/bc/metro/nemiga')).toBe(
-      'https://offiselist.pro/minsk/bc/metro/nemiga',
+      'https://officelist.pro/minsk/bc/metro/nemiga',
     );
   });
 
-  it('legacy bcminsk и /bc/:slug тоже на offiselist', () => {
-    expect(redirectWhenEnabled('redevelopment.pro', '/minsk/bcminsk/titan')).toBe('https://offiselist.pro/minsk/bc/titan');
-    expect(redirectWhenEnabled('redevelopment.pro', '/bc/titan')).toBe('https://offiselist.pro/minsk/bc/titan');
+  it('legacy bcminsk и /bc/:slug тоже на officelist', () => {
+    expect(redirectWhenEnabled('redevelopment.pro', '/minsk/bcminsk/titan')).toBe('https://officelist.pro/minsk/bc/titan');
+    expect(redirectWhenEnabled('redevelopment.pro', '/bc/titan')).toBe('https://officelist.pro/minsk/bc/titan');
   });
 
   it('с платформы каталог ТЦ уходит на malllist', () => {
@@ -126,13 +126,13 @@ describe('sites / domain split (логика при enabled обоих)', () => 
   });
 
   it('корень каталожного домена', () => {
-    expect(redirectWhenEnabled('offiselist.pro', '/')).toBe('https://offiselist.pro/minsk/bc');
+    expect(redirectWhenEnabled('officelist.pro', '/')).toBe('https://officelist.pro/minsk/bc');
     // У malllist своя главная — с корня никуда не уводим.
     expect(redirectWhenEnabled('malllist.pro', '/')).toBeNull();
   });
 
   it('www схлопывается в apex', () => {
-    expect(redirectWhenEnabled('www.offiselist.pro', '/minsk/bc')).toBe('https://offiselist.pro/minsk/bc');
+    expect(redirectWhenEnabled('www.officelist.pro', '/minsk/bc')).toBe('https://officelist.pro/minsk/bc');
     expect(redirectWhenEnabled('www.malllist.pro', '/minsk/tc')).toBe('https://malllist.pro/minsk/tc');
   });
 });
