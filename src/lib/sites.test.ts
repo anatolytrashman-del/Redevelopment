@@ -11,6 +11,8 @@ import {
 describe('sites / domain split', () => {
   it('по умолчанию сплит выключен (безопасный дефолт до DNS)', () => {
     expect(domainSplit.enabled).toBe(false);
+    expect(domainSplit.redirects?.malls).toBe(false);
+    expect(domainSplit.redirects?.offices).toBe(false);
     expect(CATALOG_DOMAIN_SPLIT_ENABLED).toBe(false);
   });
 

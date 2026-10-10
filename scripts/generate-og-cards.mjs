@@ -91,7 +91,8 @@ const normalize = (text) =>
 function kickerFor(path, title) {
   const kicker = sectionKicker(path);
   const [a, b] = [normalize(kicker), normalize(title)];
-  return a && b && (b.includes(a) || a.includes(b)) ? 'redevelopment.pro' : kicker;
+  const fallback = DEPLOYED_SITE_MODE === 'malls' ? 'malllist.pro' : 'redevelopment.pro';
+  return a && b && (b.includes(a) || a.includes(b)) ? fallback : kicker;
 }
 
 // Путь → имя файла карточки: /minsk/bc/one → dist/og/minsk-bc-one.png.
@@ -108,6 +109,10 @@ const cardSlug = (path) => path.replace(/\//g, '-') || 'index';
 // двоеточие вместо тире короче на пару символов и переносится ровно на
 // границах слов «Коммерческая / недвижимость Минск / Мира: цены и аналитика».
 const CARD_TEXT_OVERRIDES = {
+  '': {
+    title: 'Каталог торговых центров',
+    kicker: 'MallList · полный список ТЦ по городам',
+  },
   'minsk/minsk-mir': {
     title: 'Коммерческая недвижимость Минск Мира: цены и аналитика',
     // Без "· redevelopment.pro" — домен уже есть в шапке карточки рядом с
@@ -190,8 +195,10 @@ const FIT_SCRIPT = `(function () {
 })()`;
 
 function cardHtml(title, kicker) {
+  const mark = DEPLOYED_SITE_MODE === 'malls' ? 'M' : 'R';
+  const site = DEPLOYED_SITE_MODE === 'malls' ? 'malllist.pro' : 'redevelopment.pro';
   return `<html><head><style>${fontFaces()}${CARD_CSS}</style></head><body><div class="card">
-  <div class="top"><span class="mark">R</span><span class="site">redevelopment.pro</span></div>
+  <div class="top"><span class="mark">${mark}</span><span class="site">${site}</span></div>
   <div class="title">${escapeHtml(title)}</div>
   <div class="kicker">${escapeHtml(kicker)}</div>
 </div></body></html>`;
@@ -276,21 +283,29 @@ async function main() {
     console.warn('[og-cards] нет каталога dist — нечего обрабатывать');
     return;
   }
-  const copiedFromProd = readCopiedFromProd();
+  // malllist: карточки платформы с «R» не копируем — рисуем свои с «M».
+  const copiedFromProd = DEPLOYED_SITE_MODE === 'malls' ? new Set() : readCopiedFromProd();
   const pages = [];
   for (const file of collectHtmlFiles(DIST_DIR)) {
     const rel = relative(DIST_DIR, file);
-    if (SKIP_FILES.has(rel)) continue;
+    // Главную malllist (dist/index.html) тоже покрываем фирменной карточкой.
+    if (SKIP_FILES.has(rel) && !(DEPLOYED_SITE_MODE === 'malls' && rel === 'index.html')) continue;
     const html = readFileSync(file, 'utf8');
     const title = readTitle(html);
     if (!title) {
       console.warn(`[og-cards] ${rel}: не нашёл og:title/<title> — оставляю прежнюю обложку`);
       continue;
     }
-    const path = rel.endsWith('/index.html') ? rel.slice(0, -'/index.html'.length) : rel.slice(0, -'.html'.length);
-    // malllist: только каталог ТЦ (+ privacy); store-шеллы и превью платформы не трогаем.
+    const path =
+      rel === 'index.html'
+        ? ''
+        : rel.endsWith('/index.html')
+          ? rel.slice(0, -'/index.html'.length)
+          : rel.slice(0, -'.html'.length);
+    // malllist: только главная + privacy + каталог ТЦ; store-шеллы не трогаем.
     if (DEPLOYED_SITE_MODE === 'malls') {
       const ok =
+        path === '' ||
         path === 'privacy' ||
         path === 'minsk/tc' ||
         (path.startsWith('minsk/tc/') && !path.startsWith('minsk/tc/store/'));
@@ -432,6 +447,15 @@ async function main() {
       // уже закрыт
     }
   }
+  // Главная malllist: карточку index.png дублируем в og-image.png (meta по умолчанию).
+  if (DEPLOYED_SITE_MODE === 'malls') {
+    const homeCard = join(CARDS_DIR, 'index.png');
+    if (existsSync(homeCard)) {
+      copyFileSync(homeCard, join(DIST_DIR, 'og-image.png'));
+      copyFileSync(homeCard, join(CARDS_DIR, 'home.png'));
+    }
+  }
+
   console.log(
     `[og-cards] готово: ${handcrafted + copied + rendered} страниц со своей обложкой (dist/og/*.png; ручных ${handcrafted}, с прода ${copied}, отрендерено ${rendered})`,
   );

@@ -75,21 +75,35 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 
 ## Рубильник
 
-Файл `src/data/domain-split.json`, поле `"enabled"`:
+Файл `src/data/domain-split.json`:
 
-- `false` (сейчас) — каталоги живут на redevelopment.pro как раньше;
-  canonical, sitemap, внутренние ссылки без изменений для поисковиков.
-- `true` — включаются:
-  - 301 в `middleware.ts` с платформы на каталожные домены;
-  - `catalogSiteUrl()` / canonical / JSON-LD на новые origin;
-  - раздельные `sitemap.xml` (платформа / offices / malls);
-  - host-aware `robots.txt`.
+| Поле | Смысл |
+|---|---|
+| `"enabled": true` | оба каталога сразу (301 + canonical + sitemap) |
+| `"redirects.malls": true` | только ТЦ → malllist.pro (БЦ остаётся на платформе) |
+| `"redirects.offices": true` | только БЦ → offiselist.pro |
+
+Сейчас всё `false`. Каталоги на платформе; malllist.pro уже отдаёт
+свой деплой с `PUBLIC_SITE=malls` (canonical на malllist), но платформа
+ещё не 301-ит `/minsk/tc…`.
 
 Дубликат логики для Node-скриптов: `scripts/domainSplit.mjs`.
 Правила редиректа: `src/lib/sites.ts` (`crossDomainRedirect`).
 
-**Не включать `enabled: true` в прод, пока не выполнены шаги ниже.**
-Иначе 301 поведут на мёртвые домены и сольют уже набранный индекс.
+**Не включать редиректы в прод, пока не выполнены шаги ниже для того
+каталога, который уезжает.** Иначе 301 поведут на неготовый домен.
+
+### Верификация вебмастеров (malllist)
+
+В `domain-split.json` → `verifications.malls.yandex` и в шелл сборки
+(`prepare-malls-shell.mjs`) уже прописано:
+
+```html
+<meta name="yandex-verification" content="5893ee662c25f112" />
+```
+
+Google Search Console — добавить meta/DNS, когда появится токен (поле
+`verifications.malls.google` + правка шелла).
 
 ## Чеклист перед включением
 
@@ -107,25 +121,27 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 
 ### 2. Включение в коде
 
-1. В `src/data/domain-split.json` поставить `"enabled": true`.
-2. Собрать: `npm run build:app` — в логе должны появиться
-   `sitemap-offices.xml` и `sitemap-malls.xml`.
-3. Закоммитить, смёржить в прод, дождаться `READY`.
-4. Проверки 301 (должен быть `301: 301` и `location` на новый домен):
+**Сначала только malllist** (offiselist позже):
+
+1. В Вебмастере/GSC подтвердить `malllist.pro`, отправить
+   `https://malllist.pro/sitemap.xml`.
+2. В `src/data/domain-split.json` поставить
+   `"redirects": { "malls": true, "offices": false }`.
+3. Собрать/смёржить в прод **платформы** — в логе `sitemap-malls.xml`,
+   из platform sitemap убраны `/minsk/tc…`.
+4. Проверки:
 
 ```bash
-curl -sI 'https://redevelopment.pro/minsk/bc' | head -5
-curl -sI 'https://redevelopment.pro/minsk/bc/titan' | head -5
-curl -sI 'https://redevelopment.pro/minsk/tc' | head -5
-curl -sI 'https://redevelopment.pro/bc/titan' | head -5
-curl -sI 'https://offiselist.pro/' | head -5   # → /minsk/bc
-curl -sI 'https://malllist.pro/' | head -5     # → 200 главная MallList
+curl -sI 'https://redevelopment.pro/minsk/tc' | head -5          # → 301 malllist
+curl -sI 'https://redevelopment.pro/minsk/tc/dana-mall' | head -5
+curl -sI 'https://malllist.pro/' | head -5                       # → 200
+curl -s 'https://malllist.pro/' | rg yandex-verification
 ```
 
-5. Canonical на карточке: в HTML `offiselist.pro`, не `redevelopment.pro`.
-6. `https://offiselist.pro/sitemap.xml` и `https://malllist.pro/sitemap.xml`
-   отдают каталожные URL; `https://redevelopment.pro/sitemap.xml` — без
-   `/minsk/bc` и `/minsk/tc`.
+5. Canonical на карточке ТЦ: `malllist.pro`, не `redevelopment.pro`.
+6. БЦ пока без 301: `redevelopment.pro/minsk/bc` остаётся 200.
+
+**Оба каталога разом:** `"enabled": true` (или оба флага в `redirects`).
 
 ### 3. Google Search Console
 

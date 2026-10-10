@@ -6,7 +6,7 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { DISTRICTS, DISTRICTS_WITH_GUIDE } from '../data/districts';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
-import { CATALOG_DOMAIN_SPLIT_ENABLED, catalogSiteUrl } from '../lib/sites';
+import { REDIRECT_MALLS_ENABLED, REDIRECT_OFFICES_ENABLED, catalogSiteUrl } from '../lib/sites';
 
 // Хаб раздела "Минск" (SEO_PLAN.md, урл-структура /minsk/...) — только
 // гиды по районам, под общим city-scoped префиксом. Корень сайта (/)
@@ -49,14 +49,14 @@ const CATALOGS = [
     icon: Building2,
     // После сплита доменов — абсолютная ссылка на offiselist.pro (иначе
     // SPA Link остался бы на redevelopment.pro и упёрся в 301).
-    href: CATALOG_DOMAIN_SPLIT_ENABLED ? catalogSiteUrl('bc') : '/minsk/bc',
-    external: CATALOG_DOMAIN_SPLIT_ENABLED,
+    href: REDIRECT_OFFICES_ENABLED ? catalogSiteUrl('bc') : '/minsk/bc',
+    external: REDIRECT_OFFICES_ENABLED,
   },
   {
     name: 'Торговые центры',
     icon: ShoppingBag,
-    href: CATALOG_DOMAIN_SPLIT_ENABLED ? catalogSiteUrl('tc') : '/minsk/tc',
-    external: CATALOG_DOMAIN_SPLIT_ENABLED,
+    href: REDIRECT_MALLS_ENABLED ? catalogSiteUrl('tc') : '/minsk/tc',
+    external: REDIRECT_MALLS_ENABLED,
   },
   { name: 'Коворкинги', icon: Users, href: null, external: false },
   { name: 'Склады', icon: Warehouse, href: null, external: false },

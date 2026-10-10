@@ -1,5 +1,14 @@
 {
   "enabled": false,
+  "redirects": {
+    "malls": false,
+    "offices": false
+  },
+  "verifications": {
+    "malls": {
+      "yandex": "5893ee662c25f112"
+    }
+  },
   "platform": {
     "host": "redevelopment.pro",
     "origin": "https://redevelopment.pro",

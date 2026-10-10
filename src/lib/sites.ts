@@ -4,8 +4,9 @@
 //   malllist.pro      — каталог торговых центров (бывший /minsk/tc).
 //
 // Пути каталогов пока те же (/minsk/bc/..., /minsk/tc/...) — 1:1 для SEO.
-// Включение 301 и новых canonical — флаг `enabled` в domain-split.json
-// (см. docs/domain-split.md). Пока false, каталоги живут на платформе.
+// Включение 301 и новых canonical — `enabled` (оба каталога) или точечно
+// `redirects.malls` / `redirects.offices` в domain-split.json
+// (см. docs/domain-split.md). Пока всё false, каталоги живут на платформе.
 import domainSplit from '../data/domain-split.json';
 
 // vite.config.ts define; объявлено здесь, потому что middleware.ts импортирует
@@ -48,8 +49,15 @@ const MALLS: PublicSite = {
 
 export const SITES = { platform: PLATFORM, offices: OFFICES, malls: MALLS } as const;
 
-/** true — каталоги на своих доменах, с платформы 301. */
-export const CATALOG_DOMAIN_SPLIT_ENABLED = domainSplit.enabled === true;
+const redirects = (domainSplit as { redirects?: { malls?: boolean; offices?: boolean } }).redirects;
+
+/** 301 /minsk/tc… → malllist.pro (или enabled на оба каталога). */
+export const REDIRECT_MALLS_ENABLED = domainSplit.enabled === true || redirects?.malls === true;
+/** 301 /minsk/bc… → offiselist.pro (или enabled на оба каталога). */
+export const REDIRECT_OFFICES_ENABLED = domainSplit.enabled === true || redirects?.offices === true;
+
+/** true — хотя бы один каталог уехал на свой домен. */
+export const CATALOG_DOMAIN_SPLIT_ENABLED = REDIRECT_MALLS_ENABLED || REDIRECT_OFFICES_ENABLED;
 
 /** Нормализация значения env PUBLIC_SITE / VITE_PUBLIC_SITE. */
 export function normalizeSiteMode(raw: string | undefined | null): PublicSiteId {
@@ -77,8 +85,9 @@ export function catalogSiteOrigin(kind: 'bc' | 'tc'): string {
   // глобальный рубильник domain-split ещё false (платформа не редиректит).
   if (mode === 'malls') return MALLS.origin;
   if (mode === 'offices') return OFFICES.origin;
-  if (!CATALOG_DOMAIN_SPLIT_ENABLED) return PLATFORM.origin;
-  return kind === 'tc' ? MALLS.origin : OFFICES.origin;
+  if (kind === 'tc' && REDIRECT_MALLS_ENABLED) return MALLS.origin;
+  if (kind === 'bc' && REDIRECT_OFFICES_ENABLED) return OFFICES.origin;
+  return PLATFORM.origin;
 }
 
 export function catalogSiteUrl(kind: 'bc' | 'tc'): string {
@@ -132,6 +141,7 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
 
   // Каталог БЦ на платформе или на чужом каталожном домене → offiselist
   if (siteId === 'offices') {
+    if (!REDIRECT_OFFICES_ENABLED) return null;
     if (bare === OFFICES.host) {
       // /bc/:slug на offiselist → канонический /minsk/bc/:slug
       if (path === '/bc' || path.startsWith('/bc/')) {
@@ -149,6 +159,7 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
 
   // Каталог ТЦ на платформе или на offiselist → malllist
   if (siteId === 'malls') {
+    if (!REDIRECT_MALLS_ENABLED) return null;
     if (bare === MALLS.host) return null;
     return `${MALLS.origin}${path}`;
   }
@@ -159,6 +170,7 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
   if (bare === OFFICES.host || bare === MALLS.host) {
     if (path === '/' || path === '') {
       if (bare === MALLS.host) return null;
+      if (!REDIRECT_OFFICES_ENABLED) return null;
       return `${OFFICES.origin}${OFFICES.pathPrefix!}`;
     }
     // Статика, api, пререндер-ассеты — остаются; остальное платформенное — на платформу

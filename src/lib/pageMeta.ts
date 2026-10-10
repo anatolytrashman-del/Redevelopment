@@ -288,7 +288,7 @@ export function setOrganizationJsonLd(enabled: boolean) {
       '@type': 'Organization',
       name: SITES.malls.brand,
       url: SITES.malls.origin,
-      description: 'Независимый список торговых центров. Каталог ТЦ по городам, начиная с Минска.',
+      description: 'Каталог торговых центров по городам. Карточки объектов, подборки и карта — начиная с Минска.',
       areaServed: { '@type': 'City', name: 'Минск' },
     });
     return;

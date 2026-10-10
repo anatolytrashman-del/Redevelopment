@@ -1,37 +1,36 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { cn } from '../lib/cn';
-import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setFaqJsonLd, setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { SiteBrandLogo } from '../components/layout/SiteBrandLogo';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { SITES } from '../lib/sites';
 
-// Главная malllist.pro — короткая, по ритму casinolist.pro:
-// hero → чем отличаемся → города. Полный набор УТП позже.
+// Главная malllist.pro — ритм casinolist.pro (hero → что внутри → города),
+// без манифеста «честной модели»: у каталога ТЦ другая экономика и полный
+// набор блоков по объектам.
 
 const ORIGIN = SITES.malls.origin;
 const DISPLAY = { fontFamily: 'Georgia, "Times New Roman", serif' } as const;
 
-const TITLE = 'MallList — независимый каталог торговых центров';
+const TITLE = 'MallList — каталог торговых центров';
 const DESCRIPTION =
-  'Независимый каталог торговых центров. Факты по объектам — не рекламная выдача. Сейчас открыт Минск.';
+  'Каталог торговых центров по городам. Карточки объектов, подборки, карта — начиная с Минска.';
 const PAGE_URL = `${ORIGIN}/`;
 
-const PRINCIPLES = [
+const FEATURES = [
   {
-    title: 'Независимый список',
-    text: 'Место в каталоге не покупается. Сравниваете объекты, а не рекламную выдачу.',
+    title: 'Полный список ТЦ',
+    text: 'Все торговые центры города в одном каталоге — не короткая рекламная подборка.',
   },
   {
-    title: 'Факты по ТЦ',
-    text: 'Площадь, адрес, формат, рейтинг, арендаторы и подборки — в одной карточке здания.',
+    title: 'Карточка объекта',
+    text: 'Площадь, адрес, формат, метро, арендаторы и полезные блоки по зданию.',
   },
   {
-    title: 'Сначала города',
-    text: 'Пилот — Минск. Дальше те же правила каталога, город за городом.',
+    title: 'Подборки и карта',
+    text: 'Фильтры, тематические списки и карта — чтобы быстро сузить выбор.',
   },
 ] as const;
 
@@ -39,21 +38,21 @@ const FAQ_ITEMS = [
   {
     question: 'Что такое MallList?',
     answer:
-      'Независимый каталог торговых центров: структурированные данные по объектам для сравнения, без оплаты за место в списке.',
-  },
-  {
-    question: 'Чем MallList отличается от рекламных подборок ТЦ?',
-    answer:
-      'Мы не продаём позиции в каталоге городов и не ранжируем здания за плату. Список строится как справочник, а не как рекламная витрина.',
-  },
-  {
-    question: 'Какие города уже открыты?',
-    answer: 'Сейчас запущен Минск. Другие города появятся позже по той же схеме каталога.',
+      'Каталог торговых центров по городам: карточки объектов, подборки и карта. Сейчас открыт Минск.',
   },
   {
     question: 'Что есть в каталоге Минска?',
     answer:
-      'Карточки торговых центров: площадь, адрес, рейтинг, формат, метро, арендаторы и тематические подборки.',
+      'Список торговых центров с карточками: площадь, адрес, формат, метро, арендаторы, подборки магазинов и другие блоки по объекту.',
+  },
+  {
+    question: 'Как пользоваться каталогом?',
+    answer:
+      'Откройте каталог Минска, сузьте список фильтрами или подборками, смотрите карту и заходите в карточку нужного ТЦ.',
+  },
+  {
+    question: 'Какие города уже открыты?',
+    answer: 'Сейчас запущен Минск. Другие города появятся позже в том же формате каталога.',
   },
 ] as const;
 
@@ -67,48 +66,62 @@ export function MalllistHomePage() {
 
   return (
     <div className="min-h-svh bg-bg">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow"
+      >
+        К содержанию
+      </a>
+
       <header className="sticky top-0 z-40 border-b border-border/80 bg-bg/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-8">
           <SiteBrandLogo as="span" />
-          <Link
-            to="/minsk/tc"
-            className="text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
-          >
-            Минск
-          </Link>
+          <nav className="flex items-center gap-5 text-sm font-semibold text-ink-muted">
+            <Link to="/minsk/tc" className="transition-colors hover:text-ink">
+              Каталог
+            </Link>
+            <Link to="/minsk/tc" className="transition-colors hover:text-ink">
+              Минск
+            </Link>
+          </nav>
         </div>
       </header>
 
-      <main>
-        {/* 1. Hero — как у CasinoList: заголовок-смысл, одна фраза, один CTA */}
+      <main id="main">
+        {/* Hero — full-bleed, бренд как главный сигнал (как CasinoList) */}
         <section className="relative overflow-hidden border-b border-border/60">
           <span
-            className="pointer-events-none absolute inset-0 opacity-90"
+            className="pointer-events-none absolute inset-0"
             style={{
               background:
-                'radial-gradient(ellipse at 18% 0%, rgba(228,21,43,0.08), transparent 42%), radial-gradient(ellipse at 90% 80%, rgba(20,21,26,0.04), transparent 40%), linear-gradient(155deg,#ffffff 0%,#f7f5f0 55%,#f0efed 100%)',
+                'radial-gradient(ellipse at 12% -10%, rgba(228,21,43,0.14), transparent 46%), radial-gradient(ellipse at 88% 110%, rgba(20,21,26,0.05), transparent 42%), linear-gradient(160deg,#ffffff 0%,#f6f4ef 48%,#efece6 100%)',
             }}
             aria-hidden
           />
-          <div className="relative mx-auto flex max-w-6xl flex-col gap-8 px-4 py-16 sm:px-8 sm:py-20 lg:flex-row lg:items-end lg:justify-between lg:gap-12 lg:py-24">
-            <div className="flex max-w-2xl flex-col gap-5">
-              <p className="text-sm font-semibold tracking-wide text-ink-muted">MallList</p>
-              <h1
-                className="text-3xl font-black leading-[1.08] tracking-tight text-ink sm:text-5xl"
+          <div className="relative mx-auto flex max-w-6xl flex-col gap-8 px-4 py-20 sm:px-8 sm:py-28 lg:py-32">
+            <div className="flex max-w-3xl flex-col gap-6">
+              <p
+                className="text-4xl font-black tracking-tight text-ink sm:text-6xl lg:text-7xl"
                 style={DISPLAY}
               >
-                Независимый каталог торговых центров
+                Mall<span className="text-primary">List</span>
+              </p>
+              <h1
+                id="home-hero-title"
+                className="max-w-2xl text-2xl font-black leading-[1.12] tracking-tight text-ink sm:text-4xl"
+                style={DISPLAY}
+              >
+                Каталог торговых центров
               </h1>
               <p className="max-w-xl text-base leading-relaxed text-ink/70 sm:text-lg">
-                Факты по объектам — не рекламная выдача и не купленные места в списке. Сейчас
-                открыт Минск.
+                Полный список ТЦ города — карточки объектов, подборки и карта. Сейчас открыт Минск.
               </p>
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <Link
                   to="/minsk/tc"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
                 >
-                  Каталог Минска
+                  Открыть каталог Минска
                   <ArrowRight className="h-4 w-4" aria-hidden />
                 </Link>
               </div>
@@ -116,23 +129,26 @@ export function MalllistHomePage() {
           </div>
         </section>
 
-        {/* 2. Три коротких принципа — без полного УТП-полотна */}
-        <section className="mx-auto max-w-6xl px-4 py-14 sm:px-8 sm:py-16" aria-labelledby="why-heading">
-          <p className="text-sm font-semibold tracking-wide text-ink-muted">Зачем этот каталог</p>
+        {/* Что внутри — без манифеста модели, только продуктовые блоки */}
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-8 sm:py-20" aria-labelledby="inside-title">
+          <p className="text-sm font-semibold tracking-wide text-ink-muted">В каталоге</p>
           <h2
-            id="why-heading"
-            className="mt-2 text-3xl font-black leading-[1.1] tracking-tight text-ink sm:text-4xl"
+            id="inside-title"
+            className="mt-2 max-w-3xl text-3xl font-black leading-[1.1] tracking-tight text-ink sm:text-4xl"
             style={DISPLAY}
           >
-            Список, а не витрина
+            От списка зданий — к карточке объекта
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
-            MallList собирает торговые центры в одном месте, чтобы их можно было сравнивать. Без
-            оплаты за позицию и без обещаний «лучший ТЦ города» за деньги.
+            Смотрите весь город целиком, сужайте подборками и открывайте ТЦ с нужными деталями.
           </p>
-          <ul className="mt-10 grid gap-6 sm:grid-cols-3">
-            {PRINCIPLES.map((item) => (
-              <li key={item.title} className="flex flex-col gap-2 border-t border-border pt-5">
+          <ul className="mt-12 grid gap-8 sm:grid-cols-3">
+            {FEATURES.map((item, i) => (
+              <li
+                key={item.title}
+                className="flex flex-col gap-2 border-t border-border pt-6"
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
                 <h3 className="text-base font-extrabold text-ink">{item.title}</h3>
                 <p className="text-sm leading-relaxed text-ink/70">{item.text}</p>
               </li>
@@ -140,70 +156,65 @@ export function MalllistHomePage() {
           </ul>
         </section>
 
-        {/* 3. Города */}
-        <section
-          className="border-t border-border/60 bg-[#f7f5f0]/70"
-          aria-labelledby="cities-heading"
-        >
-          <div className="mx-auto max-w-6xl px-4 py-14 sm:px-8 sm:py-16">
-            <p className="text-sm font-semibold tracking-wide text-ink-muted">Где публикуем</p>
+        {/* Города — как Destinations у CasinoList */}
+        <section className="border-t border-border/60 bg-[#f3f1eb]" aria-labelledby="markets">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-8 sm:py-20">
+            <p className="text-sm font-semibold tracking-wide text-ink-muted">Города</p>
             <h2
-              id="cities-heading"
+              id="markets"
               className="mt-2 text-3xl font-black leading-[1.1] tracking-tight text-ink sm:text-4xl"
               style={DISPLAY}
             >
-              Города
+              Куда заходим
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
-              Пилот открывает Минск. Дальше — те же правила каталога, город за городом.
+              Пилот — Минск. Дальше те же карточки и подборки, город за городом.
             </p>
 
             <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <li>
                 <Link
                   to="/minsk/tc"
-                  className={cn(
-                    'group flex h-full flex-col overflow-hidden transition-transform hover:-translate-y-0.5',
-                    glassCardClass,
-                  )}
-                  style={glassCardShadow}
+                  className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border/80 bg-white transition-transform hover:-translate-y-0.5"
                 >
-                  <div className="relative flex min-h-[10rem] flex-col items-center justify-center overflow-hidden bg-[linear-gradient(165deg,#f4f5f7_0%,#ffffff_55%,#eef0f3_100%)] px-5 py-6 text-center">
+                  <div className="relative flex min-h-[11rem] flex-col items-center justify-center overflow-hidden px-5 py-8 text-center">
                     <span
-                      className="pointer-events-none absolute inset-0 opacity-50"
+                      className="pointer-events-none absolute inset-0"
                       style={{
                         background:
-                          'radial-gradient(circle at 50% 20%, rgba(228,21,43,0.10), transparent 55%)',
+                          'radial-gradient(circle at 50% 30%, rgba(228,21,43,0.12), transparent 58%), linear-gradient(165deg,#f7f5f0 0%,#ffffff 55%,#eef0f3 100%)',
                       }}
                       aria-hidden
                     />
                     <span
-                      className="relative flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/40 bg-white text-xl font-black tracking-tight text-ink shadow-[inset_0_0_0_5px_rgba(228,21,43,0.06)] sm:h-[4.5rem] sm:w-[4.5rem] sm:text-2xl"
+                      className="relative text-5xl font-black tracking-tight text-ink sm:text-6xl"
                       style={DISPLAY}
                     >
                       МН
                     </span>
                     <span
-                      className="relative mt-4 text-lg font-black tracking-tight text-ink sm:text-xl"
+                      className="relative mt-3 text-xl font-black tracking-tight text-ink"
                       style={DISPLAY}
                     >
                       Минск
                     </span>
                   </div>
-                  <div className="flex flex-1 flex-col p-5">
+                  <div className="flex flex-1 flex-col border-t border-border/60 p-5">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-xl font-extrabold text-ink">Минск</p>
-                      <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-primary">
+                      <p className="text-lg font-extrabold text-ink">Минск</p>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-primary">
                         Live
                       </span>
                     </div>
-                    <p className="mt-3 text-sm leading-relaxed text-ink/75">
-                      Каталог торговых центров: площади, адреса, рейтинги, форматы и подборки
-                      магазинов.
+                    <p className="mt-2 text-sm leading-relaxed text-ink/70">
+                      Каталог торговых центров: карточки, подборки, карта и фильтры.
                     </p>
                     <span className="mt-5 inline-flex w-fit items-center gap-1 text-sm font-bold text-primary">
                       Открыть каталог
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                      <ArrowRight
+                        className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                        aria-hidden
+                      />
                     </span>
                   </div>
                 </Link>
@@ -220,9 +231,9 @@ export function MalllistHomePage() {
               Источники и дисклеймер
             </h2>
             <p>
-              MallList — справочный каталог. Карточки торговых центров собираются из открытых
-              источников и материалов каталога на сайте; цифры и рейтинги могут отставать от
-              изменений в объектах. Мы не продаём места в списке городов и не ранжируем ТЦ за плату.
+              MallList — каталог торговых центров. Данные в карточках собираются из открытых
+              источников и материалов каталога; отдельные поля могут отставать от изменений в
+              объектах.
             </p>
             <CookieFooterLinks />
           </section>

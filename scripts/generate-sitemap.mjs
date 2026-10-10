@@ -25,6 +25,8 @@ import {
   PLATFORM_ORIGIN,
   OFFICES_ORIGIN,
   MALLS_ORIGIN,
+  REDIRECT_MALLS_ENABLED,
+  REDIRECT_OFFICES_ENABLED,
   absoluteUrlForPath,
   isCatalogPath,
 } from './domainSplit.mjs';
@@ -33,7 +35,7 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovzt
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 // SITE — origin для путей каталога БЦ в динамических URL. После сплита
 // доменов карточки БЦ живут на offiselist.pro; до включения — на платформе.
-const SITE = CATALOG_DOMAIN_SPLIT_ENABLED ? OFFICES_ORIGIN : PLATFORM_ORIGIN;
+const SITE = REDIRECT_OFFICES_ENABLED ? OFFICES_ORIGIN : PLATFORM_ORIGIN;
 const SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap.xml');
 const OFFICES_SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap-offices.xml');
 const MALLS_SITEMAP_PATH = resolve(process.cwd(), 'dist/sitemap-malls.xml');
@@ -313,8 +315,8 @@ function wrapUrlset(entries) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries.join('\n')}\n</urlset>\n`;
 }
 
-/** Убирает из sitemap платформы все URL каталогов БЦ/ТЦ (после сплита). */
-function stripCatalogUrls(xml) {
+/** Убирает из sitemap платформы URL каталогов, которые уже уехали (по redirects). */
+function stripCatalogUrls(xml, { malls = true, offices = true } = {}) {
   let removed = 0;
   const out = xml.replace(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g, (block) => {
     const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
@@ -324,9 +326,17 @@ function stripCatalogUrls(xml) {
     } catch {
       return block;
     }
+    const isTc = path === '/minsk/tc' || path.startsWith('/minsk/tc/');
+    const isBc =
+      path === '/minsk/bc' ||
+      path.startsWith('/minsk/bc/') ||
+      path.startsWith('/minsk/bcminsk');
+    if ((malls && isTc) || (offices && isBc)) {
+      removed += 1;
+      return '';
+    }
     if (!isCatalogPath(path) && !path.startsWith('/minsk/bcminsk')) return block;
-    removed += 1;
-    return '';
+    return block;
   });
   return { xml: out, removed };
 }
@@ -395,65 +405,80 @@ async function main() {
   ];
 
   if (CATALOG_DOMAIN_SPLIT_ENABLED) {
-    // 1) Платформенный sitemap — без каталогов.
-    const stripped = stripCatalogUrls(xml);
+    // 1) Платформенный sitemap — без каталогов, которые уже уехали.
+    const stripped = stripCatalogUrls(xml, {
+      malls: REDIRECT_MALLS_ENABLED,
+      offices: REDIRECT_OFFICES_ENABLED,
+    });
     xml = stripped.xml;
+    // Динамика БЦ остаётся в platform sitemap, пока offices ещё не уехал.
+    if (!REDIRECT_OFFICES_ENABLED) {
+      const existing = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]));
+      const bcEntries = bcDynamicUrls.filter((url) => !existing.has(url)).map((url) => urlEntry(url, today));
+      if (bcEntries.length) {
+        const closing = xml.lastIndexOf('</urlset>');
+        xml = `${xml.slice(0, closing)}${bcEntries.join('\n')}\n</urlset>\n`;
+      }
+    }
     writeFileSync(SITEMAP_PATH, xml);
     const platformTotal = [...xml.matchAll(/<loc>/g)].length;
     console.log(
-      `[generate-sitemap] сплит доменов: из sitemap.xml убрано каталожных URL: ${stripped.removed} (осталось <loc>: ${platformTotal})`,
+      `[generate-sitemap] сплит доменов: из sitemap.xml убрано каталожных URL: ${stripped.removed} (осталось <loc>: ${platformTotal}; malls=${REDIRECT_MALLS_ENABLED}, offices=${REDIRECT_OFFICES_ENABLED})`,
     );
 
-    // 2) Sitemap БЦ на offiselist.pro — статические хабы из public + динамика.
-    // Берём исходный public-файл (dist уже без каталогов после стрипа выше).
     const publicXml = readFileSync(resolve(process.cwd(), 'public/sitemap.xml'), 'utf8');
-    const staticBcEntries = [...publicXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)]
-      .map((m) => m[0])
-      .filter((block) => {
-        const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
-        try {
-          return isCatalogPath(new URL(loc).pathname) && new URL(loc).pathname.startsWith('/minsk/bc');
-        } catch {
-          return false;
-        }
-      })
-      .map((block) => rewriteCatalogOrigins(block).trimEnd());
-    let officesXml = wrapUrlset([
-      ...staticBcEntries,
-      ...bcDynamicUrls.map((url) => urlEntry(url, today)),
-    ]);
-    if (hubs) {
-      const pruned = pruneThinHubs(officesXml, hubs.keep);
-      // pruneThinHubs сравнивает path относительно SITE (offices origin) —
-      // SITE уже OFFICES_ORIGIN при сплите.
-      officesXml = pruned.xml;
-      writeFileSync(OFFICES_SITEMAP_PATH, officesXml);
-      console.log(
-        `[generate-sitemap] sitemap-offices.xml: ${[...officesXml.matchAll(/<loc>/g)].length} URL (тонких срезов убрано: ${pruned.removed})`,
-      );
-    } else {
-      writeFileSync(OFFICES_SITEMAP_PATH, officesXml);
-      console.log(`[generate-sitemap] sitemap-offices.xml: ${[...officesXml.matchAll(/<loc>/g)].length} URL`);
+
+    // 2) Sitemap БЦ — только когда offices уже на своём домене.
+    if (REDIRECT_OFFICES_ENABLED) {
+      const staticBcEntries = [...publicXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)]
+        .map((m) => m[0])
+        .filter((block) => {
+          const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+          try {
+            return isCatalogPath(new URL(loc).pathname) && new URL(loc).pathname.startsWith('/minsk/bc');
+          } catch {
+            return false;
+          }
+        })
+        .map((block) => rewriteCatalogOrigins(block).trimEnd());
+      let officesXml = wrapUrlset([
+        ...staticBcEntries,
+        ...bcDynamicUrls.map((url) => urlEntry(url, today)),
+      ]);
+      if (hubs) {
+        const pruned = pruneThinHubs(officesXml, hubs.keep);
+        officesXml = pruned.xml;
+        writeFileSync(OFFICES_SITEMAP_PATH, officesXml);
+        console.log(
+          `[generate-sitemap] sitemap-offices.xml: ${[...officesXml.matchAll(/<loc>/g)].length} URL (тонких срезов убрано: ${pruned.removed})`,
+        );
+      } else {
+        writeFileSync(OFFICES_SITEMAP_PATH, officesXml);
+        console.log(`[generate-sitemap] sitemap-offices.xml: ${[...officesXml.matchAll(/<loc>/g)].length} URL`);
+      }
     }
 
-    // 3) Sitemap ТЦ на malllist.pro
-    const staticTcEntries = [...publicXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)]
-      .map((m) => m[0])
-      .filter((block) => {
-        const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
-        try {
-          return new URL(loc).pathname === '/minsk/tc' || new URL(loc).pathname.startsWith('/minsk/tc/');
-        } catch {
-          return false;
-        }
-      })
-      .map((block) => rewriteCatalogOrigins(block).trimEnd());
-    const mallsXml = wrapUrlset([
-      ...staticTcEntries,
-      ...tcUrls.map((url) => urlEntry(url, today)),
-    ]);
-    writeFileSync(MALLS_SITEMAP_PATH, mallsXml);
-    console.log(`[generate-sitemap] sitemap-malls.xml: ${[...mallsXml.matchAll(/<loc>/g)].length} URL`);
+    // 3) Sitemap ТЦ — когда malls на своём домене (или оба).
+    if (REDIRECT_MALLS_ENABLED) {
+      const staticTcEntries = [...publicXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)]
+        .map((m) => m[0])
+        .filter((block) => {
+          const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1] ?? '';
+          try {
+            return new URL(loc).pathname === '/minsk/tc' || new URL(loc).pathname.startsWith('/minsk/tc/');
+          } catch {
+            return false;
+          }
+        })
+        .map((block) => rewriteCatalogOrigins(block).trimEnd());
+      const mallsXml = wrapUrlset([
+        urlEntry(`${MALLS_ORIGIN}/`, today, '1.0'),
+        ...staticTcEntries,
+        ...tcUrls.map((url) => urlEntry(url, today)),
+      ]);
+      writeFileSync(MALLS_SITEMAP_PATH, mallsXml);
+      console.log(`[generate-sitemap] sitemap-malls.xml: ${[...mallsXml.matchAll(/<loc>/g)].length} URL`);
+    }
     return;
   }
 
