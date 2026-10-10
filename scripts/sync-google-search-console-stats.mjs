@@ -42,35 +42,51 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DRY_RUN = process.argv.includes('--dry-run');
 const SEARCH_CONSOLE_API = 'https://www.googleapis.com/webmasters/v3';
 const SEARCH_CONSOLE_INSPECTION_API = 'https://searchconsole.googleapis.com/v1';
-const TARGET_DOMAIN = 'redevelopment.pro';
-const SITE_ORIGIN = 'https://redevelopment.pro';
-const SITEMAP_PATH = 'https://redevelopment.pro/sitemap.xml';
 
-// Куратированный список ключевых страниц для точной проверки — тот же
-// принцип отбора, что уже применялся при переобходе Яндекса тем же днём
-// ("хабы, не единичные карточки БЦ/объектов"): хаб-страницы, приводящие ко
-// всему остальному через внутренние ссылки, важнее сотен листовых страниц.
-const KEY_PAGE_PATHS = [
-  'minsk',
-  'minsk/minsk-mir',
-  'minsk/analytics',
-  'minsk/analytics/metodika',
-  'minsk/analytics/minsk-mir',
-  'minsk/analytics/rajony',
-  'minsk/analytics/ofisy/arenda',
-  'minsk/analytics/torgovye/arenda',
-  'minsk/analytics/sklady/arenda',
-  'minsk/analytics/mashinomesta/arenda',
-  'minsk/bc',
-  'minsk/bc/rating',
-  'minsk/bc/guide',
-  'minsk/bc/new',
-  'minsk/bc/analytics',
-  // Каталог ТЦ (открыт 2026-09-30): хабы важнее листовых /store/* —
-  // приоритет urlInspection после чистки sitemap (2026-10-07).
-  'minsk/tc',
-  'minsk/tc/rating',
-  'minsk/tc/rating/largest',
+// Три свойства Search Console (platform / malls / offices). Неподтверждённое
+// свойство — skip с логом, не валит весь прогон.
+const TARGET_SITES = [
+  {
+    site: 'platform',
+    domain: 'redevelopment.pro',
+    origin: 'https://redevelopment.pro',
+    sitemap: 'https://redevelopment.pro/sitemap.xml',
+    keyPaths: [
+      'minsk',
+      'minsk/minsk-mir',
+      'minsk/analytics',
+      'minsk/analytics/metodika',
+      'minsk/analytics/minsk-mir',
+      'minsk/analytics/rajony',
+      'minsk/analytics/ofisy/arenda',
+      'minsk/analytics/torgovye/arenda',
+      'minsk/analytics/sklady/arenda',
+      'minsk/analytics/mashinomesta/arenda',
+    ],
+    includeLandingSlugs: true,
+  },
+  {
+    site: 'malls',
+    domain: 'malllist.pro',
+    origin: 'https://malllist.pro',
+    sitemap: 'https://malllist.pro/sitemap.xml',
+    keyPaths: ['minsk/tc', 'minsk/tc/rating', 'minsk/tc/rating/largest'],
+    includeLandingSlugs: false,
+  },
+  {
+    site: 'offices',
+    domain: 'officelist.pro',
+    origin: 'https://officelist.pro',
+    sitemap: 'https://officelist.pro/sitemap.xml',
+    keyPaths: [
+      'minsk/bc',
+      'minsk/bc/rating',
+      'minsk/bc/guide',
+      'minsk/bc/new',
+      'minsk/bc/analytics',
+    ],
+    includeLandingSlugs: false,
+  },
 ];
 
 // Сколько дней истории запросов подтягивать за один прогон — у Search
@@ -139,20 +155,15 @@ async function searchConsoleFetch(accessToken, path, options = {}) {
   return res.json();
 }
 
-async function resolveSiteUrl(accessToken) {
+async function resolveSiteUrl(accessToken, domain) {
   const { siteEntry } = await searchConsoleFetch(accessToken, '/sites');
   const sites = siteEntry ?? [];
-  const match = sites.find((s) => s.siteUrl?.includes(TARGET_DOMAIN));
-  if (!match) {
-    throw new Error(
-      `В аккаунте Search Console не нашлось свойства для ${TARGET_DOMAIN} — сначала добавьте и подтвердите сайт на search.google.com/search-console`,
-    );
-  }
-  return match.siteUrl;
+  const match = sites.find((s) => s.siteUrl?.includes(domain));
+  return match?.siteUrl ?? null;
 }
 
-async function fetchSitemapCoverage(accessToken, siteUrl) {
-  const path = `/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(SITEMAP_PATH)}`;
+async function fetchSitemapCoverage(accessToken, siteUrl, sitemapUrl) {
+  const path = `/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(sitemapUrl)}`;
   const sitemap = await searchConsoleFetch(accessToken, path);
   const contents = sitemap.contents ?? [];
   // Суммируем по всем типам контента (обычно один — "web") — на случай,
@@ -165,16 +176,16 @@ async function fetchSitemapCoverage(accessToken, siteUrl) {
   return { submitted };
 }
 
-// Все URL из живого sitemap.xml — в том же виде, что и KEY_PAGE_PATHS
+// Все URL из живого sitemap.xml — в том же виде, что и keyPaths
 // (путь без домена и ведущего слэша).
-async function fetchSitemapPaths() {
-  const res = await fetch(SITEMAP_PATH);
+async function fetchSitemapPaths(siteConfig) {
+  const res = await fetch(siteConfig.sitemap);
   if (!res.ok) throw new Error(`sitemap.xml вернул ${res.status}`);
   const xml = await res.text();
   return [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)]
     .map((m) => m[1])
-    .filter((url) => url.startsWith(SITE_ORIGIN))
-    .map((url) => url.slice(SITE_ORIGIN.length).replace(/^\/+|\/+$/g, ''));
+    .filter((url) => url.startsWith(siteConfig.origin))
+    .map((url) => url.slice(siteConfig.origin.length).replace(/^\/+|\/+$/g, ''));
 }
 
 async function fetchQueryHistory(accessToken, siteUrl) {
@@ -309,8 +320,8 @@ async function fetchLandingPagePaths() {
     .map((slug) => `minsk/${slug}`);
 }
 
-async function inspectUrl(accessToken, siteUrl, path) {
-  const inspectionUrl = `${SITE_ORIGIN}/${path}`;
+async function inspectUrl(accessToken, siteUrl, siteConfig, path) {
+  const inspectionUrl = `${siteConfig.origin}/${path}`;
   const res = await fetch(`${SEARCH_CONSOLE_INSPECTION_API}/urlInspection/index:inspect`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -325,6 +336,7 @@ async function inspectUrl(accessToken, siteUrl, path) {
   const result = body.inspectionResult?.indexStatusResult ?? {};
   return {
     path,
+    site: siteConfig.site,
     verdict: result.verdict ?? null,
     coverage_state: result.coverageState ?? null,
     last_crawl_time: result.lastCrawlTime ?? null,
@@ -348,8 +360,11 @@ const INDEXED_STATES = ['Submitted and indexed', 'Indexed, not submitted in site
 // 2000 запросов в сутки на свойство, при 250+ страницах её легко выбрать.
 const RECHECK_AFTER_MS = 20 * 60 * 60 * 1000;
 
-async function fetchPageIndexState() {
-  const { data, error } = await supabase.from('google_search_console_page_index').select('path, coverage_state, checked_at');
+async function fetchPageIndexState(siteId) {
+  const { data, error } = await supabase
+    .from('google_search_console_page_index')
+    .select('path, coverage_state, checked_at')
+    .eq('site', siteId);
   if (error) throw new Error(`Не удалось прочитать google_search_console_page_index: ${error.message}`);
   return new Map((data ?? []).map((r) => [r.path, r]));
 }
@@ -357,16 +372,16 @@ async function fetchPageIndexState() {
 // Возвращает число проиндексированных страниц из sitemap.xml (или null,
 // если sitemap прочитать не удалось) — это и есть «Проиндексировано
 // страниц» в админке.
-async function syncPageIndex(accessToken, siteUrl) {
+async function syncPageIndex(accessToken, siteUrl, siteConfig) {
   const [landingPaths, sitemapPaths] = await Promise.all([
-    fetchLandingPagePaths(),
-    fetchSitemapPaths().catch((err) => {
-      console.error('Не удалось прочитать sitemap.xml:', err.message ?? err);
+    siteConfig.includeLandingSlugs ? fetchLandingPagePaths() : Promise.resolve([]),
+    fetchSitemapPaths(siteConfig).catch((err) => {
+      console.error(`[${siteConfig.site}] Не удалось прочитать sitemap.xml:`, err.message ?? err);
       return null;
     }),
   ]);
-  const allPaths = [...new Set([...KEY_PAGE_PATHS, ...landingPaths, ...(sitemapPaths ?? [])])];
-  const known = await fetchPageIndexState();
+  const allPaths = [...new Set([...siteConfig.keyPaths, ...landingPaths, ...(sitemapPaths ?? [])])];
+  const known = await fetchPageIndexState(siteConfig.site);
   const now = Date.now();
   const paths = allPaths.filter((p) => {
     const row = known.get(p);
@@ -379,72 +394,80 @@ async function syncPageIndex(accessToken, siteUrl) {
     sitemapPaths === null ? null : sitemapPaths.filter((p) => INDEXED_STATES.includes(known.get(p)?.coverage_state)).length;
 
   if (paths.length === 0) {
-    console.log(`Все ${allPaths.length} страниц проверены недавно или уже в индексе — новых проверок не требуется.`);
+    console.log(
+      `[${siteConfig.site}] Все ${allPaths.length} страниц проверены недавно или уже в индексе — новых проверок не требуется.`,
+    );
     return countIndexed();
   }
-  console.log(`Проверяю ${paths.length} из ${allPaths.length} страниц.`);
+  console.log(`[${siteConfig.site}] Проверяю ${paths.length} из ${allPaths.length} страниц.`);
 
   const rows = [];
   for (const path of paths) {
     try {
       // eslint-disable-next-line no-await-in-loop
-      rows.push(await inspectUrl(accessToken, siteUrl, path));
+      rows.push(await inspectUrl(accessToken, siteUrl, siteConfig, path));
     } catch (err) {
-      console.error(`Не удалось проверить ${path}:`, err.message ?? err);
+      console.error(`[${siteConfig.site}] Не удалось проверить ${path}:`, err.message ?? err);
     }
   }
 
   if (rows.length === 0) {
-    console.log('Ни одну страницу не удалось проверить — пропускаю запись в google_search_console_page_index.');
+    console.log(
+      `[${siteConfig.site}] Ни одну страницу не удалось проверить — пропускаю запись в google_search_console_page_index.`,
+    );
     return countIndexed();
   }
   for (const r of rows) known.set(r.path, r);
 
   const newlyIndexed = rows.filter((r) => INDEXED_STATES.includes(r.coverage_state)).length;
   console.log(
-    `Проверено ${rows.length} страниц, из них ${newlyIndexed} в индексе. Из sitemap в индексе: ${countIndexed() ?? '—'} из ${sitemapPaths?.length ?? '—'}.`,
+    `[${siteConfig.site}] Проверено ${rows.length} страниц, из них ${newlyIndexed} в индексе. Из sitemap в индексе: ${countIndexed() ?? '—'} из ${sitemapPaths?.length ?? '—'}.`,
   );
 
   if (DRY_RUN) {
-    console.log('[dry-run] Записал бы в google_search_console_page_index:');
+    console.log(`[${siteConfig.site}] [dry-run] Записал бы в google_search_console_page_index:`);
     console.log(JSON.stringify(rows, null, 2));
     return countIndexed();
   }
 
-  const { error } = await supabase.from('google_search_console_page_index').upsert(rows, { onConflict: 'path' });
+  const { error } = await supabase
+    .from('google_search_console_page_index')
+    .upsert(rows, { onConflict: 'path,site' });
   if (error) throw error;
   return countIndexed();
 }
 
-async function main() {
-  const credentials = await fetchCredentials();
-  const accessToken = await getAccessToken(credentials);
-  const siteUrl = await resolveSiteUrl(accessToken);
-  console.log(`Свойство Search Console: ${siteUrl}`);
+async function syncOneGscSite(accessToken, siteConfig) {
+  const siteUrl = await resolveSiteUrl(accessToken, siteConfig.domain);
+  if (!siteUrl) {
+    console.log(
+      `[${siteConfig.site}] Пропуск ${siteConfig.domain}: свойства нет в аккаунте Search Console (добавьте и подтвердите).`,
+    );
+    return;
+  }
+  console.log(`[${siteConfig.site}] Свойство Search Console: ${siteUrl}`);
 
   const [coverage, queryByDate, queryBreakdown, pageBreakdown] = await Promise.all([
-    fetchSitemapCoverage(accessToken, siteUrl),
+    fetchSitemapCoverage(accessToken, siteUrl, siteConfig.sitemap).catch((err) => {
+      console.error(`[${siteConfig.site}] Sitemap coverage:`, err.message ?? err);
+      return { submitted: 0 };
+    }),
     fetchQueryHistory(accessToken, siteUrl),
     fetchQueryBreakdown(accessToken, siteUrl),
     fetchPageBreakdown(accessToken, siteUrl).catch((err) => {
-      console.error('Разбивка по страницам не удалась:', err.message ?? err);
+      console.error(`[${siteConfig.site}] Разбивка по страницам не удалась:`, err.message ?? err);
       return [];
     }),
   ]);
   console.log(
-    `Sitemap: submitted=${coverage.submitted}. ` +
+    `[${siteConfig.site}] Sitemap: submitted=${coverage.submitted}. ` +
       `Запросы: ${queryByDate.size} дней с данными, ${queryBreakdown.length} запросов в разбивке.`,
   );
 
   const today = isoDate(new Date());
   const rows = [...queryByDate.entries()].map(([date, q]) => ({
     date,
-    // Покрытие sitemap — состояние на СЕГОДНЯ (Google не отдаёт его историю
-    // по дням), пишем его только в сегодняшнюю строку, у остальных дат —
-    // null (страница показывает "последнее известное значение", как и у
-    // аналогичного показателя Яндекса). pages_indexed здесь не пишется
-    // вовсе — его дописывает проверка страниц в конце, а upsert без этого
-    // поля не затирает прошлое значение.
+    site: siteConfig.site,
     pages_submitted: date === today ? coverage.submitted : null,
     impressions: q.impressions,
     clicks: q.clicks,
@@ -452,12 +475,10 @@ async function main() {
     updated_at: new Date().toISOString(),
   }));
 
-  // Если сегодняшнего дня нет среди дат с данными по запросам (свежий день
-  // ещё не обработан Search Console) — всё равно записываем отдельной
-  // строкой хотя бы покрытие sitemap, не теряем его.
   if (!rows.some((r) => r.date === today)) {
     rows.push({
       date: today,
+      site: siteConfig.site,
       pages_submitted: coverage.submitted,
       impressions: null,
       clicks: null,
@@ -467,88 +488,96 @@ async function main() {
   }
 
   if (rows.length === 0) {
-    console.log('Нет данных для сохранения.');
+    console.log(`[${siteConfig.site}] Нет данных для сохранения.`);
   } else if (DRY_RUN) {
-    console.log('[dry-run] Записал бы в google_search_console_stats:');
+    console.log(`[${siteConfig.site}] [dry-run] Записал бы в google_search_console_stats:`);
     console.log(JSON.stringify(rows, null, 2));
   } else {
-    const { error } = await supabase.from('google_search_console_stats').upsert(rows, { onConflict: 'date' });
+    const { error } = await supabase.from('google_search_console_stats').upsert(rows, { onConflict: 'date,site' });
     if (error) throw error;
-    console.log(`Сохранено ${rows.length} записей в google_search_console_stats.`);
+    console.log(`[${siteConfig.site}] Сохранено ${rows.length} записей в google_search_console_stats.`);
   }
 
-  // Снимок разбивки по запросам — целиком перезаписывается: upsert всех
-  // строк одним временем, затем удаление всего, что этот прогон не принёс.
-  // Пустой ответ (анонимизация Google, см. fetchQueryBreakdown) НЕ чистит
-  // таблицу: иначе один день без данных стирал бы уже показанную владельцу
-  // картину.
-  if (queryBreakdown.length === 0) {
-    console.log('Разбивка по запросам пуста — Google анонимизирует редкие запросы; прошлый снимок оставлен как есть.');
+  const queryRows = queryBreakdown.map((row) => ({ ...row, site: siteConfig.site }));
+  if (queryRows.length === 0) {
+    console.log(
+      `[${siteConfig.site}] Разбивка по запросам пуста — Google анонимизирует редкие запросы; прошлый снимок оставлен как есть.`,
+    );
   } else if (DRY_RUN) {
-    console.log('[dry-run] Записал бы в google_search_console_queries:');
-    console.log(JSON.stringify(queryBreakdown, null, 2));
+    console.log(`[${siteConfig.site}] [dry-run] Записал бы в google_search_console_queries:`);
+    console.log(JSON.stringify(queryRows, null, 2));
   } else {
-    const stamp = queryBreakdown[0].updated_at;
+    const stamp = queryRows[0].updated_at;
     const { error: upsertError } = await supabase
       .from('google_search_console_queries')
-      .upsert(queryBreakdown, { onConflict: 'query' });
+      .upsert(queryRows, { onConflict: 'query,site' });
     if (upsertError) throw upsertError;
     const { error: deleteError } = await supabase
       .from('google_search_console_queries')
       .delete()
+      .eq('site', siteConfig.site)
       .lt('updated_at', stamp);
     if (deleteError) throw deleteError;
-    console.log(`Сохранено ${queryBreakdown.length} запросов в google_search_console_queries.`);
+    console.log(`[${siteConfig.site}] Сохранено ${queryRows.length} запросов в google_search_console_queries.`);
   }
 
-  // Снимок по страницам — так же, как по запросам: upsert, затем удаление
-  // того, чего этот прогон не принёс. Пустой ответ прошлый снимок не трогает.
-  if (pageBreakdown.length === 0) {
-    console.log('Разбивка по страницам пуста — прошлый снимок оставлен как есть.');
+  const pageRows = pageBreakdown.map((row) => ({ ...row, site: siteConfig.site }));
+  if (pageRows.length === 0) {
+    console.log(`[${siteConfig.site}] Разбивка по страницам пуста — прошлый снимок оставлен как есть.`);
   } else if (DRY_RUN) {
-    console.log('[dry-run] Записал бы в google_search_console_pages:');
-    console.log(JSON.stringify(pageBreakdown, null, 2));
+    console.log(`[${siteConfig.site}] [dry-run] Записал бы в google_search_console_pages:`);
+    console.log(JSON.stringify(pageRows, null, 2));
   } else {
-    const stamp = pageBreakdown[0].updated_at;
+    const stamp = pageRows[0].updated_at;
     const { error: upsertError } = await supabase
       .from('google_search_console_pages')
-      .upsert(pageBreakdown, { onConflict: 'page' });
+      .upsert(pageRows, { onConflict: 'page,site' });
     if (upsertError) throw upsertError;
     const { error: deleteError } = await supabase
       .from('google_search_console_pages')
       .delete()
+      .eq('site', siteConfig.site)
       .lt('updated_at', stamp);
     if (deleteError) throw deleteError;
-    console.log(`Сохранено ${pageBreakdown.length} страниц в google_search_console_pages.`);
+    console.log(`[${siteConfig.site}] Сохранено ${pageRows.length} страниц в google_search_console_pages.`);
   }
 
-  // Проверка страниц — последним шагом: она самая долгая (до сотни-другой
-  // запросов), а показы и клики выше не должны её ждать. Её итог дописывается
-  // в сегодняшнюю строку как pages_indexed; упала — остаётся null («—» в
-  // админке), а не 0.
   let pagesIndexed = null;
   try {
-    pagesIndexed = await syncPageIndex(accessToken, siteUrl);
+    pagesIndexed = await syncPageIndex(accessToken, siteUrl, siteConfig);
   } catch (err) {
-    console.error('Проверка страниц не удалась:', err.message ?? err);
+    console.error(`[${siteConfig.site}] Проверка страниц не удалась:`, err.message ?? err);
   }
   if (pagesIndexed !== null && !DRY_RUN) {
     const { error } = await supabase
       .from('google_search_console_stats')
       .update({ pages_indexed: pagesIndexed })
-      .eq('date', today);
+      .eq('date', today)
+      .eq('site', siteConfig.site);
     if (error) throw error;
-    console.log(`Проиндексировано страниц из sitemap: ${pagesIndexed}.`);
+    console.log(`[${siteConfig.site}] Проиндексировано страниц из sitemap: ${pagesIndexed}.`);
   }
 
-  // Generative AI (AI Overviews / AI Mode). В UI GSC отчёт есть с 2026-06,
-  // но searchAnalytics.query type для AI на 2026-10-07 ещё отвергает.
-  // Пробуем на каждом прогоне — как только Google откроет enum, данные
-  // потекут сами; до тех пор владелец грузит CSV в /admin/site-metrics.
-  try {
-    await syncGenerativeAiIfAvailable(accessToken, siteUrl);
-  } catch (err) {
-    console.error('Generative AI синк не удался:', err.message ?? err);
+  // Generative AI CSV/API — только платформа (отчёт в админке общий).
+  if (siteConfig.site === 'platform') {
+    try {
+      await syncGenerativeAiIfAvailable(accessToken, siteUrl);
+    } catch (err) {
+      console.error(`[${siteConfig.site}] Generative AI синк не удался:`, err.message ?? err);
+    }
+  }
+}
+
+async function main() {
+  const credentials = await fetchCredentials();
+  const accessToken = await getAccessToken(credentials);
+  for (const siteConfig of TARGET_SITES) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await syncOneGscSite(accessToken, siteConfig);
+    } catch (err) {
+      console.error(`[${siteConfig.site}] Синк упал:`, err.message ?? err);
+    }
   }
 }
 

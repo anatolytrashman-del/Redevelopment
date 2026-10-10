@@ -59,7 +59,15 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 const WEBMASTER_API = 'https://api.webmaster.yandex.net/v4';
-const TARGET_DOMAIN = 'redevelopment.pro';
+
+// Три публичных домена одного репозитория. OAuth один (аккаунт владельца);
+// host_id резолвится по ascii_host_url. Неподтверждённый хост — skip, не fail.
+type SiteId = 'platform' | 'malls' | 'offices';
+const TARGET_SITES: { site: SiteId; domain: string }[] = [
+  { site: 'platform', domain: 'redevelopment.pro' },
+  { site: 'malls', domain: 'malllist.pro' },
+  { site: 'offices', domain: 'officelist.pro' },
+];
 
 // Сколько дней истории запросов подтягивать за один прогон — с запасом,
 // у Вебмастера всё равно не появится задним числом больше данных, чем он сам
@@ -98,14 +106,15 @@ async function webmasterFetch(token: string, path: string): Promise<any> {
   return res.json();
 }
 
-async function resolveHost(token: string): Promise<{ userId: number; hostId: string }> {
+async function resolveHost(
+  token: string,
+  domain: string,
+): Promise<{ userId: number; hostId: string } | null> {
   const user = await webmasterFetch(token, '/user/');
   const { hosts } = await webmasterFetch(token, `/user/${user.user_id}/hosts`);
   // deno-lint-ignore no-explicit-any
-  const host = (hosts ?? []).find((h: any) => h.ascii_host_url?.includes(TARGET_DOMAIN) && h.verified);
-  if (!host) {
-    throw new Error(`В аккаунте Вебмастера не нашёлся подтверждённый хост для ${TARGET_DOMAIN}`);
-  }
+  const host = (hosts ?? []).find((h: any) => h.ascii_host_url?.includes(domain) && h.verified);
+  if (!host) return null;
   return { userId: user.user_id, hostId: host.host_id };
 }
 
@@ -167,6 +176,7 @@ async function fetchQueryHistory(
 
 interface QuerySnapshotRow {
   query: string;
+  site: SiteId;
   impressions: number | null;
   clicks: number | null;
   avg_position: number | null;
@@ -183,6 +193,7 @@ async function fetchPopularQueries(
   token: string,
   userId: number,
   hostId: string,
+  site: SiteId,
   orderBy: 'TOTAL_SHOWS' | 'TOTAL_CLICKS',
 ): Promise<{ count: number; dateFrom: string | null; dateTo: string | null; rows: QuerySnapshotRow[] }> {
   const dateTo = new Date();
@@ -212,6 +223,7 @@ async function fetchPopularQueries(
   // deno-lint-ignore no-explicit-any
   const rows: QuerySnapshotRow[] = (data.queries ?? []).map((q: any) => ({
     query: q.query_text,
+    site,
     impressions: q.indicators?.TOTAL_SHOWS ?? null,
     clicks: q.indicators?.TOTAL_CLICKS ?? null,
     avg_position: q.indicators?.AVG_SHOW_POSITION ?? null,
@@ -228,12 +240,17 @@ async function fetchPopularQueries(
 // Снимок запросов целиком: топ по показам плюс — только если запросов
 // больше, чем влезло в один ответ — топ по кликам (иначе сортировка по
 // показам выкинула бы как раз запросы, которые реально приводят людей).
-async function fetchQuerySnapshot(token: string, userId: number, hostId: string): Promise<QuerySnapshotRow[]> {
-  const byShows = await fetchPopularQueries(token, userId, hostId, 'TOTAL_SHOWS');
+async function fetchQuerySnapshot(
+  token: string,
+  userId: number,
+  hostId: string,
+  site: SiteId,
+): Promise<QuerySnapshotRow[]> {
+  const byShows = await fetchPopularQueries(token, userId, hostId, site, 'TOTAL_SHOWS');
   const rows = [...byShows.rows];
 
   if (byShows.count > byShows.rows.length) {
-    const byClicks = await fetchPopularQueries(token, userId, hostId, 'TOTAL_CLICKS');
+    const byClicks = await fetchPopularQueries(token, userId, hostId, site, 'TOTAL_CLICKS');
     const merged = new Map<string, QuerySnapshotRow>();
     for (const row of [...byShows.rows, ...byClicks.rows]) merged.set(row.query, row);
     rows.length = 0;
@@ -245,11 +262,12 @@ async function fetchQuerySnapshot(token: string, userId: number, hostId: string)
   // ручки дают два разных времени — из второй пачки всё удалилось бы сразу
   // после вставки.
   const stamp = new Date().toISOString();
-  return rows.map((row) => ({ ...row, updated_at: stamp }));
+  return rows.map((row) => ({ ...row, site, updated_at: stamp }));
 }
 
 interface BacklinkSnapshotRow {
   link_key: string;
+  site: SiteId;
   provider: 'yandex_webmaster';
   source_url: string;
   destination_url: string;
@@ -270,6 +288,7 @@ async function fetchBacklinkSnapshot(
   token: string,
   userId: number,
   hostId: string,
+  site: SiteId,
 ): Promise<BacklinkSnapshotRow[]> {
   const links: { source_url: string; destination_url: string; discovery_date?: string; source_last_access_date?: string }[] = [];
   let offset = 0;
@@ -292,7 +311,15 @@ async function fetchBacklinkSnapshot(
     links
       .filter((link) => typeof link.source_url === 'string' && typeof link.destination_url === 'string')
       .map(async (link) => ({
-        link_key: await sha256(`yandex_webmaster\n${link.source_url}\n${link.destination_url}`),
+        // site в ключе — чтобы одинаковые пары URL на разных доменах не
+        // конфликтовали; для platform сохраняем старый формат без префикса,
+        // чтобы не плодить дубли рядом с уже лежащими строками.
+        link_key: await sha256(
+          site === 'platform'
+            ? `yandex_webmaster\n${link.source_url}\n${link.destination_url}`
+            : `${site}\nyandex_webmaster\n${link.source_url}\n${link.destination_url}`,
+        ),
+        site,
         provider: 'yandex_webmaster' as const,
         source_url: link.source_url,
         destination_url: link.destination_url,
@@ -306,6 +333,107 @@ async function fetchBacklinkSnapshot(
   return [...new Map(rows.map((row) => [row.link_key, row])).values()];
 }
 
+async function syncOneSite(
+  token: string,
+  site: SiteId,
+  domain: string,
+  dryRun: boolean,
+  log: string[],
+): Promise<{ rows: unknown[]; queries: QuerySnapshotRow[]; backlinkCount: number }> {
+  const resolved = await resolveHost(token, domain);
+  if (!resolved) {
+    log.push(`Пропуск ${domain} (${site}): хост не найден или не подтверждён в Вебмастере.`);
+    return { rows: [], queries: [], backlinkCount: 0 };
+  }
+  const { userId, hostId } = resolved;
+  log.push(`[${site}] Хост Вебмастера: ${hostId} (${domain}, user_id=${userId})`);
+
+  const [indexingByDate, queryByDate, currentPagesInSearch, querySnapshot, backlinkSnapshot] = await Promise.all([
+    fetchIndexingHistory(token, userId, hostId),
+    fetchQueryHistory(token, userId, hostId),
+    fetchCurrentPagesInSearch(token, userId, hostId),
+    fetchQuerySnapshot(token, userId, hostId, site),
+    fetchBacklinkSnapshot(token, userId, hostId, site),
+  ]);
+  log.push(
+    `[${site}] Индексирование: ${indexingByDate.size} точек (сейчас в поиске: ${currentPagesInSearch ?? '—'}). ` +
+      `Запросы: ${queryByDate.size} дней с данными, ${querySnapshot.length} запросов в разбивке. ` +
+      `Внешние ссылки: ${backlinkSnapshot.length}.`,
+  );
+
+  const today = isoDate(new Date());
+  if (currentPagesInSearch !== null) indexingByDate.set(today, currentPagesInSearch);
+
+  const allDates = new Set([...indexingByDate.keys(), ...queryByDate.keys()]);
+  const rows = [...allDates].map((date) => {
+    const q = queryByDate.get(date) ?? {};
+    return {
+      date,
+      site,
+      pages_in_search: indexingByDate.get(date) ?? null,
+      impressions: q.TOTAL_SHOWS ?? null,
+      clicks: q.TOTAL_CLICKS ?? null,
+      avg_position: q.AVG_SHOW_POSITION ?? null,
+      avg_click_position: q.AVG_CLICK_POSITION ?? null,
+      updated_at: new Date().toISOString(),
+    };
+  });
+
+  if (dryRun) {
+    return { rows, queries: querySnapshot, backlinkCount: backlinkSnapshot.length };
+  }
+
+  if (rows.length > 0) {
+    const { error } = await supabase.from('yandex_webmaster_stats').upsert(rows, { onConflict: 'date,site' });
+    if (error) throw error;
+    log.push(`[${site}] Сохранено ${rows.length} записей в yandex_webmaster_stats.`);
+  }
+
+  if (querySnapshot.length > 0) {
+    const stamp = querySnapshot[0].updated_at;
+    const { error: qError } = await supabase
+      .from('yandex_webmaster_queries')
+      .upsert(querySnapshot, { onConflict: 'query,site' });
+    if (qError) throw qError;
+    const { error: delError } = await supabase
+      .from('yandex_webmaster_queries')
+      .delete()
+      .eq('site', site)
+      .lt('updated_at', stamp);
+    if (delError) throw delError;
+    log.push(`[${site}] Сохранено ${querySnapshot.length} запросов в yandex_webmaster_queries.`);
+  }
+
+  if (backlinkSnapshot.length > 0) {
+    const stamp = backlinkSnapshot[0].updated_at;
+    for (let from = 0; from < backlinkSnapshot.length; from += 500) {
+      const batch = backlinkSnapshot.slice(from, from + 500);
+      // deno-lint-ignore no-await-in-loop
+      const { error: backlinkError } = await supabase
+        .from('site_backlinks')
+        .upsert(batch, { onConflict: 'link_key' });
+      if (backlinkError) throw backlinkError;
+    }
+    const { error: staleError } = await supabase
+      .from('site_backlinks')
+      .delete()
+      .eq('provider', 'yandex_webmaster')
+      .eq('site', site)
+      .lt('updated_at', stamp);
+    if (staleError) throw staleError;
+  } else {
+    const { error: staleError } = await supabase
+      .from('site_backlinks')
+      .delete()
+      .eq('provider', 'yandex_webmaster')
+      .eq('site', site);
+    if (staleError) throw staleError;
+  }
+  log.push(`[${site}] Сохранено ${backlinkSnapshot.length} внешних ссылок в site_backlinks.`);
+
+  return { rows, queries: querySnapshot, backlinkCount: backlinkSnapshot.length };
+}
+
 Deno.serve(async (req) => {
   const log: string[] = [];
   try {
@@ -313,100 +441,17 @@ Deno.serve(async (req) => {
     const dryRun = body?.dryRun === true;
 
     const token = await fetchYandexOAuthToken();
-    const { userId, hostId } = await resolveHost(token);
-    log.push(`Хост Вебмастера: ${hostId} (user_id=${userId})`);
+    const drySamples: { site: SiteId; rows: unknown[]; queries: QuerySnapshotRow[]; backlinkCount: number }[] = [];
 
-    const [indexingByDate, queryByDate, currentPagesInSearch, querySnapshot, backlinkSnapshot] = await Promise.all([
-      fetchIndexingHistory(token, userId, hostId),
-      fetchQueryHistory(token, userId, hostId),
-      fetchCurrentPagesInSearch(token, userId, hostId),
-      fetchQuerySnapshot(token, userId, hostId),
-      fetchBacklinkSnapshot(token, userId, hostId),
-    ]);
-    log.push(
-      `Индексирование: ${indexingByDate.size} точек (сейчас в поиске: ${currentPagesInSearch ?? '—'}). ` +
-        `Запросы: ${queryByDate.size} дней с данными, ${querySnapshot.length} запросов в разбивке. ` +
-        `Внешние ссылки: ${backlinkSnapshot.length}.`,
-    );
-
-    // Живое число страниц в поиске пишем в строку за сегодня — история от
-    // Яндекса отстаёт на дни, а карточка «Страниц в поиске» на странице
-    // «Показатели» берёт последнее непустое значение в периоде.
-    const today = isoDate(new Date());
-    if (currentPagesInSearch !== null) indexingByDate.set(today, currentPagesInSearch);
-
-    const allDates = new Set([...indexingByDate.keys(), ...queryByDate.keys()]);
-    const rows = [...allDates].map((date) => {
-      const q = queryByDate.get(date) ?? {};
-      return {
-        date,
-        pages_in_search: indexingByDate.get(date) ?? null,
-        impressions: q.TOTAL_SHOWS ?? null,
-        clicks: q.TOTAL_CLICKS ?? null,
-        avg_position: q.AVG_SHOW_POSITION ?? null,
-        avg_click_position: q.AVG_CLICK_POSITION ?? null,
-        updated_at: new Date().toISOString(),
-      };
-    });
+    for (const target of TARGET_SITES) {
+      // deno-lint-ignore no-await-in-loop
+      const result = await syncOneSite(token, target.site, target.domain, dryRun, log);
+      if (dryRun) drySamples.push({ site: target.site, ...result });
+    }
 
     if (dryRun) {
-      return json({
-        ok: true,
-        dryRun: true,
-        log,
-        rows,
-        queries: querySnapshot,
-        backlinkCount: backlinkSnapshot.length,
-        backlinkSample: backlinkSnapshot.slice(0, 10),
-      });
+      return json({ ok: true, dryRun: true, log, sites: drySamples });
     }
-
-    if (rows.length > 0) {
-      const { error } = await supabase.from('yandex_webmaster_stats').upsert(rows, { onConflict: 'date' });
-      if (error) throw error;
-      log.push(`Сохранено ${rows.length} записей в yandex_webmaster_stats.`);
-    }
-
-    // Снимок запросов переписывается целиком: сначала upsert всех строк
-    // одним временем (updated_at у всех одинаковый — он же и метка прогона),
-    // потом удаление всего, что этот прогон не принёс. Обратный порядок
-    // (сначала delete) оставил бы страницу с пустой таблицей, если вставка
-    // упадёт; так в худшем случае останется вчерашний снимок целиком.
-    if (querySnapshot.length > 0) {
-      const stamp = querySnapshot[0].updated_at;
-      const { error: qError } = await supabase
-        .from('yandex_webmaster_queries')
-        .upsert(querySnapshot, { onConflict: 'query' });
-      if (qError) throw qError;
-      const { error: delError } = await supabase.from('yandex_webmaster_queries').delete().lt('updated_at', stamp);
-      if (delError) throw delError;
-      log.push(`Сохранено ${querySnapshot.length} запросов в yandex_webmaster_queries.`);
-    }
-
-    // Снимок ссылок тоже заменяется без «пустого окна»: сначала новая версия
-    // пачками, затем старые строки этого provider. Нулевой валидный ответ API
-    // означает, что ссылок больше нет, — тогда старый снимок удаляем целиком.
-    if (backlinkSnapshot.length > 0) {
-      const stamp = backlinkSnapshot[0].updated_at;
-      for (let from = 0; from < backlinkSnapshot.length; from += 500) {
-        const batch = backlinkSnapshot.slice(from, from + 500);
-        // deno-lint-ignore no-await-in-loop
-        const { error: backlinkError } = await supabase
-          .from('site_backlinks')
-          .upsert(batch, { onConflict: 'link_key' });
-        if (backlinkError) throw backlinkError;
-      }
-      const { error: staleError } = await supabase
-        .from('site_backlinks')
-        .delete()
-        .eq('provider', 'yandex_webmaster')
-        .lt('updated_at', stamp);
-      if (staleError) throw staleError;
-    } else {
-      const { error: staleError } = await supabase.from('site_backlinks').delete().eq('provider', 'yandex_webmaster');
-      if (staleError) throw staleError;
-    }
-    log.push(`Сохранено ${backlinkSnapshot.length} внешних ссылок в site_backlinks.`);
 
     return json({ ok: true, log });
   } catch (err) {

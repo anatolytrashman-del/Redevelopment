@@ -40,7 +40,7 @@ import { AI_REFERRER_LABELS, isAiReferrerSource } from '../lib/aiReferrer';
 import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
 import { fetchPageViewsDaily, fetchSearchVisitsDaily } from '../lib/pageViewsApi';
-import type { PageViewDaily, SearchVisitDaily } from '../data/pageViews';
+import type { PageViewDaily, PageViewSiteId, SearchVisitDaily } from '../data/pageViews';
 import { SearchVisibilityChart } from '../components/siteMetrics/SearchVisibilityChart';
 import {
   combineSearchDaily, mergeSiteDailyStats, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate,
@@ -48,12 +48,26 @@ import {
   type SiteMetricsPeriod,
 } from '../lib/siteMetrics';
 
-// Показатели посещаемости сайта из Яндекс.Метрики (счётчик 111858495) —
-// не отчёт по staff-активности (это отдельная /admin/metrics, RequireSuperAdmin,
-// не путать), а посещаемость публичной части платформы: гид района, каталог
-// БЦ, лендинги объектов и т.д. Данные читаются уже готовыми из 4 таблиц
-// Supabase, заполняемых раз в час supabase/functions/sync-yandex-metrika (2026-09-16,
-// было раз в сутки) — сам OAuth-токен на этой странице не фигурирует нигде.
+// 2026-10-10 — переключатель сайта (platform / malls / offices). Основной
+// счётчик везде свой (page_views_daily + search_visits_daily без cookie).
+// Яндекс.Метрика остаётся только у платформы (redevelopment.pro) как
+// доп.метрики после cookies; на malllist/officelist Метрики нет.
+
+const METRICS_SITE_ORDER: PageViewSiteId[] = ['platform', 'malls', 'offices'];
+const METRICS_SITE_LABELS: Record<PageViewSiteId, string> = {
+  platform: 'Redevelopment',
+  malls: 'MallList',
+  offices: 'OfficeList',
+};
+const METRICS_SITE_OPTIONS = METRICS_SITE_ORDER.map((id) => METRICS_SITE_LABELS[id]);
+const LABEL_TO_METRICS_SITE = Object.fromEntries(
+  METRICS_SITE_ORDER.map((id) => [METRICS_SITE_LABELS[id], id]),
+) as Record<string, PageViewSiteId>;
+
+// Показатели посещаемости публичных сайтов. На платформе дополнительно
+// подмешивается Яндекс.Метрика (счётчик 111858495) из таблиц
+// supabase/functions/sync-yandex-metrika — сам OAuth-токен на странице не
+// фигурирует.
 //
 // "Визиты по дням"/"Достижение целей" — настоящий тренд, можно выбрать
 // период (7/30/90 дней), считается из уже загруженных daily/goal рядов на
@@ -747,8 +761,10 @@ export function SiteMetrics() {
   const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
   const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [searchVisitRows, setSearchVisitRows] = useState<SearchVisitDaily[]>([]);
+  const [metricsSite, setMetricsSite] = useState<PageViewSiteId>('platform');
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
+  const isPlatformSite = metricsSite === 'platform';
   const [topPagesExpanded, setTopPagesExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
@@ -844,26 +860,77 @@ export function SiteMetrics() {
     };
   }, [load]);
 
-  const loading = dailyStats === null || trafficSources === null || topPages === null || goalCompletions === null;
+  const loading = isPlatformSite
+    ? dailyStats === null || trafficSources === null || topPages === null || goalCompletions === null
+    : pageViewRows === null;
 
   const today = siteMetricsToday();
+  const sitePageViews = useMemo(
+    () => (pageViewRows ?? []).filter((row) => row.site === metricsSite),
+    [pageViewRows, metricsSite],
+  );
+  const siteSearchVisits = useMemo(
+    () => searchVisitRows.filter((row) => row.site === metricsSite),
+    [searchVisitRows, metricsSite],
+  );
+  const siteWebmasterStats = useMemo(
+    () => (webmasterStats ?? []).filter((row) => row.site === metricsSite),
+    [webmasterStats, metricsSite],
+  );
+  const siteGoogleStats = useMemo(
+    () => (googleStats ?? []).filter((row) => row.site === metricsSite),
+    [googleStats, metricsSite],
+  );
+  const siteWebmasterQueries = useMemo(
+    () => webmasterQueries.filter((row) => row.site === metricsSite),
+    [webmasterQueries, metricsSite],
+  );
+  const siteGoogleQueries = useMemo(
+    () => googleQueries.filter((row) => row.site === metricsSite),
+    [googleQueries, metricsSite],
+  );
+  const siteGooglePages = useMemo(
+    () => googlePages.filter((row) => row.site === metricsSite),
+    [googlePages, metricsSite],
+  );
+  const siteBacklinks = useMemo(
+    () => (backlinks ?? []).filter((row) => row.site === metricsSite),
+    [backlinks, metricsSite],
+  );
   const combinedDaily = useMemo(
-    () => mergeSiteDailyStats(dailyStats ?? [], pageViewRows ?? []),
-    [dailyStats, pageViewRows],
+    () => mergeSiteDailyStats(isPlatformSite ? (dailyStats ?? []) : [], sitePageViews),
+    [isPlatformSite, dailyStats, sitePageViews],
   );
   const currentPeriod = useMemo(() => selectMetricsPeriod(combinedDaily, period, today), [combinedDaily, period, today]);
   const previousPeriod = useMemo(() => selectMetricsPeriod(combinedDaily, period, today, true), [combinedDaily, period, today]);
-  const currentGoals = useMemo(() => selectMetricsPeriod(goalCompletions ?? [], period, today), [goalCompletions, period, today]);
+  const currentGoals = useMemo(
+    () => (isPlatformSite ? selectMetricsPeriod(goalCompletions ?? [], period, today) : []),
+    [isPlatformSite, goalCompletions, period, today],
+  );
   const previousGoals = useMemo(
-    () => selectMetricsPeriod(goalCompletions ?? [], period, today, true),
-    [goalCompletions, period, today],
+    () => (isPlatformSite ? selectMetricsPeriod(goalCompletions ?? [], period, today, true) : []),
+    [isPlatformSite, goalCompletions, period, today],
   );
   const { start, end } = metricsPeriodBounds(period, today);
   const periodDatesLabel = start === end
     ? `за ${formatDateShort(start)}`
     : `${formatDateShort(start)} — ${formatDateShort(end)}`;
 
-  const currentWebmaster = useMemo(() => selectMetricsPeriod(webmasterStats ?? [], period, today), [webmasterStats, period, today]);
+  const ownTopPages = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const row of sitePageViews) {
+      if (row.day < start || row.day > end) continue;
+      totals.set(row.path, (totals.get(row.path) ?? 0) + row.views);
+    }
+    return [...totals.entries()]
+      .map(([path, pageviews]) => ({ path, pageviews }))
+      .sort((a, b) => b.pageviews - a.pageviews || a.path.localeCompare(b.path));
+  }, [sitePageViews, start, end]);
+
+  const currentWebmaster = useMemo(
+    () => selectMetricsPeriod(siteWebmasterStats, period, today),
+    [siteWebmasterStats, period, today],
+  );
   // "Страниц в поиске" — не сумма по дням (это счётчик состояния, не
   // событие), берём последнее известное значение в периоде.
   const latestPagesInSearch = useMemo(() => {
@@ -875,7 +942,7 @@ export function SiteMetrics() {
   }, [currentWebmaster]);
   const hasSearchQueryData = currentWebmaster.some((d) => d.impressions !== null || d.clicks !== null);
 
-  const currentGoogle = useMemo(() => selectMetricsPeriod(googleStats ?? [], period, today), [googleStats, period, today]);
+  const currentGoogle = useMemo(() => selectMetricsPeriod(siteGoogleStats, period, today), [siteGoogleStats, period, today]);
   const latestGoogleCoverage = useMemo(() => {
     for (let i = currentGoogle.length - 1; i >= 0; i--) {
       const d = currentGoogle[i];
@@ -887,8 +954,8 @@ export function SiteMetrics() {
   // Основной счётчик ИИ-кликов — свой (search_visits_daily), без cookie.
   // Метрика только после согласия — показываем отдельно, если есть.
   const ownAiVisitRows = useMemo(
-    () => searchVisitRows.filter((row) => isAiReferrerSource(row.source)),
-    [searchVisitRows],
+    () => siteSearchVisits.filter((row) => isAiReferrerSource(row.source)),
+    [siteSearchVisits],
   );
   const ownAiByDay = useMemo(() => {
     const map = new Map<string, number>();
@@ -913,7 +980,10 @@ export function SiteMetrics() {
       }))
       .sort((a, b) => b.visits - a.visits || a.label.localeCompare(b.label, 'ru'));
   }, [ownAiVisitRows]);
-  const metrikaAiVisits = useMemo(() => sum(aiReferrers.map((r) => r.visits)), [aiReferrers]);
+  const metrikaAiVisits = useMemo(
+    () => (isPlatformSite ? sum(aiReferrers.map((r) => r.visits)) : 0),
+    [isPlatformSite, aiReferrers],
+  );
   const googleAiImpressions = useMemo(
     () => sum(googleAiStats.map((d) => d.impressions ?? 0)),
     [googleAiStats],
@@ -955,24 +1025,28 @@ export function SiteMetrics() {
   );
 
   const searchVisibility = useMemo(
-    () => combineSearchDaily(webmasterStats ?? [], googleStats ?? [], today),
-    [webmasterStats, googleStats, today],
+    () => combineSearchDaily(siteWebmasterStats, siteGoogleStats, today),
+    [siteWebmasterStats, siteGoogleStats, today],
   );
   const searchLagNote = useMemo(() => yandexLagNote(searchVisibility), [searchVisibility]);
 
   const maxUpdatedAt = useMemo(() => {
+    if (!isPlatformSite) return null;
     const dates = (trafficSources ?? []).map((s) => s.updatedAt);
     if (dates.length === 0) return null;
     return dates.reduce((a, b) => (a > b ? a : b));
-  }, [trafficSources]);
+  }, [isPlatformSite, trafficSources]);
 
   const maxTrafficVisits = Math.max(1, ...(trafficSources ?? []).map((s) => s.visits));
-  const maxTopPageviews = Math.max(1, ...(topPages ?? []).map((p) => p.pageviews));
+  const maxTopPageviews = Math.max(
+    1,
+    ...(isPlatformSite ? (topPages ?? []).map((p) => p.pageviews) : ownTopPages.map((p) => p.pageviews)),
+  );
   const totalTrafficVisits = sum((trafficSources ?? []).map((s) => s.visits));
-  const trafficWindowDays = trafficSources?.[0]?.windowDays ?? 90;
+  const trafficWindowDays = isPlatformSite ? (trafficSources?.[0]?.windowDays ?? 90) : 90;
   const searchWindowStart = shiftMetricsDate(siteMetricsToday(), -(trafficWindowDays - 1));
   const searchVisitsBySource = Object.entries(
-    searchVisitRows
+    siteSearchVisits
       .filter((row) => row.day >= searchWindowStart)
       .reduce<Record<string, number>>((totals, row) => {
         totals[row.source] = (totals[row.source] ?? 0) + row.visits;
@@ -993,6 +1067,15 @@ export function SiteMetrics() {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
+      <div className="flex flex-wrap items-center gap-3">
+        <ToggleGroup
+          label="Сайт"
+          options={METRICS_SITE_OPTIONS}
+          value={METRICS_SITE_LABELS[metricsSite]}
+          onChange={(label) => setMetricsSite(LABEL_TO_METRICS_SITE[label])}
+        />
+      </div>
+
       {loading && !error && (
         <div className="flex items-center gap-2 text-sm text-ink-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1002,8 +1085,9 @@ export function SiteMetrics() {
 
       {!loading && combinedDaily.length === 0 && (
         <Card className="text-sm text-ink-muted">
-          Данные ещё не собраны. Посещения появятся после первого захода на публичную часть сайта;
-          дополнительные показатели Яндекс.Метрики обновляются раз в час.
+          Данные ещё не собраны. Посещения появятся после первого захода на публичную часть
+          {` ${METRICS_SITE_LABELS[metricsSite]}`}; считает свой счётчик без cookie
+          {isPlatformSite ? '; дополнительные показатели Яндекс.Метрики на платформе обновляются раз в час' : ''}.
         </Card>
       )}
 
@@ -1051,45 +1135,49 @@ export function SiteMetrics() {
                 previous: sum(previousPeriod.map((d) => d.pageviews)),
               }}
             />
-            <KpiTile
-              label="Отказы"
-              value={formatPercent(average(currentPeriod.map((d) => d.bounceRate)))}
-              change={
-                average(currentPeriod.map((d) => d.bounceRate)) !== null && average(previousPeriod.map((d) => d.bounceRate)) !== null
-                  ? {
-                      current: average(currentPeriod.map((d) => d.bounceRate)) ?? 0,
-                      previous: average(previousPeriod.map((d) => d.bounceRate)) ?? 0,
-                      neutral: true,
-                    }
-                  : undefined
-              }
-            />
-            <KpiTile
-              label="Глубина просмотра"
-              value={average(currentPeriod.map((d) => d.pageDepth))?.toFixed(1) ?? '—'}
-              change={
-                average(currentPeriod.map((d) => d.pageDepth)) !== null && average(previousPeriod.map((d) => d.pageDepth)) !== null
-                  ? {
-                      current: average(currentPeriod.map((d) => d.pageDepth)) ?? 0,
-                      previous: average(previousPeriod.map((d) => d.pageDepth)) ?? 0,
-                      neutral: true,
-                    }
-                  : undefined
-              }
-            />
-            <KpiTile
-              label="Время на сайте"
-              value={formatDuration(average(currentPeriod.map((d) => d.avgDurationSeconds)))}
-              change={
-                average(currentPeriod.map((d) => d.avgDurationSeconds)) !== null && average(previousPeriod.map((d) => d.avgDurationSeconds)) !== null
-                  ? {
-                      current: average(currentPeriod.map((d) => d.avgDurationSeconds)) ?? 0,
-                      previous: average(previousPeriod.map((d) => d.avgDurationSeconds)) ?? 0,
-                      neutral: true,
-                    }
-                  : undefined
-              }
-            />
+            {isPlatformSite && (
+              <>
+                <KpiTile
+                  label="Отказы"
+                  value={formatPercent(average(currentPeriod.map((d) => d.bounceRate)))}
+                  change={
+                    average(currentPeriod.map((d) => d.bounceRate)) !== null && average(previousPeriod.map((d) => d.bounceRate)) !== null
+                      ? {
+                          current: average(currentPeriod.map((d) => d.bounceRate)) ?? 0,
+                          previous: average(previousPeriod.map((d) => d.bounceRate)) ?? 0,
+                          neutral: true,
+                        }
+                      : undefined
+                  }
+                />
+                <KpiTile
+                  label="Глубина просмотра"
+                  value={average(currentPeriod.map((d) => d.pageDepth))?.toFixed(1) ?? '—'}
+                  change={
+                    average(currentPeriod.map((d) => d.pageDepth)) !== null && average(previousPeriod.map((d) => d.pageDepth)) !== null
+                      ? {
+                          current: average(currentPeriod.map((d) => d.pageDepth)) ?? 0,
+                          previous: average(previousPeriod.map((d) => d.pageDepth)) ?? 0,
+                          neutral: true,
+                        }
+                      : undefined
+                  }
+                />
+                <KpiTile
+                  label="Время на сайте"
+                  value={formatDuration(average(currentPeriod.map((d) => d.avgDurationSeconds)))}
+                  change={
+                    average(currentPeriod.map((d) => d.avgDurationSeconds)) !== null && average(previousPeriod.map((d) => d.avgDurationSeconds)) !== null
+                      ? {
+                          current: average(currentPeriod.map((d) => d.avgDurationSeconds)) ?? 0,
+                          previous: average(previousPeriod.map((d) => d.avgDurationSeconds)) ?? 0,
+                          neutral: true,
+                        }
+                      : undefined
+                  }
+                />
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -1098,12 +1186,14 @@ export function SiteMetrics() {
             <TrendCard title="Просмотры по дням" data={currentPeriod} valueOf={(d) => d.pageviews} />
           </div>
           <p className="text-xs text-ink-muted">
-            С 28.09.2026 визиты, посетители и просмотры включают данные своего счётчика без cookie.
-            Посетитель здесь равен заходу на сайт, а не уникальному человеку. Отказы, глубина и время —
-            только по согласившимся на cookie, из Метрики; прочерк означает, что данных пока нет.
+            Визиты, посетители и просмотры — свой счётчик без cookie (раздельно по доменам).
+            Посетитель здесь равен заходу на сайт, а не уникальному человеку.
+            {isPlatformSite
+              ? ' Отказы, глубина и время — только по согласившимся на cookie, из Метрики платформы; прочерк означает, что данных пока нет.'
+              : ' На MallList и OfficeList Метрики нет — только свой счётчик.'}
           </p>
 
-          {currentGoals.length > 0 && (
+          {isPlatformSite && currentGoals.length > 0 && (
             <Card className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold text-ink">Достижение целей — бронирование кабинета</h3>
@@ -1122,7 +1212,7 @@ export function SiteMetrics() {
               <Sparkbars data={currentGoals.map((g) => ({ date: g.date, value: g.reaches }))} />
             </Card>
           )}
-          {currentGoals.length === 0 && (
+          {isPlatformSite && currentGoals.length === 0 && (
             <Card className="text-sm text-ink-muted">
               Цель «бронирование кабинета» пока не найдена в данных — либо ещё не было ни одной брони за выбранный
               период, либо цель ещё не завершила первый синк.
@@ -1192,7 +1282,7 @@ export function SiteMetrics() {
               )}
               <SearchQueriesTable
                 title="По каким запросам показывают в Яндексе"
-                queries={webmasterQueries}
+                queries={siteWebmasterQueries}
                 emptyText="Разбивка по запросам появится после ближайшего суточного синка Вебмастера — сами показы и клики выше уже посчитаны."
               />
             </Card>
@@ -1259,7 +1349,7 @@ export function SiteMetrics() {
               )}
               <SearchQueriesTable
                 title="По каким запросам показывают в Google"
-                queries={googleQueries}
+                queries={siteGoogleQueries}
                 emptyText={
                   hasGoogleQueryData
                     ? 'Google не раскрывает сами запросы, пока их задают единицы людей («анонимизированные запросы») — показы и клики выше он при этом считает. Список появится сам, когда запросов станет больше.'
@@ -1271,12 +1361,12 @@ export function SiteMetrics() {
                 title="На какие страницы приходят из Google"
                 columnTitle="Страница"
                 plural={pluralPages}
-                queries={googlePages.map((p) => ({ ...p, query: readablePageLabel(p.page) }))}
+                queries={siteGooglePages.map((p) => ({ ...p, query: readablePageLabel(p.page) }))}
                 emptyText="Разбивка по страницам появится после ближайшего синка Search Console."
                 note="Здесь Google не прячет редкие строки, поэтому сумма почти сходится с плитками выше. Старые адреса каталога (/minsk/bcminsk/…) сведены к новым."/>
             </Card>
           )}
-          {webmasterStats !== null && googleStats !== null && currentWebmaster.length > 0 && currentGoogle.length === 0 && (
+          {siteWebmasterStats.length > 0 && currentWebmaster.length > 0 && currentGoogle.length === 0 && (
             <Card className="text-sm text-ink-muted">
               Google Search Console пока не подключён — данные по индексации в Google появятся здесь, как только
               владелец пройдёт разовую авторизацию (см. scripts/get-google-search-console-refresh-token.mjs).
@@ -1288,9 +1378,10 @@ export function SiteMetrics() {
               <div>
                 <h3 className="text-sm font-semibold text-ink">ИИ: клики и охват</h3>
                 <p className="text-xs text-ink-muted">
-                  Клики — из собственного счётчика (без cookie, по referrer: ChatGPT, Gemini, Алиса, Copilot…). Метрика
-                  только после согласия на cookies — недосчитывает. AI-охват Google — отчёт Generative AI (AI Overviews /
-                  AI Mode).
+                  Клики — из собственного счётчика (без cookie, по referrer: ChatGPT, Gemini, Алиса, Copilot…).
+                  {isPlatformSite
+                    ? ' Метрика только после согласия на cookies — недосчитывает. AI-охват Google — отчёт Generative AI (AI Overviews / AI Mode).'
+                    : ' На каталогах Метрики нет; AI-охват Google пока только у платформы.'}
                 </p>
               </div>
               <a
@@ -1437,42 +1528,43 @@ export function SiteMetrics() {
             </div>
           </Card>
 
-          {backlinks !== null && <BacklinksCard backlinks={backlinks} />}
+          {backlinks !== null && <BacklinksCard backlinks={siteBacklinks} />}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card className="flex flex-col gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-ink">Источники трафика</h3>
                 <p className="text-xs text-ink-muted">
-                  {(() => {
-                    return `За последние ${trafficWindowDays} ${pluralDays(trafficWindowDays)} — не зависит от выбранного периода выше.`;
-                  })()}
+                  {isPlatformSite
+                    ? `Метрика (после cookies) за ${trafficWindowDays} ${pluralDays(trafficWindowDays)}; ниже — свой счётчик поиска без cookie.`
+                    : `Свой счётчик поиска без cookie за ${trafficWindowDays} ${pluralDays(trafficWindowDays)}.`}
                 </p>
               </div>
               <div className="flex flex-col gap-2">
-                {(trafficSources ?? []).map((s) => (
-                  <div key={s.source} className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-ink">{trafficSourceLabel(s.source)}</span>
-                      <span className="text-ink-muted">
-                        {s.visits.toLocaleString('ru-RU')}
-                        {totalTrafficVisits > 0 && (
-                          <span className="ml-1 text-xs">({((s.visits / totalTrafficVisits) * 100).toFixed(0)}%)</span>
-                        )}
-                      </span>
+                {isPlatformSite &&
+                  (trafficSources ?? []).map((s) => (
+                    <div key={s.source} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-ink">{trafficSourceLabel(s.source)}</span>
+                        <span className="text-ink-muted">
+                          {s.visits.toLocaleString('ru-RU')}
+                          {totalTrafficVisits > 0 && (
+                            <span className="ml-1 text-xs">({((s.visits / totalTrafficVisits) * 100).toFixed(0)}%)</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${(s.visits / maxTrafficVisits) * 100}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${(s.visits / maxTrafficVisits) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-                {(trafficSources ?? []).length === 0 && (
-                  <p className="text-sm text-ink-muted">Пока нет данных по источникам.</p>
+                  ))}
+                {isPlatformSite && (trafficSources ?? []).length === 0 && (
+                  <p className="text-sm text-ink-muted">Пока нет данных Метрики по источникам.</p>
                 )}
-                <div className="mt-2 border-t border-border pt-3">
+                <div className={isPlatformSite ? 'mt-2 border-t border-border pt-3' : undefined}>
                   <div className="mb-2 flex items-center justify-between gap-2 text-sm">
                     <span className="font-medium text-ink">Поиск — все посетители, без cookie</span>
                     <span className="text-ink-muted">{totalSearchVisits.toLocaleString('ru-RU')}</span>
@@ -1502,28 +1594,45 @@ export function SiteMetrics() {
               <div>
                 <h3 className="text-sm font-semibold text-ink">Топ страниц</h3>
                 <p className="text-xs text-ink-muted">
-                  {(() => {
-                    const days = topPages?.[0]?.windowDays ?? 90;
-                    return `За последние ${days} ${pluralDays(days)} — не зависит от выбранного периода выше.`;
-                  })()}
+                  {isPlatformSite
+                    ? (() => {
+                        const days = topPages?.[0]?.windowDays ?? 90;
+                        return `Метрика за последние ${days} ${pluralDays(days)} — не зависит от периода выше.`;
+                      })()
+                    : `Свой счётчик за выбранный период (${periodDatesLabel}).`}
                 </p>
               </div>
               <div className="flex flex-col divide-y divide-border">
-                {(topPagesExpanded ? (topPages ?? []) : (topPages ?? []).slice(0, VISIBLE_TOP_PAGES)).map((p) => (
-                  <div key={p.path} className="relative flex items-center justify-between gap-3 py-2 text-sm">
-                    <div
-                      className="absolute inset-y-0 left-0 -z-10 rounded bg-primary/10"
-                      style={{ width: `${(p.pageviews / maxTopPageviews) * 100}%` }}
-                    />
-                    <span className="truncate text-ink" title={p.path}>
-                      {readablePageLabel(p.path)}
-                    </span>
-                    <span className="shrink-0 font-medium text-ink">{p.pageviews.toLocaleString('ru-RU')}</span>
-                  </div>
-                ))}
-                {(topPages ?? []).length === 0 && <p className="text-sm text-ink-muted">Пока нет данных по страницам.</p>}
+                {isPlatformSite
+                  ? (topPagesExpanded ? (topPages ?? []) : (topPages ?? []).slice(0, VISIBLE_TOP_PAGES)).map((p) => (
+                      <div key={p.path} className="relative flex items-center justify-between gap-3 py-2 text-sm">
+                        <div
+                          className="absolute inset-y-0 left-0 -z-10 rounded bg-primary/10"
+                          style={{ width: `${(p.pageviews / maxTopPageviews) * 100}%` }}
+                        />
+                        <span className="truncate text-ink" title={p.path}>
+                          {readablePageLabel(p.path)}
+                        </span>
+                        <span className="shrink-0 font-medium text-ink">{p.pageviews.toLocaleString('ru-RU')}</span>
+                      </div>
+                    ))
+                  : (topPagesExpanded ? ownTopPages : ownTopPages.slice(0, VISIBLE_TOP_PAGES)).map((p) => (
+                      <div key={p.path} className="relative flex items-center justify-between gap-3 py-2 text-sm">
+                        <div
+                          className="absolute inset-y-0 left-0 -z-10 rounded bg-primary/10"
+                          style={{ width: `${(p.pageviews / maxTopPageviews) * 100}%` }}
+                        />
+                        <span className="truncate text-ink" title={p.path}>
+                          {readablePageLabel(p.path)}
+                        </span>
+                        <span className="shrink-0 font-medium text-ink">{p.pageviews.toLocaleString('ru-RU')}</span>
+                      </div>
+                    ))}
+                {(isPlatformSite ? (topPages ?? []).length : ownTopPages.length) === 0 && (
+                  <p className="text-sm text-ink-muted">Пока нет данных по страницам.</p>
+                )}
               </div>
-              {(topPages ?? []).length > VISIBLE_TOP_PAGES && (
+              {(isPlatformSite ? (topPages ?? []).length : ownTopPages.length) > VISIBLE_TOP_PAGES && (
                 <button
                   type="button"
                   onClick={() => setTopPagesExpanded((v) => !v)}
@@ -1531,7 +1640,7 @@ export function SiteMetrics() {
                 >
                   {topPagesExpanded
                     ? 'Свернуть'
-                    : `Показать ещё ${(topPages ?? []).length - VISIBLE_TOP_PAGES} ${pluralPages((topPages ?? []).length - VISIBLE_TOP_PAGES)}`}
+                    : `Показать ещё ${(isPlatformSite ? (topPages ?? []).length : ownTopPages.length) - VISIBLE_TOP_PAGES} ${pluralPages((isPlatformSite ? (topPages ?? []).length : ownTopPages.length) - VISIBLE_TOP_PAGES)}`}
                 </button>
               )}
             </Card>

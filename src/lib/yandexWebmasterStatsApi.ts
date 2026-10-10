@@ -1,15 +1,22 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 import type {
+  WebmasterSiteId,
   YandexWebmasterStat,
   YandexWebmasterStatRow,
   YandexWebmasterQuery,
   YandexWebmasterQueryRow,
 } from '../data/yandexWebmasterStats';
 
+function asSite(value: string | null | undefined): WebmasterSiteId {
+  if (value === 'malls' || value === 'offices' || value === 'platform') return value;
+  return 'platform';
+}
+
 function fromRow(row: YandexWebmasterStatRow): YandexWebmasterStat {
   return {
     date: row.date,
+    site: asSite(row.site),
     pagesInSearch: row.pages_in_search,
     impressions: row.impressions,
     clicks: row.clicks,
@@ -20,15 +27,18 @@ function fromRow(row: YandexWebmasterStatRow): YandexWebmasterStat {
 
 const PAGE_SIZE = 1000;
 
-export function fetchYandexWebmasterStats(): Promise<YandexWebmasterStat[]> {
+export function fetchYandexWebmasterStats(site?: WebmasterSiteId): Promise<YandexWebmasterStat[]> {
   return withRetry(async () => {
     const rows: YandexWebmasterStat[] = [];
     for (let from = 0; ; from += PAGE_SIZE) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('yandex_webmaster_stats')
         .select('*')
         .order('date', { ascending: true })
+        .order('site', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
+      if (site) query = query.eq('site', site);
+      const { data, error } = await query;
       if (error) throw error;
       const page = (data as YandexWebmasterStatRow[]).map(fromRow);
       rows.push(...page);
@@ -40,6 +50,7 @@ export function fetchYandexWebmasterStats(): Promise<YandexWebmasterStat[]> {
 function queryFromRow(row: YandexWebmasterQueryRow): YandexWebmasterQuery {
   return {
     query: row.query,
+    site: asSite(row.site),
     impressions: row.impressions,
     clicks: row.clicks,
     avgPosition: row.avg_position,
@@ -50,17 +61,15 @@ function queryFromRow(row: YandexWebmasterQueryRow): YandexWebmasterQuery {
   };
 }
 
-// Снимок запросов целиком (не по дням) — сортировка по показам сразу в
-// базе, чтобы страница не тянула лишнего; строк здесь сотни, до предела
-// PostgREST в 1000 далеко, но limit ставим явно — если сайт вырастет,
-// молча обрезанный хвост заметить будет нечем.
-export function fetchYandexWebmasterQueries(): Promise<YandexWebmasterQuery[]> {
+export function fetchYandexWebmasterQueries(site?: WebmasterSiteId): Promise<YandexWebmasterQuery[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('yandex_webmaster_queries')
       .select('*')
       .order('impressions', { ascending: false, nullsFirst: false })
       .limit(1000);
+    if (site) query = query.eq('site', site);
+    const { data, error } = await query;
     if (error) throw error;
     return (data as YandexWebmasterQueryRow[]).map(queryFromRow);
   });
