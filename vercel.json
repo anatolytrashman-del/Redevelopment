@@ -205,6 +205,94 @@
       "permanent": true
     },
     {
+      "source": "/minsk/bc",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/bc",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc",
+      "permanent": true
+    },
+    {
+      "source": "/bc/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/bc",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc",
+      "permanent": true
+    },
+    {
+      "source": "/bc/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/minsk/bc/:path*",
+      "permanent": true
+    },
+    {
       "source": "/(.*)",
       "has": [
         {
