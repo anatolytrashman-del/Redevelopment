@@ -132,17 +132,15 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
   const bare = host.replace(/^www\./, '').toLowerCase();
   const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   const siteId = siteIdForPath(path);
+  const isWww = host.toLowerCase().startsWith('www.');
 
-  // www → apex на любом из трёх доменов
-  if (host.toLowerCase().startsWith('www.') && (bare === PLATFORM.host || bare === OFFICES.host || bare === MALLS.host)) {
-    const target = bare === OFFICES.host ? OFFICES : bare === MALLS.host ? MALLS : PLATFORM;
-    return `${target.origin}${pathname}`;
-  }
-
+  // Каталоги раньше www→apex: иначе www.redevelopment.pro/minsk/tc даёт
+  // два 301 (apex, потом malllist). Поисковики хотят один hop.
   // Каталог БЦ на платформе или на чужом каталожном домене → offiselist
   if (siteId === 'offices') {
-    if (!REDIRECT_OFFICES_ENABLED) return null;
-    if (bare === OFFICES.host) {
+    if (!REDIRECT_OFFICES_ENABLED) {
+      // offices ещё не уехал — ниже схлопнем www→apex при необходимости
+    } else if (bare === OFFICES.host) {
       // /bc/:slug на offiselist → канонический /minsk/bc/:slug
       if (path === '/bc' || path.startsWith('/bc/')) {
         const slug = path === '/bc' ? '' : path.slice('/bc'.length);
@@ -152,16 +150,29 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
       if (path === '/minsk/bcminsk' || path.startsWith('/minsk/bcminsk/')) {
         return `${OFFICES.origin}${path.replace(/^\/minsk\/bcminsk/, '/minsk/bc')}`;
       }
+      if (isWww) return `${OFFICES.origin}${pathname}`;
       return null;
+    } else {
+      return `${OFFICES.origin}${path.replace(/^\/minsk\/bcminsk/, '/minsk/bc').replace(/^\/bc(?=\/|$)/, '/minsk/bc')}`;
     }
-    return `${OFFICES.origin}${path.replace(/^\/minsk\/bcminsk/, '/minsk/bc').replace(/^\/bc(?=\/|$)/, '/minsk/bc')}`;
   }
 
   // Каталог ТЦ на платформе или на offiselist → malllist
   if (siteId === 'malls') {
-    if (!REDIRECT_MALLS_ENABLED) return null;
-    if (bare === MALLS.host) return null;
-    return `${MALLS.origin}${path}`;
+    if (!REDIRECT_MALLS_ENABLED) {
+      // malls ещё не уехал
+    } else if (bare === MALLS.host) {
+      if (isWww) return `${MALLS.origin}${pathname}`;
+      return null;
+    } else {
+      return `${MALLS.origin}${path}`;
+    }
+  }
+
+  // www → apex на любом из трёх доменов (пути платформы / ещё не уехавшие каталоги)
+  if (isWww && (bare === PLATFORM.host || bare === OFFICES.host || bare === MALLS.host)) {
+    const target = bare === OFFICES.host ? OFFICES : bare === MALLS.host ? MALLS : PLATFORM;
+    return `${target.origin}${pathname}`;
   }
 
   // На каталожных доменах чужой контент платформы → на платформу.
@@ -218,4 +229,16 @@ export function robotsSitemapLine(host: string): string {
     return `Sitemap: ${MALLS.origin}/sitemap.xml`;
   }
   return `Sitemap: ${PLATFORM.origin}/sitemap.xml`;
+}
+
+/**
+ * Прод-хост → id сайта для собственного счётчика посещаемости.
+ * Превью/localhost → null (не пишем в page_views_daily).
+ */
+export function siteIdFromHostname(hostname: string): PublicSiteId | null {
+  const bare = hostname.replace(/^www\./, '').toLowerCase();
+  if (bare === PLATFORM.host) return 'platform';
+  if (bare === MALLS.host) return 'malls';
+  if (bare === OFFICES.host) return 'offices';
+  return null;
 }

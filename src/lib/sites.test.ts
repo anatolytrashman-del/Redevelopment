@@ -2,24 +2,30 @@ import { describe, expect, it } from 'vitest';
 import domainSplit from '../data/domain-split.json';
 import {
   CATALOG_DOMAIN_SPLIT_ENABLED,
+  REDIRECT_MALLS_ENABLED,
+  REDIRECT_OFFICES_ENABLED,
   absoluteCatalogUrl,
   catalogSiteUrl,
   crossDomainRedirect,
   siteIdForPath,
+  siteIdFromHostname,
 } from './sites';
 
 describe('sites / domain split', () => {
-  it('по умолчанию сплит выключен (безопасный дефолт до DNS)', () => {
+  it('ТЦ уже на malllist (redirects.malls), БЦ ещё на платформе', () => {
     expect(domainSplit.enabled).toBe(false);
-    expect(domainSplit.redirects?.malls).toBe(false);
+    expect(domainSplit.redirects?.malls).toBe(true);
     expect(domainSplit.redirects?.offices).toBe(false);
-    expect(CATALOG_DOMAIN_SPLIT_ENABLED).toBe(false);
+    expect(REDIRECT_MALLS_ENABLED).toBe(true);
+    expect(REDIRECT_OFFICES_ENABLED).toBe(false);
+    expect(CATALOG_DOMAIN_SPLIT_ENABLED).toBe(true);
   });
 
-  it('пока сплит выключен, catalogSiteUrl остаётся на платформе', () => {
+  it('catalogSiteUrl: ТЦ → malllist, БЦ → платформа', () => {
     expect(catalogSiteUrl('bc')).toBe('https://redevelopment.pro/minsk/bc');
-    expect(catalogSiteUrl('tc')).toBe('https://redevelopment.pro/minsk/tc');
+    expect(catalogSiteUrl('tc')).toBe('https://malllist.pro/minsk/tc');
     expect(absoluteCatalogUrl('bc', '/minsk/bc/titan')).toBe('https://redevelopment.pro/minsk/bc/titan');
+    expect(absoluteCatalogUrl('tc', '/minsk/tc/dana-mall')).toBe('https://malllist.pro/minsk/tc/dana-mall');
   });
 
   it('siteIdForPath различает каталоги и платформу', () => {
@@ -34,17 +40,31 @@ describe('sites / domain split', () => {
     expect(siteIdForPath('/admin/purchases')).toBe('platform');
   });
 
-  it('пока сплит выключен, crossDomainRedirect ничего не делает', () => {
+  it('siteIdFromHostname — только прод-хосты (для своего счётчика)', () => {
+    expect(siteIdFromHostname('redevelopment.pro')).toBe('platform');
+    expect(siteIdFromHostname('www.redevelopment.pro')).toBe('platform');
+    expect(siteIdFromHostname('malllist.pro')).toBe('malls');
+    expect(siteIdFromHostname('www.malllist.pro')).toBe('malls');
+    expect(siteIdFromHostname('offiselist.pro')).toBe('offices');
+    expect(siteIdFromHostname('localhost')).toBeNull();
+    expect(siteIdFromHostname('domain-split-catalogs-5bba.vercel.app')).toBeNull();
+  });
+
+  it('crossDomainRedirect: ТЦ с платформы → malllist, БЦ не трогает', () => {
+    expect(crossDomainRedirect('redevelopment.pro', '/minsk/tc')).toBe('https://malllist.pro/minsk/tc');
+    expect(crossDomainRedirect('redevelopment.pro', '/minsk/tc/dana-mall')).toBe(
+      'https://malllist.pro/minsk/tc/dana-mall',
+    );
+    expect(crossDomainRedirect('www.redevelopment.pro', '/minsk/tc')).toBe('https://malllist.pro/minsk/tc');
     expect(crossDomainRedirect('redevelopment.pro', '/minsk/bc')).toBeNull();
-    expect(crossDomainRedirect('offiselist.pro', '/minsk/bc')).toBeNull();
+    expect(crossDomainRedirect('malllist.pro', '/minsk/tc')).toBeNull();
+    expect(crossDomainRedirect('malllist.pro', '/')).toBeNull();
   });
 });
 
-describe('sites / domain split (логика при enabled)', () => {
-  // Эти кейсы дублируют правила из crossDomainRedirect, но с явным
-  // ожиданием целевых URL — чтобы не сломать SEO-карту при правках.
-  // Сам флаг в JSON сейчас false, поэтому гоняем через локальную копию
-  // правил (как в middleware), а не через live-функцию.
+describe('sites / domain split (логика при enabled обоих)', () => {
+  // Эти кейсы дублируют правила из crossDomainRedirect при полном сплите.
+  // Сейчас offices ещё false — гоняем через локальную копию правил.
 
   function redirectWhenEnabled(host: string, pathname: string): string | null {
     const bare = host.replace(/^www\./, '').toLowerCase();

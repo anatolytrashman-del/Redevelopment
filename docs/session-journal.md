@@ -3,6 +3,13 @@
 Хронологический список, что уже сделано — не дублировать работу, не переспрашивать то,
 что уже решено. Дополнять новыми записями сверху, старые не переписывать.
 
+- **2026-10-10 — ТЦ cutover + счётчик malllist.** `redirects.malls=true`:
+  301 с redevelopment → malllist, sitemap платформы без `/minsk/tc`,
+  пререндер/шеллы ТЦ только на malllist, IndexNow host-aware +
+  `indexnow-malls-migration.mjs`. Свой счётчик: колонка `site` в
+  `page_views_daily`/`search_visits_daily` (platform|malls|offices) —
+  задел под общий дашборд; трекер пишет и на malllist.pro.
+
 - **2026-10-10 — malllist: бренд, главная, редиректы, Яндекс.** OG-карточки
   с «M»/malllist.pro (не копия с платформы); фавикон красная M;
   главная по ритму CasinoList без манифеста «честной модели»;

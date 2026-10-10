@@ -13,8 +13,8 @@ const yesterday: MetrikaDailyStat = {
 describe('site metrics regression: own visits exist before Metrika reports today', () => {
   it('shows all of today’s paths without waiting for a Metrika row', () => {
     const merged = mergeSiteDailyStats([yesterday], [
-      { day: '2026-10-03', path: '/', entries: 7, views: 9 },
-      { day: '2026-10-03', path: '/minsk/bc', entries: 5, views: 8 },
+      { day: '2026-10-03', path: '/', site: 'platform', entries: 7, views: 9 },
+      { day: '2026-10-03', path: '/minsk/bc', site: 'platform', entries: 5, views: 8 },
     ]);
     expect(selectMetricsPeriod(merged, 'today', '2026-10-03')).toEqual([{
       date: '2026-10-03', visits: 12, users: 12, pageviews: 17,
@@ -25,7 +25,7 @@ describe('site metrics regression: own visits exist before Metrika reports today
   });
 
   it('works with own data alone and does not double-count overlapping sources', () => {
-    const own = [{ day: '2026-10-02', path: '/', entries: 12, views: 10 }];
+    const own = [{ day: '2026-10-02', path: '/', site: 'platform' as const, entries: 12, views: 10 }];
     expect(mergeSiteDailyStats([], own)[0]).toMatchObject({ visits: 12, users: 12, pageviews: 10 });
     expect(mergeSiteDailyStats([yesterday], own)[0]).toMatchObject({
       visits: 12, users: 12, pageviews: 15, bounceRate: 0, pageDepth: 5,

@@ -13,7 +13,46 @@ import {
 import type { BusinessCenter } from '../../data/businessCenters';
 import { useCatalogKind, type CatalogKind } from '../../lib/catalogKind';
 import { SiteBrandLogo } from '../layout/SiteBrandLogo';
-import { deployedSiteMode } from '../../lib/sites';
+import {
+  absoluteCatalogUrl,
+  deployedSiteMode,
+  REDIRECT_MALLS_ENABLED,
+  REDIRECT_OFFICES_ENABLED,
+} from '../../lib/sites';
+
+/** Ссылка шапки: после сплита доменов — абсолютная на чужой каталог (без 301). */
+function CatalogNavLink({
+  to,
+  className,
+  children,
+}: {
+  to: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const mode = deployedSiteMode();
+  const isTc = to === '/minsk/tc' || to.startsWith('/minsk/tc/');
+  const isBc = to === '/minsk/bc' || to.startsWith('/minsk/bc/');
+  if (REDIRECT_MALLS_ENABLED && mode !== 'malls' && isTc) {
+    return (
+      <a href={absoluteCatalogUrl('tc', to)} className={className}>
+        {children}
+      </a>
+    );
+  }
+  if (REDIRECT_OFFICES_ENABLED && mode !== 'offices' && isBc) {
+    return (
+      <a href={absoluteCatalogUrl('bc', to)} className={className}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link to={to} className={className}>
+      {children}
+    </Link>
+  );
+}
 
 // Сквозная верхняя шапка каталога БЦ (владелец, 2026-09-22: «делаем верхнее
 // меню, пусть оно будет сквозным для каталога БЦ»). До неё каждая из пяти
@@ -320,13 +359,13 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
             entry.kind === 'ratings' ? (
               <RatingsDropdown key="ratings" pathname={pathname} links={ratingLinks} />
             ) : (
-              <Link
+              <CatalogNavLink
                 key={entry.to}
                 to={entry.to}
                 className={cn(linkClass(activeTop?.to === entry.to), 'hidden md:block')}
               >
                 {entry.label}
-              </Link>
+              </CatalogNavLink>
             ),
           )}
         </nav>
@@ -504,7 +543,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
                   </div>
                 </div>
               ) : (
-                <Link
+                <CatalogNavLink
                   key={entry.to}
                   to={entry.to}
                   className={cn(
@@ -513,7 +552,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
                   )}
                 >
                   {entry.label}
-                </Link>
+                </CatalogNavLink>
               ),
             )}
           </div>

@@ -83,9 +83,9 @@ origin → `malllist.pro`, главная `/` рендерится честно.
 | `"redirects.malls": true` | только ТЦ → malllist.pro (БЦ остаётся на платформе) |
 | `"redirects.offices": true` | только БЦ → offiselist.pro |
 
-Сейчас всё `false`. Каталоги на платформе; malllist.pro уже отдаёт
-свой деплой с `PUBLIC_SITE=malls` (canonical на malllist), но платформа
-ещё не 301-ит `/minsk/tc…`.
+Сейчас: `"redirects.malls": true`, `"redirects.offices": false`.
+Каталог ТЦ уехал на malllist.pro (301 с платформы, sitemap без `/minsk/tc`,
+свой счётчик с `site=malls`). БЦ пока на redevelopment.pro.
 
 Дубликат логики для Node-скриптов: `scripts/domainSplit.mjs`.
 Правила редиректа: `src/lib/sites.ts` (`crossDomainRedirect`).
@@ -170,10 +170,11 @@ curl -s 'https://malllist.pro/' | rg yandex-verification
 
 ### 5. IndexNow / внутренние пинги
 
-После включения обновить `scripts/notify-indexnow.mjs` и
-`scripts/indexnow-submit.mjs`, чтобы пинговать URL всех трёх host
-(ключ `public/<key>.txt` уже общий на проекте). Пока сплит выключен —
-пингуется только redevelopment.pro, как раньше.
+`scripts/notify-indexnow.mjs` берёт host из `DEPLOYED_SITE_MODE`
+(platform → redevelopment.pro, malls → malllist.pro). Разовый пинг
+переезда ТЦ: `node scripts/indexnow-malls-migration.mjs --from-live`
+(ключ `public/<key>.txt` общий). Change of Address / «Переезд сайта» в
+GSC/Вебмастере для частичного переноса не использовать.
 
 ### 6. Аналитика
 

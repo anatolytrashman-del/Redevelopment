@@ -80,7 +80,12 @@ import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
 import { tradeCenterPaths } from './_tcPaths.mjs';
-import { DEPLOYED_SITE_MODE, MALLS_ORIGIN, PLATFORM_ORIGIN } from './domainSplit.mjs';
+import {
+  DEPLOYED_SITE_MODE,
+  MALLS_ORIGIN,
+  PLATFORM_ORIGIN,
+  REDIRECT_MALLS_ENABLED,
+} from './domainSplit.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
 const DIST_DIR = join(ROOT_DIR, 'dist');
@@ -1055,6 +1060,9 @@ async function main() {
   const landingPaths = IS_MALLS_DEPLOY ? [] : await fetchLandingPaths();
   // malllist: только главная + privacy + каталог ТЦ (эталонные снапшоты
   // копируются с платформы). Остальной сайт на этом деплое не отдаётся.
+  // Платформа при redirects.malls: ТЦ не пререндерим — иначе статика в
+  // dist/minsk/tc могла бы ответить 200 до Edge-редиректа.
+  const includeTcOnPlatform = !REDIRECT_MALLS_ENABLED;
   const paths = IS_MALLS_DEPLOY
     ? ['', 'privacy', ...tradeCenterCatalogPaths()]
     : [
@@ -1064,7 +1072,7 @@ async function main() {
         ...(await fetchMicrodistrictHubPaths()),
         ...(await fetchMetroHubPaths()),
         ...(await fetchStreetHubPaths()),
-        ...tradeCenterCatalogPaths(),
+        ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
         ...STATIC_PATHS,
       ];
   if (paths.length === 0) {
@@ -1075,6 +1083,8 @@ async function main() {
     console.log(
       `[prerender] режим malls: ${paths.length} путей (главная + privacy + ТЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
     );
+  } else if (REDIRECT_MALLS_ENABLED) {
+    console.log('[prerender] redirects.malls: каталог ТЦ не пререндерю (живёт на malllist.pro)');
   }
   // PRERENDER_ONLY=префикс[,префикс…] — только для локальных замеров/отладки:
   // оставить пути, начинающиеся с одного из префиксов (например

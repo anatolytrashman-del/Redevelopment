@@ -9,7 +9,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectTcStoreHubs } from './_tcPaths.mjs';
-import { catalogOrigin } from './domainSplit.mjs';
+import { catalogOrigin, DEPLOYED_SITE_MODE, REDIRECT_MALLS_ENABLED } from './domainSplit.mjs';
+
+// На платформе после переезда ТЦ шеллы /minsk/tc/store/* не кладём в dist —
+// иначе статикой мог бы уехать 200 вместо 301 на malllist.
+if (DEPLOYED_SITE_MODE === 'platform' && REDIRECT_MALLS_ENABLED) {
+  console.log('[tc-store-seo-shells] redirects.malls — пропускаю (шеллы только на malllist)');
+  process.exit(0);
+}
 
 const DIST_DIR = 'dist';
 const SITE_ORIGIN = catalogOrigin('tc');
