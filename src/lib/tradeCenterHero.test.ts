@@ -10,9 +10,11 @@ import {
   tcFirstFunName,
   tcFoodPointsCount,
   tcHeroInsideLines,
+  tcFitPoints,
   tcHeroPhotoLead,
   tcHeroSubtitle,
   tcMeaningfulAltNames,
+  tcMustHaveItems,
   tcParkingShort,
   tcParkingSpaces,
   tcQuickJumpChips,
@@ -302,5 +304,24 @@ describe('tcHeroPhotoLead / tcHeroInsideLines / tcMeaningfulAltNames', () => {
 
   it('alt-имена без дублей формата', () => {
     expect(tcMeaningfulAltNames('ТРЦ «Замок»', ['ТРЦ «Замок»', 'ТЦ «Замок»', 'Zamok'])).toEqual(['Zamok']);
+  });
+
+  it('must-have — парковка/якоря/развлечения без статуса часов', () => {
+    const items = tcMustHaveItems(info, { parkingShort: 'более 2000 мест', metroLabel: '«Победителей» · 400\u00a0м' });
+    expect(items.map((i) => i.kind)).toEqual(['parking', 'metro', 'anchor', 'fun', 'food']);
+    expect(items.some((i) => /открыт|закрыт/i.test(i.value))).toBe(false);
+  });
+
+  it('fit — win/lose только из фактов карточки', () => {
+    const points = tcFitPoints(info, {
+      parkingSpaces: '2000',
+      tenantCount: 477,
+      hasMetro: true,
+      totalArea: 93000,
+    });
+    expect(points.some((p) => p.side === 'win' && /кино.*каток|каток.*кино/i.test(p.text))).toBe(true);
+    expect(points.some((p) => p.side === 'win' && /парковк/i.test(p.text))).toBe(true);
+    expect(points.filter((p) => p.side === 'win').length).toBeLessThanOrEqual(3);
+    expect(points.filter((p) => p.side === 'lose').length).toBeLessThanOrEqual(3);
   });
 });

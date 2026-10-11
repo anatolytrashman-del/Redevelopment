@@ -35,10 +35,12 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [],
   const hasUnique = hasSearch && floors.length > 0 && uniqueBrands.length >= 3;
   if (!hasSearch && !floors.length) return null;
   const approximateCount = Math.floor(shopCount / 10) * 10;
-  const subtitle = [
-    floors.length ? `${floors.length} ${pluralRu(floors.length, 'уровень', 'уровня', 'уровней')}` : '',
-    shopCount ? `около ${approximateCount} ${pluralRu(approximateCount, 'магазина', 'магазинов', 'магазинов')}, кафе и сервисов` : '',
-  ].filter(Boolean).join(', ');
+  // Превью спойлера — быстрый ответ, подробности внутри (владелец, 2026-10-11).
+  const subtitle = floors[0]
+    ? `${formatFloorBadge(floors[0].floor)} эт. — ${floors[0].theme}`
+    : shopCount
+      ? `около ${approximateCount} ${pluralRu(approximateCount, 'магазина', 'магазинов', 'магазинов')}`
+      : 'Схема этажей и поиск магазина';
   const select = (org: TenantOrganizationView) => { setQuery(org.name); setSelected(org); };
 
   return (

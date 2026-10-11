@@ -582,20 +582,29 @@ export function floorSortKey(floor: string): number | null {
   return match[2] ? -value : value;
 }
 
+function compareFloors(a: string, b: string, direction: 1 | -1): number {
+  const ka = floorSortKey(a);
+  const kb = floorSortKey(b);
+  if (ka == null && kb == null) return 0;
+  if (ka == null) return 1;
+  if (kb == null) return -1;
+  return (ka - kb) * direction;
+}
+
 /**
- * Этажи сверху вниз, как их видит человек на поэтажном указателе: самый
- * верхний первым, подземные последними. Строки без номера — в самом конце,
- * в исходном порядке (sort стабилен).
+ * Этажи сверху вниз, как на поэтажном указателе: самый верхний первым,
+ * подземные последними. Строки без номера — в конце (sort стабилен).
  */
 export function sortFloorsTopDown<T extends { floor: string }>(floors: T[]): T[] {
-  return [...floors].sort((a, b) => {
-    const ka = floorSortKey(a.floor);
-    const kb = floorSortKey(b.floor);
-    if (ka == null && kb == null) return 0;
-    if (ka == null) return 1;
-    if (kb == null) return -1;
-    return kb - ka;
-  });
+  return [...floors].sort((a, b) => compareFloors(a.floor, b.floor, -1));
+}
+
+/**
+ * Этажи по порядку номеров снизу вверх (1 → 2–3 → 4): владелец, 2026-10-11,
+ * «везде по порядку». Диапазон «2–3» берёт ключ 2 (floorSortKey), не NaN.
+ */
+export function sortFloorsInOrder<T extends { floor: string }>(floors: T[]): T[] {
+  return [...floors].sort((a, b) => compareFloors(a.floor, b.floor, 1));
 }
 
 /** Подпись бейджа: "-1" → "−1" (типографский минус), "2-3" → "2–3". */

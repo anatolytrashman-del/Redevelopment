@@ -4,6 +4,27 @@ import type { TenantOrganizationView } from '../data/businessCenterTenants';
 export interface UniqueBrand { name: string; label: string }
 interface Shop { name: string; rubric: string | null; reviewCount: number | null }
 
+// Локальные копии floorSortKey / sortFloorsInOrder из tradeCenterRetail.ts:
+// generate-catalog-data.mjs подключает этот файл data:URL без графа импортов.
+// Меняешь ключ этажа там — поправь и здесь (сверяет tradeCenterGuide.test.ts).
+function floorSortKey(floor: string): number | null {
+  const match = floor.match(/(^|[^\d])([-−–]?)\s*(\d+)/);
+  if (!match) return null;
+  const value = Number(match[3]);
+  return match[2] ? -value : value;
+}
+
+function sortFloorsInOrder<T extends { floor: string }>(floors: T[]): T[] {
+  return [...floors].sort((a, b) => {
+    const ka = floorSortKey(a.floor);
+    const kb = floorSortKey(b.floor);
+    if (ka == null && kb == null) return 0;
+    if (ka == null) return 1;
+    if (kb == null) return -1;
+    return ka - kb;
+  });
+}
+
 export function normalizeSearchText(value: string): string {
   return value.trim().toLowerCase().replace(/ё/g, 'е');
 }
@@ -94,14 +115,23 @@ export interface GuideFloor { floor: string; theme: string; brands: string[] }
 export function buildFloorBoard(guide: RetailFloorEntry[], orgs: TenantOrganizationView[]): GuideFloor[] {
   const groups = new Map<string, TenantOrganizationView[]>();
   for (const org of orgs) if (org.floor) groups.set(org.floor, [...(groups.get(org.floor) ?? []), org]);
-  const floorNumber = (floor: string) => Number(floor.replace(/[−–]/gu, '-'));
   // Гид ограничивает торговые уровни, чтобы не добавлять башню отеля (владелец, 2026-09-25).
+  // Порядок — по номерам снизу вверх; «2–3» через floorSortKey (не Number('2-3')=NaN).
   let floors = guide.length ? [...new Set(guide.map((entry) => entry.floor))] : [...groups.keys()];
   if (!guide.length) {
-    const dense = floors.filter((floor) => (groups.get(floor)?.length ?? 0) >= 5).map(floorNumber).filter(Number.isFinite);
-    if (dense.length) floors = floors.filter((floor) => !Number.isFinite(floorNumber(floor)) || floorNumber(floor) <= Math.max(...dense));
+    const dense = floors
+      .filter((floor) => (groups.get(floor)?.length ?? 0) >= 5)
+      .map((floor) => floorSortKey(floor))
+      .filter((n): n is number => n != null);
+    if (dense.length) {
+      const maxDense = Math.max(...dense);
+      floors = floors.filter((floor) => {
+        const key = floorSortKey(floor);
+        return key == null || key <= maxDense;
+      });
+    }
   }
-  return floors.sort((a, b) => (Number.isFinite(floorNumber(b)) ? floorNumber(b) : -Infinity) - (Number.isFinite(floorNumber(a)) ? floorNumber(a) : -Infinity)).map((floor) => {
+  const rows = floors.map((floor) => {
     const onFloor = groups.get(floor) ?? [];
     const brands = popularShops(onFloor, 3).map((org) => org.name);
     const entries = guide.filter((entry) => entry.floor === floor);
@@ -114,6 +144,7 @@ export function buildFloorBoard(guide: RetailFloorEntry[], orgs: TenantOrganizat
     }
     return { floor, theme: upperFirst([...categories].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([label]) => label).join(' и ')), brands };
   });
+  return sortFloorsInOrder(rows);
 }
 
 export function uniqueBrandsByCenter(centers: { slug: string; kind: string; organizations: Shop[] }[]): Map<string, UniqueBrand[]> {

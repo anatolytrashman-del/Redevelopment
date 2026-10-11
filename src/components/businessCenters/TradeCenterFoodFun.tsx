@@ -238,7 +238,7 @@ export function TradeCenterFunCard({ fun, title, index }: { fun: RetailFunEntry[
     <RetailCategorySpoiler
       id="fun"
       label={title}
-      subtitle="Кино, детские зоны и активности"
+      subtitle={sorted.slice(0, 3).map((entry) => entry.name).join(' · ')}
       meta={`${sorted.length} ${pluralRu(sorted.length, 'площадка', 'площадки', 'площадок')}`}
       index={index}
     >

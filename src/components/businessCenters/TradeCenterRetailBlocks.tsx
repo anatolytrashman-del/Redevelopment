@@ -47,6 +47,7 @@ export function TradeCenterRetailBlocks({
   organizations,
   slug,
   after,
+  sectionIndex,
 }: {
   info: RetailInfo | null;
   slug: string;
@@ -56,6 +57,8 @@ export function TradeCenterRetailBlocks({
   /** Каталог арендаторов — с 2026-09-25 живёт внутри «Путеводителя», не отдельным блоком. */
   organizations: TenantOrganizationView[];
   after?: (id: RetailSectionId) => ReactNode;
+  /** Глобальный номер из меню «На странице» — чтобы нумерация шла сквозь всю карточку. */
+  sectionIndex?: (id: string) => number | undefined;
 }) {
   const [extra, setExtra] = useState<{ slug: string; data: BcExtraFile | null }>(() => ({ slug, data: peekBcExtra(slug) }));
   useEffect(() => {
@@ -66,13 +69,10 @@ export function TradeCenterRetailBlocks({
   }, [slug]);
   const uniqueBrands = extra.slug === slug ? extra.data?.uniqueBrands : undefined;
   if (!info) {
-    return <TradeCenterGuide key={slug} info={null} organizations={organizations} name={name} uniqueBrands={uniqueBrands} index={1} />;
+    return <TradeCenterGuide key={slug} info={null} organizations={organizations} name={name} uniqueBrands={uniqueBrands} index={sectionIndex?.('floors') ?? 1} />;
   }
   const ids = retailSectionIds(info, organizations.length > 0);
-  const n = (id: RetailSectionId) => {
-    const pos = ids.indexOf(id);
-    return pos >= 0 ? pos + 1 : undefined;
-  };
+  const n = (id: RetailSectionId) => sectionIndex?.(id) ?? (ids.indexOf(id) >= 0 ? ids.indexOf(id) + 1 : undefined);
 
   // Старый досуг — только у ТЦ без «Где поесть»/«Развлечений».
   const leisure = sortLeisure(leisureForPage(info));

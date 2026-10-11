@@ -67,7 +67,7 @@ export function CategorySpoiler({
       >
         {index != null && (
           <span
-            className="hidden w-8 shrink-0 font-mono text-[11px] font-bold tracking-[0.16em] text-[#c45c3a]/55 sm:block"
+            className="w-7 shrink-0 font-mono text-[11px] font-bold tracking-[0.16em] text-[#c45c3a]/55 sm:w-8"
             aria-hidden="true"
           >
             {String(index).padStart(2, '0')}
@@ -94,11 +94,19 @@ export function CategorySpoiler({
             {meta}
           </span>
         ) : null}
+        {/* Подпись + шеврон: владелец, 2026-10-11 — иконку раскрытия сделать
+            нагляднее. group-open меняет «Ещё» → «Свернуть». */}
         <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#e8d0c4] bg-white/80 text-[#c45c3a]/70 transition-colors group-open:border-[#e0b9a8] group-open:text-[#c45c3a]"
+          className={cn(
+            'flex shrink-0 items-center gap-1 rounded-full border border-[#e0b9a8] bg-[#ffe8dc] px-2.5 py-1.5',
+            'text-[11px] font-bold uppercase tracking-[0.12em] text-[#c45c3a]',
+            'transition-colors group-open:border-[#c45c3a]/40 group-open:bg-white',
+          )}
           aria-hidden="true"
         >
-          <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
+          <span className="group-open:hidden">Ещё</span>
+          <span className="hidden group-open:inline">Свернуть</span>
+          <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-180" />
         </span>
       </summary>
       <div className="flex flex-col gap-4 border-t border-[#efdfd4] px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">

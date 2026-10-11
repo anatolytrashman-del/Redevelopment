@@ -5,17 +5,25 @@ import { moreFactsLabel } from '../../lib/tradeCenterFactsReviews';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 import { pluralRu } from '../../lib/pluralRu';
 
-export function TradeCenterFactCards({ facts }: { facts: NonNullable<RetailInfo['factCards']> }) {
+export function TradeCenterFactCards({
+  facts,
+  index,
+}: {
+  facts: NonNullable<RetailInfo['factCards']>;
+  index?: number;
+}) {
   const [expanded, setExpanded] = useState(false);
   if (!facts.length) return null;
   const visible = expanded ? facts : facts.slice(0, 6);
+  const preview = facts[0]?.headline ?? 'Короткие детали, которых нет в шапке';
   return (
     <CategorySpoiler
       id="facts"
       title="Интересные факты"
-      subtitle="Короткие детали, которых нет в шапке"
+      subtitle={preview}
       meta={`${facts.length} ${pluralRu(facts.length, 'факт', 'факта', 'фактов')}`}
       icon={Lightbulb}
+      index={index}
     >
       <div className="grid gap-x-7 sm:grid-cols-2">
         {visible.map((fact, index) => (

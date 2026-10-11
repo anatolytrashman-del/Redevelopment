@@ -392,3 +392,112 @@ export function tcMeaningfulAltNames(name: string, altNames: string[]): string[]
     return n.length > 0 && n !== base;
   });
 }
+
+export type TcMustHaveKind = 'parking' | 'fun' | 'food' | 'anchor' | 'hours' | 'metro';
+
+export interface TcMustHaveItem {
+  kind: TcMustHaveKind;
+  label: string;
+  value: string;
+  href?: string;
+}
+
+/**
+ * Must-have саммари для первого экрана: парковка, якорь, развлечения, еда —
+ * то, что человек хочет узнать за 3 секунды (владелец, 2026-10-11).
+ * Без дубля статуса «открыто» — он уже в блоке «Сейчас».
+ */
+export function tcMustHaveItems(info: RetailInfo | null, opts?: {
+  parkingShort?: string | null;
+  metroLabel?: string | null;
+}): TcMustHaveItem[] {
+  if (!info) return [];
+  const items: TcMustHaveItem[] = [];
+  if (opts?.parkingShort) {
+    items.push({ kind: 'parking', label: 'Парковка', value: opts.parkingShort, href: '#getting-here' });
+  }
+  if (opts?.metroLabel) {
+    items.push({ kind: 'metro', label: 'Метро', value: opts.metroLabel, href: '#getting-here' });
+  }
+  const anchors = anchorsForPage(info).slice(0, 2);
+  if (anchors.length) {
+    items.push({
+      kind: 'anchor',
+      label: 'Якоря',
+      value: anchors.map((a) => a.name).join(' · '),
+      href: '#anchors',
+    });
+  }
+  const fun = sortFun(info.fun).slice(0, 3);
+  if (fun.length) {
+    items.push({
+      kind: 'fun',
+      label: 'Развлечения',
+      value: fun.map((entry) => funLeadLabel(entry)).join(' · '),
+      href: '#fun',
+    });
+  }
+  const foodCount = info.food?.places.length ?? 0;
+  if (foodCount > 0) {
+    items.push({
+      kind: 'food',
+      label: 'Еда',
+      value: `${foodCount}\u00a0${pluralRu(foodCount, 'заведение', 'заведения', 'заведений')}`,
+      href: '#food',
+    });
+  }
+  return items.slice(0, 6);
+}
+
+export interface TcFitPoint {
+  side: 'win' | 'lose';
+  text: string;
+}
+
+/**
+ * «Кому подойдёт» в духе casinolist: в чём ТЦ выигрывает / проигрывает
+ * типичным ожиданиям. Только из фактов карточки — без выдуманных рейтингов.
+ */
+export function tcFitPoints(info: RetailInfo | null, params: {
+  parkingSpaces: string | null;
+  tenantCount: number;
+  hasMetro: boolean;
+  totalArea: number | null;
+}): TcFitPoint[] {
+  if (!info) return [];
+  const points: TcFitPoint[] = [];
+  const funKinds = new Set(info.fun.map((f) => f.kind));
+  const foodCount = info.food?.places.length ?? 0;
+  const parkingN = params.parkingSpaces ? Number(String(params.parkingSpaces).replace(/[^\d]/g, '')) : null;
+
+  if (funKinds.has('cinema') && funKinds.has('ice')) {
+    points.push({ side: 'win', text: 'Если нужна связка кино + каток в одном ТЦ — здесь оба.' });
+  } else if (funKinds.has('cinema') || funKinds.has('kids')) {
+    points.push({ side: 'win', text: 'Если едете с детьми или в кино — развлечения на месте.' });
+  }
+  if (parkingN != null && parkingN >= 1000) {
+    points.push({ side: 'win', text: `Если важна большая парковка — около ${params.parkingSpaces} мест.` });
+  } else if (!params.parkingSpaces) {
+    points.push({ side: 'lose', text: 'Если без парковки никуда — отдельной сводки мест на карточке нет.' });
+  }
+  if (foodCount >= 15) {
+    points.push({ side: 'win', text: `Если планируете поесть здесь — ${foodCount} ${pluralRu(foodCount, 'заведение', 'заведения', 'заведений')}.` });
+  } else if (foodCount > 0 && foodCount < 8) {
+    points.push({ side: 'lose', text: 'Если ищете большой фуд-выбор — точек питания немного.' });
+  }
+  if (params.hasMetro) {
+    points.push({ side: 'win', text: 'Если удобнее на метро — станция рядом указана в проезде.' });
+  } else {
+    points.push({ side: 'lose', text: 'Если нужна станция метро у входа — в карточке её нет.' });
+  }
+  if (params.tenantCount >= 300) {
+    points.push({ side: 'win', text: `Если нужен крупный состав — ${params.tenantCount} магазинов и сервисов.` });
+  }
+  if (params.totalArea != null && params.totalArea < 40000) {
+    points.push({ side: 'lose', text: 'Если сравниваете с крупнейшими ТРЦ города — площадь скромнее.' });
+  }
+  // Не больше 3+3, без пустого «всё хорошо».
+  const wins = points.filter((p) => p.side === 'win').slice(0, 3);
+  const loses = points.filter((p) => p.side === 'lose').slice(0, 3);
+  return [...wins, ...loses];
+}

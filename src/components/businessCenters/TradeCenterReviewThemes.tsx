@@ -3,21 +3,28 @@ import type { HighlightRatingEntry } from '../../lib/businessCenterDisplay';
 import { reviewThemeColumns, reviewThemesShowShares, reviewThemesVisible, reviewThemeWidth, type ReviewThemes } from '../../lib/tradeCenterFactsReviews';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 
-export function TradeCenterReviewThemes({ themes, rating, yandexUrl }: {
+export function TradeCenterReviewThemes({ themes, rating, yandexUrl, index }: {
   themes: ReviewThemes;
   rating?: HighlightRatingEntry;
   yandexUrl?: string;
+  index?: number;
 }) {
   const columns = reviewThemeColumns(themes);
   if (!reviewThemesVisible(themes)) return null;
   const shares = reviewThemesShowShares(themes);
+  const preview = rating
+    ? `${rating.value} на Яндекс Картах`
+    : themes.reviewCount
+      ? `${themes.reviewCount.toLocaleString('ru-RU')} отзывов`
+      : 'Темы из отзывов в Яндекс Картах';
   return (
     <CategorySpoiler
       id="reviews"
       title="Что говорят посетители"
-      subtitle="Темы из отзывов в Яндекс Картах"
+      subtitle={preview}
       meta={themes.reviewCount ? `${themes.reviewCount.toLocaleString('ru-RU')} отзывов` : null}
       icon={MessageSquare}
+      index={index}
     >
       {rating && (
         <div className="rounded-[20px] border border-border bg-white px-5 py-4 sm:max-w-72">

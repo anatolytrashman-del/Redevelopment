@@ -104,10 +104,11 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
 
 export function TradeCenterAnchorsCard({ anchors, index }: { anchors: RetailAnchorEntry[]; index?: number }) {
   if (!anchors.length) return null;
+  const preview = anchors.slice(0, 2).map((a) => a.name).join(' · ');
   return (
     <RetailCategorySpoiler
       id="anchors"
-      subtitle="Ради кого чаще всего едут в этот ТЦ"
+      subtitle={preview || 'Ради кого чаще всего едут в этот ТЦ'}
       meta={`${anchors.length} ${pluralRu(anchors.length, 'якорь', 'якоря', 'якорей')}`}
       index={index}
     >

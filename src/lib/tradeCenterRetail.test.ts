@@ -66,6 +66,7 @@ import {
   normalizeRetailInfo,
   vacanciesFaqAnswer,
   retailSectionIds,
+  sortFloorsInOrder,
   sortFloorsTopDown,
 } from './tradeCenterRetail';
 
@@ -118,10 +119,11 @@ describe('floorSortKey', () => {
   });
 });
 
-describe('sortFloorsTopDown', () => {
-  it('сверху вниз: верхний первым, подземные и безномерные в конце', () => {
+describe('sortFloorsTopDown / sortFloorsInOrder', () => {
+  it('сверху вниз и по порядку номеров; диапазон 2–3 не NaN', () => {
     const floors = ['1', '-1', '2–3', 'цоколь', '6', '−2', '4'].map((floor) => ({ floor }));
     expect(sortFloorsTopDown(floors).map((f) => f.floor)).toEqual(['6', '4', '2–3', '1', '-1', '−2', 'цоколь']);
+    expect(sortFloorsInOrder(floors).map((f) => f.floor)).toEqual(['−2', '-1', '1', '2–3', '4', '6', 'цоколь']);
   });
 
   it('не меняет исходный массив', () => {

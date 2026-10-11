@@ -50,11 +50,14 @@ export function PhotoBlock({
   variant,
   fit = 'cover',
   sizes,
+  imgClassName,
 }: {
   center: BusinessCenter;
   variant: 'card' | 'detail';
   fit?: 'cover' | 'contain';
   sizes?: string;
+  /** Доп. классы на `<img>` (object-position и т.п.). */
+  imgClassName?: string;
 }) {
   const detail = variant === 'detail';
   const curatedPhoto = CURATED_BUSINESS_CENTER_PHOTOS[center.slug];
@@ -79,7 +82,7 @@ export function PhotoBlock({
         srcSet={photo.srcSet}
         sizes={photo.srcSet ? (sizes ?? (detail ? BC_DETAIL_PHOTO_SIZES : BC_CARD_PHOTO_SIZES)) : undefined}
         alt={photo.alt}
-        className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
+        className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}${imgClassName ? ` ${imgClassName}` : ''}`}
         loading={detail ? 'eager' : 'lazy'}
         fetchPriority={detail ? 'high' : 'auto'}
         width={detail ? 1200 : 640}
@@ -168,11 +171,11 @@ export function FactTile({
       {Icon && (
         <span
           className={
-            'flex shrink-0 items-center justify-center rounded-full ' +
-            (muted ? 'h-8 w-8 bg-white/70 text-ink-muted' : 'h-9 w-9 bg-surface-muted text-ink')
+            'flex shrink-0 items-center justify-center rounded-xl ' +
+            (muted ? 'h-8 w-8 bg-[#fff1e8] text-[#c45c3a]' : 'h-9 w-9 bg-surface-muted text-ink')
           }
         >
-          <Icon className="h-4 w-4" />
+          <Icon className="h-4 w-4" strokeWidth={1.75} />
         </span>
       )}
       {text ? (
