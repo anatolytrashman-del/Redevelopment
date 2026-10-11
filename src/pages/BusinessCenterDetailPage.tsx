@@ -2799,10 +2799,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           <div
             className={cn(
               'grid',
-              // ТЦ: фото шире — широкий фасад меньше режется по бокам
-              // (владелец, 2026-10-11: «фотка не влезает»).
+              // ТЦ: фото шире правой сводки; items-start — колонка фото не
+              // тянется по высоте текста (иначе cover режет квадратный кадр).
               isTc
-                ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch'
+                ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-start'
                 : 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]',
             )}
           >
@@ -2817,24 +2817,23 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 Появится неквадратное фото — cover обрежет его по короткой
                 стороне, как и раньше; заводить под это отдельную логику
                 незачем, пока съёмка идёт в квадрат. На планшете (md,
-                768–1023) квадрат во всю ширину занимал бы 768 px высоты —
-                весь первый экран под одним фото, поэтому там 4:3.
-                У ТЦ на lg: колонка на всю высоту правой сводки (без дыры
-                под квадратом), cover заполняет без полей; колонка шире
-                1.15fr — меньше боковой обрезки фасада. */}
+                768–1023) у БЦ квадрат во всю ширину занимал бы 768 px
+                высоты — весь первый экран под одним фото, поэтому там 4:3.
+                У ТЦ на всех ширинах — квадрат: файл 1200×1200, а растяжка
+                колонки под высоту сводки + cover обрезала фасад по бокам
+                (владелец, 2026-10-11: «фотка обрезается по полям»). */}
                         <div
               className={cn(
-                'relative aspect-square w-full overflow-hidden bg-surface-muted/70 md:aspect-[4/3]',
+                'relative aspect-square w-full overflow-hidden bg-surface-muted/70',
                 isTc
-                  ? 'lg:aspect-auto lg:h-full lg:min-h-[24rem] lg:self-stretch'
-                  : 'lg:aspect-auto lg:min-h-[28rem]',
+                  ? 'lg:self-start'
+                  : 'md:aspect-[4/3] lg:aspect-auto lg:min-h-[28rem]',
               )}
             >
               <PhotoBlock
                 center={center}
                 variant="detail"
                 fit="cover"
-                imgClassName={isTc ? 'lg:absolute lg:inset-0 lg:h-full lg:w-full' : undefined}
               />
               {/* Владелец, 2026-09-20: "если БЦ построен, вообще убирай тег
                   Работает — помечаем только строящиеся". Достроенное здание
