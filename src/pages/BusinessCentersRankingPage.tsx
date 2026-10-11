@@ -4,6 +4,7 @@ import { ArrowRight, Award } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
+import { catalogSiteUrl } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -37,7 +38,7 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 // Само число оценок теперь видно в каждой строке: это единственное, по чему
 // читатель может понять, чему верить (mapRatingFromHighlights.count).
 const DATE_PUBLISHED = '2026-09-07';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bc/rating';
+const PAGE_URL = `${catalogSiteUrl('bc')}/rating`;
 const TITLE = `Лучшие бизнес-центры Минска: рейтинг класса A с оценкой от ${RATING_THRESHOLD_LABEL}`;
 // 160 символов — бюджет сниппета, см. комментарий в BusinessCentersGuidePage.
 const DESCRIPTION =
@@ -239,14 +240,14 @@ export function BusinessCentersRankingPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: 'Рейтинг' },
     ]);
   }, []);
 
   useEffect(() => {
     if (ranking.length === 0) return;
-    setItemListJsonLd(ranking.map((r) => ({ name: shortName(r.center), url: `https://redevelopment.pro/minsk/bc/${r.center.slug}` })));
+    setItemListJsonLd(ranking.map((r) => ({ name: shortName(r.center), url: `${catalogSiteUrl('bc')}/${r.center.slug}` })));
     setFaqJsonLd(faqItems);
   }, [ranking, faqItems]);
 

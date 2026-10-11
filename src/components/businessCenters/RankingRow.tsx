@@ -15,10 +15,21 @@ export function Cell({ label, children }: { label: string; children: React.React
   );
 }
 
-export function RankingRow({ center, place, cells }: { center: BusinessCenter; place: number; cells: React.ReactNode }) {
+export function RankingRow({
+  center,
+  place,
+  cells,
+  // Каталог ТЦ использует тот же ряд (2026-10-04); по умолчанию — БЦ, как было.
+  basePath = '/minsk/bc',
+}: {
+  center: BusinessCenter;
+  place: number;
+  cells: React.ReactNode;
+  basePath?: string;
+}) {
   return (
     <Link
-      to={`/minsk/bc/${center.slug}`}
+      to={`${basePath}/${center.slug}`}
       className={cn('group flex items-start gap-4 p-4 transition-colors hover:border-primary/40', glassCardClass)}
       style={glassCardShadow}
     >

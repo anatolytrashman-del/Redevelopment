@@ -16,9 +16,16 @@ it('показывает шесть фактов, остальные досту�
 });
 
 it('скрывает блок при малой выборке и пустых темах', () => {
-  expect(renderToStaticMarkup(createElement(TradeCenterReviewThemes, { themes: { ...themes, reviews: 99 } }))).toBe('');
+  expect(renderToStaticMarkup(createElement(TradeCenterReviewThemes, { themes: { ...themes, reviews: 19 } }))).toBe('');
   expect(renderToStaticMarkup(createElement(TradeCenterReviewThemes, { themes: { ...themes, praise: [], complaints: [] } }))).toBe('');
   expect(renderToStaticMarkup(createElement(TradeCenterReviewThemes, { themes: { ...themes, reviews: 100 } }))).toContain('id="reviews"');
+});
+
+it('до 100 отзывов показывает темы без процентов', () => {
+  const small = renderToStaticMarkup(createElement(TradeCenterReviewThemes, { themes: { ...themes, reviews: 40 } }));
+  expect(small).toContain('id="reviews"');
+  expect(small).not.toContain('%');
+  expect(renderToStaticMarkup(createElement(TradeCenterReviewThemes, { themes: { ...themes, reviews: 100 } }))).toContain('%');
 });
 
 it('выводит рейтинг и общий счётчик, без краткого пересказа и методики', () => {

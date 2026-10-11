@@ -65,9 +65,17 @@ import { BulkSendModal } from '../components/suppliers/BulkSendModal';
 import { RequestPricesModal } from '../components/suppliers/RequestPricesModal';
 import { SupplierMergeModal, type SupplierMergePlan } from '../components/suppliers/SupplierMergeModal';
 import { SupplierCatalog } from '../components/suppliers/SupplierCatalog';
+import { conversationKeyOf } from '../components/suppliers/correspondenceInbox';
 import { PriceComparisonCard } from '../components/suppliers/PriceComparisonCard';
 import { PurchaseOrdersTab } from '../components/suppliers/PurchaseOrdersTab';
+import { PurchasesOverview, isNewPurchaseQuote } from '../components/suppliers/PurchasesOverview';
 import { QuoteUploadModal } from '../components/suppliers/QuoteUploadModal';
+import type { UnmatchedIncomingEmail } from '../data/unmatchedIncomingEmails';
+import { fetchUnmatchedIncomingEmails } from '../lib/unmatchedIncomingEmailsApi';
+import type { PurchaseDelivery } from '../data/purchaseDeliveries';
+import { fetchAllPurchaseDeliveries } from '../lib/purchaseDeliveriesApi';
+import type { PurchaseOrder } from '../data/purchaseOrders';
+import { fetchPurchaseOrders } from '../lib/purchaseOrdersApi';
 import { lotTotal } from '../components/suppliers/bestPriceReport';
 import type { LedgerAttachment } from '../lib/materialLedgerXlsx';
 import type { EmailTemplate } from '../data/emailTemplates';
@@ -207,10 +215,21 @@ function siteLabel(url: string): string {
 // же днём убрал первую версию с редактируемым чек-листом категорий — "не
 // будем отмечать категории вручную". См.
 // components/suppliers/SupplierVerificationTab.tsx.
-// Владелец, 2026-09-28: порядок пунктов — Письма, Сравнение цен, Поставщики,
-// Ведомости материалов, Заказы. Первая вкладка — она же открывается по
-// голому /admin/purchases (см. fallback у `tab` ниже).
-const SUPPLIER_TABS = ['Письма', 'Сравнение цен', 'Поставщики', 'Верификация', 'Ведомости материалов', 'Заказы'] as const;
+// Владелец, 2026-10-09: порядок вкладок = цепочка с лендинга закупок
+// (ведомость → рассылка → сравнение → согласование/поставки), но первой
+// не ведомость (редко открывают), а стартовый «Обзор» с парой уведомлений.
+// Рассылка = каталог «Поставщики» + «Письма» (кнопка «Запросить цены»).
+// Согласование и поставки живут на «Заказы» (лист из сравнения → заказ →
+// привоз). Верификация по-прежнему скрыта из пилюли (см. ниже).
+const SUPPLIER_TABS = [
+  'Обзор',
+  'Ведомости материалов',
+  'Поставщики',
+  'Письма',
+  'Сравнение цен',
+  'Заказы',
+  'Верификация',
+] as const;
 type SupplierTab = (typeof SUPPLIER_TABS)[number];
 
 // Владелец, 2026-09-15: "вкладку Верификация убираем из верхнего меню и
@@ -231,6 +250,7 @@ const VISIBLE_SUPPLIER_TABS = SUPPLIER_TABS.filter((t) => t !== 'Верифик�
 // названия — если вкладку когда-нибудь переименуют, старые сохранённые
 // ссылки не должны сломаться.
 const SUPPLIER_TAB_SLUGS: Record<SupplierTab, string> = {
+  Обзор: 'overview',
   'Поставщики': 'suppliers',
   'Верификация': 'verification',
   'Сравнение цен': 'comparison',
@@ -1157,7 +1177,7 @@ export function Suppliers() {
   // любых хуков ниже не спрячется — поэтому отдельной строкой здесь, а не
   // внутри useEffect: сама страница в этом случае не нужна вовсе.
   const movedToOwnPage = searchParams.get('tab') === 'contractors';
-  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Письма';
+  const tab: SupplierTab = SLUG_TO_SUPPLIER_TAB[searchParams.get('tab') ?? ''] ?? 'Обзор';
   const comparisonCategoryId = searchParams.get('cat') ?? '';
   function setComparisonParam(key: string, value: string | null) {
     setSearchParams(
@@ -1183,6 +1203,8 @@ export function Suppliers() {
           params.delete('category');
           params.delete('offer');
           params.delete('order');
+          params.delete('supplier');
+          params.delete('filter');
         }
         return params;
       },
@@ -1226,7 +1248,22 @@ export function Suppliers() {
   // «Массовая отправка» — кнопка в шапке вкладки, категория выбирается в
   // маленьком окне перед пикером ведомости.
   // «Запросить цены» — рассылка от ведомости (2026-09-28, RequestPricesModal).
-  const [requestPricesOpen, setRequestPricesOpen] = useState(false);
+  // С карточки поставщика приходим с ?action=request-prices (2026-10-09).
+  const [requestPricesOpen, setRequestPricesOpen] = useState(
+    () => searchParams.get('action') === 'request-prices',
+  );
+  useEffect(() => {
+    if (searchParams.get('action') !== 'request-prices') return;
+    setRequestPricesOpen(true);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete('action');
+        return params;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
   const [bulkSendConfig, setBulkSendConfig] = useState<{ request: SupplierRequest; attachment: LedgerAttachment } | null>(null);
 
   const [requests, setRequests] = useState<SupplierRequest[]>([]);
@@ -1327,6 +1364,12 @@ export function Suppliers() {
   // Все КП поставщиков (data/supplierQuotes.ts) — несколько счетов в одной
   // ветке переписки больше не схлопываются в карточку, см. сравнение цен.
   const [supplierQuotes, setSupplierQuotes] = useState<SupplierQuote[]>([]);
+  // Данные стартового «Обзора»: неразобранные письма, поставки, заказы.
+  // Письма вкладка «Письма» грузит сама ещё раз — тут отдельная копия ради
+  // счётчика на обзоре, без связки с фильтром переписки.
+  const [overviewUnmatched, setOverviewUnmatched] = useState<UnmatchedIncomingEmail[]>([]);
+  const [overviewDeliveries, setOverviewDeliveries] = useState<PurchaseDelivery[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   // Загрузка КП «в 1 клик» (владелец, 2026-09-16). Диалог тоже на уровне
   // страницы, а не внутри карточки поставки: он как раз для случая, когда
   // поставка заранее неизвестна — её определяет сервер по самому документу.
@@ -1378,15 +1421,11 @@ export function Suppliers() {
   const reliabilityByInn = useMemo(() => new Map(reliability.map((r) => [r.inn, r])), [reliability]);
   // Снимки сайтов (что поставляет компания) — по домену, см.
   // data/supplierSiteSnapshots.ts; карточка находит свой по websiteUrl.
-  // Табл. большая (~1400 строк) и грузится отдельным независимым запросом
-  // (см. useEffect ниже) — заметно дольше, чем offers/requests, которые
-  // решают общий `loading`. Раньше `SupplierCatalog`/`SupplierVerificationTab`
-  // открывались сразу по `!loading`, ещё до того, как siteSnapshots долетели:
-  // числа на плитках каталога сперва считались только по "домашней" категории
-  // строки закупки (snapshotByHost пуст), а через момент подскакивали вверх,
-  // когда снимки дозагружались и добавляли совпадения по товарным группам —
-  // видимый баг "сначала маленькая цифра, потом большая" (владелец,
-  // 2026-09-13). siteSnapshotsLoading — отдельный флаг именно под это.
+  // Табл. большая (~1400 строк) и грузится отдельно. С 2026-10-09 каталог
+  // больше НЕ ждёт полный проход: хабы рисуются сразу по offers, а числа
+  // добираются по мере прихода страниц снимков (onPartial). Раньше ждали
+  // всё целиком из-за «прыжка» цифр (2026-09-13) — для демо важнее быстрый
+  // общий список; уточнение идёт полоской «Сверяем с сайтами…».
   const [siteSnapshots, setSiteSnapshots] = useState<SupplierSiteSnapshot[]>([]);
   const [siteSnapshotsLoading, setSiteSnapshotsLoading] = useState(true);
   const snapshotByHost = useMemo(() => new Map(siteSnapshots.map((s) => [s.host, s])), [siteSnapshots]);
@@ -1410,18 +1449,42 @@ export function Suppliers() {
   }
 
   useEffect(() => {
-    Promise.all([fetchSupplierRequests(), fetchSupplierOffers()])
-      .then(([r, o]) => {
-        setRequests(r);
-        setOffers(o);
+    let cancelled = false;
+    // Каталог открываем, как только есть первая порция карточек + запросы:
+    // не ждём хвост >1000 и не ждём снимки сайтов.
+    Promise.all([
+      fetchSupplierRequests().then((r) => {
+        if (!cancelled) setRequests(r);
+        return r;
+      }),
+      fetchSupplierOffers((partial) => {
+        if (cancelled) return;
+        setOffers(partial);
+        setLoading(false);
+      }),
+    ])
+      .then(([, o]) => {
+        if (!cancelled) setOffers(o);
       })
-      .catch((err) => setLoadError(errorMessage(err, 'Не удалось загрузить поставщиков')))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!cancelled) setLoadError(errorMessage(err, 'Не удалось загрузить поставщиков'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     fetchSupplierReliability().then(setReliability).catch(() => setReliability([]));
-    fetchSupplierSiteSnapshots()
-      .then(setSiteSnapshots)
-      .catch(() => setSiteSnapshots([]))
-      .finally(() => setSiteSnapshotsLoading(false));
+    fetchSupplierSiteSnapshots((partial) => {
+      if (!cancelled) setSiteSnapshots(partial);
+    })
+      .then((all) => {
+        if (!cancelled) setSiteSnapshots(all);
+      })
+      .catch(() => {
+        if (!cancelled) setSiteSnapshots([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSiteSnapshotsLoading(false);
+      });
     fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchLegalEntities().then(setLegalEntities).catch(() => setLegalEntities([]));
@@ -1441,23 +1504,25 @@ export function Suppliers() {
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => setSupplierQuotes([]));
+    fetchUnmatchedIncomingEmails().then(setOverviewUnmatched).catch(() => setOverviewUnmatched([]));
+    fetchAllPurchaseDeliveries().then(setOverviewDeliveries).catch(() => setOverviewDeliveries([]));
+    fetchPurchaseOrders().then(setPurchaseOrders).catch(() => setPurchaseOrders([]));
     fetchTodayRate().then(setRate).catch(() => setRate(undefined));
     fetchSupplierEnrichmentJobs().then(setEnrichmentJobs).catch(() => setEnrichmentJobs([]));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Владелец, 2026-09-03: "в ведомости по умолчанию всегда выбран Red One" —
-  // единственный объект с landingSlug 'one' (см. SEO_OVERRIDES в
-  // lib/pageMeta.ts — тот же признак используется там для той же цели).
-  // Срабатывает один раз, как только оба списка подгрузились и смета ещё не
-  // выбрана вручную — не перезаписывает осознанный выбор пользователя.
+  // Владелец, 2026-10-09: в ведомости по умолчанию «Смета Зелёный» (общая
+  // смета без объекта). Раньше был Red One по landingSlug 'one'. Срабатывает
+  // один раз, пока смету не выбрали вручную.
   useEffect(() => {
-    if (ledgerEstimateId || estimates.length === 0 || objects.length === 0) return;
-    const redOne = objects.find((o) => o.landingSlug === 'one');
-    if (!redOne) return;
-    const redOneEstimate = estimates.find((e) => e.objectId === redOne.id);
-    if (redOneEstimate) setLedgerEstimateId(redOneEstimate.id);
+    if (ledgerEstimateId || estimates.length === 0) return;
+    const green = estimates.find((e) => /зелен/i.test((e.title ?? '').replace(/ё/g, 'е')));
+    if (green) setLedgerEstimateId(green.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estimates, objects]);
+  }, [estimates]);
 
   // Владелец, 2026-09-03: "нужно, чтобы новые письма подгружались и были
   // уведомления даже когда страница открыта... сейчас страницу нужно
@@ -2358,6 +2423,7 @@ export function Suppliers() {
         isAlternative,
         alternativeNote: isAlternative ? note : '',
         sourceEmailId: quote.sourceEmailId,
+        isTest: quote.isTest,
       });
       setSupplierQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
     } catch (err) {
@@ -2447,6 +2513,21 @@ export function Suppliers() {
 
   const unreadSupplierEmailsCount = countUnreadSupplierEmails(supplierEmails);
   const pendingVerificationCount = pendingVerificationHostCount(offers, siteSnapshots);
+  // Тестовые КП только на обзоре — в таблицу сравнения их не пускаем, чтобы
+  // демо-сиды не ломали «лучшую цену» по живым категориям.
+  const comparisonQuotes = useMemo(() => supplierQuotes.filter((q) => !q.isTest), [supplierQuotes]);
+  const overviewAttentionCount =
+    supplierQuotes.filter((q) => isNewPurchaseQuote(q)).length +
+    overviewUnmatched.length +
+    overviewDeliveries.filter((d) => {
+      if (d.status === 'cancelled' || d.status === 'accepted' || !d.plannedDate) return false;
+      const today = new Date();
+      const from = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const to = new Date(from);
+      to.setDate(to.getDate() + 2);
+      const day = new Date(`${d.plannedDate}T12:00:00`);
+      return !Number.isNaN(day.getTime()) && day >= from && day <= to;
+    }).length;
   // Подписи категорий закупки для вкладки «Заказы»: заказ хранит request_id,
   // а показывать надо название категории — запросы на странице и так есть,
   // отдельным запросом их тянуть незачем.
@@ -2459,8 +2540,8 @@ export function Suppliers() {
   return (
     <>
       {/* Заголовок совпадает с пунктом меню (data/pages.ts, 'purchases').
-          Владелец, 2026-09-12: раздел снова называется "Закупки"; вкладка
-          "Поставщики" — первая внутри него, это разные уровни. */}
+          Владелец, 2026-09-12: раздел снова называется "Закупки"; вкладки
+          внутри — цепочка процесса, старт с «Обзора». */}
       <PageHeader title="Закупки" action={supplierAddButton} />
 
       {/* Ряд шапки: меню раздела, сразу за ним пилюля ИИ-закупщика, кнопки
@@ -2471,7 +2552,7 @@ export function Suppliers() {
           options={[...VISIBLE_SUPPLIER_TABS]}
           value={tab}
           onChange={(v) => setTab(v as SupplierTab)}
-          badges={{ Письма: unreadSupplierEmailsCount }}
+          badges={{ Обзор: overviewAttentionCount, Письма: unreadSupplierEmailsCount }}
         />
         {/* Владелец, 2026-09-15: "справа от нашего меню выведем статус онлайна
             ИИ-закупщика и покажем его последнее действие". Данные пилюля тянет
@@ -2487,7 +2568,7 @@ export function Suppliers() {
               знать), в какой поставке он должен оказаться. */}
           {/* Владелец, 2026-09-28: на вкладке «Письма» кнопки нет — там КП
               и так приходят письмами. */}
-          {tab !== 'Письма' && (
+          {tab !== 'Письма' && tab !== 'Обзор' && (
             <Button type="button" variant="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => setQuoteUploadOpen(true)}>
               Загрузить КП
             </Button>
@@ -2510,9 +2591,32 @@ export function Suppliers() {
         </div>
       </div>
 
+      {tab === 'Обзор' && (
+        <PurchasesOverview
+          quotes={supplierQuotes}
+          offers={offers}
+          unmatched={overviewUnmatched}
+          deliveries={overviewDeliveries}
+          orders={purchaseOrders}
+          onOpenComparison={() => setTab('Сравнение цен')}
+          onOpenUnmatched={() => {
+            setSearchParams(
+              (prev) => {
+                const params = new URLSearchParams(prev);
+                params.set('tab', SUPPLIER_TAB_SLUGS['Письма']);
+                params.set('filter', 'unmatched');
+                return params;
+              },
+              { replace: true },
+            );
+          }}
+          onOpenOrders={() => setTab('Заказы')}
+        />
+      )}
+
       {tab === 'Поставщики' && (
       <div className="mt-6 flex flex-col gap-8">
-        {(loading || siteSnapshotsLoading) && (
+        {loading && offers.length === 0 && (
           <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
             <Loader2 className="h-4 w-4 animate-spin" />
             Загружаем поставщиков...
@@ -2520,20 +2624,36 @@ export function Suppliers() {
         )}
         {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
 
-        {/* Каталог поставщиков: хабы → категории → компании, как большие
-            карточки у ВсеИнструменты (владелец, 2026-09-12). Числа на плитках
-            считаются и по «домашним» карточкам категории, и по товарным
-            группам со снимков сайтов — см. components/suppliers/SupplierCatalog.
-            Ждём siteSnapshotsLoading, а не только loading — иначе цифры сперва
-            посчитаны без снимков сайтов (меньше) и через момент подскакивают
-            вверх, когда снимки дозагрузятся (см. комментарий у siteSnapshots). */}
-        {!loading && !loadError && !siteSnapshotsLoading && (
+        {/* Каталог: хабы сразу после первой порции offers. Снимки сайтов
+            догружаются частями — числа на плитках уточняются без блокировки
+            общего списка (владелец, 2026-10-09). */}
+        {!loadError && offers.length > 0 && (
           <SupplierCatalog
             offers={offers}
             requests={requests}
             snapshotByHost={snapshotByHost}
+            snapshotsLoading={siteSnapshotsLoading}
+            emails={supplierEmails}
+            quotes={supplierQuotes}
+            orders={purchaseOrders}
             onOpenDetail={(o) => setDetailOfferId(o.id)}
-              onAddSupplier={() => openNewOffer(null)}
+            onAddSupplier={() => openNewOffer(null)}
+            onRequestPrices={() => setRequestPricesOpen(true)}
+            onOpenLetters={(offer) => {
+              setSearchParams(
+                (prev) => {
+                  const params = new URLSearchParams(prev);
+                  params.set('tab', SUPPLIER_TAB_SLUGS['Письма']);
+                  params.set('supplier', conversationKeyOf(offer));
+                  params.delete('filter');
+                  params.delete('offer');
+                  params.delete('order');
+                  params.delete('category');
+                  return params;
+                },
+                { replace: true },
+              );
+            }}
           />
         )}
 
@@ -2544,7 +2664,7 @@ export function Suppliers() {
             перезагружала бы всех поставщиков и снимки заново. Счётчик очереди
             переехал сюда же с верхней пилюли; когда очередь пуста, число не
             рисуем вовсе (0 в бейдже выглядел бы как «есть задача»). */}
-        {!loading && !loadError && !siteSnapshotsLoading && (
+        {!loadError && offers.length > 0 && (
           <button
             type="button"
             onClick={() => setTab('Верификация')}
@@ -2564,16 +2684,16 @@ export function Suppliers() {
 
       {tab === 'Верификация' && (
         <div className="mt-6">
-          {/* Тот же баг, что у каталога (см. комментарий у siteSnapshots) —
-              очередь верификации тоже читает snapshotByHost, ждём и её. */}
-          {(loading || siteSnapshotsLoading) && (
+          {/* Верификация тоже не ждёт полный проход снимков: очередь живая
+              по уже пришедшим страницам, остальное дорисуется. */}
+          {loading && offers.length === 0 && (
             <Card className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
               Загружаем поставщиков...
             </Card>
           )}
           {!loading && loadError && <Card className="py-10 text-center text-sm text-danger">{loadError}</Card>}
-          {!loading && !loadError && !siteSnapshotsLoading && (
+          {!loadError && offers.length > 0 && (
             <SupplierVerificationTab
               offers={offers}
               snapshots={siteSnapshots}
@@ -2634,7 +2754,7 @@ export function Suppliers() {
                     request={r}
                     offers={offers.filter((o) => o.requestId === r.id)}
                     emails={supplierEmails}
-                    quotes={supplierQuotes}
+                    quotes={comparisonQuotes}
                     rate={rate}
                     onOpenDetail={(o) => setDetailOfferId(o.id)}
                     enrichmentState={enrichmentState}
@@ -2654,7 +2774,7 @@ export function Suppliers() {
                     positions={requestPositions(r)}
                     offers={offers.filter((o) => o.requestId === r.id)}
                     emails={supplierEmails}
-                    quotes={supplierQuotes}
+                    quotes={comparisonQuotes}
                     rate={rate}
                     estimates={estimates}
                     // Страна юрлица категории — запасная ставка НДС для

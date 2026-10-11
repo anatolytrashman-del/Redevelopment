@@ -1,4 +1,4 @@
-import type { AiAgentHeartbeat } from '../data/aiAgents';
+import type { AiAgent, AiAgentHeartbeat } from '../data/aiAgents';
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
 
@@ -7,6 +7,38 @@ export interface AiAgentActivity {
   label: string;
   // ISO-время завершения.
   doneAt: string;
+}
+
+// Разворачивает staticActivity: абсолютный doneAt или относительный daysAgo
+// от «сейчас» (пол для демо не протухает между деплоями).
+export function materializeStaticActivity(
+  staticActivity: AiAgent['staticActivity'] | null | undefined,
+  now: Date = new Date(),
+): AiAgentActivity | null {
+  if (!staticActivity?.label) return null;
+  if (staticActivity.daysAgo != null) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - staticActivity.daysAgo);
+    // Фиксируем время дня, чтобы подпись не прыгала каждую минуту.
+    d.setHours(11, 24, 0, 0);
+    return { label: staticActivity.label, doneAt: d.toISOString() };
+  }
+  if (staticActivity.doneAt) return { label: staticActivity.label, doneAt: staticActivity.doneAt };
+  return null;
+}
+
+// Берём более свежий след: живой RPC или статический пол. Так «позавчера
+// отправил письмо» перекрывает месячную давность из базы, а реальная свежая
+// работа агента снова выходит наверх.
+export function resolveAiAgentActivity(
+  live: AiAgentActivity | null | undefined,
+  staticActivity: AiAgent['staticActivity'] | null | undefined,
+  now: Date = new Date(),
+): AiAgentActivity | null {
+  const floor = materializeStaticActivity(staticActivity, now);
+  if (!live) return floor;
+  if (!floor) return live;
+  return live.doneAt >= floor.doneAt ? live : floor;
 }
 
 interface ActivityRow {

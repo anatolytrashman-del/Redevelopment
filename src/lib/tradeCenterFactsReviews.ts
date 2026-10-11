@@ -7,6 +7,22 @@ export function moreFactsLabel(count: number): string {
   return `Ещё ${count} ${pluralRu(count, 'факт', 'факта', 'фактов')}`;
 }
 
+// Сводка отзывов ТЦ (владелец, 2026-09-30: «не список всех отзывов, а
+// сводка»). От REVIEW_THEMES_MIN_REVIEWS разобранных отзывов показываем темы;
+// доли в процентах — только от REVIEW_THEMES_SHARE_MIN_REVIEWS: на 30
+// отзывах «7%» — это два человека, и цифра выглядит точнее, чем она есть.
+// Меньше порога — блока нет вовсе: дословный список отзывов у ТЦ не выводим.
+export const REVIEW_THEMES_MIN_REVIEWS = 20;
+export const REVIEW_THEMES_SHARE_MIN_REVIEWS = 100;
+
+export function reviewThemesVisible(themes: ReviewThemes | null | undefined): boolean {
+  return Boolean(themes && themes.reviews >= REVIEW_THEMES_MIN_REVIEWS && reviewThemeColumns(themes).length);
+}
+
+export function reviewThemesShowShares(themes: ReviewThemes): boolean {
+  return themes.reviews >= REVIEW_THEMES_SHARE_MIN_REVIEWS;
+}
+
 export function reviewThemeColumns(themes: ReviewThemes) {
   return [
     { key: 'praise', title: 'Хвалят', color: '#2f8f4e', items: themes.praise },
@@ -22,7 +38,7 @@ export function reviewThemeWidth(share: number, themes: ReviewThemes): number {
 export function reviewThemesFaq(themes: ReviewThemes): string | null {
   const top = (items: ReviewThemes['praise'], count: number) => [...items]
     .sort((a, b) => b.share - a.share).slice(0, count)
-    .map((t) => `${t.theme} (${t.share}%)`).join('; ');
+    .map((t) => (reviewThemesShowShares(themes) ? `${t.theme} (${t.share}%)` : t.theme)).join('; ');
   const praise = top(themes.praise, 3);
   const complaints = top(themes.complaints, 2);
   return [praise && `Хвалят: ${praise}.`, complaints && `Жалуются: ${complaints}.`].filter(Boolean).join(' ') || null;

@@ -9,6 +9,7 @@ import { pluralRu } from './pluralRu';
 import { fullName, shortAddress, shortName } from './businessCenterDisplay';
 import { fitsSerpTitle } from './serpTitleWidth';
 import type { CatalogKind } from './catalogKind';
+import { catalogSiteUrl, deployedSiteMode, platformOrigin, SITES } from './sites';
 
 export interface PageMeta {
   title: string;
@@ -182,12 +183,12 @@ export function setArticleJsonLd(article: {
   });
 }
 
-// Organization — только на хабе /minsk (аудит поиска 2026-09-07: «Organization
-// на главной»). Отдельный слот в index.html, не article-json-ld — у хаба
-// нет статьи, а у гидов/каталога Article нужен сам по себе. Остальные
-// страницы вызывают с false при монтировании (через setGenericPageMeta/
-// setObjectPageMeta/setBusinessCenterPageMeta), чтобы при SPA-переходе с
-// хаба разметка организации не оставалась на чужой странице.
+// Organization — на главной платформы (/) и хабах каталогов (аудит поиска
+// 2026-09-07: «Organization на главной»). Отдельный слот в index.html, не
+// article-json-ld — у главной нет статьи, а у гидов/каталога Article нужен
+// сам по себе. Остальные страницы вызывают с false при монтировании (через
+// setGenericPageMeta/setObjectPageMeta/setBusinessCenterPageMeta), чтобы при
+// SPA-переходе разметка организации не оставалась на чужой странице.
 // ItemList — для рейтинговых/подборочных страниц (аудит поиска 2026-09-07,
 // «Лучшие бизнес-центры Минска — с методикой и датой»): каждый пункт —
 // ссылка на настоящую карточку БЦ с её позицией в списке. Единственный
@@ -232,6 +233,8 @@ export function setPlaceJsonLd(
     lat?: number | null;
     lng?: number | null;
     amenities?: string[];
+    /** Тип schema.org: 'Place' у БЦ, 'ShoppingCenter' у торговых центров. */
+    type?: 'Place' | 'ShoppingCenter';
   } | null,
 ) {
   const ld = document.getElementById('place-json-ld');
@@ -242,7 +245,7 @@ export function setPlaceJsonLd(
   }
   ld.textContent = JSON.stringify({
     '@context': 'https://schema.org',
-    '@type': 'Place',
+    '@type': place.type ?? 'Place',
     name: place.name,
     // alternateName — стандартное место для второго имени здания (БЦ «V» =
     // «Столица»): тот же объект, а не отдельное место на карте.
@@ -279,6 +282,30 @@ export function setOrganizationJsonLd(enabled: boolean) {
     ld.textContent = '';
     return;
   }
+  if (deployedSiteMode() === 'malls') {
+    ld.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: SITES.malls.brand,
+      url: SITES.malls.origin,
+      logo: `${SITES.malls.origin}/apple-touch-icon.png`,
+      description: 'Каталог торговых центров по городам. Карточки объектов, подборки и карта — начиная с Минска.',
+      areaServed: { '@type': 'City', name: 'Минск' },
+    });
+    return;
+  }
+  if (deployedSiteMode() === 'offices') {
+    ld.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: SITES.offices.brand,
+      url: SITES.offices.origin,
+      logo: `${SITES.offices.origin}/apple-touch-icon.png`,
+      description: 'Каталог бизнес-центров Минска: классы, районы, метро, улицы. Карточки объектов и подборки.',
+      areaServed: { '@type': 'City', name: 'Минск' },
+    });
+    return;
+  }
   ld.textContent = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'Organization',
@@ -287,8 +314,7 @@ export function setOrganizationJsonLd(enabled: boolean) {
     logo: 'https://redevelopment.pro/apple-touch-icon.png',
     image: DEFAULT_OG_IMAGE,
     description:
-      'Редевелопмент коммерческой недвижимости в Минске: справочник бизнес-центров, гиды по районам и аналитика рынка.',
-    areaServed: { '@type': 'City', name: 'Минск' },
+      'Умные модули для работы с недвижимостью: закупки, продажи и подбор. Решение остаётся за вами — модули закрывают рутину.',
   });
 }
 
@@ -585,12 +611,12 @@ export function setBusinessCenterPageMeta(
   // fallbackBusinessCenterMeta) ждёт его внутри записи — у одного здания,
   // «МФЦ (Минск Мир)», короткое имя задано именно по слагу.
   const meta = fallbackBusinessCenterMeta({ ...center, slug }, composition);
-  const url = `https://redevelopment.pro/minsk/bc/${slug}`;
+  const url = `${catalogSiteUrl('bc')}/${slug}`;
   // Фото БЦ хранятся локальными путями (public/images/business-centers/...,
   // см. data/businessCenters.ts), не абсолютными URL, как у Supabase Storage
   // объектов — og:image/JSON-LD image по спецификации должны быть абсолютными
   // (соцсети/краулеры фетчат их напрямую, не относительно страницы).
-  const absoluteImage = image ? new URL(image, 'https://redevelopment.pro').toString() : undefined;
+  const absoluteImage = image ? new URL(image, platformOrigin()).toString() : undefined;
 
   document.title = meta.title;
   setMetaContent('meta[name="description"]', meta.description);

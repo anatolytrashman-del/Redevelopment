@@ -111,6 +111,19 @@ export function fetchPurchaseOrdersByRequest(requestId: string): Promise<Purchas
   });
 }
 
+// Счётчик для шапки компании, без загрузки строк заказов.
+export function fetchPurchaseOrderCountBySupplier(supplierId: string): Promise<number> {
+  return withRetry(async () => {
+    const { count, error } = await supabase
+      .from('purchase_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('supplier_id', supplierId)
+      .is('deleted_at', null);
+    if (error) throw error;
+    return count ?? 0;
+  });
+}
+
 // Заказы одной компании — для раздела «Заказы и поставки» на странице
 // поставщика. Отдельная выборка, а не фильтр общего списка: заказов у одной
 // компании единицы, тянуть ради них все заказы организации незачем.

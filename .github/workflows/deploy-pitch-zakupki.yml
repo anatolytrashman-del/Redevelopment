@@ -1,0 +1,48 @@
+# Только лендинг закупок — без npm/vite/пререндера.
+# URL: https://anatolytrashman-del.github.io/Redevelopment/zakupki/
+name: Deploy pitch zakupki
+
+on:
+  push:
+    branches:
+      - claude/redevelopment-platform-prototype-oodobu
+      - preview
+      - 'cursor/**'
+    paths:
+      - 'public/zakupki.html'
+      - 'public/zakupki-static/**'
+      - '.github/workflows/deploy-pitch-zakupki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-pitch-zakupki
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage static site
+        run: |
+          mkdir -p _site/zakupki _site/zakupki-static
+          cp public/zakupki.html _site/zakupki/index.html
+          cp -a public/zakupki-static/. _site/zakupki-static/
+          # rewrite asset paths in pages copy already absolute to /zakupki-static
+          printf '%s\n' '<!DOCTYPE html><meta http-equiv="refresh" content="0;url=./zakupki/"><title>zakupki</title>' > _site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

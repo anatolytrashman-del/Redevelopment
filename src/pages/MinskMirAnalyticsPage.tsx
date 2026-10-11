@@ -341,9 +341,9 @@ export function MinskMirAnalyticsPage() {
           </p>
           <p className="text-sm text-ink-muted">
             Подробный гид по району (застройщик, транспорт, инфраструктура, аналитика по нишам бизнеса) —{' '}
-            <Link to="/minsk/minsk-mir" className="text-primary-hover hover:underline">
+            <a href="https://officelist.pro/minsk/minsk-mir" className="text-primary-hover hover:underline">
               на отдельной странице
-            </Link>
+            </a>
             . Методика расчёта общих аналитических страниц — на{' '}
             <Link to="/minsk/analytics/metodika" className="text-primary-hover hover:underline">
               странице методики

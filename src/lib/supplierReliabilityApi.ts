@@ -36,6 +36,17 @@ export function fetchSupplierReliability(): Promise<SupplierReliability[]> {
   });
 }
 
+// Одна запись по ИНН — для карточки компании, без выгрузки всей таблицы.
+export function fetchSupplierReliabilityByInn(inn: string): Promise<SupplierReliability | null> {
+  const key = inn.trim();
+  if (!key) return Promise.resolve(null);
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('supplier_reliability').select('*').eq('inn', key).maybeSingle();
+    if (error) throw error;
+    return data ? fromRow(data as SupplierReliabilityRow) : null;
+  });
+}
+
 interface CheckResponse {
   found: boolean;
   risks: RiskFlag[];

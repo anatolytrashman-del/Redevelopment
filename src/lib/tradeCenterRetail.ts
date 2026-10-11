@@ -954,11 +954,12 @@ export function anchorsFaqAnswer(anchors: RetailAnchorEntry[]): string | null {
  */
 export function retailHistoryFaqAnswer(timeline: RetailTimelineEntry[]): string | null {
   if (!timeline.length) return null;
+  // note — исследовательские отсылки к источникам; на странице и в FAQ
+  // оставляем только факт (название) и описание (text), как в карточке.
   return sortTimeline(timeline)
     .map((t) => {
       const when = upperFirst(formatRetailDate(t.date) ?? timelineYear(t));
-      const line = sentence(`${when} — ${t.name}${t.text ? `: ${t.text}` : ''}`);
-      return t.note ? `${line} ${sentence(upperFirst(t.note))}` : line;
+      return sentence(`${when} — ${t.name}${t.text ? `: ${t.text}` : ''}`);
     })
     .join('\n');
 }
@@ -1369,13 +1370,13 @@ export function awardsFaqAnswer(awards: RetailAwardEntry[], legacy: string[] = [
  */
 export function rankingFaqAnswer(ranking: RetailRankingEntry[]): string | null {
   if (!ranking.length) return null;
+  // note — исследовательские отсылки; в блоке рейтингов их нет, в FAQ тоже.
   return sortRanking(ranking)
     .map((entry) => {
       const v = rankingView(entry);
       const place = `${v.place}-е место${v.total != null ? ` из ${v.total}` : ''}${v.value ? `, ${v.value}` : ''}`;
       const cite = [v.source, v.year != null ? String(v.year) : null].filter(Boolean).join(', ');
-      const line = sentence(`${v.headline}${v.scope ? ` — ${v.scope}` : ''}: ${place}${cite ? ` (${cite})` : ''}`);
-      return v.note ? `${line} ${sentence(v.note)}` : line;
+      return sentence(`${v.headline}${v.scope ? ` — ${v.scope}` : ''}: ${place}${cite ? ` (${cite})` : ''}`);
     })
     .join('\n');
 }

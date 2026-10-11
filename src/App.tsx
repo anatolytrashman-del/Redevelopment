@@ -17,8 +17,11 @@ import { BusinessCentersAffordablePage } from './pages/BusinessCentersAffordable
 import { BusinessCentersGuidePage } from './pages/BusinessCentersGuidePage';
 import { BusinessCentersAnalyticsPage } from './pages/BusinessCentersAnalyticsPage';
 import { BusinessCenterDetailPage } from './pages/BusinessCenterDetailPage';
+import { TradeCentersRankingPage } from './pages/TradeCentersRankingPage';
+import { TradeCentersBiggestPage } from './pages/TradeCentersBiggestPage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { MinskHub } from './pages/MinskHub';
+import { PlatformHomePage } from './pages/PlatformHomePage';
 import { MarketAnalyticsHub } from './pages/MarketAnalyticsHub';
 import { OfficeAnalyticsPage } from './pages/OfficeAnalyticsPage';
 import { RetailAnalyticsPage } from './pages/RetailAnalyticsPage';
@@ -38,6 +41,7 @@ import { useOnlinePresenceTracker } from './lib/onlinePresence';
 import { trackPageView } from './lib/pageViewTracker';
 import { FavoritesProvider } from './lib/favoritesContext';
 import { CatalogKindProvider } from './lib/catalogKind';
+import { deployedSiteMode } from './lib/sites';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -269,6 +273,93 @@ function AdminChunkFallback() {
   );
 }
 
+/** Маршруты отдельного проекта malllist.pro — каталог ТЦ (как officelist → БЦ). */
+function MalllistRoutes() {
+  return (
+    <Routes>
+      {/* / — SPA-редирект на каталог; middleware не делает 307, чтобы meta
+          yandex-verification на корне оставалась читаемой (как у officelist). */}
+      <Route path="/" element={<Navigate to="/minsk/tc" replace />} />
+      <Route path="/minsk" element={<Navigate to="/minsk/tc" replace />} />
+      <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
+      <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
+      <Route
+        path="/minsk/tc/rating/largest"
+        element={<CatalogKindProvider kind="tc"><TradeCentersBiggestPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/district/:districtSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/metro/:metroSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/format/:formatSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/with/:topicSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route
+        path="/minsk/tc/store/:storeSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
+      <Route path="/favorites/:id" element={<FavoritesPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+/**
+ * Общие маршруты каталога БЦ — фрагмент (не компонент): `<Routes>` разворачивает
+ * только Fragment/Route как прямых детей, кастомный компонент не видит.
+ * ФАЙЛ-БЛИЗНЕЦ: односегментные /minsk/bc/<слово> ↔ sections в index.html
+ * (тест src/lib/businessCentersApi.test.ts).
+ */
+const businessCenterCatalogRoutes = (
+  <>
+    <Route path="/minsk/bc" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/new" element={<BusinessCentersMinskPage underConstruction />} />
+    <Route path="/minsk/bc/rating" element={<BusinessCentersRankingPage />} />
+    <Route path="/minsk/bc/rating/largest" element={<BusinessCentersBiggestPage />} />
+    <Route path="/minsk/bc/rating/class-b-plus" element={<BusinessCentersRankingBPlusPage />} />
+    <Route path="/minsk/bc/rating/class-b-c" element={<BusinessCentersRankingBCPage />} />
+    <Route path="/minsk/bc/rating/affordable" element={<BusinessCentersAffordablePage />} />
+    <Route path="/minsk/bc/guide" element={<BusinessCentersGuidePage />} />
+    <Route path="/minsk/bc/analytics" element={<BusinessCentersAnalyticsPage />} />
+    <Route path="/minsk/bc/class/:classSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/district/:districtSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/class/:classSlug/district/:districtSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/area/:microdistrictSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/metro/:metroSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/street/:streetSlug" element={<BusinessCentersMinskPage />} />
+    <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
+    <Route path="/bc/:slug" element={<BusinessCenterDetailPage ownerMode />} />
+  </>
+);
+
+/** Маршруты отдельного проекта officelist.pro — каталог БЦ + гид по районам. */
+function OfficelistRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/minsk/bc" replace />} />
+      <Route path="/minsk" element={<Navigate to="/minsk/bc" replace />} />
+      {businessCenterCatalogRoutes}
+      <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
+      <Route path="/minsk/minsk-mir/:topic" element={<MinskMirTopicPage />} />
+      <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
+      <Route path="/favorites/:id" element={<FavoritesPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   usePreventPageZoom();
   useScrollToTopOnNavigate();
@@ -276,18 +367,36 @@ export default function App() {
   useVkPageGoals();
   useOnlineVisitorPresence();
   useOwnPageViewCounter();
+
+  // Отдельный Vercel-проект malllist: env VITE_PUBLIC_SITE=malls.
+  if (deployedSiteMode() === 'malls') {
+    return (
+      <FavoritesProvider>
+        <MalllistRoutes />
+        <CookieBanner />
+      </FavoritesProvider>
+    );
+  }
+
+  // Отдельный Vercel-проект officelist: env VITE_PUBLIC_SITE=offices.
+  if (deployedSiteMode() === 'offices') {
+    return (
+      <FavoritesProvider>
+        <OfficelistRoutes />
+        <CookieBanner />
+      </FavoritesProvider>
+    );
+  }
+
   return (
     <FavoritesProvider>
     <Routes>
-      {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
-          Пока нет отдельного лендинга компании (см. SEO_PLAN.md, Э2-4), корень
-          временно ведёт на /minsk — city-scoped раздел (гиды по районам),
-          готовый к появлению других городов рядом без
-          переезда уже проиндексированных ссылок под /minsk. Импортированы
-          статически (не lazy) — это ровно те страницы, ради которых существует
-          бандл-сплиттинг выше: им нельзя добавлять лишний сетевой перелёт на
-          догрузку чанка. */}
-      <Route path="/" element={<Navigate to="/minsk" replace />} />
+      {/* Публичная часть — без AppLayout и без пароля. Корень (/) — главная
+          платформы модулей (PlatformHomePage, 2026-10-11). /minsk остаётся
+          city-scoped хабом. Импортированы статически (не lazy) — это ровно
+          те страницы, ради которых существует бандл-сплиттинг выше: им нельзя
+          добавлять лишний сетевой перелёт на догрузку чанка. */}
+      <Route path="/" element={<PlatformHomePage />} />
       <Route path="/minsk" element={<MinskHub />} />
       {/* Аналитика рынка (ANALYTICSPLAN.md) — бенчмарк-страницы с постоянным
           URL, месяц меняется в тексте, не в адресе. Регистрируются раньше
@@ -306,50 +415,17 @@ export default function App() {
       <Route path="/minsk/analytics/rajony" element={<DistrictsAnalyticsPage />} />
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/minsk/minsk-mir/:topic" element={<MinskMirTopicPage />} />
-      <Route path="/minsk/bc" element={<BusinessCentersMinskPage />} />
-      {/* ФАЙЛ-БЛИЗНЕЦ: каждый односегментный статический маршрут ниже
-          (/minsk/bc/<слово>, не ":slug") должен стоять и в списке
-          sections инлайн-скрипта index.html — иначе он примет раздел за
-          слаг здания и сходит за /data/bc/<слово>.json, которого нет.
-          Сверяет тест в src/lib/businessCentersApi.test.ts. */}
-      {/* Хаб-страницы по классу/району (Fable-анализ, 2026-09-06) — тот же
-          компонент, фильтр читается из useParams(), см. комментарий там же.
-          Регистрируются ДО ":slug", чтобы не конфликтовать с ним. */}
-      {/* Ось «строящиеся» (аудит поиска 2026-09-07) — тот же компонент с пропом. */}
-      <Route path="/minsk/bc/new" element={<BusinessCentersMinskPage underConstruction />} />
-      {/* Рейтинг «Лучшие бизнес-центры Минска» (аудит 2026-09-07) — отдельный компонент, не хаб-фильтр. */}
-      <Route path="/minsk/bc/rating" element={<BusinessCentersRankingPage />} />
-      <Route path="/minsk/bc/rating/largest" element={<BusinessCentersBiggestPage />} />
-      <Route path="/minsk/bc/rating/class-b-plus" element={<BusinessCentersRankingBPlusPage />} />
-      <Route path="/minsk/bc/rating/class-b-c" element={<BusinessCentersRankingBCPage />} />
-      <Route path="/minsk/bc/rating/affordable" element={<BusinessCentersAffordablePage />} />
-      <Route path="/minsk/bc/guide" element={<BusinessCentersGuidePage />} />
-      {/* Аналитика каталога БЦ (владелец, 2026-09-22) — вынесена сюда с
-          подвала каталога, см. комментарий в BusinessCentersAnalyticsPage.tsx. */}
-      <Route path="/minsk/bc/analytics" element={<BusinessCentersAnalyticsPage />} />
-      <Route path="/minsk/bc/class/:classSlug" element={<BusinessCentersMinskPage />} />
-      <Route path="/minsk/bc/district/:districtSlug" element={<BusinessCentersMinskPage />} />
-      {/* Пересечение класс×район (владелец, 2026-09-06: "структура урлов...
-          точечные страницы будут хорошо приняты поиском") — тот же
-          компонент, оба параметра сразу, регистрируется ПОСЛЕ одноосевых
-          хабов (react-router не заботит порядок непересекающихся паттернов,
-          но так рядом с ними явно видно, что это третий, более узкий
-          вариант того же роута), тоже ДО ":slug". */}
-      <Route path="/minsk/bc/class/:classSlug/district/:districtSlug" element={<BusinessCentersMinskPage />} />
-      {/* Хаб по неформальному микрорайону ("Уручье", "Малиновка" — владелец,
-          2026-09-07) — отдельная, не пересекающаяся с классом/районом ось,
-          не комбинируется с ними (см. комментарий у MICRODISTRICT_SLUGS). */}
-      <Route path="/minsk/bc/area/:microdistrictSlug" element={<BusinessCentersMinskPage />} />
-      {/* Хаб по станции метро (аудит 2026-09-07) — независимая ось, см. METRO_STATION_SLUGS. */}
-      <Route path="/minsk/bc/metro/:metroSlug" element={<BusinessCentersMinskPage />} />
-      {/* Хаб по улице (аудит 2026-09-07) — независимая ось, см. STREET_SLUGS. */}
-      <Route path="/minsk/bc/street/:streetSlug" element={<BusinessCentersMinskPage />} />
-      <Route path="/minsk/bc/:slug" element={<BusinessCenterDetailPage />} />
+      {businessCenterCatalogRoutes}
       {/* Каталог торговых центров (2026-09-23) — те же компоненты, что у
           каталога БЦ, со словарём и корнем /minsk/tc (src/lib/catalogKind.tsx).
-          Оси только район и метро; классов, рейтингов, аналитики и
-          справочника у ТЦ нет. Пока идёт сбор данных — noindex. */}
+          Оси: район, метро, формат, тематические /with/*, магазины /store/*; рейтинги
+          — отдельные страницы (2026-10-04). */}
       <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
+      <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
+      <Route
+        path="/minsk/tc/rating/largest"
+        element={<CatalogKindProvider kind="tc"><TradeCentersBiggestPage /></CatalogKindProvider>}
+      />
       <Route
         path="/minsk/tc/district/:districtSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
@@ -358,11 +434,22 @@ export default function App() {
         path="/minsk/tc/metro/:metroSlug"
         element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
       />
+      {/* Подборки по формату: «Рынки», «Мебельные центры», «Аутлеты» (2026-09-30), см. TC_FORMAT_HUBS. */}
+      <Route
+        path="/minsk/tc/format/:formatSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      {/* Тематические подборки /with/* (2026-10-04), см. TC_TOPIC_HUBS. */}
+      <Route
+        path="/minsk/tc/with/:topicSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
+      {/* Магазины /store/* — все бренды из tc-filters (2026-10-04). */}
+      <Route
+        path="/minsk/tc/store/:storeSlug"
+        element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>}
+      />
       <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
-      {/* Карточка БЦ для ссылки с сайта самого здания (владелец, 2026-09-24):
-          без шапки, соседей и объявлений, canonical — на /minsk/bc/:slug,
-          см. ownerMode в BusinessCenterDetailPage и rewrite в vercel.json. */}
-      <Route path="/bc/:slug" element={<BusinessCenterDetailPage ownerMode />} />
       <Route path="/plan/:token" element={<PublicBuildingPlan />} />
       <Route path="/tz/:token" element={<BriefPublicPage />} />
       <Route path="/summary/:token" element={<MeetingSummaryPublicPage />} />

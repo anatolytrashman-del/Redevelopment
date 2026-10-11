@@ -12,8 +12,13 @@
 // нет API для истории этого показателя по дням) — в остальных строках null.
 // impressions/clicks/avgPosition могут быть null, если Search Console ещё
 // не обработал этот день (обычный лаг 2-3 дня).
+import type { PageViewSiteId } from './pageViews';
+
+export type GscSiteId = PageViewSiteId;
+
 export interface GoogleSearchConsoleStat {
   date: string;
+  site: GscSiteId;
   pagesSubmitted: number | null;
   pagesIndexed: number | null;
   impressions: number | null;
@@ -23,6 +28,7 @@ export interface GoogleSearchConsoleStat {
 
 export interface GoogleSearchConsoleStatRow {
   date: string;
+  site: string;
   pages_submitted: number | null;
   pages_indexed: number | null;
   impressions: number | null;
@@ -44,6 +50,7 @@ export interface GoogleSearchConsoleStatRow {
 // объяснять это причиной, а не молчаливым «данных нет».
 export interface GoogleSearchConsoleQuery {
   query: string;
+  site: GscSiteId;
   impressions: number | null;
   clicks: number | null;
   ctr: number | null;
@@ -55,10 +62,66 @@ export interface GoogleSearchConsoleQuery {
 
 export interface GoogleSearchConsoleQueryRow {
   query: string;
+  site: string;
   impressions: number | null;
   clicks: number | null;
   ctr: number | null;
   avg_position: number | null;
+  date_from: string | null;
+  date_to: string | null;
+  updated_at: string;
+}
+
+// Разбивка тех же показов/кликов по СТРАНИЦАМ (2026-09-29). Google здесь не
+// прячет редкие строки, поэтому сумма почти сходится с плитками — в отличие
+// от разбивки по запросам. Старые адреса каталога синк уже свёл к новым.
+export interface GoogleSearchConsolePage {
+  page: string;
+  site: GscSiteId;
+  impressions: number | null;
+  clicks: number | null;
+  avgPosition: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+export interface GoogleSearchConsolePageRow {
+  page: string;
+  site: string;
+  impressions: number | null;
+  clicks: number | null;
+  ctr: number | null;
+  avg_position: number | null;
+  date_from: string | null;
+  date_to: string | null;
+  updated_at: string;
+}
+
+/** Показы в Generative AI (AI Overviews / AI Mode). Пока в основном из CSV —
+ * Search Analytics API type для AI на 2026-10-07 ещё не отдаёт. */
+export interface GoogleSearchConsoleAiStat {
+  date: string;
+  impressions: number | null;
+  source: string;
+}
+
+export interface GoogleSearchConsoleAiStatRow {
+  date: string;
+  impressions: number | null;
+  source: string;
+  updated_at: string;
+}
+
+export interface GoogleSearchConsoleAiPage {
+  page: string;
+  impressions: number | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+export interface GoogleSearchConsoleAiPageRow {
+  page: string;
+  impressions: number | null;
   date_from: string | null;
   date_to: string | null;
   updated_at: string;

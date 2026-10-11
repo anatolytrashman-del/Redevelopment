@@ -18,6 +18,7 @@ function fromRow(row: UnmatchedIncomingEmailRow): UnmatchedIncomingEmail {
     resolvedAt: row.resolved_at,
     resolvedOfferId: row.resolved_offer_id,
     resolvedByName: row.resolved_by_name,
+    isTest: row.is_test === true,
     createdAt: row.created_at,
   };
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Home, SearchX } from 'lucide-react';
 import { setNoIndex, clearNoIndex } from '../lib/pageMeta';
 import { buttonClasses } from '../components/ui/Button';
+import { SiteBrandLogo } from '../components/layout/SiteBrandLogo';
 
 // 2026-09-02 — Яндекс.Вебмастер: "некорректно настроен возврат HTTP-кода
 // 404" — вся страница (любой нераспознанный путь) технически отдаётся с
@@ -34,9 +35,7 @@ export function NotFound() {
           <SearchX className="h-10 w-10" strokeWidth={1.75} />
         </span>
         <div className="flex flex-col items-center gap-2">
-          <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
+          <SiteBrandLogo as="span" />
           <h1 className="text-2xl font-extrabold text-ink">Страница не найдена</h1>
           <p className="max-w-sm text-sm text-ink-muted">
             Такой страницы не существует или она была перемещена. Возможно, ссылка

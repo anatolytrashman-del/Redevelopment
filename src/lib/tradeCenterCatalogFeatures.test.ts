@@ -1,20 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { brandSuggestions, buildTcFilterEntry, buildTcFilterIndex, isOpenAt, matchesTcFeatures, tcFormatChips, type TcFilterSource } from './tradeCenterCatalogFeatures';
+// @ts-expect-error — скрипт сборки без типов
+import { TC_FORMAT_HUB_MIN_CENTERS, TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG, TC_FORMAT_HUB_VALUES } from '../../scripts/_tcPaths.mjs';
+import { MIN_INDEXABLE_HUB_CENTERS } from './businessCenterHubs';
+import {
+  brandSuggestions,
+  buildTcBrandCatalog,
+  buildTcFilterEntry,
+  buildTcFilterIndex,
+  isOpenAt,
+  matchesTcFeatures,
+  matchingStoreSlugs,
+  TC_FORMAT_HUB_MIN_CENTERS as FRONT_FORMAT_MIN,
+  TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG as FRONT_FORMAT_MIN_BY_SLUG,
+  TC_FORMAT_HUBS,
+  tcFormatChips,
+  tcFormatHubMinCenters,
+  tcFormatHubOf,
+  type TcFilterSource,
+} from './tradeCenterCatalogFeatures';
 
 const base: TcFilterSource = { funKinds: [], foodZones: 0, foodcourtPlaces: 0, anchorCategories: [], parking: null, hours: [], brands: [] };
 
 describe('buildTcFilterEntry', () => {
   it('собирает признаки «что внутри»', () => {
     const e = buildTcFilterEntry({ ...base, funKinds: ['cinema', 'sport'], foodcourtPlaces: 3, anchorCategories: ['гипермаркет'] });
-    expect([...e.features].sort()).toEqual(['cinema', 'fitness', 'foodcourt', 'grocery']);
+    expect([...e.features].sort()).toEqual(['cinema', 'entertainment', 'fitness', 'foodcourt', 'grocery']);
   });
 
   it('парковка: «открытая» не крытая, «бесплатного периода нет» не бесплатная', () => {
     const paid = buildTcFilterEntry({ ...base, parking: { summary: 'Наземная открытая парковка', items: [{ label: 'Ночной тариф', value: '1,5 руб., бесплатного периода нет' }] } });
     expect(paid.features.has('park-covered')).toBe(false);
     expect(paid.features.has('park-free')).toBe(false);
+    expect(paid.features.has('parking')).toBe(true);
     const free = buildTcFilterEntry({ ...base, parking: { summary: 'Подземный паркинг', items: [{ label: 'Первые 3 часа', value: 'бесплатно' }, { label: 'Электрозарядки', value: 'есть' }] } });
-    expect([...free.features].sort()).toEqual(['ev', 'park-covered', 'park-free']);
+    expect([...free.features].sort()).toEqual(['ev', 'park-covered', 'park-free', 'parking']);
   });
 
   it('«после 22:00» по главной зоне режима, закрытие после полуночи тоже считается', () => {
@@ -47,13 +66,31 @@ describe('matchesTcFeatures', () => {
 
 describe('brandSuggestions', () => {
   it('точное совпадение первым, названия как у источника', () => {
-    const idx = buildTcFilterIndex({
-      a: { ...base, brands: ['Zarina', 'Zara'] },
-      b: { ...base, brands: ['Zarina'] },
-    });
-    expect(brandSuggestions(idx, 'zara')).toEqual(['Zara']);
-    expect(brandSuggestions(idx, 'za')).toEqual(['Zara', 'Zarina']);
-    expect(brandSuggestions(idx, 'z')).toEqual([]);
+    const catalog = buildTcBrandCatalog(
+      buildTcFilterIndex({
+        a: { ...base, brands: ['Zarina', 'Zara'] },
+        b: { ...base, brands: ['Zarina'] },
+      }),
+    );
+    expect(brandSuggestions(catalog, 'zara')).toEqual(['Zara']);
+    expect(brandSuggestions(catalog, 'za')).toEqual(['Zara', 'Zarina']);
+    expect(brandSuggestions(catalog, 'z')).toEqual([]);
+  });
+});
+
+describe('matchingStoreSlugs', () => {
+  it('собирает слаги ТЦ с арендатором; пустой запрос — null', () => {
+    const catalog = buildTcBrandCatalog(
+      buildTcFilterIndex({
+        a: { ...base, brands: ['Zara', 'Milavitsa'] },
+        b: { ...base, brands: ['Zarina'] },
+        c: { ...base, brands: ['Nike'] },
+      }),
+    );
+    expect(matchingStoreSlugs(catalog, '')).toBeNull();
+    expect([...matchingStoreSlugs(catalog, 'zara')!].sort()).toEqual(['a']);
+    expect([...matchingStoreSlugs(catalog, 'za')!].sort()).toEqual(['a', 'b']);
+    expect(matchingStoreSlugs(catalog, 'nope')!.size).toBe(0);
   });
 });
 
@@ -63,5 +100,25 @@ describe('tcFormatChips', () => {
       { label: 'торговый центр', values: ['ТРЦ', 'районный ТЦ', 'новый формат'] },
       { label: 'стройка и авто', values: ['строительный центр', 'автоцентр'] },
     ]);
+  });
+});
+
+describe('подборки по формату', () => {
+  it('близнец в scripts/_tcPaths.mjs совпадает', () => {
+    expect(Object.fromEntries(TC_FORMAT_HUBS.map((h) => [h.slug, h.values]))).toEqual(TC_FORMAT_HUB_VALUES);
+    expect(TC_FORMAT_HUB_MIN_CENTERS).toBe(MIN_INDEXABLE_HUB_CENTERS);
+    expect(FRONT_FORMAT_MIN).toBe(TC_FORMAT_HUB_MIN_CENTERS);
+    expect(FRONT_FORMAT_MIN_BY_SLUG).toEqual(TC_FORMAT_HUB_MIN_CENTERS_BY_SLUG);
+    expect(tcFormatHubMinCenters('outlets')).toBe(1);
+    expect(tcFormatHubMinCenters('markets')).toBe(3);
+  });
+
+  it('склоняет число и находит подборку по формату', () => {
+    const markets = TC_FORMAT_HUBS.find((h) => h.slug === 'markets')!;
+    expect(`3 ${markets.plural(3)}`).toBe('3 рынка');
+    expect(markets.subjectGen(21)).toBe('рынка Минска');
+    expect(markets.subjectGen(3)).toBe('рынков Минска');
+    expect(tcFormatHubOf('мебельный центр')?.slug).toBe('furniture');
+    expect(tcFormatHubOf('ТРЦ')).toBeNull();
   });
 });

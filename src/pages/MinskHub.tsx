@@ -6,14 +6,13 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { DISTRICTS, DISTRICTS_WITH_GUIDE } from '../data/districts';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
+import { REDIRECT_MALLS_ENABLED, REDIRECT_OFFICES_ENABLED, catalogSiteUrl } from '../lib/sites';
 
 // Хаб раздела "Минск" (SEO_PLAN.md, урл-структура /minsk/...) — только
-// гиды по районам, под общим city-scoped префиксом. Корень сайта (/)
-// сознательно НЕ стал этой страницей: по плану Э2-4 в SEO_PLAN.md он
-// зарезервирован под будущую отдельную страницу платформы (другая
-// аудитория, другая гео-настройка), а /minsk — city-scoped раздел, готовый
-// к появлению других городов рядом (redevelopment.pro/<город>/...) без
-// переезда текущих ссылок.
+// гиды по районам, под общим city-scoped префиксом. Корень сайта (/) с
+// 2026-10-11 — PlatformHomePage (модули платформы); /minsk остаётся
+// city-scoped разделом, готовым к появлению других городов рядом
+// (redevelopment.pro/<город>/...) без переезда текущих ссылок.
 // Владелец (2026-08-25) убрал отсюда секцию "Комплексы" (список объектов
 // компании — Red One и т.п.) и "Аналитика рынка" (ссылка на удалённый
 // /minsk/analytics) — хаб теперь только про гиды по районам, сам объект
@@ -41,15 +40,28 @@ import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 // сами каталоги объектов, без аналитики и Red One). Плюс три "скоро"-плашки
 // под будущие каталоги (ТЦ, коворкинги, склады) — страниц под них пока нет,
 // роутов в App.tsx для них соответственно тоже нет.
+// Владелец, 2026-09-30: каталог ТЦ открыт — плашка стала ссылкой на /minsk/tc.
 const CATALOGS = [
-  { name: 'Бизнес-центры', icon: Building2, href: '/minsk/bc' },
-  { name: 'Торговые центры', icon: ShoppingBag, href: null },
-  { name: 'Коворкинги', icon: Users, href: null },
-  { name: 'Склады', icon: Warehouse, href: null },
+  {
+    name: 'Бизнес-центры',
+    icon: Building2,
+    // После сплита доменов — абсолютная ссылка на officelist.pro (иначе
+    // SPA Link остался бы на redevelopment.pro и упёрся в 301).
+    href: REDIRECT_OFFICES_ENABLED ? catalogSiteUrl('bc') : '/minsk/bc',
+    external: REDIRECT_OFFICES_ENABLED,
+  },
+  {
+    name: 'Торговые центры',
+    icon: ShoppingBag,
+    href: REDIRECT_MALLS_ENABLED ? catalogSiteUrl('tc') : '/minsk/tc',
+    external: REDIRECT_MALLS_ENABLED,
+  },
+  { name: 'Коворкинги', icon: Users, href: null, external: false },
+  { name: 'Склады', icon: Warehouse, href: null, external: false },
 ] as const;
 
 const TITLE = 'Коммерческая недвижимость в Минске — Redevelopment';
-const DESCRIPTION = 'Каталог бизнес-центров и гиды по районам Минска для арендаторов и собственников коммерческой недвижимости.';
+const DESCRIPTION = 'Каталоги бизнес-центров и торговых центров, гиды по районам Минска для арендаторов и собственников коммерческой недвижимости.';
 const PAGE_URL = 'https://redevelopment.pro/minsk';
 
 export function MinskHub() {
@@ -79,19 +91,26 @@ export function MinskHub() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {CATALOGS.map((c) => {
               const Icon = c.icon;
-              return c.href ? (
-                <Link
-                  key={c.name}
-                  to={c.href}
-                  className={cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass)}
-                  style={glassCardShadow}
-                >
+              const className = cn('flex items-center justify-between gap-2 p-4 transition-colors hover:border-primary/40', glassCardClass);
+              const body = (
+                <>
                   <span className="flex items-center gap-2.5 font-medium text-ink">
                     <Icon className="h-4 w-4 shrink-0 text-ink-faint" />
                     {c.name}
                   </span>
                   <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
-                </Link>
+                </>
+              );
+              return c.href ? (
+                c.external ? (
+                  <a key={c.name} href={c.href} className={className} style={glassCardShadow}>
+                    {body}
+                  </a>
+                ) : (
+                  <Link key={c.name} to={c.href} className={className} style={glassCardShadow}>
+                    {body}
+                  </Link>
+                )
               ) : (
                 <div
                   key={c.name}

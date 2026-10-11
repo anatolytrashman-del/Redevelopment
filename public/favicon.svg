@@ -1,13 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Redevelopment">
+  <!-- Full-tile mark R (path, not text metrics). Brand red. -->
   <rect width="64" height="64" rx="14" fill="#e4152b" />
-  <text
-    x="32"
-    y="34"
-    text-anchor="middle"
-    dominant-baseline="central"
-    font-family="Arial, Helvetica, sans-serif"
-    font-weight="900"
-    font-size="40"
+  <path
     fill="#ffffff"
-  >R</text>
+    d="M18 12h18.2c9.1 0 15.3 5.4 15.3 13.6 0 6.2-3.5 10.7-9.2 12.4L51.2 52h-12.4L31.2 39.2H28.4V52H18V12zm10.4 9.1v9.9h7.1c3.9 0 6.3-2 6.3-5 0-3-2.4-4.9-6.3-4.9h-7.1z"
+  />
 </svg>

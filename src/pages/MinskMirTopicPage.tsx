@@ -28,6 +28,10 @@ import {
 import type { MinskMirTopicSlug } from '../data/minskMirTopics';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
+import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
+import { fetchBusinessCenters } from '../lib/businessCentersApi';
+import type { BusinessCenter } from '../data/businessCenters';
+import { absolutePublicUrl, platformOrigin } from '../lib/sites';
 
 // Посадочные под подсказки Google по Минск Миру (аудит поиска 2026-09-07,
 // см. data/minskMirTopics.ts). Один компонент на все темы: у каждой свой
@@ -44,7 +48,8 @@ import type { FaqItem } from '../components/ui/FaqAccordion';
 // когда здание будет куплено.
 const GUIDE_URL = '/minsk/minsk-mir';
 const CATALOG_URL = '/minsk/bc';
-const SITE = 'https://redevelopment.pro';
+const PLATFORM = platformOrigin();
+const GUIDE_ABS = absolutePublicUrl(GUIDE_URL);
 const DATE_PUBLISHED = '2026-09-07';
 
 const MONTH_NAMES = [
@@ -601,8 +606,8 @@ const TOPICS: Record<MinskMirTopicSlug, TopicContent> = {
 };
 
 const BREADCRUMB_ROOT = [
-  { name: 'Коммерческая недвижимость в Минске', url: `${SITE}/minsk` },
-  { name: 'Район Минск Мир', url: `${SITE}${GUIDE_URL}` },
+  { name: 'Коммерческая недвижимость в Минске', url: `${PLATFORM}/minsk` },
+  { name: 'Район Минск Мир', url: GUIDE_ABS },
 ];
 
 export function MinskMirTopicPage() {
@@ -610,15 +615,22 @@ export function MinskMirTopicPage() {
   const slug = isMinskMirTopicSlug(topic) ? topic : null;
   const content = slug ? TOPICS[slug] : null;
 
+  const [centers, setCenters] = useState<BusinessCenter[] | null>(null);
   const [marketOffers, setMarketOffers] = useState<MarketOffer[] | null>(null);
   const [primaryOffers, setPrimaryOffers] = useState<PrimaryMarketOffer[] | null>(null);
+
+  useEffect(() => {
+    fetchBusinessCenters()
+      .then(setCenters)
+      .catch(() => setCenters((prev) => prev ?? []));
+  }, []);
 
   useEffect(() => {
     if (!content || !slug) {
       setNoIndex();
       return () => clearNoIndex();
     }
-    const url = `${SITE}${minskMirTopicUrl(slug)}`;
+    const url = absolutePublicUrl(minskMirTopicUrl(slug));
     setGenericPageMeta({ title: content.title, description: content.description, url, ogType: 'article' });
     setArticleJsonLd({
       headline: content.h1,
@@ -679,27 +691,13 @@ export function MinskMirTopicPage() {
 
   return (
     <div className="min-h-svh bg-bg">
-      <div className="border-b border-border py-5">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 sm:px-8">
-          <Link to="/minsk" className="shrink-0 text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted sm:flex">
-            <Link to={GUIDE_URL} className="whitespace-nowrap transition-colors hover:text-ink">
-              Гид по району
-            </Link>
-            <Link to={CATALOG_URL} className="whitespace-nowrap transition-colors hover:text-ink">
-              Бизнес-центры
-            </Link>
-          </nav>
-        </div>
-      </div>
+      <CatalogTopNav centers={centers} width="max-w-3xl" />
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-10 sm:px-8">
         <nav aria-label="Хлебные крошки" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-          <Link to="/minsk" className="hover:text-ink">
+          <a href={`${PLATFORM}/minsk`} className="hover:text-ink">
             Минск
-          </Link>
+          </a>
           <span aria-hidden="true">/</span>
           <Link to={GUIDE_URL} className="hover:text-ink">
             Минск Мир

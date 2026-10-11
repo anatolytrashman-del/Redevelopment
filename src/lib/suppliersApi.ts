@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
-import type { Supplier, SupplierRow } from '../data/suppliers';
+import type { Supplier, SupplierKind, SupplierRow, SupplierSiteProfile } from '../data/suppliers';
 
 // Доступ к компаниям-поставщикам (шаг 2 плана docs/procurement-product-steps.md).
 // Шаблон тот же, что у leads.ts/leadsApi.ts: fromRow + fetch/insert/update/delete,
@@ -37,6 +37,10 @@ function fromRow(row: SupplierRow): Supplier {
     resoldBrands: row.resold_brands ?? [],
     profileNote: row.profile_note ?? '',
     profiledAt: row.profiled_at ?? null,
+    siteProfile:
+      row.site_profile && typeof row.site_profile === 'object' && !Array.isArray(row.site_profile)
+        ? (row.site_profile as SupplierSiteProfile)
+        : null,
   };
 }
 
@@ -56,6 +60,7 @@ export type SupplierInput = Omit<
   | 'resoldBrands'
   | 'profileNote'
   | 'profiledAt'
+  | 'siteProfile'
 >;
 
 function toRow(input: SupplierInput) {
@@ -107,6 +112,78 @@ export function fetchSuppliers(): Promise<Supplier[]> {
       }),
     );
     return pages.flat();
+  });
+}
+
+// Тип компании (завод, дилер…) для фильтра каталога: только id и тип, без
+// тяжёлого site_profile — каталог грузит это на каждом открытии закупок.
+// Постранично: компаний больше 1000, а PostgREST молча режет выборку.
+export function fetchSupplierKinds(): Promise<Map<string, SupplierKind>> {
+  return withRetry(async () => {
+    const map = new Map<string, SupplierKind>();
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, supplier_kind')
+        .is('deleted_at', null)
+        .not('supplier_kind', 'is', null)
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as { id: string; supplier_kind: SupplierKind }[];
+      for (const r of rows) map.set(r.id, r.supplier_kind);
+      if (rows.length < PAGE_SIZE) return map;
+    }
+  });
+}
+
+// Индекс для поиска и фильтра каталога: тип + бренды + контакты компании,
+// без site_profile. Нужен, чтобы искать «Ceresit» / ИНН / email не только по
+// карточке категории, но и по данным самой фирмы.
+export interface SupplierCatalogHintRow {
+  kind: SupplierKind | null;
+  ownBrands: string[];
+  resoldBrands: string[];
+  productKinds: string[];
+  inn: string | null;
+  email: string;
+  phone: string;
+}
+
+export function fetchSupplierCatalogHints(): Promise<Map<string, SupplierCatalogHintRow>> {
+  return withRetry(async () => {
+    const map = new Map<string, SupplierCatalogHintRow>();
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('id, supplier_kind, own_brands, resold_brands, product_kinds, inn, email, phone')
+        .is('deleted_at', null)
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as {
+        id: string;
+        supplier_kind: SupplierKind | null;
+        own_brands: string[] | null;
+        resold_brands: string[] | null;
+        product_kinds: string[] | null;
+        inn: string | null;
+        email: string | null;
+        phone: string | null;
+      }[];
+      for (const r of rows) {
+        map.set(r.id, {
+          kind: r.supplier_kind ?? null,
+          ownBrands: r.own_brands ?? [],
+          resoldBrands: r.resold_brands ?? [],
+          productKinds: r.product_kinds ?? [],
+          inn: r.inn,
+          email: r.email ?? '',
+          phone: r.phone ?? '',
+        });
+      }
+      if (rows.length < PAGE_SIZE) return map;
+    }
   });
 }
 
@@ -198,10 +275,7 @@ export function updateSupplier(id: string, input: SupplierInput): Promise<Suppli
 // затем, чтобы переписка не зависела от судьбы записи о компании.
 export function deleteSupplier(id: string): Promise<void> {
   return withRetry(async () => {
-    const { error } = await supabase
-      .from('suppliers')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
+    const { error } = await supabase.from('suppliers').update({ deleted_at: new Date().toISOString() }).eq('id', id);
     if (error) throw error;
   });
 }

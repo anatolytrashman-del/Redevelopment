@@ -1,6 +1,6 @@
 import { Bot } from 'lucide-react';
 import { aiAgents } from '../../data/aiAgents';
-import { formatActivityTime, getAiAgentStatus } from '../../lib/aiAgentsApi';
+import { formatActivityTime, getAiAgentStatus, resolveAiAgentActivity } from '../../lib/aiAgentsApi';
 import { useAiAgentsActivity } from '../../lib/useAiAgentsActivity';
 import { cn } from '../../lib/cn';
 import { glassPillClass, glassPillShadow } from '../../lib/glass';
@@ -21,7 +21,7 @@ export function AiAgentStatusPill({ agentId, className }: { agentId: string; cla
   const agent = aiAgents.find((a) => a.id === agentId);
   if (!agent) return null;
 
-  const activity = activityByAgent[agent.id] ?? agent.staticActivity ?? null;
+  const activity = resolveAiAgentActivity(activityByAgent[agent.id], agent.staticActivity, now);
   const status = getAiAgentStatus(agent.heartbeat, activity, now);
   const statusStyle = aiAgentStatusStyles[status.tone];
 

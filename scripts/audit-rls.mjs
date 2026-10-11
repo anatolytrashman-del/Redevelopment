@@ -78,6 +78,9 @@ const CLOSED = [
   'yandex_metrika_traffic_sources',
   'yandex_metrika_top_pages',
   'yandex_metrika_goal_completions',
+  'yandex_metrika_ai_referrers',
+  'google_search_console_ai_stats',
+  'google_search_console_ai_pages',
   // yandex_webmaster_stats (2026-09-10, параллельная сессия) — anon без
   // доступа вовсе, authenticated — полный CRUD (authenticated_all, тот же
   // паттерн, что у большинства приватных CRM-таблиц), для анон-аудита

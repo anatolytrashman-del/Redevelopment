@@ -1,6 +1,6 @@
 import { TradeCenterFactCards } from '../components/businessCenters/TradeCenterFactCards';
 import { TradeCenterReviewThemes } from '../components/businessCenters/TradeCenterReviewThemes';
-import { reviewThemeColumns, reviewThemesFaq, yandexReviewsUrl } from '../lib/tradeCenterFactsReviews';
+import { reviewThemesFaq, reviewThemesVisible, yandexReviewsUrl } from '../lib/tradeCenterFactsReviews';
 import { isHiddenVisitService } from '../lib/tradeCenterVisit';
 import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -69,6 +69,7 @@ import {
   setPlaceJsonLd,
 } from '../lib/pageMeta';
 import { useCatalogKind } from '../lib/catalogKind';
+import { absoluteCatalogUrl, catalogSiteUrl } from '../lib/sites';
 import {
   fullName,
   shortAddress,
@@ -96,6 +97,8 @@ import {
   districtHubUrl,
   microdistrictHubUrl,
 } from '../lib/businessCenterHubs';
+import { fitsSerpTitle } from '../lib/serpTitleWidth';
+import { tcFormatHubMinCenters, tcFormatHubOf, tcFormatHubUrl } from '../lib/tradeCenterCatalogFeatures';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenter, fetchBusinessCenters, snapshotBusinessCenter, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
@@ -294,9 +297,10 @@ interface RecommendationBlockData {
 const EMPTY_NEARBY_PLACES: BusinessCenterNearbyPlace[] = [];
 const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 
-// Владелец, 2026-09-23: каталог ТЦ закрыт от индексации на время сбора
-// данных. Снять — отдельным решением вместе с полноценной SEO-разметкой ТЦ.
-const TC_NOINDEX = true;
+// Владелец, 2026-09-23: каталог ТЦ был закрыт от индексации на время сбора
+// данных; открыт 2026-09-30 с выкаткой в прод. Полноценная SEO-разметка ТЦ
+// (разметка здания, крошки) — следующим шагом, уже на проде.
+const TC_NOINDEX = false;
 
 // ownerMode — та же карточка для сайта самого БЦ, адрес /bc/<slug>
 // (владелец, 2026-09-24: «отдельный линк на страницу его БЦ без
@@ -573,7 +577,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   const reviews = !ownerMode && reviewsResult?.slug === slug ? reviewsResult?.reviews ?? EMPTY_REVIEWS : EMPTY_REVIEWS;
   const factCards = isTc ? center?.retailInfo?.factCards ?? null : null;
   const reviewThemes = isTc ? center?.retailInfo?.reviewThemes ?? null : null;
-  const hasReviewThemes = Boolean(reviewThemes && reviewThemes.reviews >= 100 && reviewThemeColumns(reviewThemes).length);
+  const hasReviewThemes = reviewThemesVisible(reviewThemes);
+
 
   const index = center ? sorted.findIndex((c) => c.slug === center.slug) : -1;
   const prev = !ownerMode && index > 0 ? sorted[index - 1] : null;
@@ -1258,6 +1263,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         .slice(0, 6),
     [center, ownerMode],
   );
+  // У ТЦ отзывы — только сводкой по темам; без неё блока нет (дословный
+  // список отзывов владелец снял 2026-09-30).
+  const hasReviewsBlock = isTc
+    ? hasReviewThemes
+    : Boolean(center && (center.highlights.some((h) => h.icon === 'rating') || reviewQuotes.length > 0 || reviews.some((r) => r.source !== '2gis')));
 
   // FAQ использует те же модели и выборки, что видимые блоки страницы.
   //
@@ -1945,9 +1955,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has(
         'reviews',
-        reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
-          reviewQuotes.length > 0 ||
-          reviews.some((r) => r.source !== '2gis')),
+        hasReviewsBlock,
       ),
       // У ТЦ награды (в том числе строки из highlights) и места в рейтингах
       // — один блок «Награды и рейтинги», общий блок «Награды» не рисуется.
@@ -2037,7 +2045,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         // Настоящие отзывы вытесняют кураторские цитаты и выводятся
         // постранично по 6 (MAX_REAL_REVIEWS в BusinessCenterMarketBlocks).
         case 'reviews': {
-          if (reviewThemes) return hasReviewThemes ? Math.max(reviewThemes.praise.length, reviewThemes.complaints.length) + 2 : 0;
+          if (isTc) return hasReviewThemes && reviewThemes ? Math.max(reviewThemes.praise.length, reviewThemes.complaints.length) + 2 : 0;
           const realReviewCount = reviews.filter((r) => r.source !== '2gis').length;
           return realReviewCount > 0 ? Math.min(realReviewCount, 6) : reviewQuotes.length;
         }
@@ -2186,12 +2194,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       infrastructure: center?.infraInternal ?? [],
       rentOfferCount: rentStats?.count ?? 0,
       saleOfferCount: saleStats?.count ?? 0,
-      hasReviews: Boolean(
-        center &&
-          (reviewThemes ? hasReviewThemes : (center.highlights.some((h) => h.icon === 'rating') ||
-            reviewQuotes.length > 0 ||
-            reviews.some((r) => r.source !== '2gis'))),
-      ),
+      hasReviews: hasReviewsBlock,
       hasNearbyInfrastructure: Boolean(center && !isTc && hasNearbyContent(center, nearbyPlaces)),
     }),
     [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc, reviewThemes, hasReviewThemes],
@@ -2211,19 +2214,69 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   useEffect(() => {
     if (!center) return;
     if (isTc) {
-      // Каталог ТЦ пока закрыт от индексации (TC_NOINDEX): простые мета-теги
-      // для превью ссылки и noindex, без разметки здания и крошек.
+      // Страницы ТЦ (в индексе с 2026-09-30): заголовок называет то, за чем
+      // приходят на страницу ТЦ, — магазины, часы, парковку, — и только то,
+      // что на ней действительно есть. Длинный вариант уступает короткому,
+      // если не влезает в ширину заголовка выдачи.
+      const info = center.retailInfo;
+      const topics = [
+        center.tenantCount > 0 ? 'магазины' : null,
+        info?.hours.length ? 'часы работы' : null,
+        info?.parking ? 'парковка' : null,
+      ].filter((v): v is string => v !== null);
+      const titleBase = `${fullName(center)} в Минске`;
+      const title =
+        [topics.length ? `${titleBase} — ${topics.join(', ')}` : null, topics.length > 1 ? `${titleBase} — ${topics.slice(0, 2).join(' и ')}` : null]
+          .filter((v): v is string => v !== null)
+          .find(fitsSerpTitle) ?? titleBase;
+      const facts = [
+        center.tenantCount > 0 ? `${center.tenantCount} ${pluralRu(center.tenantCount, 'магазин или заведение', 'магазина и заведения', 'магазинов и заведений')} внутри` : null,
+        info?.hours.length ? 'часы работы' : null,
+        info?.parking ? 'парковка' : null,
+        info?.reviewThemes ? 'что хвалят посетители и на что жалуются' : null,
+      ].filter((v): v is string => v !== null);
+      const place = [center.district ? `${center.district} район` : null, center.address].filter(Boolean).join(', ');
+      const description = [
+        `${fullName(center)}${place ? ` — ${place}` : ''}.`,
+        facts.length ? `${facts[0][0].toUpperCase()}${facts.join(', ').slice(1)}.` : null,
+      ].filter(Boolean).join(' ');
+      const url = `${V.siteUrl}/${center.slug}`;
       setGenericPageMeta({
-        title: `${fullName(center)} — ${V.one} в Минске`,
-        description: [center.retailFormat, center.address].filter(Boolean).join(', '),
-        url: `${V.siteUrl}/${center.slug}`,
+        title,
+        description,
+        url,
         image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
       });
       if (TC_NOINDEX) {
         setNoIndex();
         return () => clearNoIndex();
       }
-      return;
+      // Крошки ведут через подборку формата, если она есть и открыта для
+      // индекса («Рынки», «Мебельные центры»), — так у подборки появляется
+      // ссылка с каждой её карточки.
+      const formatHub = tcFormatHubOf(center.retailFormat);
+      const formatHubSize = formatHub && centers
+        ? centers.filter((c) => c.status !== 'under_construction' && c.retailFormat != null && formatHub.values.includes(c.retailFormat)).length
+        : 0;
+      setBreadcrumbJsonLd([
+        { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+        { name: V.catalogTitle, url: V.siteUrl },
+        ...(formatHub && formatHubSize >= tcFormatHubMinCenters(formatHub.slug)
+          ? [{ name: formatHub.label, url: absoluteCatalogUrl('tc', tcFormatHubUrl(formatHub, V.basePath)) }]
+          : []),
+        { name: shortName(center) },
+      ]);
+      setPlaceJsonLd({
+        type: 'ShoppingCenter',
+        name: fullName(center),
+        altNames: center.altNames,
+        url,
+        address: center.address,
+        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
+        lat: center.lat,
+        lng: center.lng,
+      });
+      return () => setPlaceJsonLd(null);
     }
     setBusinessCenterPageMeta(
       center.slug,
@@ -2233,7 +2286,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     );
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: shortName(center) },
     ]);
     // Б12: разметка самого здания. Удобства берём из уже собранных фактов
@@ -2242,7 +2295,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     setPlaceJsonLd({
       name: fullName(center),
       altNames: center.altNames,
-      url: `https://redevelopment.pro/minsk/bc/${center.slug}`,
+      url: `${catalogSiteUrl('bc')}/${center.slug}`,
       address: center.address,
       image: center.photos[0] ? withBcPhotoVersion(center.photos[0]) : undefined,
       lat: center.lat,
@@ -2254,7 +2307,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       ],
     });
     return () => setPlaceJsonLd(null);
-  }, [center, pageComposition, ambiguousName, isTc, V]);
+  }, [center, centers, pageComposition, ambiguousName, isTc, V]);
 
   // Разметку пререндера на /bc/<slug> прячет инлайн-скрипт index.html:
   // в ней полная карточка с соседями. Показываем, когда отрисовался режим
@@ -3114,8 +3167,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
 
         {renderRecommendationSlot('market')}
 
-        {reviewThemes ? (
-          <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} />
+        {isTc ? (
+          reviewThemes && <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} />
         ) : <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
 
         {renderRecommendationSlot('reviews')}
@@ -3616,9 +3669,13 @@ function RelatedCentersSection({
             // телефоне до правки (владелец так и написал «у меня пока старый
             // вид» — он смотрел как раз в этом диапазоне). Вместо столбика
             // строка с фото поменьше (7rem), как на всех остальных ширинах.
-            className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-2 transition-colors hover:border-primary/40 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-0 sm:p-0 lg:grid-cols-[7rem_minmax(0,1fr)] xl:grid-cols-[10rem_minmax(0,1fr)]"
+            className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 overflow-hidden rounded-2xl border border-border bg-surface p-2 transition-colors hover:border-primary/40 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-1 lg:grid-cols-[7rem_minmax(0,1fr)] xl:grid-cols-[10rem_minmax(0,1fr)]"
           >
-            <div className="aspect-square overflow-hidden rounded-xl bg-surface-muted sm:rounded-2xl">
+            {/* Фото — с отступом от рамки плитки на всех ширинах (владелец,
+                2026-09-30: «фотка не влезает в края блока»). Раньше от sm
+                у плитки не было padding, и квадрат фото, который ниже
+                высоты плитки (lg: 7rem), лип к левой рамке. */}
+            <div className="aspect-square overflow-hidden rounded-xl bg-surface-muted">
               {/* sizes повторяет ширины колонки фото из grid-cols выше
                   (5rem / 10rem / 7rem / 10rem) — см. PhotoBlock. */}
               <PhotoBlock
@@ -3628,7 +3685,7 @@ function RelatedCentersSection({
                 sizes="(min-width: 1280px) 10rem, (min-width: 1024px) 7rem, (min-width: 640px) 10rem, 5rem"
               />
             </div>
-            <div className="flex min-w-0 flex-col items-start justify-center gap-1 py-1 pr-2 sm:gap-2 sm:p-4">
+            <div className="flex min-w-0 flex-col items-start justify-center gap-1 py-1 pr-2 sm:gap-2 sm:px-3 sm:py-2">
               {isFallback && (
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Похож по классу</p>
               )}

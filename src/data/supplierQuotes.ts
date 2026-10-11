@@ -46,6 +46,9 @@ export interface SupplierQuote {
   // условий не нашли. Заполняет распознавание счёта на приёме письма; человек
   // правит руками в карточке КП.
   terms: QuoteTerms | null;
+  // Тестовое КП для демо стартового экрана (миграция 20261009). В сравнении
+  // цен не участвует — только в уведомлении «новые КП».
+  isTest: boolean;
   createdAt: string;
 }
 
@@ -84,6 +87,7 @@ export interface SupplierQuoteRow {
   alternative_note: string | null;
   source_email_id: string | null;
   terms: QuoteTerms | null;
+  is_test?: boolean | null;
   created_at: string;
   // Мягкое удаление (миграция 20260915-soft-delete-supplier-data.sql):
   // строка жива, но скрыта из интерфейса. NULL у всего активного.

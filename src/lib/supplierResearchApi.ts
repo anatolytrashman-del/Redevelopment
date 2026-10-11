@@ -79,6 +79,17 @@ export function fetchSupplierRequests(): Promise<SupplierRequest[]> {
   });
 }
 
+// Только нужные строки для карточки компании — не весь справочник категорий.
+export function fetchSupplierRequestsByIds(ids: string[]): Promise<SupplierRequest[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return Promise.resolve([]);
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('supplier_research_requests').select('*').in('id', unique);
+    if (error) throw error;
+    return (data as SupplierRequestRow[]).map(requestFromRow);
+  });
+}
+
 export interface SupplierRequestInput {
   title: string;
   group: SupplierRequestGroup;
@@ -256,7 +267,11 @@ export type SupplierOfferInput = Omit<
 // вернули бы одну строку дважды, потеряв другую.
 const OFFERS_PAGE_SIZE = 1000;
 
-export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
+// onPartial — по мере прихода страниц (каталог рисует хабы, не дожидаясь
+// хвоста >1000). Финальный массив тот же, что и раньше: по createdAt.
+export function fetchSupplierOffers(
+  onPartial?: (offers: SupplierOffer[]) => void,
+): Promise<SupplierOffer[]> {
   return withRetry(async () => {
     const { count, error: countError } = await supabase
       .from('supplier_research_offers')
@@ -265,12 +280,21 @@ export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
     if (countError) throw countError;
 
     const total = count ?? 0;
-    if (total === 0) return [];
+    if (total === 0) {
+      onPartial?.([]);
+      return [];
+    }
 
     const pageStarts: number[] = [];
     for (let from = 0; from < total; from += OFFERS_PAGE_SIZE) pageStarts.push(from);
 
-    const pages = await Promise.all(
+    const byId = new Map<string, SupplierOffer>();
+    const emit = () => {
+      if (!onPartial) return;
+      onPartial([...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+    };
+
+    await Promise.all(
       pageStarts.map(async (from) => {
         const { data, error } = await supabase
           .from('supplier_research_offers')
@@ -279,12 +303,16 @@ export function fetchSupplierOffers(): Promise<SupplierOffer[]> {
           .order('id')
           .range(from, from + OFFERS_PAGE_SIZE - 1);
         if (error) throw error;
-        return (data as SupplierOfferRow[]).map(offerFromRow);
+        for (const row of (data as SupplierOfferRow[])) {
+          const offer = offerFromRow(row);
+          byId.set(offer.id, offer);
+        }
+        emit();
       }),
     );
     // Порядок «сначала старые» сохраняем: на него опирается остальной код
     // (первая карточка поставщика в категории, порядок в списках).
-    return pages.flat().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   });
 }
 

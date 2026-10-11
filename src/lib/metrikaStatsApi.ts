@@ -9,6 +9,8 @@ import type {
   MetrikaTopPageRow,
   MetrikaGoalCompletion,
   MetrikaGoalCompletionRow,
+  MetrikaAiReferrer,
+  MetrikaAiReferrerRow,
 } from '../data/metrikaStats';
 
 function dailyFromRow(row: MetrikaDailyStatRow): MetrikaDailyStat {
@@ -94,5 +96,28 @@ export async function fetchMetrikaGoalCompletions(): Promise<MetrikaGoalCompleti
       .order('date', { ascending: true });
     if (error) throw error;
     return (data as MetrikaGoalCompletionRow[]).map(goalFromRow);
+  });
+}
+
+function aiReferrerFromRow(row: MetrikaAiReferrerRow): MetrikaAiReferrer {
+  return {
+    host: row.host,
+    label: row.label,
+    engine: row.engine,
+    visits: row.visits,
+    users: row.users,
+    windowDays: row.window_days,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function fetchMetrikaAiReferrers(): Promise<MetrikaAiReferrer[]> {
+  return withRetry(async () => {
+    const { data, error } = await supabase
+      .from('yandex_metrika_ai_referrers')
+      .select('*')
+      .order('visits', { ascending: false });
+    if (error) throw error;
+    return (data as MetrikaAiReferrerRow[]).map(aiReferrerFromRow);
   });
 }

@@ -4,6 +4,7 @@ import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, F
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { cn } from '../../lib/cn';
@@ -370,6 +371,7 @@ async function saveExtractionAsQuote(
     isAlternative: false,
     alternativeNote: '',
     sourceEmailId: email.id,
+    isTest: false,
   });
 }
 
@@ -3128,7 +3130,10 @@ export function SupplierCorrespondenceTab({
                     selectedUnmatchedId === u.id ? 'bg-surface' : 'hover:bg-surface/60',
                   )}
                 >
-                  <span className="w-full truncate font-medium text-ink">{u.subject || 'Без темы'}</span>
+                  <span className="flex w-full items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{u.subject || 'Без темы'}</span>
+                    {u.isTest && <Badge tone="warning">Тест</Badge>}
+                  </span>
                   <span className="w-full truncate text-xs text-ink-faint">{u.fromAddress}</span>
                   <span className="text-xs text-ink-faint">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</span>
                 </button>

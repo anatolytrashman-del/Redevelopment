@@ -4,6 +4,7 @@ import { ArrowRight, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd } from '../lib/pageMeta';
+import { catalogSiteUrl } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchExternalMetrics, fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -86,7 +87,7 @@ const TITLE = 'Аналитика бизнес-центров Минска — �
 // 160 символов — бюджет сниппета, см. комментарий в BusinessCentersGuidePage.
 const DESCRIPTION =
   'Разбор рынка бизнес-центров Минска по 141 зданию каталога: коридор ставок аренды и продажи, надбавки за метро и класс, окупаемость покупки, структура фонда.';
-const PAGE_URL = 'https://redevelopment.pro/minsk/bc/analytics';
+const PAGE_URL = `${catalogSiteUrl('bc')}/analytics`;
 const PAGE_H1 = 'Аналитика бизнес-центров Минска';
 const DATE_PUBLISHED = '2026-09-22';
 const DATE_MODIFIED = '2026-09-22';
@@ -581,7 +582,7 @@ export function BusinessCentersAnalyticsPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: 'Аналитика' },
     ]);
   }, []);

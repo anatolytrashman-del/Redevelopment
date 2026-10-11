@@ -78,12 +78,26 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
+import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
+import { tradeCenterPaths } from './_tcPaths.mjs';
+import {
+  DEPLOYED_SITE_MODE,
+  MALLS_ORIGIN,
+  OFFICES_ORIGIN,
+  PLATFORM_ORIGIN,
+  REDIRECT_MALLS_ENABLED,
+  REDIRECT_OFFICES_ENABLED,
+  catalogYandexVerification,
+} from './domainSplit.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
 const DIST_DIR = join(ROOT_DIR, 'dist');
 const PORT = 4173;
 const BASE_URL = `http://localhost:${PORT}`;
+const IS_MALLS_DEPLOY = DEPLOYED_SITE_MODE === 'malls';
+const IS_OFFICES_DEPLOY = DEPLOYED_SITE_MODE === 'offices';
+const IS_CATALOG_DEPLOY = IS_MALLS_DEPLOY || IS_OFFICES_DEPLOY;
 
 // Публичный anon-ключ (см. src/lib/supabase.ts) — тот же, что зашит в
 // клиентский бандл, отдельного секрета для сборки не требует.
@@ -95,7 +109,21 @@ const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_
 // api/*.js) — новый секрет от владельца не требуется.
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const SITE_ORIGIN = 'https://redevelopment.pro';
+// Источник эталонных снапшотов каталогов — всегда платформа (там уже полный
+// пререндер). Для malllist/officelist копии переписываем на свой origin.
+const SITE_ORIGIN = PLATFORM_ORIGIN;
+const PUBLIC_ORIGIN = IS_MALLS_DEPLOY
+  ? MALLS_ORIGIN
+  : IS_OFFICES_DEPLOY
+    ? OFFICES_ORIGIN
+    : PLATFORM_ORIGIN;
+// h1, который prepare-*-shell кладёт в #root до React. waitForSelector('h1')
+// иначе снимает шелл мгновенно — на officelist так уехали все снапшоты БЦ.
+const CATALOG_SHELL_H1 = IS_OFFICES_DEPLOY
+  ? 'OfficeList — каталог бизнес-центров Минска'
+  : IS_MALLS_DEPLOY
+    ? 'MallList — каталог торговых центров'
+    : null;
 // Сборка, запущенная Deploy Hook'ом (реальное изменение данных), должна
 // успеть дойти до этой проверки, пока triggered_at ещё «свежий» — щедрый
 // запас на очередь Vercel + предыдущие шаги сборки (tsc/vite build/сгенери-
@@ -192,7 +220,48 @@ const MINSK_MIR_TOPIC_SLUGS = ['biznes-centr', 'kovorking', 'kupit-ofis', 'arend
 // которой критично не зависать на устаревшем JS. Если тот же симптом
 // повторится на других лендингах объектов — добавлять их сюда по
 // одному, не переводить всю сотню сразу.
-const ALWAYS_FULL_RENDER_PATHS = new Set(['minsk/minsk-mir', 'minsk/one']);
+const ALWAYS_FULL_RENDER_PATHS = new Set([
+  'minsk/minsk-mir',
+  'minsk/one',
+  // Посадочные гида — на officelist; копия с платформы даёт 301.
+  ...MINSK_MIR_TOPIC_SLUGS.map((s) => `minsk/minsk-mir/${s}`),
+  // Хабы с CatalogTopNav на officelist: иначе быстрый режим копирует старый
+  // HTML с прода и в снапшоте остаётся прошлое меню (2026-10-10 — после
+  // смены «Аналитика по районам» на общую вкладку «Аналитика»).
+  'minsk/bc',
+  'minsk/bc/analytics',
+  'minsk/bc/guide',
+  'minsk/bc/new',
+  'minsk/bc/rating',
+  'minsk/bc/rating/largest',
+  'minsk/bc/rating/class-b-plus',
+  'minsk/bc/rating/class-b-c',
+  'minsk/bc/rating/affordable',
+]);
+
+/** Копия с платформы → URL/бренд каталожного домена (каноникал, og, JSON-LD). */
+function rewriteSnapshotForPublicOrigin(html) {
+  if (!IS_CATALOG_DEPLOY || PUBLIC_ORIGIN === SITE_ORIGIN) return html;
+  const brand = IS_MALLS_DEPLOY ? 'MallList' : 'OfficeList';
+  // Снапшоты тянем с redevelopment.pro — там Метрика/VK платформы. На
+  // каталожных доменах их быть не должно (свой счётчик pageViewTracker).
+  let out = stripThirdPartyAnalytics(html)
+    .replaceAll(SITE_ORIGIN, PUBLIC_ORIGIN)
+    .replace(/(<meta property="og:site_name" content=")[^"]*(")/, `$1${brand}$2`);
+  // Вебмастер проверяет meta на финальной странице (/ у officelist → /minsk/bc).
+  const yandex = catalogYandexVerification();
+  if (yandex) {
+    if (/<meta name="yandex-verification"/i.test(out)) {
+      out = out.replace(
+        /(<meta name="yandex-verification" content=")[^"]*(")/i,
+        `$1${yandex}$2`,
+      );
+    } else {
+      out = out.replace('</head>', `<meta name="yandex-verification" content="${yandex}" />\n</head>`);
+    }
+  }
+  return out;
+}
 
 const STATIC_PATHS = [
   'minsk',
@@ -425,6 +494,28 @@ async function fetchMetroHubStations() {
   return [...slugs];
 }
 
+// Каталог ТЦ (открыт 2026-09-30) — из списка, который уже положил в dist
+// generate-catalog-data.mjs (там только видимые ТЦ), без отдельного похода
+// в базу. Нет файла — ТЦ просто не пререндерятся, сборка идёт дальше.
+function tradeCenterCatalogPaths() {
+  const listPath = join(DIST_DIR, 'data', 'trade-centers.json');
+  if (!existsSync(listPath)) {
+    console.warn('[prerender] нет dist/data/trade-centers.json — каталог ТЦ не пререндерится');
+    return [];
+  }
+  const { rows } = JSON.parse(readFileSync(listPath, 'utf8'));
+  const filtersPath = join(DIST_DIR, 'data', 'tc-filters.json');
+  const tcFilters = existsSync(filtersPath) ? (JSON.parse(readFileSync(filtersPath, 'utf8')).rows ?? null) : null;
+  // /store/* вне пререндера и с 2026-10-07 вне sitemap (см. includeStores).
+  return tradeCenterPaths(Array.isArray(rows) ? rows : [], {
+    districtSlugs: DISTRICT_HUB_SLUG_BY_NAME,
+    metroSlugs: METRO_HUB_SLUG_BY_STATION,
+    metroMaxDistance: METRO_HUB_MAX_DISTANCE_M,
+    tcFilters,
+    includeStores: false,
+  });
+}
+
 async function fetchMetroHubPaths() {
   return (await fetchMetroHubStations()).map((slug) => `minsk/bc/metro/${slug}`);
 }
@@ -615,7 +706,11 @@ let executablePathPromise = null;
 async function chromiumExecutable() {
   if (!executablePathPromise) {
     executablePathPromise = (async () => {
-      if (!process.env.VERCEL) return { executablePath: '/opt/pw-browsers/chromium', args: [] };
+      // Облачные агенты/CI часто без /opt/pw-browsers — тот же @sparticuz, что на Vercel.
+      const localPw = '/opt/pw-browsers/chromium';
+      if (!process.env.VERCEL && existsSync(localPw)) {
+        return { executablePath: localPw, args: [] };
+      }
       const sparticuzChromium = (await import('@sparticuz/chromium')).default;
       return { executablePath: await sparticuzChromium.executablePath(), args: sparticuzChromium.args };
     })();
@@ -786,11 +881,53 @@ function isBusinessCenterSectionPath(path) {
   return path === 'minsk/bc' || path.startsWith('minsk/bc/');
 }
 
+/** Карточка ТЦ (/minsk/tc/:slug), не хаб with/format/rating/district/metro. */
+function isTradeCenterCardPath(path) {
+  if (!path.startsWith('minsk/tc/')) return false;
+  const rest = path.slice('minsk/tc/'.length);
+  if (!rest || rest.includes('/')) return false;
+  return true;
+}
+
+/**
+ * В режиме public-refresh (сменился отпечаток публичного кода) честно
+ * рендерим только то, что могло поменять разметку из-за правок каталога ТЦ /
+ * лендингов / статики. Раздел БЦ и карточки ТЦ — копия с прода: их сотни,
+ * а правки подборок /store|/with их HTML не трогают (владелец, 2026-10-04).
+ */
+function needsHonestPublicRefresh(path, landingPathSet) {
+  if (isBusinessCenterSectionPath(path)) return false;
+  if (isTradeCenterCardPath(path)) return false;
+  if (path.startsWith('minsk/tc/store/')) return false;
+  if (path === 'minsk/tc' || path.startsWith('minsk/tc/')) return true;
+  if (ALWAYS_FULL_RENDER_PATHS.has(path)) return true;
+  if (landingPathSet.has(path)) return true;
+  if (path === 'minsk' || STATIC_PATHS.includes(path)) return true;
+  return false;
+}
+
 const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел БЦ рендерится из файлов сборки, остальное копируется с прода';
 
 async function decidePrerenderMode() {
   if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
   if (process.env.PRERENDER_FORCE_FULL === '1') return { full: true, scope: 'all', reason: 'PRERENDER_FORCE_FULL=1' };
+  // malllist / officelist: эталон каталога уже на платформе — копируем
+  // снапшоты оттуда (adoptBuildAssets + rewrite origin). Полный headless
+  // здесь не нужен: разметка каталога та же, что на redevelopment.pro.
+  if (IS_MALLS_DEPLOY) {
+    return {
+      full: false,
+      scope: 'all',
+      reason: 'malls: копия ТЦ с платформы + честный рендер главной',
+    };
+  }
+  if (IS_OFFICES_DEPLOY) {
+    return {
+      full: false,
+      scope: 'all',
+      reason: 'offices: копия БЦ с платформы',
+    };
+  }
   if (!process.env.VERCEL) {
     // Локальный/ручной прогон — как и раньше, всегда полный; PRERENDER_SCOPE
     // (objects|all) — только чтобы прогнать частичный режим локально.
@@ -830,10 +967,13 @@ async function decidePrerenderMode() {
     console.warn('[prerender] не удалось проверить/потребить deploy_debounce — полный режим на всякий случай:', err);
     return { full: true, scope: 'all', reason: 'deploy_debounce недоступен' };
   }
-  // Код публичных страниц менялся? Проверяем ВСЕГДА: частичный режим и быстрый
-  // режим одинаково опираются на копии с прода, а те годятся только при
-  // неизменном коде.
-  if (await publicCodeChangedSinceLive()) return { full: true, scope: 'all', reason: 'код публичных страниц изменился' };
+  // Код публичных страниц менялся? Раньше это включало ПОЛНЫЙ рендер всех
+  // ~300+ путей, включая нетронутый раздел БЦ. С ростом /minsk/tc/* это
+  // стало 20+ минут (2026-10-04). Теперь — scope public-refresh: честно
+  // только хабы ТЦ / статика / лендинги, БЦ и карточки ТЦ копируем с прода.
+  if (await publicCodeChangedSinceLive()) {
+    return { full: true, scope: 'public-refresh', reason: 'код публичных страниц изменился' };
+  }
   if (consumed) {
     return consumed.scope === 'objects'
       ? { full: true, scope: 'objects', reason: 'сохранён объект в админке' }
@@ -931,24 +1071,65 @@ function currentBuildBlocks() {
 
 const assetExistsInDist = (name) => existsSync(join(DIST_DIR, 'assets', name));
 
+function isCatalogShellHtml(html) {
+  if (!CATALOG_SHELL_H1) return false;
+  // prepare-*-shell: <div id="root"><h1>TITLE</h1>...
+  return html.includes(`<h1>${CATALOG_SHELL_H1}</h1>`);
+}
+
 // { ok: true } — снапшот записан; { ok: false, reason } — копию использовать
 // нельзя, вызывающий код рендерит путь честно и учитывает причину в сводке.
 async function fetchPathLive(path) {
-  try {
-    const res = await fetch(`${SITE_ORIGIN}/${path}`, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return { ok: false, reason: `прод ответил ${res.status}` };
-    const html = await res.text();
-    if (!/<h1[\s>]/i.test(html)) return { ok: false, reason: 'на проде нет снапшота (голый SPA-шелл без <h1>)' };
-    const adopted = adoptBuildAssets(html, currentBuildBlocks(), assetExistsInDist);
-    if (!adopted.html) return { ok: false, reason: adopted.reason };
-    const dir = join(DIST_DIR, path);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'index.html'), adopted.html);
-    console.log(`[prerender] /${path} → dist/${path}/index.html (скопировано с прода, ${Math.round(adopted.html.length / 1024)} КБ)`);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, reason: `не удалось скачать живую копию: ${err instanceof Error ? err.message : err}` };
+  // Каталожный деплой: сначала свой прод (уже честные снапшоты), потом
+  // платформа. redirect: 'manual' — иначе 301 платформы → свой шелл
+  // принимался как «живая копия» и навсегда зацикливал пустые страницы.
+  const origins = IS_CATALOG_DEPLOY ? [PUBLIC_ORIGIN, SITE_ORIGIN] : [SITE_ORIGIN];
+  let lastReason = 'нет источника';
+  for (const origin of origins) {
+    try {
+      const url = path ? `${origin}/${path}` : `${origin}/`;
+      const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+      if (res.status >= 300 && res.status < 400) {
+        lastReason = `${origin} ответил ${res.status} (редирект)`;
+        continue;
+      }
+      if (!res.ok) {
+        lastReason = `${origin} ответил ${res.status}`;
+        continue;
+      }
+      const html = await res.text();
+      if (!/<h1[\s>]/i.test(html)) {
+        lastReason = `${origin}: нет снапшота (голый SPA-шелл без <h1>)`;
+        continue;
+      }
+      if (isCatalogShellHtml(html)) {
+        lastReason = `${origin}: SPA-шелл каталога, не страница`;
+        continue;
+      }
+      const adopted = adoptBuildAssets(html, currentBuildBlocks(), assetExistsInDist);
+      if (!adopted.html) {
+        lastReason = adopted.reason;
+        continue;
+      }
+      const rewritten = rewriteSnapshotForPublicOrigin(adopted.html);
+      const dir = path ? join(DIST_DIR, path) : DIST_DIR;
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'index.html'), rewritten);
+      const label =
+        origin === PUBLIC_ORIGIN && IS_CATALOG_DEPLOY
+          ? 'скопировано с своего прода'
+          : IS_CATALOG_DEPLOY
+            ? 'скопировано с платформы'
+            : 'скопировано с прода';
+      console.log(
+        `[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${label}, ${Math.round(rewritten.length / 1024)} КБ)`,
+      );
+      return { ok: true };
+    } catch (err) {
+      lastReason = `не удалось скачать ${origin}: ${err instanceof Error ? err.message : err}`;
+    }
   }
+  return { ok: false, reason: lastReason };
 }
 
 async function main() {
@@ -967,19 +1148,63 @@ async function main() {
   }
   if (!existsSync(DIST_DIR)) throw new Error('dist/ не найден — запускать после vite build');
 
-  const landingPaths = await fetchLandingPaths();
-  const paths = [
-    ...landingPaths,
+  const landingPaths = IS_CATALOG_DEPLOY ? [] : await fetchLandingPaths();
+  // malllist / officelist: privacy + каталог (корень — SPA Navigate на каталог).
+  // Платформа при redirects.*: уехавший каталог не пререндерим — иначе
+  // статика в dist могла бы ответить 200 до Edge-редиректа.
+  const includeTcOnPlatform = !REDIRECT_MALLS_ENABLED;
+  const includeBcOnPlatform = !REDIRECT_OFFICES_ENABLED;
+  const bcCatalogPaths = async () => [
     ...(await fetchBusinessCenterPaths()),
     ...(await fetchClassDistrictComboPaths()),
     ...(await fetchMicrodistrictHubPaths()),
     ...(await fetchMetroHubPaths()),
     ...(await fetchStreetHubPaths()),
-    ...STATIC_PATHS,
   ];
+  const paths = IS_MALLS_DEPLOY
+    ? ['privacy', ...tradeCenterCatalogPaths()]
+    : IS_OFFICES_DEPLOY
+      ? [
+          'privacy',
+          ...STATIC_PATHS.filter(
+            (p) =>
+              p === 'minsk/bc' ||
+              p.startsWith('minsk/bc/') ||
+              p === 'minsk/minsk-mir' ||
+              p.startsWith('minsk/minsk-mir/'),
+          ),
+          ...(await bcCatalogPaths()),
+        ]
+      : [
+          ...landingPaths,
+          ...(includeBcOnPlatform ? await bcCatalogPaths() : []),
+          ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
+          ...STATIC_PATHS.filter((p) => {
+            if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
+            // Гид по Минск Миру уехал на officelist вместе с каталогом БЦ.
+            if (!includeBcOnPlatform && (p === 'minsk/minsk-mir' || p.startsWith('minsk/minsk-mir/'))) return false;
+            return true;
+          }),
+        ];
   if (paths.length === 0) {
     console.warn('[prerender] пререндерить нечего — нет ни объектов с landing_slug, ни статических страниц');
     return;
+  }
+  if (IS_MALLS_DEPLOY) {
+    console.log(
+      `[prerender] режим malls: ${paths.length} путей (privacy + ТЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
+    );
+  } else if (IS_OFFICES_DEPLOY) {
+    console.log(
+      `[prerender] режим offices: ${paths.length} путей (privacy + БЦ), снапшоты с ${SITE_ORIGIN} → ${PUBLIC_ORIGIN}`,
+    );
+  } else if (REDIRECT_MALLS_ENABLED || REDIRECT_OFFICES_ENABLED) {
+    if (REDIRECT_MALLS_ENABLED) {
+      console.log('[prerender] redirects.malls: каталог ТЦ не пререндерю (живёт на malllist.pro)');
+    }
+    if (REDIRECT_OFFICES_ENABLED) {
+      console.log('[prerender] redirects.offices: каталог БЦ не пререндерю (живёт на officelist.pro)');
+    }
   }
   // PRERENDER_ONLY=префикс[,префикс…] — только для локальных замеров/отладки:
   // оставить пути, начинающиеся с одного из префиксов (например
@@ -997,7 +1222,18 @@ async function main() {
   // (в т.ч. /minsk/minsk-mir). Карточки БЦ и хабы класса×района сюда
   // намеренно не входят — их 150+, единичный сбой не должен ронять весь
   // деплой, но полный список пропущенных путей всё равно печатается ниже.
-  const criticalPaths = new Set([...landingPaths, ...STATIC_PATHS]);
+  const criticalPaths = IS_MALLS_DEPLOY
+    ? new Set(['privacy', 'minsk/tc'])
+    : IS_OFFICES_DEPLOY
+      ? new Set(['privacy', 'minsk/bc', 'minsk/minsk-mir'])
+      : new Set([
+          ...landingPaths,
+          ...STATIC_PATHS.filter((p) => {
+            if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;
+            if (!includeBcOnPlatform && (p === 'minsk/minsk-mir' || p.startsWith('minsk/minsk-mir/'))) return false;
+            return true;
+          }),
+        ]);
 
   // История (важно для будущих правок этого файла, четыре захода подряд):
   // 1) Исходно — новый браузер на КАЖДУЮ страницу и КАЖДУЮ попытку. Со
@@ -1050,8 +1286,10 @@ async function main() {
 
   const decision = await decidePrerenderMode();
   let fullMode = decision.full;
-  let fullScope = decision.scope; // 'objects' — частичный полный режим, 'all' — весь сайт
+  // 'objects' | 'public-refresh' | 'all'
+  let fullScope = decision.scope;
   const outage = decision.outage === true;
+  const landingPathSet = new Set(landingPaths);
   // В аварии раздел БЦ рендерится честно, только если код публичных
   // страниц (или снимок данных — он в отпечатке) изменился с прода. Иначе
   // копии с прода уже честные — их и берём: на сборке из-за правки одной
@@ -1069,7 +1307,8 @@ async function main() {
   // Частичный режим: честный рендер только зависимых от объектов страниц,
   // остальное — копии с прода (см. decidePrerenderMode).
   const partialRenderPaths = new Set([...landingPaths, 'minsk', ...ALWAYS_FULL_RENDER_PATHS]);
-  const copiesAllowed = () => !fullMode || fullScope === 'objects';
+  const publicRefreshPaths = new Set(paths.filter((p) => needsHonestPublicRefresh(p, landingPathSet)));
+  const copiesAllowed = () => !fullMode || fullScope === 'objects' || fullScope === 'public-refresh';
   if (copiesAllowed()) {
     try {
       currentBuildBlocks();
@@ -1083,12 +1322,15 @@ async function main() {
     }
   }
   const partialCount = paths.filter((p) => partialRenderPaths.has(p)).length;
+  const publicRefreshCount = publicRefreshPaths.size;
   console.log(
     !fullMode
       ? `[prerender] БЫСТРЫЙ режим (${decision.reason}) — копирую уже живые страницы с прода, рендерю только то, чего там ещё нет`
       : fullScope === 'objects'
         ? `[prerender] ЧАСТИЧНЫЙ режим (${decision.reason}) — заново рендерю ${partialCount} путей, зависящих от объектов, остальные ${paths.length - partialCount} копирую с прода`
-        : `[prerender] ПОЛНЫЙ режим (${decision.reason}) — рендерю каждый путь headless-браузером`,
+        : fullScope === 'public-refresh'
+          ? `[prerender] ТОЧЕЧНЫЙ режим (${decision.reason}) — заново рендерю ${publicRefreshCount} путей (хабы ТЦ/статика/лендинги), раздел БЦ и карточки ТЦ копирую с прода; /store/* в пререндер не входят`
+          : `[prerender] ПОЛНЫЙ режим (${decision.reason}) — рендерю каждый путь headless-браузером`,
   );
   if (fullMode && fullScope === 'all' && !process.env.VERCEL) {
     console.warn(
@@ -1159,7 +1401,22 @@ async function main() {
         // Supabase (см. состояние loading) — h1 в разметке появляется
         // только у реального контента, это и есть сигнал готовности
         // (для статических страниц вроде DistrictGuidePage h1 есть сразу).
-        await page.waitForSelector('h1', { timeout: 20_000 });
+        // На malllist/officelist в #root уже лежит h1 шелла (prepare-*-shell) —
+        // ждём, пока React подменит его на заголовок страницы.
+        if (CATALOG_SHELL_H1) {
+          await page.waitForFunction(
+            (shellH1) => {
+              const h1 = document.querySelector('h1');
+              if (!h1) return false;
+              const text = (h1.textContent || '').trim();
+              return text.length > 0 && text !== shellH1;
+            },
+            CATALOG_SHELL_H1,
+            { timeout: 25_000 },
+          );
+        } else {
+          await page.waitForSelector('h1', { timeout: 20_000 });
+        }
         // У гида района h1 статический и появляется ДО прихода данных из
         // Supabase — таблицы первичного/вторичного рынка в этот момент ещё
         // показывают плейсхолдер «Загрузка…», и он попадал в снапшот
@@ -1183,14 +1440,14 @@ async function main() {
         await page.evaluate(() => {
           document.querySelectorAll('[data-entry-injected]').forEach((el) => el.remove());
         });
-        const html = await page.content();
+        const html = rewriteSnapshotForPublicOrigin(await page.content());
         if (!html.includes('data-entry-loader')) {
           throw new Error('в снапшоте нет лоадера главного JS (data-entry-loader) — defer-entry-script.mjs не отработал?');
         }
-        const dir = join(DIST_DIR, path);
+        const dir = path ? join(DIST_DIR, path) : DIST_DIR;
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'index.html'), html);
-        console.log(`[prerender] /${path} → dist/${path}/index.html (${Math.round(html.length / 1024)} КБ)`);
+        console.log(`[prerender] /${path} → dist/${path ? `${path}/` : ''}index.html (${Math.round(html.length / 1024)} КБ)`);
         return;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -1279,11 +1536,17 @@ async function main() {
     async function worker(workerId) {
       while (cursor < paths.length) {
         const path = paths[cursor++];
-        const honest = fullMode && (fullScope !== 'objects' || partialRenderPaths.has(path));
+        const honest =
+          fullMode &&
+          (fullScope === 'all' ||
+            (fullScope === 'objects' && partialRenderPaths.has(path)) ||
+            (fullScope === 'public-refresh' && publicRefreshPaths.has(path)));
         await (honest ? renderPath(path, workerId) : processPathFast(path, workerId));
       }
     }
-    await Promise.all(Array.from({ length: fullMode && fullScope === 'all' ? WORKER_COUNT : FAST_WORKER_COUNT }, (_, i) => worker(i)));
+    // full/public-refresh/objects — есть честные headless-рендеры; быстрый — только HTTP.
+    const parallel = fullMode ? WORKER_COUNT : FAST_WORKER_COUNT;
+    await Promise.all(Array.from({ length: parallel }, (_, i) => worker(i)));
   } finally {
     server.close();
     if (sharedBrowserPromise) {
@@ -1309,9 +1572,14 @@ async function main() {
   // путь (как 2026-09-11 и дважды 2026-09-12), и причины напечатаны ниже.
   if (copiesAllowed()) {
     const rerendered = paths.length - copiedFromProd.length;
-    const planned = fullMode ? partialCount : alwaysFullCount + outageSectionCount; // сколько рендеров было запланировано, а не вынуждено
+    const planned = fullMode
+      ? fullScope === 'public-refresh'
+        ? publicRefreshCount
+        : partialCount
+      : alwaysFullCount + outageSectionCount; // сколько рендеров было запланировано, а не вынуждено
+    const modeLabel = !fullMode ? 'быстрого' : fullScope === 'public-refresh' ? 'точечного' : 'частичного';
     console.log(
-      `[prerender] ИТОГ ${fullMode ? 'частичного' : 'быстрого'} режима: путей ${paths.length}, скопировано с прода ${copiedFromProd.length}, ` +
+      `[prerender] ИТОГ ${modeLabel} режима: путей ${paths.length}, скопировано с прода ${copiedFromProd.length}, ` +
         `отрендерено браузером ${rerendered} (запланировано: ${planned}, ` +
         `из-за непригодной копии: ${Math.max(0, rerendered - planned)})` +
         (outageSectionCount ? `; раздел БЦ отрендерен из файлов сборки, пока Supabase закрыт: ${outageSectionCount}` : ''),

@@ -23,7 +23,6 @@ import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 import { buildDataOffline } from './_buildFallback.mjs';
 import ts from 'typescript';
-import { applyApprovedTcPreview } from './_approvedTcPreview.mjs';
 
 // Один фильтр для сборки и страницы, без копии правил (владелец, 2026-09-25).
 const guideModule = ts.transpileModule(readFileSync(new URL('../src/lib/tradeCenterGuide.ts', import.meta.url), 'utf8'), {
@@ -91,6 +90,8 @@ async function main(columns) {
     `business_centers?select=${columns}&kind=eq.tc&is_hidden=eq.false&order=sort_order.asc`,
     'business_centers (список торговых центров)',
   );
+  // Патчи и урезание списка — в finalizeTcCatalogArtifacts (после любого
+  // источника: база или копия с прода).
   writeFileSync(join(DIST_DATA, 'trade-centers.json'), JSON.stringify({ generatedAt, rows: tcRows }));
 
   // Полные ряды по одному файлу на здание — их читает карточка БЦ, которой
@@ -140,7 +141,16 @@ async function copyFromProd() {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('на проде пустой /data/business-centers.json');
   mkdirSync(join(DIST_DATA, 'bc'), { recursive: true });
   writeFileSync(join(DIST_DATA, 'business-centers.json'), listJson);
-  const slugs = rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
+  // Список ТЦ (каталог /minsk/tc в проде с 2026-09-30) и файлы карточек ТЦ —
+  // тем же проходом: без них каталог ТЦ собрался бы без данных, а sitemap и
+  // пререндер — без единого ТЦ (так и вышло в первой прод-сборке). Нет
+  // списка на проде — Vercel отдаёт страницу SPA вместо JSON — тогда ТЦ нет.
+  const tc = await fetch(`${SITE_ORIGIN}/data/trade-centers.json`, { signal: AbortSignal.timeout(20_000) });
+  const tcRows = tc.ok && (tc.headers.get('content-type') ?? '').includes('json') ? JSON.parse(await tc.text()) : null;
+  if (tcRows) writeFileSync(join(DIST_DATA, 'trade-centers.json'), JSON.stringify(tcRows));
+  const slugs = [...rows, ...(tcRows?.rows ?? [])]
+    .map((r) => r.slug)
+    .filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
   let written = 0;
   for (let i = 0; i < slugs.length; i += 8) {
     await Promise.all(
@@ -324,12 +334,15 @@ async function writeExtras() {
       .map((org) => ({ name: org.name, rubric: typeof org.category === 'string' ? org.category : null, reviewCount: typeof org.reviewCount === 'number' ? org.reviewCount : null })),
   })));
   for (const slug of slugs) {
+    // У ТЦ на странице с 2026-09-30 только сводка тем отзывов из retail_info;
+    // полный массив review_snapshots (сотни КБ у Galleria) в .extra не кладём.
+    const isTc = tcSlugs.has(slug);
     writeFileSync(
       join(DIST_DATA, 'bc', `${slug}.extra.json`),
       JSON.stringify({
         generatedAt,
         offers: offersBy.get(slug) ?? [],
-        reviews: reviewsBy.get(slug) ?? [],
+        reviews: isTc ? [] : (reviewsBy.get(slug) ?? []),
         nearby: nearbyBy.get(slug) ?? [],
         gis2: gis2By.get(slug)?.[0] ?? null,
         tenants: tenantsBy.get(slug)?.[0] ?? null,
@@ -374,14 +387,14 @@ async function copyExtrasFromProd() {
   for (const name of ['bc-market.json', 'bc-analytics.json', 'bc-sources.json']) {
     writeFileSync(join(DIST_DATA, name), await get(`/data/${name}`));
   }
-  // Список ТЦ появится на проде вместе с каталогом ТЦ. Пока его там нет,
-  // Vercel на этот путь отдаёт страницу SPA (200, text/html) — такое не пишем.
-  const tc = await fetch(`${SITE_ORIGIN}/data/trade-centers.json`, { signal: AbortSignal.timeout(20_000) });
-  if (tc.ok && (tc.headers.get('content-type') ?? '').includes('json')) {
-    writeFileSync(join(DIST_DATA, 'trade-centers.json'), await tc.text());
-  }
-  const { rows } = JSON.parse(readFileSync(join(DIST_DATA, 'business-centers.json'), 'utf8'));
-  const slugs = rows.map((r) => r.slug).filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
+  // Список ТЦ кладёт copyFromProd. Нет его — на проде ещё нет каталога ТЦ
+  // (первая сборка после выкатки): копия не годится, собираем из базы.
+  const tcPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(tcPath)) throw new Error('на проде нет /data/trade-centers.json');
+  const slugs = ['business-centers.json', 'trade-centers.json']
+    .flatMap((name) => JSON.parse(readFileSync(join(DIST_DATA, name), 'utf8')).rows)
+    .map((r) => r.slug)
+    .filter((slug) => typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug));
   for (let i = 0; i < slugs.length; i += 8) {
     await Promise.all(
       slugs.slice(i, i + 8).map(async (slug) => {
@@ -481,6 +494,10 @@ function writeTcFilters() {
     const tenants = readJson(join(DIST_DATA, 'bc', `${slug}.extra.json`))?.tenants;
     const arr = (v) => (Array.isArray(v) ? v : []);
     const str = (v) => (typeof v === 'string' ? v : '');
+    const tenantNames = arr(tenants?.organizations).map((o) => str(o?.name)).filter(Boolean);
+    // Якоря retail_info — тоже бренды для /with/<бренд> (на проде tenants
+    // иногда пустые в снимке, а якоря уже в карточке).
+    const anchorNames = arr(r.anchors).map((a) => str(a?.name)).filter(Boolean);
     rows[slug] = {
       funKinds: arr(r.fun).map((f) => str(f?.kind)).filter(Boolean),
       foodZones: arr(r.food?.zones).length,
@@ -490,7 +507,7 @@ function writeTcFilters() {
         ? { summary: str(r.parking.summary), items: arr(r.parking.items).map((i) => ({ label: str(i?.label), value: str(i?.value) })) }
         : null,
       hours: arr(r.hours).map((h) => ({ zone: str(h?.zone), value: str(h?.value) })),
-      brands: arr(tenants?.organizations).map((o) => str(o?.name)).filter(Boolean),
+      brands: [...new Set([...tenantNames, ...anchorNames])],
     };
   }
   const json = JSON.stringify({ rows });
@@ -498,7 +515,114 @@ function writeTcFilters() {
   console.log(`[catalog-data] фильтры ТЦ: ${Object.keys(rows).length} ТЦ, ${Math.round(Buffer.byteLength(json) / 1024)} КБ`);
 }
 
-run().then(() => applyApprovedTcPreview(DIST_DATA)).then(writeTcFilters).catch((err) => {
+// Рейтинги ТЦ с Яндекс.Карт для /minsk/tc/rating (2026-10-04). В списке
+// trade-centers.json звёзд нет (highlights — факты ресёрча); таблица
+// business_center_yandex_cards заполняется capture-yandex-reviews.mjs.
+// Нет файла — страница рейтинга сама сходит в базу (yandexCardsApi).
+async function writeTcRatings() {
+  const listPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(listPath)) return;
+  const tcSlugs = new Set(
+    JSON.parse(readFileSync(listPath, 'utf8')).rows.map((r) => r.slug).filter((s) => typeof s === 'string'),
+  );
+  try {
+    const res = await fetch(`${SITE_ORIGIN}/data/tc-ratings.json`, { signal: AbortSignal.timeout(20_000) });
+    if (res.ok && (res.headers.get('content-type') ?? '').includes('json')) {
+      const body = await res.text();
+      writeFileSync(join(DIST_DATA, 'tc-ratings.json'), body);
+      const n = JSON.parse(body).rows?.length ?? 0;
+      console.log(`[catalog-data] рейтинги ТЦ скопированы с прода: ${n}`);
+      return;
+    }
+  } catch {
+    // Продолжаем в базу / пропускаем.
+  }
+  try {
+    const rows = (
+      await selectAll(
+        'business_center_yandex_cards?select=business_center_slug,rating,rating_count&rating=not.is.null&order=business_center_slug.asc',
+        'рейтинги Яндекса',
+      )
+    ).filter((r) => tcSlugs.has(r.business_center_slug));
+    const json = JSON.stringify({ generatedAt: new Date().toISOString(), rows });
+    writeFileSync(join(DIST_DATA, 'tc-ratings.json'), json);
+    console.log(`[catalog-data] рейтинги ТЦ: ${rows.length}, ${Math.round(Buffer.byteLength(json) / 1024)} КБ`);
+  } catch (err) {
+    console.warn(`[catalog-data] рейтинги ТЦ не собраны: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+// --- Пост-обработка ТЦ (2026-10-04) ----------------------------------------
+// Бежит после любого источника данных (база / копия с прода / fallback):
+// патчи районов-площадей-фото, урезание списка, пустые reviews в .extra у ТЦ.
+async function loadTcPatchRow() {
+  try {
+    const patchSource = readFileSync(new URL('../src/data/tcCatalogPatches.ts', import.meta.url), 'utf8');
+    const patchModule = ts.transpileModule(patchSource, {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
+    }).outputText;
+    const slim = patchModule
+      .replace(/import\s*\{[^}]*normalizeRetailInfo[^}]*\}\s*from\s*[^;]+;?\n?/, '')
+      .replace(/import\s+type\s*\{[^}]+\}\s*from\s*[^;]+;?\n?/g, '')
+      .replace(/export function mergeRetailInfoPatch[\s\S]*?\n\}\n\n/, '')
+      .replace(/export function applyTcCatalogPatch[\s\S]*?\n\}\n\n/, '');
+    const loaded = await import(`data:text/javascript;base64,${Buffer.from(slim).toString('base64')}`);
+    if (typeof loaded.applyTcCatalogPatchToRow === 'function') return loaded.applyTcCatalogPatchToRow;
+  } catch (err) {
+    console.warn('[catalog-data] tc patches недоступны:', err?.message ?? err);
+  }
+  return (row) => row;
+}
+
+async function finalizeTcCatalogArtifacts() {
+  const listPath = join(DIST_DATA, 'trade-centers.json');
+  if (!existsSync(listPath)) return;
+  const patchRow = await loadTcPatchRow();
+  const list = JSON.parse(readFileSync(listPath, 'utf8'));
+  const tcRows = (list.rows ?? []).map((row) => {
+    const patched = patchRow(row);
+    const highlights = Array.isArray(patched.highlights)
+      ? patched.highlights.filter((h) => h && h.icon === 'rating')
+      : [];
+    return { ...patched, description: null, highlights };
+  });
+  writeFileSync(listPath, JSON.stringify({ ...list, rows: tcRows }));
+
+  const bcDir = join(DIST_DATA, 'bc');
+  let patchedCards = 0;
+  let clearedReviews = 0;
+  for (const row of tcRows) {
+    const slug = row.slug;
+    if (typeof slug !== 'string' || !/^[a-z0-9-]+$/.test(slug)) continue;
+    const cardPath = join(bcDir, `${slug}.json`);
+    if (existsSync(cardPath)) {
+      const card = JSON.parse(readFileSync(cardPath, 'utf8'));
+      if (card.row) {
+        card.row = patchRow(card.row);
+        writeFileSync(cardPath, JSON.stringify(card));
+        patchedCards += 1;
+      }
+    }
+    const extraPath = join(bcDir, `${slug}.extra.json`);
+    if (existsSync(extraPath)) {
+      const extra = JSON.parse(readFileSync(extraPath, 'utf8'));
+      if (Array.isArray(extra.reviews) && extra.reviews.length > 0) {
+        extra.reviews = [];
+        writeFileSync(extraPath, JSON.stringify(extra));
+        clearedReviews += 1;
+      }
+    }
+  }
+  console.log(
+    `[catalog-data] финализация ТЦ: список ${tcRows.length}, карточек ${patchedCards}, .extra без отзывов ${clearedReviews}`,
+  );
+}
+
+run()
+  .then(finalizeTcCatalogArtifacts)
+  .then(writeTcFilters)
+  .then(writeTcRatings)
+  .catch((err) => {
   // Без догружаемых файлов страницы работают как раньше — через запросы в
   // базу из браузера, — поэтому сборку не валим.
   console.warn(`[catalog-data] догружаемые данные не собраны: ${err instanceof Error ? err.message : err}`);

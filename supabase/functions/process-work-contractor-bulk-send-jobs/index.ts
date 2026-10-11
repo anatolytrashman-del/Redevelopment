@@ -108,6 +108,17 @@ async function uploadAttachmentToStorage(bytes: Uint8Array, contentType: string,
   };
 }
 
+// Вложения задания: новый список attachments (несколько файлов, миграция
+// 20260929-work-contractor-bulk-attachments.sql) или старое одиночное поле
+// attachment — у заданий, поставленных до правки.
+function jobAttachments(job: any): any[] {
+  if (Array.isArray(job.attachments) && job.attachments.length > 0) {
+    return job.attachments.filter((a: any) => a?.contentBase64 && a?.fileName);
+  }
+  if (job.attachment?.contentBase64 && job.attachment?.fileName) return [job.attachment];
+  return [];
+}
+
 async function sendOneEmail(job: any, item: any, contractor: any) {
   // Второй рубеж против дубля (первый — атомарный захват строки задания в
   // основном цикле): по каждой строке задания в переписке может быть только
@@ -127,22 +138,36 @@ async function sendOneEmail(job: any, item: any, contractor: any) {
 
   const resendAttachments: { filename: string; content: string }[] = [];
   const storedFiles: { url: string; fileName: string }[] = [];
-  if (job.attachment?.contentBase64 && job.attachment?.fileName) {
-    resendAttachments.push({ filename: job.attachment.fileName, content: job.attachment.contentBase64 });
+  const files = jobAttachments(job);
+  let uploadedNow = false;
+  for (const file of files) {
+    resendAttachments.push({ filename: file.fileName, content: file.contentBase64 });
+    // Копия в Storage делается один раз на задание, а не на каждое письмо:
+    // с несколькими PDF по мегабайту на 30 подрядчиков это сотня мегабайт
+    // одинаковых файлов. Ссылка запоминается в самом задании (storedUrl).
+    if (file.storedUrl) {
+      storedFiles.push({ url: file.storedUrl, fileName: sanitizeFileName(file.fileName) });
+      continue;
+    }
     try {
-      storedFiles.push(
-        await uploadAttachmentToStorage(
-          base64ToBytes(job.attachment.contentBase64),
-          job.attachment.contentType,
-          job.attachment.fileName,
-        ),
-      );
+      const stored = await uploadAttachmentToStorage(base64ToBytes(file.contentBase64), file.contentType, file.fileName);
+      file.storedUrl = stored.url;
+      uploadedNow = true;
+      storedFiles.push(stored);
     } catch (err) {
       console.error('  не удалось сохранить вложение в Storage:', err instanceof Error ? err.message : err);
     }
   }
+  if (uploadedNow && Array.isArray(job.attachments) && job.attachments.length > 0) {
+    await supabase.from('work_contractor_bulk_send_jobs').update({ attachments: job.attachments }).eq('id', job.id);
+  }
 
   const fromAddress = emailAddress(contractor.short_code);
+  // По флажку задания — все адреса подрядчика одним письмом в поле «Кому»
+  // (include_extra_emails, миграция 20260929-work-contractor-bulk-extra-emails.sql).
+  const toAddresses = job.include_extra_emails
+    ? [...new Set([contractor.email, ...(contractor.extra_emails ?? [])].map((e: string) => String(e).trim()).filter(Boolean))]
+    : [contractor.email];
   // Idempotency-Key на строку задания — если связь оборвётся ПОСЛЕ того, как
   // Resend принял письмо, но ДО записи строки в work_contractor_emails,
   // следующий тик пойдёт по этой же строке заново; Resend по ключу вернёт
@@ -157,7 +182,7 @@ async function sendOneEmail(job: any, item: any, contractor: any) {
     },
     body: JSON.stringify({
       from: `${RESEND_FROM_NAME} <${fromAddress}>`,
-      to: [contractor.email],
+      to: toAddresses,
       subject: subject || 'Письмо',
       html: emailHtml(body),
       ...(resendAttachments.length > 0 ? { attachments: resendAttachments } : {}),
@@ -170,7 +195,7 @@ async function sendOneEmail(job: any, item: any, contractor: any) {
     contractor_id: contractor.id,
     direction: 'out',
     from_address: fromAddress,
-    to_address: contractor.email,
+    to_address: toAddresses.join(', '),
     subject,
     body,
     files: storedFiles,

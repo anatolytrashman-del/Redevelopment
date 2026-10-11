@@ -23,6 +23,7 @@ function delivery(partial: Partial<PurchaseDelivery>): PurchaseDelivery {
     files: [],
     comment: '',
     createdBy: '',
+    isTest: false,
     createdAt: '2026-09-16T00:00:00Z',
     ...partial,
   };

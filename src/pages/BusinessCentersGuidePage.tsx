@@ -4,6 +4,7 @@ import { ArrowRight, BookOpen } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setGenericPageMeta } from '../lib/pageMeta';
+import { catalogSiteUrl } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
@@ -59,7 +60,7 @@ import {
 // data/businessCenterGuideContent.ts: из них же собирается FAQ, поэтому
 // правило владельца «FAQ описывает всё, что есть на странице» выполняется
 // механически, а не второй рукописной копией текста.
-const PAGE_URL = 'https://redevelopment.pro/minsk/bc/guide';
+const PAGE_URL = `${catalogSiteUrl('bc')}/guide`;
 const DATE_PUBLISHED = '2026-09-22';
 const TITLE = 'Как устроен рынок бизнес-центров в Минске: классы, ставки, договор';
 // Описание держим в 160 символов — бюджет сниппета (DESCRIPTION_BUDGET в
@@ -228,7 +229,7 @@ export function BusinessCentersGuidePage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: 'https://redevelopment.pro/minsk/bc' },
+      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
       { name: 'Справочник' },
     ]);
   }, []);
@@ -672,10 +673,10 @@ export function BusinessCentersGuidePage() {
               </Link>
             </li>
             <li>
-              <Link to="/minsk/minsk-mir" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <a href="https://officelist.pro/minsk/minsk-mir" className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Гид по кварталу Минск Мир
-              </Link>
+              </a>
             </li>
           </ul>
         </div>

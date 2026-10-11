@@ -29,6 +29,7 @@ function fromRow(row: PurchaseDeliveryRow): PurchaseDelivery {
     files: row.files ?? [],
     comment: row.comment ?? '',
     createdBy: row.created_by ?? '',
+    isTest: row.is_test === true,
     createdAt: row.created_at,
   };
 }
@@ -50,9 +51,34 @@ function toRow(input: PurchaseDeliveryInput) {
     poa_date: input.poaDate || null,
     poa_file: input.poaFile,
     items: input.items,
-    files: input.files,
+    // Колонка files снята миграцией 20260916-drop-delivery-files.sql —
+    // документы поставки в purchase_documents. В типе поле оставили, чтобы
+    // форма не меняла контракт, в базу его больше не пишем.
     comment: input.comment,
+    is_test: input.isTest,
   };
+}
+
+// Все живые поставки — для стартового экрана закупок (ближайшие 2 дня).
+// Таблица маленькая; range на случай роста, PostgREST иначе молча режет на 1000.
+export function fetchAllPurchaseDeliveries(): Promise<PurchaseDelivery[]> {
+  return withRetry(async () => {
+    const pageSize = 1000;
+    const pages: PurchaseDelivery[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from('purchase_deliveries')
+        .select('*')
+        .is('deleted_at', null)
+        .order('planned_date', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const rows = ((data ?? []) as PurchaseDeliveryRow[]).map(fromRow);
+      pages.push(...rows);
+      if (rows.length < pageSize) break;
+    }
+    return pages;
+  });
 }
 
 export function fetchPurchaseDeliveriesByOrder(orderId: string): Promise<PurchaseDelivery[]> {

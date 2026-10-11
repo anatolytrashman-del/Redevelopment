@@ -6,6 +6,8 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setBreadcrumbJsonLd, setDatasetJsonLd, setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { fetchExternalMetricsBySource, fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
+import { absolutePublicUrl } from '../lib/sites';
+// absolutePublicUrl — гид /minsk/minsk-mir на officelist
 
 const TITLE = 'Цены на коммерческую недвижимость в Минске — Redevelopment';
 const DESCRIPTION =
@@ -516,9 +518,9 @@ export function MarketAnalyticsHub() {
               каталоге бизнес-центров
             </Link>
             . Про сам квартал Минск Мир, а не только его рынок недвижимости, — отдельный{' '}
-            <Link to="/minsk/minsk-mir" className="text-primary-hover hover:underline">
+            <a href={absolutePublicUrl('/minsk/minsk-mir')} className="text-primary-hover hover:underline">
               гид по району
-            </Link>
+            </a>
             .
           </p>
         </section>
