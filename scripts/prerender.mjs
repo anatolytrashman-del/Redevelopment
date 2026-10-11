@@ -242,6 +242,10 @@ const ALWAYS_FULL_RENDER_PATHS = new Set([
   'minsk/bc/rating/class-b-plus',
   'minsk/bc/rating/class-b-c',
   'minsk/bc/rating/affordable',
+  // Хабы malllist — иначе копия со старым подвалом без «Продукт компании».
+  'minsk/tc',
+  'minsk/tc/rating',
+  'minsk/tc/rating/largest',
 ]);
 
 /** Копия с платформы → URL/бренд каталожного домена (каноникал, og, JSON-LD). */

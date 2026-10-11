@@ -24,18 +24,29 @@ export function restorePlatformHomeHrefs(html, platformOrigin) {
 }
 
 /**
- * На копиях с платформы строки ещё нет (там mode=platform).
- * Вставляем в CookieFooterLinks; ссылку всегда оставляем на платформу.
+ * На копиях с платформы / старых снапшотах строки ещё нет.
+ * Вставляем в CookieFooterLinks (новый и старый вид); ссылку — на платформу.
  */
 export function ensureCatalogProductCredit(html, platformOrigin) {
   if (html.includes('data-platform-home') || html.includes('Продукт компании')) {
     return restorePlatformHomeHrefs(html, platformOrigin);
   }
-  if (!html.includes('ИП Трэшмен')) return html;
   const credit = catalogProductCreditHtml(platformOrigin);
-  const withCredit = html.replace(
-    /(<div class="flex flex-col items-center gap-2 text-center text-xs text-ink-muted">)(\s*)(<p class="leading-relaxed font-normal">)/,
-    `$1$2${credit}$2$3`,
-  );
-  return restorePlatformHomeHrefs(withCredit, platformOrigin);
+  // Актуальный CookieFooterLinks: обёртка + реквизиты ИП.
+  if (html.includes('ИП Трэшмен')) {
+    const withCredit = html.replace(
+      /(<div class="flex flex-col items-center gap-2 text-center text-xs text-ink-muted">)(\s*)(<p class="leading-relaxed font-normal">)/,
+      `$1$2${credit}$2$3`,
+    );
+    if (withCredit !== html) return restorePlatformHomeHrefs(withCredit, platformOrigin);
+  }
+  // Старый подвал (только privacy/cookie в одном <p>) — как на копиях malllist.
+  if (html.includes('Политика конфиденциальности')) {
+    const withCredit = html.replace(
+      /(<p class="text-xs text-ink-muted">\s*<a\b[^>]*>Политика конфиденциальности)/,
+      `${credit}$1`,
+    );
+    if (withCredit !== html) return restorePlatformHomeHrefs(withCredit, platformOrigin);
+  }
+  return html;
 }

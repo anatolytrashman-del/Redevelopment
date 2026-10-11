@@ -40,4 +40,13 @@ describe('catalogFooterCredit', () => {
     expect(out).toContain(`href="${PLATFORM}"`);
     expect(out.match(/Продукт компании/g)?.length).toBe(1);
   });
+
+  it('injects into legacy privacy-only footer (malllist copies)', () => {
+    const legacy =
+      '<p class="text-xs text-ink-muted"><a class="underline hover:text-ink" href="/privacy">Политика конфиденциальности</a> · <button type="button">Настройки cookie</button></p>';
+    const out = ensureCatalogProductCredit(legacy, PLATFORM);
+    expect(out).toContain('Продукт компании');
+    expect(out).toContain(`href="${PLATFORM}"`);
+    expect(out).toContain('Политика конфиденциальности');
+  });
 });
