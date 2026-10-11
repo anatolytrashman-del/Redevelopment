@@ -174,7 +174,8 @@ export function TradeCenterFoodCard({ food, title, index }: { food: RetailFoodIn
 function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
   const Icon = FUN_ICONS[entry.kind];
   const meta = funMetaParts(entry);
-  const blurb = essenceText(entry.text);
+  // Теги и meta уже несут детали — в плитке хватает короткого смысла.
+  const blurb = essenceText(entry.text, 90);
   return (
     <li
       className={cn(
