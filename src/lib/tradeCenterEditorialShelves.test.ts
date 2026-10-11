@@ -293,12 +293,14 @@ describe('авторские полки каталога ТЦ', () => {
     expect(figures[0]?.id).toBe('total');
     expect(figures[0]?.value).toBe('3');
     expect(figures[0]?.icon).toBe('malls');
-    expect(figures.some((f) => f.id === 'area')).toBe(true);
+    expect(figures[0]?.tone).toBe('gold');
+    expect(figures.slice(1).every((f) => f.tone === 'ink')).toBe(true);
+    expect(figures.some((f) => f.id === 'area' && f.label === 'площадь')).toBe(true);
     expect(figures.some((f) => f.id === 'metro' && f.value === '2')).toBe(true);
-    expect(figures.some((f) => f.id === 'topic-cinema' && f.value === '2')).toBe(true);
+    expect(figures.some((f) => f.id === 'topic-cinema' && f.label === 'кино')).toBe(true);
+    expect(figures.every((f) => f.id !== 'brands')).toBe(true);
     expect(figures.every((f) => f.value !== '0')).toBe(true);
     expect(figures.length).toBeLessThanOrEqual(TC_BROWSE_FIGURE_SLOTS);
-    expect(figures.length % 2 === 0 || figures.length === TC_BROWSE_FIGURE_SLOTS || figures.length > 0).toBe(true);
   });
 
   it('даёт районам разные обложки, метро — разные паттерны', () => {
