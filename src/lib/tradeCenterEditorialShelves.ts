@@ -1,7 +1,5 @@
-// Авторские полки подборок на корне каталога ТЦ (/minsk/tc) — по образцу
-// casinolist shortlists: горизонтальный скролл, яркие lookbook-карточки,
-// сценарии для минчан (шопинг / кино / парковка / бренды / топ районы и метро).
-// Данные — из уже существующих хабов /with/*, /store/*, /district/*, /metro/*.
+// Авторские полки подборок на корне каталога ТЦ (/minsk/tc).
+// Данные — из хабов /with/*, /store/*, /district/*, /metro/* плюс карточка «Все ТЦ».
 import type { BusinessCenter } from '../data/businessCenters';
 import { isOutsideMinsk } from './businessCenterRanking';
 import {
@@ -12,7 +10,6 @@ import {
   districtHubUrl,
 } from './businessCenterHubs';
 import { MINSK_METRO_LINES } from './businessCenterCatalogFilter';
-import { pluralRu } from './pluralRu';
 import {
   matchesTcTopicHub,
   tcTopicHubBySlug,
@@ -37,6 +34,7 @@ export type TcLookbookArt =
   | 'entertainment'
   | 'budget'
   | 'center'
+  | 'all'
   | 'metro-near'
   | 'brand-gold-apple'
   | 'brand-fashion'
@@ -52,6 +50,7 @@ export interface TcEditorialCard {
   href: string;
   title: string;
   countLabel: string;
+  count: number;
   art: TcLookbookArt;
   from: string;
   to: string;
@@ -64,7 +63,7 @@ export interface TcEditorialShelf {
   cards: TcEditorialCard[];
 }
 
-/** Сценарии «куда сегодня» — порядок как у казино Start tonight. */
+/** Сценарии «куда сегодня». */
 export const TC_TONIGHT_TOPIC_SLUGS = [
   'shopping',
   'cinema',
@@ -77,8 +76,8 @@ export const TC_TONIGHT_TOPIC_SLUGS = [
 ] as const;
 
 /**
- * Бренды, которые минчане реально ищут. Порядок — редакционный;
- * в полку попадают только те, у кого в каталоге ≥ TC_FEATURED_BRAND_MIN ТЦ.
+ * Бренды-кандидаты в полку. Порядок в массиве не важен —
+ * на полке сортируем по числу ТЦ (больше → раньше).
  */
 export const TC_FEATURED_BRAND_SLUGS = [
   'gold-apple',
@@ -102,15 +101,18 @@ export const TC_FEATURED_BRAND_MIN = 2;
 export const TC_TOP_DISTRICTS = 5;
 export const TC_TOP_METRO = 6;
 
+/** Список всех ТЦ — отдельная «подборка», не сетка на корне. */
+export const TC_ALL_LIST_HREF = '/minsk/tc?view=list';
+
 const TONIGHT_ART: Record<string, { art: TcLookbookArt; from: string; to: string; shelfTitle: string }> = {
   shopping: { art: 'shopping', from: '#c45c2a', to: '#7a2e12', shelfTitle: 'Шопинг' },
   cinema: { art: 'cinema', from: '#1e2a4a', to: '#0b1224', shelfTitle: 'Кино' },
-  'free-parking': { art: 'free-parking', from: '#1a5c6e', to: '#0b2f38', shelfTitle: 'Бесплатная парковка' },
+  'free-parking': { art: 'free-parking', from: '#1a5c6e', to: '#0b2f38', shelfTitle: 'Парковка' },
   foodcourt: { art: 'foodcourt', from: '#b4532a', to: '#6b2a12', shelfTitle: 'Фудкорт' },
   kids: { art: 'kids', from: '#c26b8a', to: '#7a3048', shelfTitle: 'С детьми' },
   entertainment: { art: 'entertainment', from: '#6b3fa0', to: '#2e1848', shelfTitle: 'Развлечения' },
   budget: { art: 'budget', from: '#2f6b4f', to: '#143528', shelfTitle: 'Недорого' },
-  center: { art: 'center', from: '#e4152b', to: '#8a0c1a', shelfTitle: 'В центре' },
+  center: { art: 'center', from: '#e4152b', to: '#8a0c1a', shelfTitle: 'Центр' },
 };
 
 const DISTRICT_PALETTES = [
@@ -131,16 +133,15 @@ function isEligible(c: BusinessCenter): boolean {
   return c.status !== 'under_construction' && !isOutsideMinsk(c);
 }
 
-function centersWord(n: number): string {
-  return pluralRu(n, 'торговый центр', 'торговых центра', 'торговых центров');
+function countLabel(n: number): string {
+  return `${n} ТЦ`;
 }
 
-function countLabel(n: number): string {
-  return `${n} ${centersWord(n)}`;
+function byCountDesc(a: TcEditorialCard, b: TcEditorialCard): number {
+  return b.count - a.count || a.title.localeCompare(b.title, 'ru');
 }
 
 function qualityScore(centers: BusinessCenter[]): number {
-  // Количество важнее, но крупные и хорошо оценённые ТЦ поднимают срез.
   let area = 0;
   let ratingSum = 0;
   let ratingN = 0;
@@ -165,7 +166,15 @@ function brandArt(slug: string): { art: TcLookbookArt; from: string; to: string 
   if (slug === 'detmir' || slug === 'milavitsa') {
     return { art: 'brand-beauty', from: '#a84d6d', to: '#5a2038' };
   }
-  return { art: 'brand-fashion', from: '#e4152b', to: '#5c0812' };
+  // Разные геометрии для fashion-брендов — чтобы обложки не были клонами.
+  const fashionPalettes = [
+    { art: 'brand-fashion' as const, from: '#e4152b', to: '#5c0812' },
+    { art: 'brand-fashion' as const, from: '#8a1c2e', to: '#3a0810' },
+    { art: 'brand-fashion' as const, from: '#b01028', to: '#4a0a14' },
+  ];
+  let h = 0;
+  for (const ch of slug) h = (h + ch.charCodeAt(0) * 17) % fashionPalettes.length;
+  return fashionPalettes[h];
 }
 
 function stationLineId(station: string): string {
@@ -183,7 +192,18 @@ export function buildTonightShelf(
   basePath = '/minsk/tc',
 ): TcEditorialShelf | null {
   const eligible = centers.filter(isEligible);
-  const cards: TcEditorialCard[] = [];
+  const cards: TcEditorialCard[] = [
+    {
+      id: 'all',
+      href: basePath === '/minsk/tc' ? TC_ALL_LIST_HREF : `${basePath}?view=list`,
+      title: 'Все ТЦ',
+      countLabel: countLabel(eligible.length),
+      count: eligible.length,
+      art: 'all',
+      from: '#14151a',
+      to: '#2a2c34',
+    },
+  ];
   for (const slug of TC_TONIGHT_TOPIC_SLUGS) {
     const hub = tcTopicHubBySlug(slug);
     if (!hub) continue;
@@ -196,16 +216,18 @@ export function buildTonightShelf(
       href: tcTopicHubUrl(hub, basePath),
       title: palette.shelfTitle,
       countLabel: countLabel(n),
+      count: n,
       art: palette.art,
       from: palette.from,
       to: palette.to,
     });
   }
+  cards.sort(byCountDesc);
   if (!cards.length) return null;
   return {
     id: 'tonight',
-    title: 'Куда сегодня',
-    lead: 'Сценарии для минчан: шопинг, кино, бесплатная парковка и другие срезы каталога.',
+    title: 'Сценарий',
+    lead: 'Выбирай — и открывай список.',
     cards,
   };
 }
@@ -230,14 +252,16 @@ export function buildBrandsShelf(
       href: tcStoreHubUrl(hub, basePath),
       title: hub.label,
       countLabel: countLabel(n),
+      count: n,
       ...brandArt(slug),
     });
   }
+  cards.sort(byCountDesc);
   if (!cards.length) return null;
   return {
     id: 'brands',
-    title: 'За чем едут',
-    lead: 'Популярные бренды в торговых центрах Минска — от «Золотого яблока» до масс-маркета.',
+    title: 'Бренд',
+    lead: 'Где искать любимый магазин.',
     cards,
   };
 }
@@ -256,8 +280,8 @@ export function buildDistrictsShelf(
   }
   const ranked = [...byDistrict.entries()]
     .filter(([, list]) => list.length >= MIN_INDEXABLE_HUB_CENTERS)
-    .map(([name, list]) => ({ name, list, score: qualityScore(list) }))
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+    .map(([name, list]) => ({ name, list, score: qualityScore(list), count: list.length }))
+    .sort((a, b) => b.count - a.count || b.score - a.score || a.name.localeCompare(b.name, 'ru'))
     .slice(0, TC_TOP_DISTRICTS);
 
   const cards: TcEditorialCard[] = [];
@@ -270,7 +294,8 @@ export function buildDistrictsShelf(
       id: `district-${DISTRICT_SLUGS[row.name]}`,
       href,
       title: short,
-      countLabel: countLabel(row.list.length),
+      countLabel: countLabel(row.count),
+      count: row.count,
       art: 'district',
       from: palette.from,
       to: palette.to,
@@ -279,8 +304,8 @@ export function buildDistrictsShelf(
   if (!cards.length) return null;
   return {
     id: 'districts',
-    title: 'Районы',
-    lead: 'Не все районы подряд — только топовые по числу и качеству торговых центров.',
+    title: 'Район',
+    lead: 'Только плотные по ТЦ.',
     cards,
   };
 }
@@ -294,13 +319,13 @@ export function buildMetroShelf(
   for (const line of MINSK_METRO_LINES) {
     for (const s of line.stations) stationNames.add(s);
   }
-  const ranked: { name: string; list: BusinessCenter[]; score: number }[] = [];
+  const ranked: { name: string; list: BusinessCenter[]; score: number; count: number }[] = [];
   for (const name of stationNames) {
     const list = eligible.filter((c) => metroHubDistance(c, name) !== null);
     if (list.length < MIN_INDEXABLE_HUB_CENTERS) continue;
-    ranked.push({ name, list, score: qualityScore(list) });
+    ranked.push({ name, list, score: qualityScore(list), count: list.length });
   }
-  ranked.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
+  ranked.sort((a, b) => b.count - a.count || b.score - a.score || a.name.localeCompare(b.name, 'ru'));
   const top = ranked.slice(0, TC_TOP_METRO);
 
   const cards: TcEditorialCard[] = [];
@@ -313,15 +338,16 @@ export function buildMetroShelf(
       id: `metro-${href.split('/').pop()}`,
       href,
       title: row.name,
-      countLabel: countLabel(row.list.length),
+      countLabel: countLabel(row.count),
+      count: row.count,
       ...palette,
     });
   }
   if (!cards.length) return null;
   return {
     id: 'metro',
-    title: 'У метро',
-    lead: 'Станции, у которых реально есть выбор ТЦ — не полный список метро, а рабочие маршруты минчан.',
+    title: 'Метро',
+    lead: 'Сойти — и в ТЦ.',
     cards,
   };
 }

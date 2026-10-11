@@ -190,9 +190,8 @@ body {
   overflow-x: clip;
 }
 
-/* Авторские полки каталога ТЦ (malllist) — lookbook-карточки по образцу
-   casinolist vinyl-shelf: круглая печать выглядывает из-под обложки и
-   выезжает на hover. Не винил и не бумажный пакет — витринная «печать». */
+/* Авторские полки каталога ТЦ (malllist) — чистые lookbook-обложки
+   без «виниловой» печати сбоку (она осталась у casinolist). */
 @keyframes ml-reveal-up {
   0% {
     opacity: 0;
@@ -214,23 +213,15 @@ body {
   animation-delay: 0.16s;
 }
 
-.ml-lookbook-seal {
-  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-  transform: translate(48%);
-}
 .ml-lookbook-cover {
   transition:
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.35s;
-}
-.group:hover .ml-lookbook-seal,
-.group:focus-within .ml-lookbook-seal {
-  transform: translate(62%) rotate(14deg);
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s;
 }
 .group:hover .ml-lookbook-cover,
 .group:focus-within .ml-lookbook-cover {
-  transform: translate(-4%) scale(1.02);
-  box-shadow: 0 16px 36px #00000038;
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 16px 36px #00000030;
 }
 
 .ml-lookbook-shelf-row {
@@ -261,12 +252,9 @@ body {
   .ml-reveal-delay-2 {
     animation: none !important;
   }
-  .ml-lookbook-seal,
   .ml-lookbook-cover {
     transition: none !important;
   }
-  .group:hover .ml-lookbook-seal,
-  .group:focus-within .ml-lookbook-seal,
   .group:hover .ml-lookbook-cover,
   .group:focus-within .ml-lookbook-cover {
     transform: none;
