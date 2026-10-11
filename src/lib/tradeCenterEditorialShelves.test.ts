@@ -294,8 +294,12 @@ describe('авторские полки каталога ТЦ', () => {
     expect(figures[0]?.value).toBe('3');
     expect(figures[0]?.icon).toBe('malls');
     expect(figures[0]?.tone).toBe('gold');
-    expect(figures.slice(1).every((f) => f.tone === 'ink')).toBe(true);
+    expect(figures[0]?.accent).toBe(true);
+    expect(figures[1]?.tone).toBe('felt');
+    expect(figures[2]?.tone).toBe('primary');
+    expect(figures[3]?.tone).toBe('ink');
     expect(figures.some((f) => f.id === 'area' && f.label === 'площадь')).toBe(true);
+    expect(figures.some((f) => f.id === 'area' && !f.value.includes('м²'))).toBe(true);
     expect(figures.some((f) => f.id === 'metro' && f.value === '2')).toBe(true);
     expect(figures.some((f) => f.id === 'topic-cinema' && f.label === 'кино')).toBe(true);
     expect(figures.every((f) => f.id !== 'brands')).toBe(true);
