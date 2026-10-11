@@ -10,6 +10,7 @@ import {
   buildBrandsShelf,
   buildDistrictsShelf,
   buildMetroShelf,
+  buildTcBrowseFigures,
   buildTcEditorialShelves,
   buildTonightShelf,
 } from './tradeCenterEditorialShelves';
@@ -230,6 +231,65 @@ describe('авторские полки каталога ТЦ', () => {
     expect(shelf).not.toBeNull();
     expect(shelf!.cards.length).toBeLessThanOrEqual(TC_TOP_METRO);
     expect(shelf!.cards[0].title).toBe('Немига');
+  });
+
+  it('собирает ключевые цифры сводки без нулей', () => {
+    const index: TcFilterIndex = new Map([
+      [
+        'galleria',
+        buildTcFilterEntry({
+          ...emptyFilter,
+          funKinds: ['cinema'],
+          foodcourtPlaces: 4,
+          parking: {
+            summary: 'Наземная парковка',
+            items: [{ label: 'Первые 2 часа', value: 'бесплатно' }],
+          },
+          brands: ['Zara', 'Mark Formelle'],
+        }),
+      ],
+      [
+        'dana',
+        buildTcFilterEntry({
+          ...emptyFilter,
+          funKinds: ['cinema', 'games'],
+          foodcourtPlaces: 2,
+          brands: ['Mark Formelle'],
+        }),
+      ],
+      [
+        'palace',
+        buildTcFilterEntry({
+          ...emptyFilter,
+          brands: ['Mark Formelle'],
+        }),
+      ],
+    ]);
+    const centers = [
+      tc({
+        slug: 'galleria',
+        totalArea: 80_000,
+        nearestMetroStations: [
+          { name: 'Немига', distanceMeters: 200, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+      tc({
+        slug: 'dana',
+        totalArea: 60_000,
+        nearestMetroStations: [
+          { name: 'Немига', distanceMeters: 400, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+      tc({ slug: 'palace', totalArea: 40_000 }),
+    ];
+    const figures = buildTcBrowseFigures(centers, index);
+    expect(figures[0]?.id).toBe('total');
+    expect(figures[0]?.value).toBe('3');
+    expect(figures.some((f) => f.id === 'area')).toBe(true);
+    expect(figures.some((f) => f.id === 'metro' && f.value === '2')).toBe(true);
+    expect(figures.some((f) => f.id === 'topic-cinema' && f.value === '2')).toBe(true);
+    expect(figures.every((f) => f.value !== '0')).toBe(true);
+    expect(figures.length).toBeLessThanOrEqual(8);
   });
 
   it('buildTcEditorialShelves склеивает непустые полки', () => {

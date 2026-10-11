@@ -63,6 +63,16 @@ export interface TcEditorialShelf {
   cards: TcEditorialCard[];
 }
 
+/** Ключевая цифра блока «сводка» на корне каталога ТЦ (ритм casinolist At a glance). */
+export interface TcBrowseFigure {
+  id: string;
+  value: string;
+  label: string;
+  /** Подсветить рамкой — обычно первая цифра (всего ТЦ). */
+  accent?: boolean;
+  href?: string;
+}
+
 /** Сценарии «куда сегодня». */
 export const TC_TONIGHT_TOPIC_SLUGS = [
   'shopping',
@@ -135,6 +145,29 @@ function isEligible(c: BusinessCenter): boolean {
 
 function countLabel(n: number): string {
   return `${n} ТЦ`;
+}
+
+function formatTotalArea(m2: number): string {
+  if (m2 >= 1_000_000) {
+    const mln = m2 / 1_000_000;
+    const rounded = Math.round(mln * 10) / 10;
+    return `${rounded.toLocaleString('ru-RU')} млн м²`;
+  }
+  if (m2 >= 1_000) {
+    return `${Math.round(m2 / 1_000).toLocaleString('ru-RU')} тыс. м²`;
+  }
+  return `${Math.round(m2).toLocaleString('ru-RU')} м²`;
+}
+
+function topicCount(
+  eligible: BusinessCenter[],
+  slug: string,
+  tcIndex: TcFilterIndex | null,
+): number {
+  const hub = tcTopicHubBySlug(slug);
+  if (!hub) return 0;
+  if (topicHubNeedsFilters(hub) && !tcIndex) return 0;
+  return eligible.filter((c) => matchesTcTopicHub(c, hub, tcIndex?.get(c.slug))).length;
 }
 
 function byCountDesc(a: TcEditorialCard, b: TcEditorialCard): number {
@@ -364,6 +397,91 @@ export function buildTcEditorialShelves(
     buildDistrictsShelf(centers, basePath),
     buildMetroShelf(centers, basePath),
   ].filter((s): s is TcEditorialShelf => Boolean(s && s.cards.length));
+}
+
+/**
+ * Сводка ключевых цифр для корня /minsk/tc — как «At a glance» у casinolist:
+ * только подтверждённые срезы, нули не показываем.
+ */
+export function buildTcBrowseFigures(
+  centers: BusinessCenter[] | null,
+  tcIndex: TcFilterIndex | null,
+  basePath = '/minsk/tc',
+): TcBrowseFigure[] {
+  if (!centers?.length) return [];
+  const eligible = centers.filter(isEligible);
+  if (!eligible.length) return [];
+
+  const figures: TcBrowseFigure[] = [
+    {
+      id: 'total',
+      value: eligible.length.toLocaleString('ru-RU'),
+      label: 'ТЦ',
+      accent: true,
+      href: basePath === '/minsk/tc' ? TC_ALL_LIST_HREF : `${basePath}?view=list`,
+    },
+  ];
+
+  const withArea = eligible.filter((c) => typeof c.totalArea === 'number' && c.totalArea > 0);
+  if (withArea.length) {
+    const sum = withArea.reduce((s, c) => s + (c.totalArea ?? 0), 0);
+    figures.push({
+      id: 'area',
+      value: formatTotalArea(sum),
+      label: 'суммарная площадь',
+    });
+  }
+
+  const nearMetro = eligible.filter((c) => {
+    const d = c.nearestMetroStations
+      ?.map((s) => s.distanceMeters)
+      .filter((m): m is number => typeof m === 'number');
+    if (!d?.length) return false;
+    return Math.min(...d) <= 800;
+  }).length;
+  if (nearMetro > 0) {
+    figures.push({
+      id: 'metro',
+      value: nearMetro.toLocaleString('ru-RU'),
+      label: 'у метро ≤800 м',
+    });
+  }
+
+  const topicSpecs: { slug: string; label: string }[] = [
+    { slug: 'cinema', label: 'с кино' },
+    { slug: 'free-parking', label: 'бесплатная парковка' },
+    { slug: 'foodcourt', label: 'фудкорт' },
+    { slug: 'kids', label: 'с детьми' },
+    { slug: 'entertainment', label: 'развлечения' },
+    { slug: 'shopping', label: 'шопинг' },
+  ];
+  for (const spec of topicSpecs) {
+    const n = topicCount(eligible, spec.slug, tcIndex);
+    if (n < 1) continue;
+    const hub = tcTopicHubBySlug(spec.slug);
+    figures.push({
+      id: `topic-${spec.slug}`,
+      value: n.toLocaleString('ru-RU'),
+      label: spec.label,
+      href: hub ? tcTopicHubUrl(hub, basePath) : undefined,
+    });
+  }
+
+  if (tcIndex) {
+    const brandHubs = collectTcStoreHubs(tcIndex).filter(
+      (h) => eligible.filter((c) => matchesTcStoreHub(c, h, tcIndex.get(c.slug))).length >= TC_FEATURED_BRAND_MIN,
+    );
+    if (brandHubs.length > 0) {
+      figures.push({
+        id: 'brands',
+        value: brandHubs.length.toLocaleString('ru-RU'),
+        label: 'брендов в каталоге',
+      });
+    }
+  }
+
+  // Не больше 8 плиток — как сетка casinolist на xl.
+  return figures.slice(0, 8);
 }
 
 /** Для тестов и отладки — сколько ТЦ матчит хаб. */
