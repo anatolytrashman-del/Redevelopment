@@ -253,137 +253,171 @@ function LookbookArt({ art }: { art: TcLookbookArt }) {
   }
 }
 
-/** Иконки сводки: мягкая заливка + ясный силуэт (не «радуга» тонких линий). */
+/**
+ * Иконки сводки — крафт casinolist At a glance: мягкая заливка + stroke +
+ * внутренняя деталь (не тонкий line-art на пустом фоне).
+ */
 function GlanceIcon({ icon }: { icon: TcBrowseFigureIcon }) {
+  const cls = 'h-6 w-6 shrink-0';
   switch (icon) {
     case 'malls':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <rect x="5" y="10" width="22" height="16" rx="2.5" fill="currentColor" opacity="0.12" />
-          <path d="M5 14h22" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M9 10V8.5A2.5 2.5 0 0111.5 6h9A2.5 2.5 0 0123 8.5V10" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M11 18h4M17 18h4M11 22h4M17 22h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <rect x="5" y="12" width="7" height="12" rx="1" fill="currentColor" opacity="0.2" />
+          <rect x="5" y="12" width="7" height="12" rx="1" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="13" y="7" width="7" height="17" rx="1" fill="currentColor" />
+          <rect x="21" y="11" width="6" height="13" rx="1" fill="currentColor" opacity="0.55" />
+          <path d="M15 11h3M15 14.5h3M15 18h3" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
         </svg>
       );
     case 'area':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <path d="M7 11l9-5 9 5v12l-9 5-9-5V11z" fill="currentColor" opacity="0.12" />
-          <path d="M7 11l9-5 9 5v12l-9 5-9-5V11z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-          <path d="M16 6v22M7 11l9 5 9-5" stroke="currentColor" strokeWidth="1.5" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <path d="M6 12l10-6 10 6v12l-10 6-10-6V12z" fill="currentColor" opacity="0.14" />
+          <path d="M6 12l10-6 10 6v12l-10 6-10-6V12z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+          <path d="M16 6v22M6 12l10 6 10-6" stroke="currentColor" strokeWidth="1.45" />
+          <circle cx="16" cy="18" r="2.2" fill="currentColor" />
         </svg>
       );
     case 'metro':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <circle cx="16" cy="16" r="11" fill="currentColor" opacity="0.12" />
-          <circle cx="16" cy="16" r="10" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M11 21V12l5 7 5-7v9" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <circle cx="16" cy="16" r="11" fill="currentColor" opacity="0.14" />
+          <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M11 21V11.5l5 7.2 5-7.2V21" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+          <circle cx="16" cy="16" r="2.4" fill="currentColor" />
         </svg>
       );
     case 'cinema':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <rect x="4" y="8" width="17" height="16" rx="2" fill="currentColor" opacity="0.12" />
-          <rect x="4" y="8" width="17" height="16" rx="2" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M21 12.5l6-3v13l-6-3v-7z" fill="currentColor" opacity="0.9" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <rect x="4" y="7" width="17" height="18" rx="2.2" fill="currentColor" opacity="0.12" />
+          <rect x="4" y="7" width="17" height="18" rx="2.2" stroke="currentColor" strokeWidth="1.8" />
+          <rect x="7.5" y="11" width="10" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M21 12.2l6.2-3.2v14.2L21 20v-7.8z" fill="currentColor" />
+          <circle cx="25.4" cy="16" r="1.5" fill="#fff" />
         </svg>
       );
     case 'parking':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <circle cx="16" cy="16" r="11" fill="currentColor" opacity="0.12" />
-          <circle cx="16" cy="16" r="10" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M13 22V10h5a4 4 0 010 8h-5" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <rect x="6" y="5" width="20" height="22" rx="3" fill="currentColor" opacity="0.12" />
+          <rect x="6" y="5" width="20" height="22" rx="3" stroke="currentColor" strokeWidth="1.8" />
+          <path
+            d="M12.2 10.2h4.2c2.2 0 3.6 1.3 3.6 3.3s-1.4 3.3-3.6 3.3h-1.7V22h-2.5V10.2zm2.5 4.5h1.5c.8 0 1.2-.4 1.2-1.1s-.4-1.1-1.2-1.1h-1.5v2.2z"
+            fill="currentColor"
+          />
         </svg>
       );
     case 'food':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <circle cx="16" cy="18" r="8" fill="currentColor" opacity="0.12" />
-          <path d="M10 7v8M13 7v8M16 7v8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          <path d="M13 15c0 3 1.3 5 3 6.5V26" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          <path d="M21 8v18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-          <path d="M21 8c2.2 0 3.5 1.8 3.5 4S23.2 16 21 16" stroke="currentColor" strokeWidth="1.7" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <ellipse cx="16" cy="22" rx="10" ry="4.5" fill="currentColor" opacity="0.12" />
+          <path d="M9.5 6.5v9.5M12.5 6.5v9.5M15.5 6.5v9.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          <path d="M12.5 16c0 3.2 1.4 5.2 3.2 6.8V26" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          <path d="M21.5 7v19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M21.5 7c2.4 0 3.8 1.9 3.8 4.2S23.9 15.5 21.5 15.5" stroke="currentColor" strokeWidth="1.7" />
+          <circle cx="12.5" cy="6.5" r="1.1" fill="currentColor" />
         </svg>
       );
     case 'kids':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <circle cx="12" cy="11" r="4" fill="currentColor" opacity="0.14" />
-          <circle cx="12" cy="11" r="3.5" stroke="currentColor" strokeWidth="1.6" />
-          <circle cx="21" cy="12" r="3" fill="currentColor" opacity="0.14" />
-          <circle cx="21" cy="12" r="2.8" stroke="currentColor" strokeWidth="1.6" />
-          <path d="M7 24c1.2-4 3.2-6 5-6s3.8 2 5 6M17 24c.8-3 2.2-4.5 4-4.5s3 1.5 3.8 4.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <circle cx="11.5" cy="10.5" r="4" fill="currentColor" opacity="0.16" />
+          <circle cx="11.5" cy="10.5" r="3.4" stroke="currentColor" strokeWidth="1.6" />
+          <circle cx="21" cy="11.5" r="3.1" fill="currentColor" opacity="0.16" />
+          <circle cx="21" cy="11.5" r="2.7" stroke="currentColor" strokeWidth="1.6" />
+          <path
+            d="M6.5 24.5c1.3-4.2 3.4-6.2 5-6.2s3.9 2.1 5.1 6.2M17 24.5c.9-3.1 2.4-4.6 4-4.6s3.1 1.6 4 4.6"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
+          <circle cx="11.5" cy="10.5" r="1.2" fill="currentColor" />
         </svg>
       );
     case 'fun':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
           <path
-            d="M16 5l2.4 7H26l-6 4.4 2.3 7L16 19.2 9.7 23.4l2.3-7-6-4.4h7.6L16 5z"
+            d="M16 5l2.5 7.2H26l-6.1 4.5 2.3 7.1L16 19.4l-6.2 4.4 2.3-7.1L6 12.2h7.5L16 5z"
             fill="currentColor"
-            opacity="0.14"
+            opacity="0.16"
           />
           <path
-            d="M16 5l2.4 7H26l-6 4.4 2.3 7L16 19.2 9.7 23.4l2.3-7-6-4.4h7.6L16 5z"
+            d="M16 5l2.5 7.2H26l-6.1 4.5 2.3 7.1L16 19.4l-6.2 4.4 2.3-7.1L6 12.2h7.5L16 5z"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="1.55"
             strokeLinejoin="round"
           />
+          <circle cx="16" cy="14.5" r="2" fill="currentColor" />
         </svg>
       );
     case 'shopping':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <path d="M8 12h16l-1.4 13H9.4L8 12z" fill="currentColor" opacity="0.12" />
-          <path d="M8 12h16l-1.4 13H9.4L8 12z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <path d="M7.5 12h17l-1.5 13.5H9L7.5 12z" fill="currentColor" opacity="0.14" />
+          <path d="M7.5 12h17l-1.5 13.5H9L7.5 12z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
           <path d="M12 12a4 4 0 018 0" stroke="currentColor" strokeWidth="1.7" />
+          <circle cx="12.5" cy="20" r="1.35" fill="currentColor" />
+          <circle cx="19.5" cy="20" r="1.35" fill="currentColor" />
         </svg>
       );
     case 'brands':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <path d="M8 10h16v14H8V10z" fill="currentColor" opacity="0.12" />
-          <path d="M11 10V8.5A2.5 2.5 0 0113.5 6h5A2.5 2.5 0 0121 8.5V10" stroke="currentColor" strokeWidth="1.7" />
-          <rect x="8" y="10" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.7" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <rect x="7" y="10" width="18" height="15" rx="2.2" fill="currentColor" opacity="0.12" />
+          <rect x="7" y="10" width="18" height="15" rx="2.2" stroke="currentColor" strokeWidth="1.7" />
+          <path d="M11 10V8.2A2.8 2.8 0 0113.8 5.5h4.4A2.8 2.8 0 0121 8.2V10" stroke="currentColor" strokeWidth="1.7" />
+          <path d="M12 15h8M12 19h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
     case 'late':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <circle cx="16" cy="16" r="11" fill="currentColor" opacity="0.12" />
-          <circle cx="16" cy="16" r="10" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M16 9v8l5 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <circle cx="16" cy="16" r="11" fill="currentColor" opacity="0.14" />
+          <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M16 9.5V16l5 3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="16" cy="16" r="1.6" fill="currentColor" />
         </svg>
       );
     case 'grocery':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <path d="M7 13h18l-1.8 12H8.8L7 13z" fill="currentColor" opacity="0.12" />
-          <path d="M7 13h18l-1.8 12H8.8L7 13z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-          <path d="M12 13a2.8 2.8 0 015.6 0M18.5 13A2.8 2.8 0 0124 13" stroke="currentColor" strokeWidth="1.6" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <path d="M6.5 13h19l-1.9 12.5H8.4L6.5 13z" fill="currentColor" opacity="0.14" />
+          <path d="M6.5 13h19l-1.9 12.5H8.4L6.5 13z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+          <path d="M11.5 13a3 3 0 016 0M18.8 13A3 3 0 0124.5 13" stroke="currentColor" strokeWidth="1.55" />
+          <circle cx="13" cy="20" r="1.3" fill="currentColor" />
+          <circle cx="19" cy="20" r="1.3" fill="currentColor" />
         </svg>
       );
     case 'center':
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <circle cx="16" cy="14" r="6" fill="currentColor" opacity="0.12" />
-          <path d="M16 26s-8-7.2-8-12a8 8 0 1116 0c0 4.8-8 12-8 12z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-          <circle cx="16" cy="14" r="2.6" fill="currentColor" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <path d="M16 27s-8.2-7.4-8.2-12.4a8.2 8.2 0 1116.4 0C24.2 19.6 16 27 16 27z" fill="currentColor" opacity="0.14" />
+          <path d="M16 27s-8.2-7.4-8.2-12.4a8.2 8.2 0 1116.4 0C24.2 19.6 16 27 16 27z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+          <circle cx="16" cy="14.2" r="3.1" fill="currentColor" />
+          <circle cx="16" cy="14.2" r="1.2" fill="#fff" />
         </svg>
       );
     case 'budget':
     default:
       return (
-        <svg viewBox="0 0 32 32" className="h-6 w-6 shrink-0" fill="none" aria-hidden>
-          <path d="M16 5l11 11-11 11L5 16 16 5z" fill="currentColor" opacity="0.12" />
+        <svg viewBox="0 0 32 32" className={cls} fill="none" aria-hidden>
+          <path d="M16 5l11 11-11 11L5 16 16 5z" fill="currentColor" opacity="0.14" />
           <path d="M16 5l11 11-11 11L5 16 16 5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-          <path d="M16 11v10M13 14.5h5.2a2.2 2.2 0 010 4.4H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M16 11v10M13 14.2h5.4a2.3 2.3 0 010 4.6H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         </svg>
       );
   }
 }
+
+const GLANCE_TONE_CLASS: Record<TcBrowseFigure['tone'], string> = {
+  gold: 'text-[#6b5410]',
+  felt: 'text-felt',
+  primary: 'text-primary',
+  ink: 'text-ink',
+};
 
 function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?: string }) {
   return (
@@ -460,52 +494,40 @@ export function TradeCenterBrowseGlance({ figures }: { figures: TcBrowseFigure[]
   return (
     <section
       aria-label="Ключевые цифры каталога"
-      className={cn('ml-reveal overflow-hidden', glassCardClass)}
-      style={glassCardShadow}
+      className="ml-reveal grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-6"
     >
-      {/* Одна панель с равномерной сеткой линий — см. .ml-glance-grid в index.css. */}
-      <ul className="ml-glance-grid m-0 grid list-none grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-        {figures.map((fig) => {
-          const accent = Boolean(fig.accent);
-          const cellClass = cn(
-            'relative flex min-h-[5.75rem] flex-col items-center justify-center gap-1.5 px-3 py-4 text-center',
-            accent && 'bg-[linear-gradient(165deg,rgba(201,162,39,0.14),rgba(201,162,39,0.03)_70%)]',
-            'transition-colors hover:bg-black/[0.03]',
-          );
-          const inner = (
-            <>
-              <span
-                className={cn(
-                  'inline-flex items-center gap-2.5',
-                  accent ? 'text-[#6b5410]' : 'text-ink',
-                )}
-              >
-                <GlanceIcon icon={fig.icon} />
-                <span
-                  className="text-[1.4rem] font-bold tabular-nums tracking-tight sm:text-[1.65rem]"
-                  style={accent ? { fontFamily: 'Georgia, "Times New Roman", serif' } : undefined}
-                >
-                  {fig.value}
-                </span>
-              </span>
-              <span className="text-[11px] font-semibold leading-snug tracking-wide text-ink/50 sm:text-[12px]">
-                {fig.label}
-              </span>
-            </>
-          );
-          return (
-            <li key={fig.id} className="min-w-0 bg-transparent">
-              {fig.href ? (
-                <Link to={fig.href} className={cn(cellClass, 'outline-none focus-visible:bg-black/[0.045]')}>
-                  {inner}
-                </Link>
-              ) : (
-                <div className={cellClass}>{inner}</div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {figures.map((fig) => {
+        const cellClass = cn(
+          'flex min-h-[5.25rem] flex-col items-center justify-center gap-1 px-3 py-3 text-center',
+          glassCardClass,
+          fig.accent && 'border-[#c9a227]/40',
+          'transition-[box-shadow,transform] hover:-translate-y-0.5',
+        );
+        const inner = (
+          <>
+            <span className={cn('inline-flex items-center gap-2', GLANCE_TONE_CLASS[fig.tone])}>
+              <GlanceIcon icon={fig.icon} />
+              {/* font-bold: ExtraBold субсетирован только под латиницу. */}
+              <span className="text-xl font-bold tabular-nums tracking-tight sm:text-2xl">{fig.value}</span>
+            </span>
+            <span className="text-[11px] font-bold leading-snug text-ink-muted sm:text-[12px]">{fig.label}</span>
+          </>
+        );
+        return fig.href ? (
+          <Link
+            key={fig.id}
+            to={fig.href}
+            className={cn(cellClass, 'outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]/45')}
+            style={glassCardShadow}
+          >
+            {inner}
+          </Link>
+        ) : (
+          <div key={fig.id} className={cellClass} style={glassCardShadow}>
+            {inner}
+          </div>
+        );
+      })}
     </section>
   );
 }
