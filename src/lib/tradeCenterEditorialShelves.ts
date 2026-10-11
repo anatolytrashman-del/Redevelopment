@@ -102,15 +102,15 @@ export const TC_FEATURED_BRAND_MIN = 2;
 export const TC_TOP_DISTRICTS = 5;
 export const TC_TOP_METRO = 6;
 
-const TONIGHT_ART: Record<string, { art: TcLookbookArt; from: string; to: string }> = {
-  shopping: { art: 'shopping', from: '#c45c2a', to: '#7a2e12' },
-  cinema: { art: 'cinema', from: '#1e2a4a', to: '#0b1224' },
-  'free-parking': { art: 'free-parking', from: '#1a5c6e', to: '#0b2f38' },
-  foodcourt: { art: 'foodcourt', from: '#b4532a', to: '#6b2a12' },
-  kids: { art: 'kids', from: '#c26b8a', to: '#7a3048' },
-  entertainment: { art: 'entertainment', from: '#6b3fa0', to: '#2e1848' },
-  budget: { art: 'budget', from: '#2f6b4f', to: '#143528' },
-  center: { art: 'center', from: '#e4152b', to: '#8a0c1a' },
+const TONIGHT_ART: Record<string, { art: TcLookbookArt; from: string; to: string; shelfTitle: string }> = {
+  shopping: { art: 'shopping', from: '#c45c2a', to: '#7a2e12', shelfTitle: 'Шопинг' },
+  cinema: { art: 'cinema', from: '#1e2a4a', to: '#0b1224', shelfTitle: 'Кино' },
+  'free-parking': { art: 'free-parking', from: '#1a5c6e', to: '#0b2f38', shelfTitle: 'Бесплатная парковка' },
+  foodcourt: { art: 'foodcourt', from: '#b4532a', to: '#6b2a12', shelfTitle: 'Фудкорт' },
+  kids: { art: 'kids', from: '#c26b8a', to: '#7a3048', shelfTitle: 'С детьми' },
+  entertainment: { art: 'entertainment', from: '#6b3fa0', to: '#2e1848', shelfTitle: 'Развлечения' },
+  budget: { art: 'budget', from: '#2f6b4f', to: '#143528', shelfTitle: 'Недорого' },
+  center: { art: 'center', from: '#e4152b', to: '#8a0c1a', shelfTitle: 'В центре' },
 };
 
 const DISTRICT_PALETTES = [
@@ -194,9 +194,11 @@ export function buildTonightShelf(
     cards.push({
       id: `topic-${slug}`,
       href: tcTopicHubUrl(hub, basePath),
-      title: hub.label,
+      title: palette.shelfTitle,
       countLabel: countLabel(n),
-      ...palette,
+      art: palette.art,
+      from: palette.from,
+      to: palette.to,
     });
   }
   if (!cards.length) return null;
