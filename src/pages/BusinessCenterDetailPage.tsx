@@ -2801,7 +2801,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               // ТЦ: фото шире — широкий фасад меньше режется по бокам
               // (владелец, 2026-10-11: «фотка не влезает»).
               isTc
-                ? 'lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]'
+                ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch'
                 : 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]',
             )}
           >
@@ -2818,20 +2818,17 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 незачем, пока съёмка идёт в квадрат. На планшете (md,
                 768–1023) квадрат во всю ширину занимал бы 768 px высоты —
                 весь первый экран под одним фото, поэтому там 4:3.
-                У ТЦ на lg: квадрат (как файл 1200×1200) + чуть шире колонка
-                + object-top — башни в кадре, без полей contain и без
-                растяжки min-h. У БЦ — stretch с min-h. */}
+                У ТЦ на lg: колонка на всю высоту правой сводки (без дыры
+                под квадратом), cover заполняет без полей; колонка шире
+                1.15fr — меньше боковой обрезки фасада. */}
             <div
               className={cn(
                 'relative aspect-square w-full overflow-hidden md:aspect-[4/3]',
                 isTc
-                  ? 'bg-surface-muted/70 lg:aspect-square lg:self-start'
+                  ? 'bg-surface-muted/70 lg:aspect-auto lg:h-full lg:min-h-[22rem]'
                   : 'bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]',
               )}
             >
-              {/* ТЦ: квадратный контейнер = квадратный файл каталога → cover
-                  без обрезки. object-position не двигаем: сдвиг снова срежет
-                  башни. */}
               <PhotoBlock center={center} variant="detail" fit="cover" />
               {/* Владелец, 2026-09-20: "если БЦ построен, вообще убирай тег
                   Работает — помечаем только строящиеся". Достроенное здание
