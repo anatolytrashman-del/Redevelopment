@@ -143,17 +143,20 @@ export function TradeCenterHeroSummary({
   const laterZones = laterClosingZones(hours, mainHours);
 
   const parking = info?.parking ?? null;
-  const parkingShort = tcParkingShort(parking);
+  // Must-have: только «N мест» — без въезда, иначе плитка длиннее «6 якорей».
+  const parkingSpaces = tcParkingSpaces(parking);
+  const parkingMustHave = parkingSpaces ? `${parkingSpaces}\u00a0мест` : null;
+  const parkingShort = parkingMustHave ?? tcParkingShort(parking);
   const metroLabel = nearestMetro
     ? `«${nearestMetro.name}» · ${(displayMetro ?? nearestMetro).distanceMeters}\u00a0м`
     : center.metro;
-  const mustHave = tcMustHaveItems(info, { parkingShort, metroLabel });
+  const mustHave = tcMustHaveItems(info, { parkingShort: parkingMustHave, metroLabel });
 
   const tiles = selectTcFactTiles({
     tenantCount,
     totalArea: center.totalArea,
     audienceValue: info ? tcAudienceVisitorsPerDay(info.audience) : null,
-    parkingSpaces: parkingShort ? null : tcParkingSpaces(parking),
+    parkingSpaces: parkingMustHave ? null : parkingSpaces,
     mapRatingLabel: mapRating?.label ?? null,
   });
 

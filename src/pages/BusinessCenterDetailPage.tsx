@@ -2798,10 +2798,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           <div
             className={cn(
               'grid',
-              // ТЦ: фото чуть шире — иначе квадратный кадр в узкой высокой
-              // колонке режется по бокам (владелец, 2026-10-11).
+              // ТЦ: фото шире — широкий фасад меньше режется по бокам
+              // (владелец, 2026-10-11: «фотка не влезает»).
               isTc
-                ? 'lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]'
+                ? 'lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]'
                 : 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]',
             )}
           >
@@ -2818,24 +2818,22 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 незачем, пока съёмка идёт в квадрат. На планшете (md,
                 768–1023) квадрат во всю ширину занимал бы 768 px высоты —
                 весь первый экран под одним фото, поэтому там 4:3.
-                У ТЦ на lg не тянем min-h под высоту правой колонки: квадрат
-                + self-start = кадр целиком, без среза башен по бокам
-                (2026-10-11). У БЦ — по-прежнему stretch с min-h. */}
+                У ТЦ на lg: широкая колонка + 4:3 + cover (не contain —
+                contain давал поля сверху/снизу). Без min-h-растяжки под
+                правую колонку. У БЦ — по-прежнему stretch с min-h. */}
             <div
               className={cn(
                 'relative aspect-square w-full overflow-hidden md:aspect-[4/3]',
                 isTc
-                  ? 'bg-[#fff1e8] lg:aspect-square lg:self-start'
+                  ? 'bg-surface-muted/70 lg:aspect-[4/3] lg:self-start'
                   : 'bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]',
               )}
             >
-              {/* cover на квадратном контейнере = весь квадратный кадр.
-                  contain у ТЦ — страховка, если снимок не квадрат: поля
-                  персиковые, не серая дыра (2026-10-11). */}
               <PhotoBlock
                 center={center}
                 variant="detail"
-                fit={isTc ? 'contain' : 'cover'}
+                fit="cover"
+                imgClassName={isTc ? 'object-[42%_center]' : undefined}
               />
               {/* Владелец, 2026-09-20: "если БЦ построен, вообще убирай тег
                   Работает — помечаем только строящиеся". Достроенное здание
