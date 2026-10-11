@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ArrowRight, Building2, ClipboardList, Users } from 'lucide-react';
+import { ArrowRight, ClipboardList, FileStack, LayoutGrid } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
@@ -12,33 +12,33 @@ import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 
 const TITLE = 'Redevelopment — умные модули для строительства и недвижимости';
 const DESCRIPTION =
-  'Специализированные модули для строительства, редевелопмента и продаж недвижимости. Вы принимаете решения — модули автоматизируют текучку. Первый модуль — закупки.';
+  'Специализированные модули для строительства, редевелопмента и продаж недвижимости: закупки стройматериалов, шахматка с CRM, контроль версий документов.';
 const PAGE_URL = 'https://redevelopment.pro/';
 
 const MODULES = [
   {
     id: 'zakupki',
-    title: 'Закупки',
+    title: 'Закупки стройматериалов',
     text: 'Рынок поставщиков, письма, сравнение предложений — после того, как вы решили запускать закупку.',
     href: '/zakupki',
-    status: 'live' as const,
+    status: 'demo' as const,
     Icon: ClipboardList,
   },
   {
-    id: 'developers',
-    title: 'Для застройщиков',
-    text: 'Шахматка и связка с CRM: продажи объектов без ручного хаоса в таблицах и чатах.',
+    id: 'chess',
+    title: 'Шахматка + CRM + AI',
+    text: 'Продажи объектов без ручного хаоса в таблицах и чатах: шахматка в связке с CRM.',
     href: null,
-    status: 'soon' as const,
-    Icon: Building2,
+    status: 'queue' as const,
+    Icon: LayoutGrid,
   },
   {
-    id: 'brokers',
-    title: 'Для брокеров',
-    text: 'Подборки для клиентов и повторяемая текучка вокруг них — без копипаста из десяти вкладок.',
+    id: 'versions',
+    title: 'Контроль версий',
+    text: 'Всегда актуальные версии документов: дизайн-проекты, инженерные проекты и сопутствующие файлы.',
     href: null,
-    status: 'soon' as const,
-    Icon: Users,
+    status: 'queue' as const,
+    Icon: FileStack,
   },
 ] as const;
 
@@ -72,7 +72,7 @@ export function PlatformHomePage() {
       </header>
 
       <main id="main" className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 sm:gap-5 sm:px-8 sm:py-12">
-        {/* Hero — две колонки: смысл + Claude, как на /zakupki */}
+        {/* Hero — две колонки: смысл + Claude */}
         <section
           className={cn(
             'platform-home-rise grid items-stretch gap-6 p-6 sm:gap-8 sm:p-8 lg:grid-cols-[1.35fr_0.85fr]',
@@ -82,11 +82,11 @@ export function PlatformHomePage() {
         >
           <div className="flex min-w-0 flex-col justify-center gap-5">
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight text-ink sm:text-3xl sm:leading-[1.2]">
-              Умные модули, которые ускоряют текучку в&nbsp;недвижимости
+              Умные модули под конкретные процессы в&nbsp;недвижимости
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
-              Специализированные модули для компаний в&nbsp;строительстве, редевелопменте
-              и&nbsp;продажах недвижимости. Вы принимаете решения — модуль закрывает остальное.
+              Для команд в&nbsp;строительстве, редевелопменте и&nbsp;продажах. Вы принимаете
+              решения — модуль закрывает повторяющуюся работу вокруг них.
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <a
@@ -139,7 +139,7 @@ export function PlatformHomePage() {
           </aside>
         </section>
 
-        {/* Цитата — компактная подпись в одну линию смысла */}
+        {/* Цитата */}
         <section
           className={cn('platform-home-rise platform-home-rise-d1 px-6 py-5 sm:px-8 sm:py-6', glassCardClass)}
           style={glassCardShadow}
@@ -149,33 +149,63 @@ export function PlatformHomePage() {
             Отзыв после первой демонстрации
           </h2>
           <blockquote>
-            <p className="text-xl font-extrabold leading-snug tracking-tight text-ink sm:text-2xl sm:leading-[1.3]">
+            <p className="text-lg font-extrabold leading-snug tracking-tight text-ink sm:text-xl lg:whitespace-nowrap lg:text-2xl">
               «Мне кажется, все компании рано или поздно придут к внедрению такого софта.»
             </p>
             <footer className="mt-3 text-sm leading-snug text-ink-muted">
               <cite className="not-italic font-semibold text-ink">
                 Операционный директор · редевелопмент · 10&nbsp;000+&nbsp;м²
               </cite>
-              <span className="text-ink-faint"> — первая демо, после неё модуль внедрили</span>
+              <span className="text-ink-faint">
+                {' '}
+                — сказал собственнику после демо, модуль внедрили
+              </span>
             </footer>
           </blockquote>
         </section>
 
-        {/* Принцип */}
+        {/* Принцип — две колонки: текст + формула */}
         <section
-          className={cn('platform-home-rise platform-home-rise-d2 p-6 sm:p-8', glassCardClass)}
+          className={cn(
+            'platform-home-rise platform-home-rise-d2 grid items-stretch gap-6 p-6 sm:gap-8 sm:p-8 lg:grid-cols-[1.35fr_0.85fr]',
+            glassCardClass,
+          )}
           style={glassCardShadow}
           aria-labelledby="principle-heading"
         >
-          <h2 id="principle-heading" className="text-xl font-extrabold tracking-tight text-ink sm:text-2xl">
-            Вы принимаете решения. Модули автоматизируют текучку.
-          </h2>
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-muted">
-            Мы не верим, что искусственный интеллект заменит человека. Но с&nbsp;ним можно
-            сильно урезать то, что и так понятно и повторяется каждый раз: письма, сверки,
-            сбор цен, однотипные ответы. Формула модулей простая:{' '}
-            <strong className="font-bold text-ink">модуль + ИИ + человек</strong>.
-          </p>
+          <div className="flex min-w-0 flex-col justify-center">
+            <h2 id="principle-heading" className="text-xl font-extrabold tracking-tight text-ink sm:text-2xl">
+              Вы принимаете решения. Модули берут повторяющееся.
+            </h2>
+            <p className="mt-3 max-w-xl text-base leading-relaxed text-ink-muted">
+              Мы не верим, что ИИ заменит человека. Но с&nbsp;ним можно сильно урезать то, что
+              и&nbsp;так понятно и повторяется: письма, сверки, сбор цен, однотипные ответы.
+            </p>
+          </div>
+
+          <aside
+            className="flex min-w-0 flex-col justify-center gap-4 rounded-[1.25rem] border border-border bg-white/70 p-5 sm:p-6"
+            aria-label="Формула модуля"
+          >
+            <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Формула</p>
+            <ol className="flex flex-col gap-3">
+              {[
+                { n: '01', t: 'Модуль', d: 'узкий процесс' },
+                { n: '02', t: 'ИИ', d: 'повторяющееся' },
+                { n: '03', t: 'Человек', d: 'решения' },
+              ].map((step) => (
+                <li key={step.n} className="flex items-baseline gap-3">
+                  <span className="w-7 shrink-0 text-xs font-extrabold text-ink-faint">{step.n}</span>
+                  <span className="text-base font-extrabold text-ink">{step.t}</span>
+                  <span className="text-sm text-ink-muted">{step.d}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-sm font-bold text-ink">
+              модуль <span className="text-ink-faint">+</span> ИИ{' '}
+              <span className="text-ink-faint">+</span> человек
+            </p>
+          </aside>
         </section>
 
         {/* Модули */}
@@ -189,7 +219,7 @@ export function PlatformHomePage() {
             Модули
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
-            Каждый — под свой бизнес-процесс. Открыт первый; остальные — заготовки направлений.
+            Каждый — под свой бизнес-процесс. Первый — закрытая демо; остальные в&nbsp;очереди.
           </p>
 
           <ul className="mt-6 grid gap-3 md:grid-cols-3">
@@ -198,16 +228,16 @@ export function PlatformHomePage() {
               const inner = (
                 <>
                   <div className="flex items-start justify-between gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-black/[0.05] text-ink-muted">
                       <Icon className="h-5 w-5" aria-hidden />
                     </span>
-                    {mod.status === 'live' ? (
-                      <span className="rounded-md bg-success-bg px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-success">
-                        Открыт
+                    {mod.status === 'demo' ? (
+                      <span className="rounded-md bg-[#f5f0e6] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-[#8a7340]">
+                        Закрытая демо
                       </span>
                     ) : (
                       <span className="rounded-md bg-black/[0.04] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-faint">
-                        Скоро
+                        В очереди
                       </span>
                     )}
                   </div>
@@ -215,17 +245,17 @@ export function PlatformHomePage() {
                   <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-muted">{mod.text}</p>
                   {mod.href ? (
                     <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-primary">
-                      Открыть
+                      Смотреть
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
                     </span>
                   ) : (
-                    <span className="mt-4 text-sm font-semibold text-ink-faint">В подготовке</span>
+                    <span className="mt-4 text-sm font-semibold text-ink-faint">В очереди</span>
                   )}
                 </>
               );
 
               const className = cn(
-                'group flex h-full flex-col rounded-2xl border border-border bg-white/70 p-4 transition-colors hover:border-primary/30 sm:p-5',
+                'group flex h-full flex-col rounded-2xl border border-border bg-white/70 p-4 transition-colors hover:border-ink/20 sm:p-5',
                 !mod.href && 'opacity-90',
               );
 
