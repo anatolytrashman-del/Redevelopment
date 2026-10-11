@@ -71,7 +71,7 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
   const Icon = ANCHOR_ICONS[anchor.category ?? 'другое'];
   const category = anchorCategoryLabel(anchor);
   const meta = anchorMetaParts(anchor);
-  const blurb = essenceText(anchor.text, 100);
+  const blurb = essenceText(anchor.text, 72);
   return (
     <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-[#efdfd4] bg-white/80 p-3">
       <span
@@ -138,7 +138,7 @@ export function TradeCenterHistoryCard({ timeline, title, index }: { timeline: R
           const month = timelineMonth(entry);
           const first = i === 0;
           const last = i === visibleCount - 1;
-          const blurb = essenceText(entry.text, 140);
+          const blurb = essenceText(entry.text, 90);
           return (
             // Скрытые строки остаются в разметке (`hidden`), а не вырезаются:
             // пререндер и поисковики видят ленту целиком.

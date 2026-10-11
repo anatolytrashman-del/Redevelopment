@@ -175,7 +175,7 @@ function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
   const Icon = FUN_ICONS[entry.kind];
   const meta = funMetaParts(entry);
   // Теги и meta уже несут детали — в плитке хватает короткого смысла.
-  const blurb = essenceText(entry.text, 90);
+  const blurb = essenceText(entry.text, 72);
   return (
     <li
       className={cn(

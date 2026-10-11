@@ -118,7 +118,7 @@ export function TradeCenterOffersEvents({ info, index }: { info: RetailInfo; ind
       {events.length > 0 && (
         <div className={cn('grid items-start gap-2.5', fitGridClass(events.length, 3))}>
           {events.map((event, eventIndex) => {
-            const blurb = essenceText(event.text, 110);
+            const blurb = essenceText(event.text, 72);
             return (
               <article
                 key={`${event.name}-${eventIndex}`}

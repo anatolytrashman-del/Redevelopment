@@ -528,7 +528,7 @@ describe('удобства ТЦ: группы', () => {
 });
 
 describe('essenceText', () => {
-  it('берёт первое предложение и режет длинный хвост', async () => {
+  it('берёт первое предложение, клаузулу или короткий хвост', async () => {
     const { essenceText } = await import('./tradeCenterRetail');
     expect(essenceText(null)).toBeNull();
     expect(essenceText('Коротко.')).toBe('Коротко.');
@@ -537,10 +537,15 @@ describe('essenceText', () => {
         'Крытый каток с натуральным льдом работает круглый год. Есть прокат и раздевалки.',
       ),
     ).toBe('Крытый каток с натуральным льдом работает круглый год.');
+    expect(
+      essenceText(
+        'Продуктовый гипермаркет сети «Корона», который принадлежит сам ТРЦ, открылся первым, в декабре 2012 года.',
+      ),
+    ).toBe('Продуктовый гипермаркет сети «Корона».');
     const long =
       'Детский центр в космической тематике обновился и заново открылся 11 декабря 2025 года: лабиринт с горками, батутами, паучьей башней и ещё много всего лишнего для плитки.';
-    const short = essenceText(long, 120)!;
-    expect(short.length).toBeLessThanOrEqual(120);
+    const short = essenceText(long, 72)!;
+    expect(short.length).toBeLessThanOrEqual(73);
     expect(short.endsWith('…') || short.endsWith('.')).toBe(true);
   });
 });

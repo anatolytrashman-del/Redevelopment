@@ -115,7 +115,7 @@ export function TradeCenterAdvertising({ info, name, index }: { info: RetailInfo
         {advertising.points.map((point, pointIndex) => {
           const medium = advertisingMedium(point);
           const Icon = icons[medium.icon];
-          const blurb = essenceText(medium.text, 100);
+          const blurb = essenceText(medium.text, 72);
           return <article key={pointIndex} className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3.5">
             <span className={cn('flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[10px]', tcChipSoftClass)}><Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" /></span>
             <div className="min-w-0">

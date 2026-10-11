@@ -18,7 +18,7 @@ import { essenceText } from '../../lib/tradeCenterRetail';
 function InfrastructureTile({ item, group }: { item: InfrastructureItem; group: InfrastructureGroup }) {
   const Icon = item.amenity ? amenityIcon(item.amenity) : serviceIcon(item.title, group.id);
   const meta = infrastructureItemMeta(item);
-  const blurb = essenceText(item.text, 90);
+  const blurb = essenceText(item.text, 72);
   return (
     <li className="flex min-w-0 items-start gap-2.5 rounded-xl bg-[#fff8f2]/80 px-3 py-2">
       <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg', tcChipSoftClass)}>

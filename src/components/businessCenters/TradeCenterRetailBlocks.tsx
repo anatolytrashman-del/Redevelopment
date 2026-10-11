@@ -103,7 +103,7 @@ export function TradeCenterRetailBlocks({
           <ul className={`grid gap-2 ${fitGridClass(leisure.length, 2)}`}>
             {leisure.map((entry, i) => {
               const Icon = LEISURE_ICONS[entry.kind];
-              const blurb = essenceText(entry.text);
+              const blurb = essenceText(entry.text, 72);
               return (
                 <li
                   key={`${entry.name}-${i}`}
