@@ -53,6 +53,13 @@ const LINK_TAG_RE = /<link\b[^>]*>/g;
 // `</script>` внутри, поэтому ленивый захват до первого закрывающего тега
 // корректен.
 const LOADER_RE = /<script\b[^>]*\bdata-entry-loader(?:=(?:""|''))?(?:\s[^>]*)?>[\s\S]*?<\/script>/;
+// Инлайн-прайм данных раздела БЦ/ТЦ из index.html (`window.__bcList` и
+// соседние fetch). Быстрый пререндер подменяет только CSS и data-entry-loader,
+// поэтому правка прайма (например, не качать bc-market на ТЦ) иначе жила бы
+// только в dist/index.html и на страницах после полного headless-рендера —
+// копия с прода продолжала бы старый скрипт (карточка «Замка», 2026-10-11).
+const CATALOG_PRIME_RE =
+  /<script(?:\s[^>]*)?>\s*\(function\s*\(\)\s*\{[\s\S]*?\bwindow\.__bcList\b[\s\S]*?<\/script>/;
 // Прямые <script type="module" src="/assets/…"> в снапшоте быть не должны
 // (defer-entry-script.mjs выносит их в лоадер, а renderPath удаляет
 // вставленные лоадером элементы перед сохранением) — но если вдруг остались,
@@ -75,18 +82,19 @@ const isBuildModulePreload = (tag) => /\brel="modulepreload"/.test(tag) && /\bhr
  * в этом случае уходит в полный режим целиком (это системная проблема, а не
  * беда одного пути).
  * @param {string} templateHtml содержимое dist/index.html ПОСЛЕ defer-entry-script.mjs
- * @returns {{ stylesheets: string[], loader: string }}
+ * @returns {{ stylesheets: string[], loader: string, catalogPrime: string | null }}
  */
 export function extractBuildBlocks(templateHtml) {
   const stylesheets = (templateHtml.match(LINK_TAG_RE) ?? []).filter(isBuildStylesheetLink);
   const loader = templateHtml.match(LOADER_RE)?.[0] ?? null;
+  const catalogPrime = templateHtml.match(CATALOG_PRIME_RE)?.[0] ?? null;
   if (stylesheets.length === 0) {
     throw new Error('в dist/index.html нет <link rel="stylesheet" href="/assets/…"> — формат вывода Vite изменился?');
   }
   if (!loader) {
     throw new Error('в dist/index.html нет <script data-entry-loader> — defer-entry-script.mjs не отработал?');
   }
-  return { stylesheets, loader };
+  return { stylesheets, loader, catalogPrime };
 }
 
 /**
@@ -102,7 +110,7 @@ export function assetRefsOf(html) {
  * Подставляет в копию с прода блоки текущей сборки и проверяет результат по
  * диску.
  * @param {string} snapshotHtml HTML страницы, скачанный с живого прода
- * @param {{ stylesheets: string[], loader: string }} blocks из extractBuildBlocks()
+ * @param {{ stylesheets: string[], loader: string, catalogPrime?: string | null }} blocks из extractBuildBlocks()
  * @param {(assetFileName: string) => boolean} assetExists есть ли такой файл в dist/assets
  * @returns {{ html: string, reason: null } | { html: null, reason: string }}
  *   html — готовый снапшот; reason — почему копию использовать нельзя
@@ -127,6 +135,12 @@ export function adoptBuildAssets(snapshotHtml, blocks, assetExists) {
   // Функция вместо строки: в лоадере есть `$`, а строковая замена трактует
   // `$&`/`$1` как спец-последовательности.
   html = html.replace(LOADER_RE, () => blocks.loader);
+
+  // Прайм раздела — тоже из текущей сборки, если он есть и в шаблоне, и в
+  // копии. Страницы без прайма (админка и т.п.) не трогаем.
+  if (blocks.catalogPrime && CATALOG_PRIME_RE.test(html)) {
+    html = html.replace(CATALOG_PRIME_RE, () => blocks.catalogPrime);
+  }
 
   html = html.replace(MODULE_SCRIPT_RE, '');
 
