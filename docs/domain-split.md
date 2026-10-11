@@ -119,6 +119,14 @@ Google Search Console — meta/DNS в `verifications.*.google` + шелл, ко�
 4. Проверка: `curl -I https://officelist.pro/minsk/bc` → 200 на проекте
    с `PUBLIC_SITE=offices` (не `DEPLOYMENT_NOT_FOUND`).
 
+### Выпуск правок каталога (агент, без вопросов владельцу)
+
+После мержа в `claude/redevelopment-platform-prototype-oodobu` сразу
+выровнять **`main` = tip oodobu** и запушить: у Vercel-проектов
+**officelist** и **malllist** Production Branch = `main`, пуш сам
+запускает оба прод-деплоя. DNS A для РФ/VPN — `76.76.21.21` (не
+`216.150.1.1`).
+
 ### Как подключить officelist (один раз)
 
 Как malllist, но env:
