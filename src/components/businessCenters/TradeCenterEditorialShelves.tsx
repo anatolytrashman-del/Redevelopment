@@ -463,47 +463,40 @@ export function TradeCenterBrowseGlance({ figures }: { figures: TcBrowseFigure[]
       className={cn('ml-reveal overflow-hidden', glassCardClass)}
       style={glassCardShadow}
     >
-      {/* Одна панель с сеткой — не 12 отдельных «дашборд-карточек». */}
-      <ul className="m-0 grid list-none grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-        {figures.map((fig, i) => {
+      {/* Одна панель с равномерной сеткой линий — см. .ml-glance-grid в index.css. */}
+      <ul className="ml-glance-grid m-0 grid list-none grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+        {figures.map((fig) => {
           const accent = Boolean(fig.accent);
           const cellClass = cn(
-            'flex min-h-[5.5rem] flex-col items-center justify-center gap-1.5 px-3 py-4 text-center',
-            'border-black/[0.05]',
-            i % 2 !== 0 && 'border-l sm:border-l-0',
-            i % 3 !== 0 && 'sm:border-l',
-            i % 6 !== 0 && 'lg:border-l',
-            i >= 2 && 'border-t sm:border-t-0',
-            i >= 3 && 'sm:border-t lg:border-t-0',
-            i >= 6 && 'lg:border-t',
-            accent && 'bg-[linear-gradient(180deg,rgba(201,162,39,0.10),rgba(201,162,39,0.02))]',
-            'transition-colors hover:bg-black/[0.025]',
+            'relative flex min-h-[5.75rem] flex-col items-center justify-center gap-1.5 px-3 py-4 text-center',
+            accent && 'bg-[linear-gradient(165deg,rgba(201,162,39,0.14),rgba(201,162,39,0.03)_70%)]',
+            'transition-colors hover:bg-black/[0.03]',
           );
           const inner = (
             <>
               <span
                 className={cn(
-                  'inline-flex items-center gap-2',
+                  'inline-flex items-center gap-2.5',
                   accent ? 'text-[#6b5410]' : 'text-ink',
                 )}
               >
                 <GlanceIcon icon={fig.icon} />
                 <span
-                  className="text-[1.35rem] font-bold tabular-nums tracking-tight sm:text-2xl"
+                  className="text-[1.4rem] font-bold tabular-nums tracking-tight sm:text-[1.65rem]"
                   style={accent ? { fontFamily: 'Georgia, "Times New Roman", serif' } : undefined}
                 >
                   {fig.value}
                 </span>
               </span>
-              <span className="text-[11px] font-semibold leading-snug tracking-wide text-ink/55 sm:text-[12px]">
+              <span className="text-[11px] font-semibold leading-snug tracking-wide text-ink/50 sm:text-[12px]">
                 {fig.label}
               </span>
             </>
           );
           return (
-            <li key={fig.id} className="min-w-0">
+            <li key={fig.id} className="min-w-0 bg-transparent">
               {fig.href ? (
-                <Link to={fig.href} className={cn(cellClass, 'outline-none focus-visible:bg-black/[0.04]')}>
+                <Link to={fig.href} className={cn(cellClass, 'outline-none focus-visible:bg-black/[0.045]')}>
                   {inner}
                 </Link>
               ) : (
