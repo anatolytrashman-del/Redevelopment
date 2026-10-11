@@ -74,35 +74,21 @@ export function TradeCenterFitBlock({
   if (points.length === 0) return null;
   const wins = points.filter((p) => p.side === 'win');
   const loses = points.filter((p) => p.side === 'lose');
-<<<<<<< HEAD
-  const previewParts = [
-    wins[0]?.text ?? null,
-    loses[0]?.text ?? null,
-  ].filter(Boolean);
+  const previewParts = [wins[0]?.text ?? null, loses[0]?.text ?? null].filter(Boolean);
   const preview = previewParts.length
     ? previewParts.join(' · ')
     : wins.length && loses.length
-      ? `${wins.length} плюс · ${loses.length} минус к аналогам`
-      : null;
-=======
-  const preview =
-    wins.length && loses.length
       ? `${wins.length} сильнее · ${loses.length} слабее`
       : wins.length > 0
         ? `Сильнее аналогов в ${wins.length}`
         : `Слабее аналогов в ${loses.length}`;
->>>>>>> origin/claude/redevelopment-platform-prototype-oodobu
 
   return (
     <CategorySpoiler
       id="tc-fit"
       title="Сравнение с аналогами"
       subtitle={preview}
-<<<<<<< HEAD
-      meta={[wins.length ? `+${wins.length}` : null, loses.length ? `−${loses.length}` : null].filter(Boolean).join(' · ') || 'Выигрывает · проигрывает'}
-=======
       meta={`${wins.length}↑ · ${loses.length}↓`}
->>>>>>> origin/claude/redevelopment-platform-prototype-oodobu
       icon={Scale}
       index={index}
       defaultOpen
