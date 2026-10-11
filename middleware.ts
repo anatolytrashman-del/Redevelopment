@@ -252,8 +252,9 @@ export default function middleware(request: Request) {
 
   // Корень сайта — в middleware (не в vercel.json): иначе на malllist
   // старый redirect "/"→"/minsk" из vercel.json срабатывал до Edge.
-  // Платформа: / → /minsk. Malllist: / — index.html (meta Вебмастера) +
-  // SPA Navigate на /minsk/tc; /minsk → каталог ТЦ.
+  // Платформа: / отдаёт главную модулей (PlatformHomePage), без 307.
+  // Malllist: / — index.html (meta Вебмастера) + SPA Navigate на /minsk/tc;
+  // /minsk → каталог ТЦ.
   if (siteMode === 'malls') {
     if (normalized === '/minsk') {
       return Response.redirect(new URL('/minsk/tc', url), 307);
@@ -304,10 +305,6 @@ export default function middleware(request: Request) {
       });
     }
     return next();
-  }
-
-  if (siteMode === 'platform' && (normalized === '/' || normalized === '')) {
-    return Response.redirect(new URL('/minsk', url), 307);
   }
 
   // Междоменные 301 каталогов — раньше 404 и SPA-рерайта, чтобы Google/

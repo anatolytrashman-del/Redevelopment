@@ -21,6 +21,7 @@ import { TradeCentersRankingPage } from './pages/TradeCentersRankingPage';
 import { TradeCentersBiggestPage } from './pages/TradeCentersBiggestPage';
 import { FavoritesPage } from './pages/FavoritesPage';
 import { MinskHub } from './pages/MinskHub';
+import { PlatformHomePage } from './pages/PlatformHomePage';
 import { MarketAnalyticsHub } from './pages/MarketAnalyticsHub';
 import { OfficeAnalyticsPage } from './pages/OfficeAnalyticsPage';
 import { RetailAnalyticsPage } from './pages/RetailAnalyticsPage';
@@ -390,15 +391,12 @@ export default function App() {
   return (
     <FavoritesProvider>
     <Routes>
-      {/* Публичная часть — без AppLayout и без пароля, для клиентов и рекламы.
-          Пока нет отдельного лендинга компании (см. SEO_PLAN.md, Э2-4), корень
-          временно ведёт на /minsk — city-scoped раздел (гиды по районам),
-          готовый к появлению других городов рядом без
-          переезда уже проиндексированных ссылок под /minsk. Импортированы
-          статически (не lazy) — это ровно те страницы, ради которых существует
-          бандл-сплиттинг выше: им нельзя добавлять лишний сетевой перелёт на
-          догрузку чанка. */}
-      <Route path="/" element={<Navigate to="/minsk" replace />} />
+      {/* Публичная часть — без AppLayout и без пароля. Корень (/) — главная
+          платформы модулей (PlatformHomePage, 2026-10-11). /minsk остаётся
+          city-scoped хабом. Импортированы статически (не lazy) — это ровно
+          те страницы, ради которых существует бандл-сплиттинг выше: им нельзя
+          добавлять лишний сетевой перелёт на догрузку чанка. */}
+      <Route path="/" element={<PlatformHomePage />} />
       <Route path="/minsk" element={<MinskHub />} />
       {/* Аналитика рынка (ANALYTICSPLAN.md) — бенчмарк-страницы с постоянным
           URL, месяц меняется в тексте, не в адресе. Регистрируются раньше
