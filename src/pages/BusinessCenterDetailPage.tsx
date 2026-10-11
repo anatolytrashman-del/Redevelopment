@@ -2799,10 +2799,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           <div
             className={cn(
               'grid',
-              // ТЦ: фото шире правой сводки; items-start — колонка фото не
-              // тянется по высоте текста (иначе cover режет квадратный кадр).
+              // ТЦ: инфо шире фото (владелец, 2026-10-11: под фото слишком
+              // много места). items-start — колонка фото не тянется по
+              // высоте текста (иначе cover режет квадратный кадр).
               isTc
-                ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-start'
+                ? 'lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start'
                 : 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]',
             )}
           >
