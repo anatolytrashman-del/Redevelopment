@@ -55,21 +55,13 @@ const CATALOGS: {
     id: 'offices',
     href: SITES.offices.origin,
     text: 'Каталог бизнес-центров: карточки зданий, рейтинги, классы и аналитика.',
-    mark: (
-      <>
-        Office<span className="text-primary">List</span>
-      </>
-    ),
+    mark: <>Office<span className="text-primary">List</span></>,
   },
   {
     id: 'malls',
     href: SITES.malls.origin,
     text: 'Каталог торговых центров: площади, форматы, арендаторы и подборки.',
-    mark: (
-      <>
-        Mall<span className="text-primary">List</span>
-      </>
-    ),
+    mark: <>Mall<span className="text-primary">List</span></>,
   },
 ];
 
@@ -162,8 +154,8 @@ export function PlatformHomePage() {
                 className="group flex items-start gap-3 rounded-xl border border-border bg-white/70 p-4 transition-colors hover:border-ink/20 sm:p-5"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 text-lg font-extrabold tracking-wide text-ink">
-                    {cat.mark}
+                  <span className="flex items-center gap-1.5 text-lg font-extrabold tracking-tight text-ink">
+                    <span>{cat.mark}</span>
                     <ArrowRight
                       className="h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
                       aria-hidden
