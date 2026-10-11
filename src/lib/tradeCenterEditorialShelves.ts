@@ -41,9 +41,18 @@ export type TcLookbookArt =
   | 'brand-sport'
   | 'brand-beauty'
   | 'district'
+  | 'district-blocks'
+  | 'district-grid'
+  | 'district-arc'
+  | 'district-steps'
+  | 'district-skyline'
   | 'metro-blue'
   | 'metro-red'
-  | 'metro-green';
+  | 'metro-green'
+  | 'metro-rail'
+  | 'metro-node'
+  | 'metro-fork'
+  | 'metro-ring';
 
 export interface TcEditorialCard {
   id: string;
@@ -63,15 +72,38 @@ export interface TcEditorialShelf {
   cards: TcEditorialCard[];
 }
 
+/** Иконка плитки сводки — как у casinolist At a glance. */
+export type TcBrowseFigureIcon =
+  | 'malls'
+  | 'area'
+  | 'metro'
+  | 'cinema'
+  | 'parking'
+  | 'food'
+  | 'kids'
+  | 'fun'
+  | 'shopping'
+  | 'brands'
+  | 'late'
+  | 'grocery'
+  | 'center'
+  | 'budget';
+
 /** Ключевая цифра блока «сводка» на корне каталога ТЦ (ритм casinolist At a glance). */
 export interface TcBrowseFigure {
   id: string;
   value: string;
   label: string;
+  icon: TcBrowseFigureIcon;
+  /** Цвет иконки/числа: gold | primary | ink | success. */
+  tone: 'gold' | 'primary' | 'ink' | 'success';
   /** Подсветить рамкой — обычно первая цифра (всего ТЦ). */
   accent?: boolean;
   href?: string;
 }
+
+/** Ровно столько плиток, чтобы на lg+ было две полные строки по 6. */
+export const TC_BROWSE_FIGURE_SLOTS = 12;
 
 /** Сценарии «куда сегодня». */
 export const TC_TONIGHT_TOPIC_SLUGS = [
@@ -125,19 +157,21 @@ const TONIGHT_ART: Record<string, { art: TcLookbookArt; from: string; to: string
   center: { art: 'center', from: '#e4152b', to: '#8a0c1a', shelfTitle: 'Центр' },
 };
 
-const DISTRICT_PALETTES = [
-  { from: '#2a4a6b', to: '#122438' },
-  { from: '#6b3a2a', to: '#301810' },
-  { from: '#2a6b5a', to: '#103028' },
-  { from: '#5a3a6b', to: '#241028' },
-  { from: '#6b5a2a', to: '#302810' },
+const DISTRICT_LOOKS = [
+  { art: 'district-skyline' as const, from: '#2a4a6b', to: '#122438' },
+  { art: 'district-blocks' as const, from: '#6b3a2a', to: '#301810' },
+  { art: 'district-grid' as const, from: '#2a6b5a', to: '#103028' },
+  { art: 'district-arc' as const, from: '#5a3a6b', to: '#241028' },
+  { art: 'district-steps' as const, from: '#6b5a2a', to: '#302810' },
 ] as const;
 
-const METRO_ART: Record<string, { art: TcLookbookArt; from: string; to: string }> = {
-  blue: { art: 'metro-blue', from: '#1976c9', to: '#0b3a66' },
-  red: { art: 'metro-red', from: '#e31d35', to: '#6b0c18' },
-  green: { art: 'metro-green', from: '#169447', to: '#0a3d1f' },
+const METRO_LINE_COLORS: Record<string, { from: string; to: string }> = {
+  blue: { from: '#1976c9', to: '#0b3a66' },
+  red: { from: '#e31d35', to: '#6b0c18' },
+  green: { from: '#169447', to: '#0a3d1f' },
 };
+
+const METRO_PATTERNS = ['metro-rail', 'metro-node', 'metro-fork', 'metro-ring'] as const;
 
 function isEligible(c: BusinessCenter): boolean {
   return c.status !== 'under_construction' && !isOutsideMinsk(c);
@@ -219,6 +253,19 @@ function stationLineId(station: string): string {
   return 'blue';
 }
 
+function hashSlug(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i) * (i + 17)) % 997;
+  return h;
+}
+
+function metroLook(station: string): { art: TcLookbookArt; from: string; to: string } {
+  const line = stationLineId(station);
+  const colors = METRO_LINE_COLORS[line] ?? METRO_LINE_COLORS.blue;
+  const pattern = METRO_PATTERNS[hashSlug(station) % METRO_PATTERNS.length];
+  return { art: pattern, ...colors };
+}
+
 export function buildTonightShelf(
   centers: BusinessCenter[],
   tcIndex: TcFilterIndex | null,
@@ -289,7 +336,13 @@ export function buildBrandsShelf(
       ...brandArt(slug),
     });
   }
-  cards.sort(byCountDesc);
+  // «Золотое яблоко» — редакционный якорь полки, всегда первым; остальные
+  // по числу ТЦ (владелец, 2026-10-11).
+  cards.sort((a, b) => {
+    if (a.id === 'brand-gold-apple') return -1;
+    if (b.id === 'brand-gold-apple') return 1;
+    return byCountDesc(a, b);
+  });
   if (!cards.length) return null;
   return {
     id: 'brands',
@@ -321,7 +374,7 @@ export function buildDistrictsShelf(
   ranked.forEach((row, i) => {
     const href = districtHubUrl(row.name, basePath);
     if (!href) return;
-    const palette = DISTRICT_PALETTES[i % DISTRICT_PALETTES.length];
+    const look = DISTRICT_LOOKS[i % DISTRICT_LOOKS.length];
     const short = row.name.replace(/\s+район$/u, '');
     cards.push({
       id: `district-${DISTRICT_SLUGS[row.name]}`,
@@ -329,9 +382,9 @@ export function buildDistrictsShelf(
       title: short,
       countLabel: countLabel(row.count),
       count: row.count,
-      art: 'district',
-      from: palette.from,
-      to: palette.to,
+      art: look.art,
+      from: look.from,
+      to: look.to,
     });
   });
   if (!cards.length) return null;
@@ -365,15 +418,13 @@ export function buildMetroShelf(
   for (const row of top) {
     const href = metroHubUrl(row.name, basePath);
     if (!href) continue;
-    const line = stationLineId(row.name);
-    const palette = METRO_ART[line] ?? METRO_ART.blue;
     cards.push({
       id: `metro-${href.split('/').pop()}`,
       href,
       title: row.name,
       countLabel: countLabel(row.count),
       count: row.count,
-      ...palette,
+      ...metroLook(row.name),
     });
   }
   if (!cards.length) return null;
@@ -399,36 +450,61 @@ export function buildTcEditorialShelves(
   ].filter((s): s is TcEditorialShelf => Boolean(s && s.cards.length));
 }
 
+function featureCount(
+  eligible: BusinessCenter[],
+  tcIndex: TcFilterIndex,
+  feature: string,
+): number {
+  return eligible.filter((c) => tcIndex.get(c.slug)?.features.has(feature)).length;
+}
+
+function pushFigure(
+  out: TcBrowseFigure[],
+  fig: TcBrowseFigure | null,
+): void {
+  if (!fig || out.some((f) => f.id === fig.id)) return;
+  out.push(fig);
+}
+
 /**
- * Сводка ключевых цифр для корня /minsk/tc — как «At a glance» у casinolist:
- * только подтверждённые срезы, нули не показываем.
+ * Сводка ключевых цифр для корня /minsk/tc — как «At a glance» у casinolist.
+ * Без tcIndex не считаем (иначе мигание урезанной → полной сводки).
+ * Ровно TC_BROWSE_FIGURE_SLOTS плиток — две полные строки по 6 на lg+.
  */
 export function buildTcBrowseFigures(
   centers: BusinessCenter[] | null,
   tcIndex: TcFilterIndex | null,
   basePath = '/minsk/tc',
 ): TcBrowseFigure[] {
-  if (!centers?.length) return [];
+  if (!centers?.length || !tcIndex) return [];
   const eligible = centers.filter(isEligible);
   if (!eligible.length) return [];
 
-  const figures: TcBrowseFigure[] = [
-    {
-      id: 'total',
-      value: eligible.length.toLocaleString('ru-RU'),
-      label: 'ТЦ',
-      accent: true,
-      href: basePath === '/minsk/tc' ? TC_ALL_LIST_HREF : `${basePath}?view=list`,
-    },
-  ];
+  const tones: Array<TcBrowseFigure['tone']> = ['gold', 'success', 'primary', 'ink'];
+  let toneI = 0;
+  const nextTone = () => tones[toneI++ % tones.length];
+
+  const figures: TcBrowseFigure[] = [];
+
+  pushFigure(figures, {
+    id: 'total',
+    value: eligible.length.toLocaleString('ru-RU'),
+    label: 'ТЦ',
+    icon: 'malls',
+    tone: 'gold',
+    accent: true,
+    href: basePath === '/minsk/tc' ? TC_ALL_LIST_HREF : `${basePath}?view=list`,
+  });
 
   const withArea = eligible.filter((c) => typeof c.totalArea === 'number' && c.totalArea > 0);
   if (withArea.length) {
     const sum = withArea.reduce((s, c) => s + (c.totalArea ?? 0), 0);
-    figures.push({
+    pushFigure(figures, {
       id: 'area',
       value: formatTotalArea(sum),
       label: 'суммарная площадь',
+      icon: 'area',
+      tone: nextTone(),
     });
   }
 
@@ -440,48 +516,91 @@ export function buildTcBrowseFigures(
     return Math.min(...d) <= 800;
   }).length;
   if (nearMetro > 0) {
-    figures.push({
+    pushFigure(figures, {
       id: 'metro',
       value: nearMetro.toLocaleString('ru-RU'),
       label: 'у метро ≤800 м',
+      icon: 'metro',
+      tone: nextTone(),
     });
   }
 
-  const topicSpecs: { slug: string; label: string }[] = [
-    { slug: 'cinema', label: 'с кино' },
-    { slug: 'free-parking', label: 'бесплатная парковка' },
-    { slug: 'foodcourt', label: 'фудкорт' },
-    { slug: 'kids', label: 'с детьми' },
-    { slug: 'entertainment', label: 'развлечения' },
-    { slug: 'shopping', label: 'шопинг' },
+  const topicSpecs: {
+    slug: string;
+    label: string;
+    icon: TcBrowseFigureIcon;
+  }[] = [
+    { slug: 'cinema', label: 'с кино', icon: 'cinema' },
+    { slug: 'free-parking', label: 'бесплатная парковка', icon: 'parking' },
+    { slug: 'foodcourt', label: 'фудкорт', icon: 'food' },
+    { slug: 'kids', label: 'с детьми', icon: 'kids' },
+    { slug: 'entertainment', label: 'развлечения', icon: 'fun' },
+    { slug: 'shopping', label: 'шопинг', icon: 'shopping' },
+    { slug: 'center', label: 'в центре', icon: 'center' },
+    { slug: 'budget', label: 'недорого', icon: 'budget' },
   ];
   for (const spec of topicSpecs) {
     const n = topicCount(eligible, spec.slug, tcIndex);
     if (n < 1) continue;
     const hub = tcTopicHubBySlug(spec.slug);
-    figures.push({
+    pushFigure(figures, {
       id: `topic-${spec.slug}`,
       value: n.toLocaleString('ru-RU'),
       label: spec.label,
+      icon: spec.icon,
+      tone: nextTone(),
       href: hub ? tcTopicHubUrl(hub, basePath) : undefined,
     });
   }
 
-  if (tcIndex) {
-    const brandHubs = collectTcStoreHubs(tcIndex).filter(
-      (h) => eligible.filter((c) => matchesTcStoreHub(c, h, tcIndex.get(c.slug))).length >= TC_FEATURED_BRAND_MIN,
-    );
-    if (brandHubs.length > 0) {
-      figures.push({
-        id: 'brands',
-        value: brandHubs.length.toLocaleString('ru-RU'),
-        label: 'брендов в каталоге',
-      });
-    }
+  const brandHubs = collectTcStoreHubs(tcIndex).filter(
+    (h) => eligible.filter((c) => matchesTcStoreHub(c, h, tcIndex.get(c.slug))).length >= TC_FEATURED_BRAND_MIN,
+  );
+  if (brandHubs.length > 0) {
+    pushFigure(figures, {
+      id: 'brands',
+      value: brandHubs.length.toLocaleString('ru-RU'),
+      label: 'брендов в каталоге',
+      icon: 'brands',
+      tone: nextTone(),
+    });
   }
 
-  // Не больше 8 плиток — как сетка casinolist на xl.
-  return figures.slice(0, 8);
+  const late = featureCount(eligible, tcIndex, 'late');
+  if (late > 0) {
+    pushFigure(figures, {
+      id: 'late',
+      value: late.toLocaleString('ru-RU'),
+      label: 'после 22:00',
+      icon: 'late',
+      tone: nextTone(),
+    });
+  }
+
+  const grocery = featureCount(eligible, tcIndex, 'grocery');
+  if (grocery > 0) {
+    pushFigure(figures, {
+      id: 'grocery',
+      value: grocery.toLocaleString('ru-RU'),
+      label: 'с продуктами',
+      icon: 'grocery',
+      tone: nextTone(),
+    });
+  }
+
+  const parkingAny = featureCount(eligible, tcIndex, 'parking');
+  if (parkingAny > 0) {
+    pushFigure(figures, {
+      id: 'parking-any',
+      value: parkingAny.toLocaleString('ru-RU'),
+      label: 'с парковкой',
+      icon: 'parking',
+      tone: nextTone(),
+    });
+  }
+
+  // Ровно две строки по 6 на lg — не обрезаем посередине ряда.
+  return figures.slice(0, TC_BROWSE_FIGURE_SLOTS);
 }
 
 /** Для тестов и отладки — сколько ТЦ матчит хаб. */
