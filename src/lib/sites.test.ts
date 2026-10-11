@@ -85,6 +85,12 @@ describe('sites / domain split', () => {
     );
     expect(crossDomainRedirect('officelist.pro', '/minsk/minsk-mir')).toBeNull();
     expect(crossDomainRedirect('redevelopment.pro', '/minsk/analytics/minsk-mir')).toBeNull();
+    // Превью/localhost — без 301 на прод (иначе branch-деплой не на что смотреть).
+    expect(
+      crossDomainRedirect('malllist-git-cursor-tc-category-spoilers-3f99-trashman.vercel.app', '/minsk/tc/zamok'),
+    ).toBeNull();
+    expect(crossDomainRedirect('officelist-git-preview-trashman.vercel.app', '/minsk/bc')).toBeNull();
+    expect(crossDomainRedirect('localhost', '/minsk/tc')).toBeNull();
   });
 
   it('absolutePublicUrl: гид Минск Мир → officelist, аналитика цен → платформа', () => {

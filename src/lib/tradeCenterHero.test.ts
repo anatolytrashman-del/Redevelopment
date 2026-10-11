@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RetailFigureEntry, RetailFoodInfo, RetailFunEntry, RetailHoursEntry, RetailParking } from '../data/businessCenters';
+import type { RetailFigureEntry, RetailFoodInfo, RetailFunEntry, RetailHoursEntry, RetailInfo, RetailParking } from '../data/businessCenters';
 import {
   hoursLiveStatus,
   laterClosingZones,
@@ -9,7 +9,12 @@ import {
   tcAudienceVisitorsPerDay,
   tcFirstFunName,
   tcFoodPointsCount,
+  tcHeroInsideLines,
+  tcFitPoints,
+  tcHeroPhotoLead,
   tcHeroSubtitle,
+  tcMeaningfulAltNames,
+  tcMustHaveItems,
   tcParkingShort,
   tcParkingSpaces,
   tcQuickJumpChips,
@@ -241,5 +246,97 @@ describe('tcFoodPointsCount / tcFirstFunName', () => {
 describe('tcQuickJumpChips', () => {
   it('null info — пусто', () => {
     expect(tcQuickJumpChips(null)).toEqual([]);
+  });
+});
+
+describe('tcHeroPhotoLead / tcHeroInsideLines / tcMeaningfulAltNames', () => {
+  const info = {
+    factCards: null,
+    reviewThemes: null,
+    floorsGuide: [],
+    anchors: [
+      {
+        name: 'Гипермаркет «Корона»',
+        category: 'гипермаркет' as const,
+        floor: '1',
+        area: null,
+        since: null,
+        text: '',
+        yandexUrl: null,
+        source: null,
+        sourceUrl: null,
+      },
+    ],
+    timeline: [],
+    leisure: [],
+    food: food([
+      { name: 'A', type: 'cafe' as const, cuisine: null, floor: null, inFoodcourt: null, yandexUrl: null, note: null },
+      { name: 'B', type: 'cafe' as const, cuisine: null, floor: null, inFoodcourt: null, yandexUrl: null, note: null },
+    ]),
+    fun: [fun('3D-Кино «В Замке»'), { ...fun('Ледовый каток'), kind: 'ice' as const, name: 'Ледовый каток' }],
+    ranking: [],
+    awards: [],
+    hours: [],
+    hoursNote: null,
+    parking: null,
+    transport: [],
+    services: [],
+    rules: [],
+    loyalty: [],
+    events: [],
+    audience: [],
+    leasing: null,
+    advertising: null,
+    numbers: [],
+    quotes: [],
+    vacancies: [],
+    tenantsAt: null,
+  } as RetailInfo;
+
+  it('lead на фото — короткие ярлыки развлечений', () => {
+    expect(tcHeroPhotoLead(info)).toBe('Кино · Каток');
+  });
+
+  it('inside — inventory-строки со ссылками', () => {
+    expect(tcHeroInsideLines(info).map((line) => line.href)).toEqual(['#anchors', '#fun', '#food']);
+    expect(tcHeroInsideLines(info)[2]?.detail).toBe('2\u00a0заведения');
+  });
+
+  it('alt-имена без дублей формата', () => {
+    expect(tcMeaningfulAltNames('ТРЦ «Замок»', ['ТРЦ «Замок»', 'ТЦ «Замок»', 'Zamok'])).toEqual(['Zamok']);
+  });
+
+  it('must-have — парковка/якоря/развлечения без статуса часов', () => {
+    const items = tcMustHaveItems(info, { parkingShort: 'более 2000 мест', metroLabel: '«Победителей» · 400\u00a0м' });
+    expect(items.map((i) => i.kind)).toEqual(['parking', 'metro', 'anchor', 'fun', 'food']);
+    expect(items.some((i) => /открыт|закрыт/i.test(i.value))).toBe(false);
+    // Один якорь в фикстуре — имя; при ≥3 будет счёт «N якорей».
+    expect(items.find((i) => i.kind === 'anchor')?.value).toContain('Корона');
+  });
+
+  it('must-have — при многих якорях короткий счёт, не список имён', () => {
+    const many = {
+      ...info,
+      anchors: Array.from({ length: 6 }, (_, i) => ({
+        ...info.anchors[0],
+        name: `Якорь ${i + 1}`,
+      })),
+    };
+    const items = tcMustHaveItems(many, { parkingShort: '2000 мест' });
+    expect(items.find((i) => i.kind === 'anchor')?.value).toBe('6\u00a0якорей');
+  });
+
+  it('fit — выигрывает/проигрывает аналогам только из фактов', () => {
+    const points = tcFitPoints(info, {
+      parkingSpaces: '2000',
+      tenantCount: 477,
+      hasMetro: true,
+      totalArea: 93000,
+    });
+    expect(points.some((p) => p.side === 'win' && /кино|каток/i.test(p.text))).toBe(true);
+    expect(points.some((p) => p.side === 'win' && /парковк/i.test(p.text))).toBe(true);
+    expect(points.some((p) => p.side === 'win' && /аналог|крупн|больше|шире|ряду/i.test(p.text))).toBe(true);
+    expect(points.filter((p) => p.side === 'win').length).toBeLessThanOrEqual(3);
+    expect(points.filter((p) => p.side === 'lose').length).toBeLessThanOrEqual(3);
   });
 });

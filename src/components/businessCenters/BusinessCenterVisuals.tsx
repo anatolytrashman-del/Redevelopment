@@ -50,11 +50,14 @@ export function PhotoBlock({
   variant,
   fit = 'cover',
   sizes,
+  imgClassName,
 }: {
   center: BusinessCenter;
   variant: 'card' | 'detail';
   fit?: 'cover' | 'contain';
   sizes?: string;
+  /** Доп. классы на `<img>` (object-position и т.п.). */
+  imgClassName?: string;
 }) {
   const detail = variant === 'detail';
   const curatedPhoto = CURATED_BUSINESS_CENTER_PHOTOS[center.slug];
@@ -79,7 +82,7 @@ export function PhotoBlock({
         srcSet={photo.srcSet}
         sizes={photo.srcSet ? (sizes ?? (detail ? BC_DETAIL_PHOTO_SIZES : BC_CARD_PHOTO_SIZES)) : undefined}
         alt={photo.alt}
-        className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
+        className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}${imgClassName ? ` ${imgClassName}` : ''}`}
         loading={detail ? 'eager' : 'lazy'}
         fetchPriority={detail ? 'high' : 'auto'}
         width={detail ? 1200 : 640}
@@ -156,6 +159,26 @@ export function FactTile({
   tone?: 'default' | 'muted';
 }) {
   const muted = tone === 'muted';
+  // muted + иконка + число: в одну строку (владелец, 2026-10-11) — места
+  // хватает, иконка над «477» выглядит пусто. default оставляем колонкой.
+  if (muted && Icon && !text) {
+    return (
+      <div
+        className={
+          'flex items-center gap-2.5 rounded-control border border-border/70 bg-surface-muted/70 p-3' +
+          (span ? ` ${SPAN_CLASSES[span]}` : '')
+        }
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff1e8] text-[#c45c3a]">
+          <Icon className="h-4 w-4" strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-base font-bold leading-tight text-ink">{value}</div>
+          {label && <p className="mt-0.5 text-xs leading-snug text-ink-muted">{label}</p>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className={
@@ -168,11 +191,11 @@ export function FactTile({
       {Icon && (
         <span
           className={
-            'flex shrink-0 items-center justify-center rounded-full ' +
-            (muted ? 'h-8 w-8 bg-white/70 text-ink-muted' : 'h-9 w-9 bg-surface-muted text-ink')
+            'flex shrink-0 items-center justify-center rounded-xl ' +
+            (muted ? 'h-8 w-8 bg-[#fff1e8] text-[#c45c3a]' : 'h-9 w-9 bg-surface-muted text-ink')
           }
         >
-          <Icon className="h-4 w-4" />
+          <Icon className="h-4 w-4" strokeWidth={1.75} />
         </span>
       )}
       {text ? (

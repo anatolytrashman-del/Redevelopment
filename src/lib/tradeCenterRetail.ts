@@ -582,20 +582,29 @@ export function floorSortKey(floor: string): number | null {
   return match[2] ? -value : value;
 }
 
+function compareFloors(a: string, b: string, direction: 1 | -1): number {
+  const ka = floorSortKey(a);
+  const kb = floorSortKey(b);
+  if (ka == null && kb == null) return 0;
+  if (ka == null) return 1;
+  if (kb == null) return -1;
+  return (ka - kb) * direction;
+}
+
 /**
- * Этажи сверху вниз, как их видит человек на поэтажном указателе: самый
- * верхний первым, подземные последними. Строки без номера — в самом конце,
- * в исходном порядке (sort стабилен).
+ * Этажи сверху вниз, как на поэтажном указателе: самый верхний первым,
+ * подземные последними. Строки без номера — в конце (sort стабилен).
  */
 export function sortFloorsTopDown<T extends { floor: string }>(floors: T[]): T[] {
-  return [...floors].sort((a, b) => {
-    const ka = floorSortKey(a.floor);
-    const kb = floorSortKey(b.floor);
-    if (ka == null && kb == null) return 0;
-    if (ka == null) return 1;
-    if (kb == null) return -1;
-    return kb - ka;
-  });
+  return [...floors].sort((a, b) => compareFloors(a.floor, b.floor, -1));
+}
+
+/**
+ * Этажи по порядку номеров снизу вверх (1 → 2–3 → 4): владелец, 2026-10-11,
+ * «везде по порядку». Диапазон «2–3» берёт ключ 2 (floorSortKey), не NaN.
+ */
+export function sortFloorsInOrder<T extends { floor: string }>(floors: T[]): T[] {
+  return [...floors].sort((a, b) => compareFloors(a.floor, b.floor, 1));
 }
 
 /** Подпись бейджа: "-1" → "−1" (типографский минус), "2-3" → "2–3". */
@@ -1179,6 +1188,39 @@ export function funMetaParts(entry: RetailFunEntry): string[] {
   ].filter((part): part is string => Boolean(part));
 }
 
+/**
+ * Короткий смысл для плиток карточки ТЦ (владелец, 2026-10-11): полное
+ * предложение или цельная клаузула — без «…» и обрыва посередине. Если
+ * уместить нельзя, текста в плитке нет (теги/meta уже несут детали).
+ */
+export function essenceText(text: string | null | undefined, maxLen = 72): string | null {
+  if (!text) return null;
+  let trimmed = text.replace(/\s+/g, ' ').trim().replace(/…+\s*$/u, '').trim();
+  if (!trimmed) return null;
+  const first = trimmed.match(/^(.+?[.!?])(?:\s|$)/u)?.[1] ?? trimmed.replace(/[.!?]+$/u, '').trim();
+  if (!first) return null;
+  if (first.length <= maxLen) return finishEssence(first);
+
+  // Самая длинная клаузула ≤ maxLen; иначе первая цельная ≤ softMax.
+  const softMax = Math.min(96, Math.max(maxLen, Math.round(maxLen * 1.35)));
+  let hard: string | null = null;
+  let soft: string | null = null;
+  const re = /[,:;—–]\s/gu;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(first)) !== null) {
+    const clause = first.slice(0, match.index).trim();
+    if (clause.length < 20) continue;
+    if (clause.length <= maxLen) hard = clause;
+    else if (!soft && clause.length <= softMax) soft = clause;
+  }
+  const pick = hard ?? soft;
+  return pick ? finishEssence(pick) : null;
+}
+
+function finishEssence(value: string): string {
+  return /[.!?]$/u.test(value) ? value : `${value}.`;
+}
+
 // «4-й уровень паркинга» — место словами, к нему «этаж» не приписываем.
 function formatFunFloor(floor: string): string {
   return /[а-яё]{3,}/iu.test(floor) ? floor : formatFloorLabel(floor);
@@ -1565,13 +1607,12 @@ export function retailHistoryTitle(name: string): string {
 /**
  * Группы карточек, которые читаются подряд: «для посетителя» и «для
  * бизнеса». Рекомендацию между карточками одной группы страница переносит
- * за последнюю карточку группы, а на стыке групп — оставляет. «Якорные
- * арендаторы» — своя группа: они стоят вплотную к каталогу арендаторов, и
- * рекомендацию после них страница переносит за каталог.
+ * за последнюю карточку группы, а на стыке групп — оставляет.
+ * Реклама — отдельный хвост «для бизнеса»; цифры/цитаты читаются с
+ * посетительским блоком (после еды и афиши), чтобы не рвать ленту.
  */
 export function retailSectionGroup(id: RetailSectionId): 'visitor' | 'business' | 'tenants' {
-  if (id === 'anchors') return 'tenants';
-  return id === 'advertising' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
+  return id === 'advertising' ? 'business' : 'visitor';
 }
 
 export function hasAdvertisingInfo(info: RetailInfo): boolean {
@@ -1619,6 +1660,10 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId, 
 /**
  * Какие карточки реально нарисуются — в порядке на странице.
  *
+ * Порядок (владелец, 2026-10-11): сначала то, что нужно посетителю под
+ * рукой — схема («Что где»), парковка/проезд, якоря, еда и развлечения;
+ * реклама и прочее «для бизнеса» — в хвосте, ими мало кто листает.
+ *
  * `hasTenants` (владелец, 2026-09-25): «Путеводитель по ТЦ» (id 'floors')
  * теперь несёт и каталог арендаторов, поэтому рисуется и без floorsGuide,
  * если есть хоть один арендатор — иначе у ТЦ без текстового гида, но с
@@ -1628,17 +1673,17 @@ export function retailSectionIds(info: RetailInfo | null, hasTenants = false): R
   if (!info) return hasTenants ? ['floors'] : [];
   const ids: RetailSectionId[] = [];
   if (info.floorsGuide.length || hasTenants) ids.push('floors');
-  if (info.timeline.length) ids.push('retail-history');
+  if (hasGettingHereInfo(info)) ids.push('getting-here');
+  if (anchorsForPage(info).length) ids.push('anchors');
   if (info.food) ids.push('food');
   if (info.fun.length) ids.push('fun');
   // Старый досуг — только пока нет новых блоков (leisureForPage).
   if (leisureForPage(info).length) ids.push('leisure');
-  if (hasGettingHereInfo(info)) ids.push('getting-here');
   if (hasOffersEventsInfo(info)) ids.push('offers-events');
-  if (hasAdvertisingInfo(info)) ids.push('advertising');
   if (info.numbers.length) ids.push('numbers');
+  if (info.timeline.length) ids.push('retail-history');
   if (!info.reviewThemes && info.quotes.length) ids.push('quotes');
-  // Последними — вплотную к каталогу арендаторов, который идёт за ними.
-  if (anchorsForPage(info).length) ids.push('anchors');
+  // Реклама — почти никому из посетителей; в самом конце торговых блоков.
+  if (hasAdvertisingInfo(info)) ids.push('advertising');
   return ids;
 }
