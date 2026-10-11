@@ -114,6 +114,8 @@ import {
   tcStoreHubUrl,
   type TcStoreHub,
 } from '../lib/tradeCenterStoreHubs';
+import { buildTcEditorialShelves } from '../lib/tradeCenterEditorialShelves';
+import { TradeCenterEditorialShelves } from '../components/businessCenters/TradeCenterEditorialShelves';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
@@ -1328,6 +1330,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // здесь вместо них одна строка-ссылка туда.
   const isGeneralCatalog = isCatalogRoot && centers !== null && centers.length > 0;
 
+  // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
+  // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
+  const tcEditorialShelves = useMemo(
+    () => (isTc && isGeneralCatalog ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : []),
+    [isTc, isGeneralCatalog, centers, tcIndex, V.basePath],
+  );
+
   const rentMethodology = summary.rentMedian != null
     ? `Медиана аренды — $${summary.rentMedian}/м² в месяц, по ${summary.rentBuildings} зданиям текущей выборки с объявлениями. Сначала берётся медиана ставки объявлений каждого здания, затем медиана этих значений; при чётном числе — среднее двух центральных. Площадь здания не служит весом.`
     : 'Медиана аренды для текущей выборки не рассчитана: нет доступных медиан по зданиям с объявлениями.';
@@ -1402,11 +1411,17 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       add('Где посмотреть, кто управляет зданиями и что сейчас сдаётся в каталоге?', 'На странице «Аналитика каталога БЦ». Там указано, кто управляет зданиями: товарищество собственников или единая УК. Там же — здания с активными объявлениями и диапазоны площади лотов. Данные внешних источников помогают оценить рынок офисов в целом.');
       add('Как работают фильтры и подборки?', 'Фильтры оставляют здания с выбранными характеристиками. Список и сводка обновляются вместе с фильтрами. Сортировка меняет порядок. Карточки, таблица и карта помогают просматривать результаты, сравнение — сопоставлять выбранные здания. В справочнике по бизнес-центрам Минска есть подборки по классу и статусу строительства. Там же можно выбрать район, микрорайон, улицу или метро. Полный список названий в справочнике ведёт на страницы зданий.');
     } else {
-      add('Как работают фильтры?', `Фильтры оставляют ${V.many} с выбранными характеристиками: формат, район, микрорайон, станция метро и расстояние до неё. Список обновляется вместе с фильтрами, счётчик у каждого варианта показывает, сколько зданий останется, если его выбрать.`);
+      if (isCatalogRoot) {
+        add(
+          'Что такое авторские подборки в каталоге ТЦ?',
+          'Это короткие срезы каталога по сценарию: шопинг, кино, бесплатная парковка, популярные бренды, а также топовые районы и станции метро по числу и качеству торговых центров. Подборка ведёт на отдельную страницу со списком подходящих ТЦ.',
+        );
+      }
+      add('Как работают фильтры?', `Фильтры оставляют ${V.many} с выбранными характеристиками: формат, район, микрорайон, станция метро и расстояние до неё. Список обновляется вместе с фильтрами, счётчик у каждого варианта показывает, сколько зданий останется, если его выбрать. На главной каталога сверху также есть авторские подборки по интересам.`);
     }
     add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак подтверждён данными.');
     return items;
-  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc]);
+  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot]);
 
   useEffect(() => {
     setFaqJsonLd(pageIsIndexable ? faqItems : []);
@@ -1658,6 +1673,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               `summary` при этом не выброшен — тем же значением пользуется
               SEO-текст (FAQ/подзаголовки хабов) ниже по файлу. */}
 
+          {isTc && isGeneralCatalog && tcEditorialShelves.length > 0 && (
+            <TradeCenterEditorialShelves shelves={tcEditorialShelves} />
+          )}
+
           {/* К14. Сравнение — блоком НАД результатами, а не модалкой:
               вложенных модалок в проекте не бывает, а сравнение смотрят,
               продолжая листать каталог. */}
@@ -1692,6 +1711,19 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           ) : (
             <div className="space-y-6">
+              {isTc && isGeneralCatalog && tcEditorialShelves.length > 0 && (
+                <div className="flex flex-col gap-1 px-0.5">
+                  <h2
+                    className="text-[1.65rem] font-black tracking-tight text-ink sm:text-3xl"
+                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                  >
+                    Весь каталог
+                  </h2>
+                  <p className="text-sm text-ink/65">
+                    {orderedCenters.length} {V.plural(orderedCenters.length)} Минска — полный список ниже.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-5 lg:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard key={c.slug} center={c} />
