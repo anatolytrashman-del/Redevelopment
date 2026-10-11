@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { ArrowRight, Building2, Store } from 'lucide-react';
+import { useEffect, type ReactNode } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
@@ -16,22 +16,33 @@ const DESCRIPTION =
   'Каталоги OfficeList и MallList плюс умные модули для индустрии недвижимости.';
 const PAGE_URL = 'https://redevelopment.pro/';
 
-const CATALOGS = [
+const CATALOGS: {
+  id: string;
+  href: string;
+  text: string;
+  mark: ReactNode;
+}[] = [
   {
     id: 'offices',
-    brand: 'OfficeList',
-    href: `${SITES.offices.origin}/minsk/bc`,
-    text: 'Каталог бизнес-центров Минска: карточки зданий, рейтинги, классы, районы и аналитика.',
-    Icon: Building2,
+    href: SITES.offices.origin,
+    text: 'Каталог бизнес-центров: карточки зданий, рейтинги, классы и аналитика.',
+    mark: (
+      <>
+        Office<span className="text-primary">List</span>
+      </>
+    ),
   },
   {
     id: 'malls',
-    brand: 'MallList',
-    href: `${SITES.malls.origin}/minsk/tc`,
-    text: 'Каталог торговых центров: площади, форматы, арендаторы и подборки магазинов.',
-    Icon: Store,
+    href: SITES.malls.origin,
+    text: 'Каталог торговых центров: площади, форматы, арендаторы и подборки.',
+    mark: (
+      <>
+        Mall<span className="text-primary">List</span>
+      </>
+    ),
   },
-] as const;
+];
 
 export function PlatformHomePage() {
   useEffect(() => {
@@ -72,38 +83,39 @@ export function PlatformHomePage() {
               Каталоги недвижимости
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
-              Открытые справочники по объектам Минска: бизнес-центры и торговые центры — с
-              карточками, фильтрами и данными, которые можно сравнивать.
+              Открытые справочники по бизнес-центрам и торговым центрам — с карточками, фильтрами
+              и данными, которые можно сравнивать.
             </p>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <span className="inline-flex items-center rounded-md bg-success-bg px-5 py-2.5 text-sm font-bold text-success/80">
+                Запущен пилот
+              </span>
+            </div>
           </div>
 
           <aside className="flex min-w-0 flex-col justify-center gap-2.5" aria-label="OfficeList и MallList">
-            {CATALOGS.map((cat) => {
-              const Icon = cat.Icon;
-              return (
-                <a
-                  key={cat.id}
-                  href={cat.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group flex gap-3 rounded-xl border border-border bg-white/70 p-4 transition-colors hover:border-ink/20 sm:p-5"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/[0.05] text-ink-muted">
-                    <Icon className="h-5 w-5" aria-hidden />
+            {CATALOGS.map((cat) => (
+              <a
+                key={cat.id}
+                href={cat.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-start gap-3 rounded-xl border border-border bg-white/70 p-4 transition-colors hover:border-ink/20 sm:p-5"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 text-lg font-extrabold tracking-wide text-ink">
+                    {cat.mark}
+                    <ArrowRight
+                      className="h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+                      aria-hidden
+                    />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5 text-base font-extrabold text-ink">
-                      {cat.brand}
-                      <ArrowRight
-                        className="h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
-                        aria-hidden
-                      />
-                    </span>
-                    <span className="mt-1 block text-sm leading-snug text-ink-muted">{cat.text}</span>
+                  <span className="mt-1 line-clamp-2 block text-sm leading-snug text-ink-muted">
+                    {cat.text}
                   </span>
-                </a>
-              );
-            })}
+                </span>
+              </a>
+            ))}
           </aside>
         </section>
 
