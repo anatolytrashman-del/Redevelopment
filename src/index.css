@@ -189,3 +189,86 @@ body {
      position: sticky у Sidebar.tsx через #root. */
   overflow-x: clip;
 }
+
+/* Авторские полки каталога ТЦ (malllist) — lookbook-карточки по образцу
+   casinolist vinyl-shelf: круглая печать выглядывает из-под обложки и
+   выезжает на hover. Не винил и не бумажный пакет — витринная «печать». */
+@keyframes ml-reveal-up {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ml-reveal {
+  animation: 0.55s ease-out both ml-reveal-up;
+}
+.ml-reveal-delay-1 {
+  animation-delay: 80ms;
+}
+.ml-reveal-delay-2 {
+  animation-delay: 0.16s;
+}
+
+.ml-lookbook-seal {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translate(48%);
+}
+.ml-lookbook-cover {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s;
+}
+.group:hover .ml-lookbook-seal,
+.group:focus-within .ml-lookbook-seal {
+  transform: translate(62%) rotate(14deg);
+}
+.group:hover .ml-lookbook-cover,
+.group:focus-within .ml-lookbook-cover {
+  transform: translate(-4%) scale(1.02);
+  box-shadow: 0 16px 36px #00000038;
+}
+
+.ml-lookbook-shelf-row {
+  scrollbar-width: thin;
+  scrollbar-color: #14151a59 #14151a0f;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 1rem;
+  scroll-snap-type: x proximity;
+}
+.ml-lookbook-shelf-row::-webkit-scrollbar {
+  height: 8px;
+}
+.ml-lookbook-shelf-row::-webkit-scrollbar-track {
+  background: #14151a0f;
+  border-radius: 999px;
+}
+.ml-lookbook-shelf-row::-webkit-scrollbar-thumb {
+  background: #14151a59;
+  border-radius: 999px;
+}
+.ml-lookbook-shelf-row::-webkit-scrollbar-thumb:hover {
+  background: #14151a80;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ml-reveal,
+  .ml-reveal-delay-1,
+  .ml-reveal-delay-2 {
+    animation: none !important;
+  }
+  .ml-lookbook-seal,
+  .ml-lookbook-cover {
+    transition: none !important;
+  }
+  .group:hover .ml-lookbook-seal,
+  .group:focus-within .ml-lookbook-seal,
+  .group:hover .ml-lookbook-cover,
+  .group:focus-within .ml-lookbook-cover {
+    transform: none;
+  }
+}
