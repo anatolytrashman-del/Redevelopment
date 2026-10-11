@@ -10,9 +10,9 @@ import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 // Визуал: та же дизайн-система, что админка / /zakupki / каталоги —
 // серый фон, liquid glass, без фото-hero (владелец, 2026-10-11).
 
-const TITLE = 'Redevelopment — умные модули для работы с недвижимостью';
+const TITLE = 'Redevelopment — умные модули для строительства и недвижимости';
 const DESCRIPTION =
-  'Модули для закупок, продаж и подбора в недвижимости: вы принимаете решения, рутину закрывают инструменты. Первый модуль — закупки стройматериалов.';
+  'Специализированные модули для строительства, редевелопмента и продаж недвижимости. Вы принимаете решения — модули автоматизируют текучку. Первый модуль — закупки.';
 const PAGE_URL = 'https://redevelopment.pro/';
 
 const MODULES = [
@@ -35,7 +35,7 @@ const MODULES = [
   {
     id: 'brokers',
     title: 'Для брокеров',
-    text: 'Подборки для клиентов и повторяемая рутина вокруг них — без копипаста из десяти вкладок.',
+    text: 'Подборки для клиентов и повторяемая текучка вокруг них — без копипаста из десяти вкладок.',
     href: null,
     status: 'soon' as const,
     Icon: Users,
@@ -72,55 +72,91 @@ export function PlatformHomePage() {
       </header>
 
       <main id="main" className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 sm:gap-5 sm:px-8 sm:py-12">
-        {/* Hero — glass, без фото */}
-        <section className={cn('platform-home-rise flex flex-col gap-5 p-6 sm:p-8 sm:gap-6', glassCardClass)} style={glassCardShadow}>
-          <p className="text-2xl font-black tracking-wide text-ink sm:text-3xl" aria-label="Redevelopment">
-            <span className="text-primary">RED</span>EVELOPMENT
-          </p>
-          <h1 className="max-w-2xl text-2xl font-extrabold leading-tight tracking-tight text-ink sm:text-3xl sm:leading-[1.2]">
-            Умные модули для работы с недвижимостью
-          </h1>
-          <p className="max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
-            Вы принимаете решения. Модули закрывают рутину вокруг закупок, продаж и подбора.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <a
-              href="#modules"
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
-            >
-              Смотреть модули
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </a>
-            <a
-              href="/zakupki"
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white/70 px-5 py-2.5 text-sm font-bold text-ink transition-colors hover:border-ink/25"
-            >
-              Модуль закупок
-            </a>
+        {/* Hero — две колонки: смысл + Claude, как на /zakupki */}
+        <section
+          className={cn(
+            'platform-home-rise grid items-stretch gap-6 p-6 sm:gap-8 sm:p-8 lg:grid-cols-[1.35fr_0.85fr]',
+            glassCardClass,
+          )}
+          style={glassCardShadow}
+        >
+          <div className="flex min-w-0 flex-col justify-center gap-5">
+            <h1 className="text-2xl font-extrabold leading-tight tracking-tight text-ink sm:text-3xl sm:leading-[1.2]">
+              Умные модули, которые ускоряют текучку в&nbsp;недвижимости
+            </h1>
+            <p className="max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
+              Специализированные модули для компаний в&nbsp;строительстве, редевелопменте
+              и&nbsp;продажах недвижимости. Вы принимаете решения — модуль закрывает остальное.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <a
+                href="#modules"
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
+              >
+                Смотреть модули
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </a>
+              <a
+                href="/zakupki"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white/70 px-5 py-2.5 text-sm font-bold text-ink transition-colors hover:border-ink/25"
+              >
+                Модуль закупок
+              </a>
+            </div>
           </div>
+
+          <aside
+            className="flex min-w-0 flex-col justify-center gap-4 rounded-[1.25rem] border border-[#d97757]/35 bg-gradient-to-br from-[#fff8f4] to-[#ffece0] p-5 shadow-[0_8px_28px_rgba(196,90,56,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] sm:p-6"
+            aria-label="Claude"
+          >
+            <div className="flex items-center gap-3">
+              <img
+                src="/zakupki-static/claude-asterisk.svg"
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8 shrink-0"
+              />
+              <p className="text-lg font-extrabold leading-snug text-ink">
+                На умных моделях <span className="text-[#c45a38]">Claude</span>
+              </p>
+            </div>
+            <ul className="flex flex-col gap-2.5 text-sm font-medium leading-snug text-ink-muted">
+              <li className="relative pl-4 before:absolute before:left-0 before:top-[0.55em] before:h-1.5 before:w-1.5 before:rounded-full before:bg-[#d97757]">
+                <strong className="font-bold text-ink">Claude</strong> от{' '}
+                <strong className="font-bold text-ink">Anthropic</strong> — передовой ИИ
+                одного из лидеров рынка для сложных задач
+              </li>
+              <li className="relative pl-4 before:absolute before:left-0 before:top-[0.55em] before:h-1.5 before:w-1.5 before:rounded-full before:bg-[#d97757]">
+                Не общий чат, а <strong className="font-bold text-ink">узкий помощник</strong> внутри
+                конкретного модуля
+              </li>
+              <li className="relative pl-4 before:absolute before:left-0 before:top-[0.55em] before:h-1.5 before:w-1.5 before:rounded-full before:bg-[#d97757]">
+                Работает только в <strong className="font-bold text-ink">заданных ситуациях</strong>;
+                незнакомое отдаёт человеку
+              </li>
+            </ul>
+          </aside>
         </section>
 
-        {/* Цитата */}
+        {/* Цитата — компактная подпись в одну линию смысла */}
         <section
-          className={cn('platform-home-rise platform-home-rise-d1 p-6 sm:p-8', glassCardClass)}
+          className={cn('platform-home-rise platform-home-rise-d1 px-6 py-5 sm:px-8 sm:py-6', glassCardClass)}
           style={glassCardShadow}
           aria-labelledby="quote-heading"
         >
           <h2 id="quote-heading" className="sr-only">
             Отзыв после первой демонстрации
           </h2>
-          <blockquote className="max-w-3xl">
+          <blockquote>
             <p className="text-xl font-extrabold leading-snug tracking-tight text-ink sm:text-2xl sm:leading-[1.3]">
               «Мне кажется, все компании рано или поздно придут к внедрению такого софта.»
             </p>
-            <footer className="mt-5 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
+            <footer className="mt-3 text-sm leading-snug text-ink-muted">
               <cite className="not-italic font-semibold text-ink">
-                Операционный директор компании в сфере редевелопмента
+                Операционный директор · редевелопмент · 10&nbsp;000+&nbsp;м²
               </cite>
-              <span className="mt-1 block">
-                Портфель более 10&nbsp;000&nbsp;м². Сказано собственнику на первой
-                демонстрации продукта — после той встречи модуль внедрили.
-              </span>
+              <span className="text-ink-faint"> — первая демо, после неё модуль внедрили</span>
             </footer>
           </blockquote>
         </section>
@@ -132,12 +168,13 @@ export function PlatformHomePage() {
           aria-labelledby="principle-heading"
         >
           <h2 id="principle-heading" className="text-xl font-extrabold tracking-tight text-ink sm:text-2xl">
-            Вы думаете. Модули помогают.
+            Вы принимаете решения. Модули автоматизируют текучку.
           </h2>
           <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-muted">
-            Отдельный модуль — под отдельный процесс. Не «платформа вместо людей», а
-            инструмент рядом с вашей работой: решение остаётся за вами, тяжёлую
-            операционку модуль берёт на себя.
+            Мы не верим, что искусственный интеллект заменит человека. Но с&nbsp;ним можно
+            сильно урезать то, что и так понятно и повторяется каждый раз: письма, сверки,
+            сбор цен, однотипные ответы. Формула модулей простая:{' '}
+            <strong className="font-bold text-ink">модуль + ИИ + человек</strong>.
           </p>
         </section>
 
