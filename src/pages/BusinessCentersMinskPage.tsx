@@ -1337,16 +1337,20 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const showTcListView = isTc && isCatalogRoot && searchParams.get('view') === 'list';
   const isTcBrowseHome = isTc && isGeneralCatalog && !showTcListView;
 
+  // Сводка и полки — только когда tc-filters уже в памяти. Иначе первый
+  // кадр рисует урезанный набор, а после fetch — полный (мигание).
+  // Прайм — index.html → __tcFilters → seedBuildData в primeBusinessCentersFromBuild.
+  const tcBrowseReady = Boolean(isTcBrowseHome && centers && tcIndex);
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
-    () => (isTcBrowseHome ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : []),
-    [isTcBrowseHome, centers, tcIndex, V.basePath],
+    () => (tcBrowseReady ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : []),
+    [tcBrowseReady, centers, tcIndex, V.basePath],
   );
   // Сводка «At a glance» — ключевые цифры каталога (как у casinolist LV).
   const tcBrowseFigures = useMemo(
-    () => (isTcBrowseHome ? buildTcBrowseFigures(centers, tcIndex, V.basePath) : []),
-    [isTcBrowseHome, centers, tcIndex, V.basePath],
+    () => (tcBrowseReady ? buildTcBrowseFigures(centers, tcIndex, V.basePath) : []),
+    [tcBrowseReady, centers, tcIndex, V.basePath],
   );
 
   const rentMethodology = summary.rentMedian != null

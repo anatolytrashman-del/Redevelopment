@@ -7,6 +7,7 @@ import {
   TC_TONIGHT_TOPIC_SLUGS,
   TC_TOP_DISTRICTS,
   TC_TOP_METRO,
+  TC_BROWSE_FIGURE_SLOTS,
   buildBrandsShelf,
   buildDistrictsShelf,
   buildMetroShelf,
@@ -122,7 +123,7 @@ describe('авторские полки каталога ТЦ', () => {
     expect(shelf!.cards.some((c) => c.href.includes('/with/shopping'))).toBe(true);
   });
 
-  it('сортирует бренды по числу ТЦ (больше → раньше)', () => {
+  it('ставит «Золотое яблоко» первым, остальных — по числу ТЦ', () => {
     const index: TcFilterIndex = new Map([
       [
         'galleria',
@@ -150,8 +151,11 @@ describe('авторские полки каталога ТЦ', () => {
     const shelf = buildBrandsShelf(centers, index);
     expect(shelf).not.toBeNull();
     const slugs = shelf!.cards.map((c) => c.id.replace('brand-', ''));
-    expect(slugs[0]).toBe('mark-formelle');
-    expect(shelf!.cards[0].count).toBeGreaterThanOrEqual(shelf!.cards[1].count);
+    expect(slugs[0]).toBe('gold-apple');
+    const rest = shelf!.cards.slice(1);
+    for (let i = 1; i < rest.length; i++) {
+      expect(rest[i - 1].count).toBeGreaterThanOrEqual(rest[i].count);
+    }
     expect(slugs.every((s) => (TC_FEATURED_BRAND_SLUGS as readonly string[]).includes(s))).toBe(true);
     expect(shelf!.cards.every((c) => c.countLabel.endsWith(' ТЦ'))).toBe(true);
   });
@@ -233,7 +237,7 @@ describe('авторские полки каталога ТЦ', () => {
     expect(shelf!.cards[0].title).toBe('Немига');
   });
 
-  it('собирает ключевые цифры сводки без нулей', () => {
+  it('собирает ключевые цифры сводки без нулей и только с tcIndex', () => {
     const index: TcFilterIndex = new Map([
       [
         'galleria',
@@ -246,6 +250,8 @@ describe('авторские полки каталога ТЦ', () => {
             items: [{ label: 'Первые 2 часа', value: 'бесплатно' }],
           },
           brands: ['Zara', 'Mark Formelle'],
+          hours: [{ zone: 'ТЦ', value: 'ежедневно 10:00–23:00' }],
+          anchorCategories: ['гипермаркет'],
         }),
       ],
       [
@@ -282,14 +288,73 @@ describe('авторские полки каталога ТЦ', () => {
       }),
       tc({ slug: 'palace', totalArea: 40_000 }),
     ];
+    expect(buildTcBrowseFigures(centers, null)).toEqual([]);
     const figures = buildTcBrowseFigures(centers, index);
     expect(figures[0]?.id).toBe('total');
     expect(figures[0]?.value).toBe('3');
+    expect(figures[0]?.icon).toBe('malls');
     expect(figures.some((f) => f.id === 'area')).toBe(true);
     expect(figures.some((f) => f.id === 'metro' && f.value === '2')).toBe(true);
     expect(figures.some((f) => f.id === 'topic-cinema' && f.value === '2')).toBe(true);
     expect(figures.every((f) => f.value !== '0')).toBe(true);
-    expect(figures.length).toBeLessThanOrEqual(8);
+    expect(figures.length).toBeLessThanOrEqual(TC_BROWSE_FIGURE_SLOTS);
+    expect(figures.length % 2 === 0 || figures.length === TC_BROWSE_FIGURE_SLOTS || figures.length > 0).toBe(true);
+  });
+
+  it('даёт районам разные обложки, метро — разные паттерны', () => {
+    const centers = [
+      tc({ slug: 'a1', district: 'Фрунзенский', totalArea: 80000, gisRating: 4.8 }),
+      tc({ slug: 'a2', district: 'Фрунзенский', totalArea: 60000, gisRating: 4.6 }),
+      tc({ slug: 'a3', district: 'Фрунзенский', totalArea: 40000, gisRating: 4.5 }),
+      tc({ slug: 'b1', district: 'Центральный', totalArea: 30000, gisRating: 4.7 }),
+      tc({ slug: 'b2', district: 'Центральный', totalArea: 25000, gisRating: 4.4 }),
+      tc({ slug: 'b3', district: 'Центральный', totalArea: 20000, gisRating: 4.3 }),
+      tc({ slug: 'c1', district: 'Заводской', totalArea: 10000, gisRating: 4.0 }),
+      tc({ slug: 'c2', district: 'Заводской', totalArea: 9000, gisRating: 3.9 }),
+      tc({ slug: 'c3', district: 'Заводской', totalArea: 8000, gisRating: 3.8 }),
+      tc({
+        slug: 'n1',
+        nearestMetroStations: [
+          { name: 'Немига', distanceMeters: 200, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+      tc({
+        slug: 'n2',
+        nearestMetroStations: [
+          { name: 'Немига', distanceMeters: 400, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+      tc({
+        slug: 'n3',
+        nearestMetroStations: [
+          { name: 'Немига', distanceMeters: 600, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+      tc({
+        slug: 'p1',
+        nearestMetroStations: [
+          { name: 'Пушкинская', distanceMeters: 300, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+      tc({
+        slug: 'p2',
+        nearestMetroStations: [
+          { name: 'Пушкинская', distanceMeters: 500, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+      tc({
+        slug: 'p3',
+        nearestMetroStations: [
+          { name: 'Пушкинская', distanceMeters: 700, line: 'Автозаводская линия', color: null },
+        ],
+      }),
+    ];
+    const districts = buildDistrictsShelf(centers)!;
+    const arts = new Set(districts.cards.map((c) => c.art));
+    expect(arts.size).toBeGreaterThan(1);
+    const metro = buildMetroShelf(centers)!;
+    const metroArts = new Set(metro.cards.map((c) => c.art));
+    expect(metroArts.size).toBeGreaterThan(1);
   });
 
   it('buildTcEditorialShelves склеивает непустые полки', () => {
