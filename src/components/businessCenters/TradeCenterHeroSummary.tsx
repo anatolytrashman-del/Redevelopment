@@ -217,7 +217,7 @@ export function TradeCenterHeroSummary({
                     <span className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                       {item.label}
                     </span>
-                    <span className="mt-0.5 block truncate text-sm font-bold leading-snug text-ink">
+                    <span className="mt-0.5 block text-sm font-bold leading-snug text-ink">
                       {item.value}
                     </span>
                   </span>

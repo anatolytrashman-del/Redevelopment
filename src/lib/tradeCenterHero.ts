@@ -437,7 +437,8 @@ export function tcMustHaveItems(info: RetailInfo | null, opts?: {
       href: '#anchors',
     });
   }
-  const fun = sortFun(info.fun).slice(0, 3);
+  // До двух коротких ярлыков — иначе плитка шире «6 якорей» / «22 заведения».
+  const fun = sortFun(info.fun).slice(0, 2);
   if (fun.length > 0) {
     items.push({
       kind: 'fun',
