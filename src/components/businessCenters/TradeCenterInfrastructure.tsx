@@ -4,14 +4,13 @@
 // У БЦ на этом месте остаётся BuildingAmenities. Сборка групп, FAQ и модель
 // высоты — lib/tradeCenterInfrastructure.ts.
 import { LayoutGrid } from 'lucide-react';
-import { glassCardShadow } from '../../lib/glass';
 import {
   infrastructureItemMeta,
   type InfrastructureGroup,
   type InfrastructureItem,
 } from '../../lib/tradeCenterInfrastructure';
 import { amenityIcon, SERVICE_GROUP_ICONS, serviceIcon } from './amenityIcons';
-import { retailCardClass } from './tradeCenterRetailStyle';
+import { CategorySpoiler } from '../ui/CategorySpoiler';
 
 function InfrastructureTile({ item, group }: { item: InfrastructureItem; group: InfrastructureGroup }) {
   const Icon = item.amenity ? amenityIcon(item.amenity) : serviceIcon(item.title, group.id);
@@ -34,16 +33,22 @@ function InfrastructureTile({ item, group }: { item: InfrastructureItem; group: 
 
 export function TradeCenterInfrastructure({
   groups,
+  index,
 }: {
   groups: InfrastructureGroup[];
+  index?: number;
 }) {
   if (!groups.length) return null;
+  const itemCount = groups.reduce((sum, group) => sum + group.items.length, 0);
   return (
-    <div id="amenities" className={retailCardClass} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <LayoutGrid className="h-5 w-5 shrink-0 text-icon" />
-        Инфраструктура
-      </h2>
+    <CategorySpoiler
+      id="amenities"
+      title="Инфраструктура"
+      subtitle="Сервисы и удобства внутри комплекса"
+      meta={`${itemCount} пунктов`}
+      icon={LayoutGrid}
+      index={index}
+    >
       <div className="flex flex-col gap-4">
         {groups.map((group) => {
           const GroupIcon = SERVICE_GROUP_ICONS[group.id];
@@ -64,6 +69,6 @@ export function TradeCenterInfrastructure({
           );
         })}
       </div>
-    </div>
+    </CategorySpoiler>
   );
 }

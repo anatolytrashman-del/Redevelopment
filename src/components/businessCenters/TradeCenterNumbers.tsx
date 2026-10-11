@@ -2,10 +2,8 @@ import { useId, useState } from 'react';
 import { ArrowUpDown, Building2, Car, Flag, HardHat, Monitor, PanelsTopLeft, Sparkles } from 'lucide-react';
 import type { RetailFigureEntry } from '../../data/businessCenters';
 import { cn } from '../../lib/cn';
-import { glassCardShadow } from '../../lib/glass';
 import { groupNumbers, holidayDate, numberFormat, numberIcon } from '../../lib/tradeCenterNumbers';
-import { RetailCardTitle } from './TradeCenterRetailParts';
-import { retailCardClass } from './tradeCenterRetailStyle';
+import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { balancedColumns, fitGridClass } from '../../lib/fitGrid';
 
 const icons = { ArrowUpDown, Building2, Car, Flag, HardHat, Monitor, PanelsTopLeft, Sparkles };
@@ -58,22 +56,29 @@ const HOLIDAY_COLUMNS: Record<number, string> = {
 };
 
 // Разные форматы отделяют главные цифры от деталей (владелец, 2026-09-25).
-export function TradeCenterNumbersCard({ numbers }: { numbers: RetailFigureEntry[] }) {
+export function TradeCenterNumbersCard({ numbers, index }: { numbers: RetailFigureEntry[]; index?: number }) {
   const groups = groupNumbers(numbers);
   if (!groups.length) return null;
-  return <section id="numbers" className={retailCardClass} style={glassCardShadow}>
-    <RetailCardTitle id="numbers" />
-    {groups.map((group) => <div key={group.kind}>
-      {group.label && <h3 className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{group.label}</h3>}
-      {group.kind === 'scale' && <div className={cn('grid gap-3.5', fitGridClass(group.entries.length, 2))}>{group.entries.map((entry, index) => <ScaleNumber key={`${entry.label}-${index}`} entry={entry} />)}</div>}
-      {group.kind === 'building' && <div className={cn('grid items-start gap-2.5', fitGridClass(group.entries.length, 5, 'tiles'))}>{group.entries.map((entry, index) => <NumberTile key={`${entry.label}-${entry.value}-${index}`} entry={entry} wide={balancedColumns(group.entries.length, 5) <= 3} />)}</div>}
-      {group.kind === 'holidays' && <div className={cn('grid grid-cols-1 overflow-hidden rounded-[22px] bg-[#1b1c20] text-white', HOLIDAY_COLUMNS[balancedColumns(group.entries.length, 3)])}>
-        {group.entries.map((entry, index) => <div key={`${entry.label}-${index}`} className="min-w-0 border-white/10 px-5 py-[18px] max-md:border-t max-md:first:border-t-0 md:border-l">
-          {holidayDate(entry) && <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">{holidayDate(entry)}</p>}
-          <p className="break-words text-[28px] font-extrabold leading-none tabular-nums">{entry.value}</p>
-          <p className="mt-1.5 break-words text-xs leading-snug text-white/65">{entry.label}</p>
-        </div>)}
-      </div>}
-    </div>)}
-  </section>;
+  const total = numbers.length;
+  return (
+    <RetailCategorySpoiler
+      id="numbers"
+      subtitle="Площадь, трафик и другие опорные цифры"
+      meta={`${total} показателей`}
+      index={index}
+    >
+      {groups.map((group) => <div key={group.kind}>
+        {group.label && <h3 className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{group.label}</h3>}
+        {group.kind === 'scale' && <div className={cn('grid gap-3.5', fitGridClass(group.entries.length, 2))}>{group.entries.map((entry, entryIndex) => <ScaleNumber key={`${entry.label}-${entryIndex}`} entry={entry} />)}</div>}
+        {group.kind === 'building' && <div className={cn('grid items-start gap-2.5', fitGridClass(group.entries.length, 5, 'tiles'))}>{group.entries.map((entry, entryIndex) => <NumberTile key={`${entry.label}-${entry.value}-${entryIndex}`} entry={entry} wide={balancedColumns(group.entries.length, 5) <= 3} />)}</div>}
+        {group.kind === 'holidays' && <div className={cn('grid grid-cols-1 overflow-hidden rounded-[22px] bg-[#1b1c20] text-white', HOLIDAY_COLUMNS[balancedColumns(group.entries.length, 3)])}>
+          {group.entries.map((entry, entryIndex) => <div key={`${entry.label}-${entryIndex}`} className="min-w-0 border-white/10 px-5 py-[18px] max-md:border-t max-md:first:border-t-0 md:border-l">
+            {holidayDate(entry) && <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-primary">{holidayDate(entry)}</p>}
+            <p className="break-words text-[28px] font-extrabold leading-none tabular-nums">{entry.value}</p>
+            <p className="mt-1.5 break-words text-xs leading-snug text-white/65">{entry.label}</p>
+          </div>)}
+        </div>}
+      </div>)}
+    </RetailCategorySpoiler>
+  );
 }

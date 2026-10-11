@@ -1565,13 +1565,12 @@ export function retailHistoryTitle(name: string): string {
 /**
  * Группы карточек, которые читаются подряд: «для посетителя» и «для
  * бизнеса». Рекомендацию между карточками одной группы страница переносит
- * за последнюю карточку группы, а на стыке групп — оставляет. «Якорные
- * арендаторы» — своя группа: они стоят вплотную к каталогу арендаторов, и
- * рекомендацию после них страница переносит за каталог.
+ * за последнюю карточку группы, а на стыке групп — оставляет.
+ * Реклама — отдельный хвост «для бизнеса»; цифры/цитаты читаются с
+ * посетительским блоком (после еды и афиши), чтобы не рвать ленту.
  */
 export function retailSectionGroup(id: RetailSectionId): 'visitor' | 'business' | 'tenants' {
-  if (id === 'anchors') return 'tenants';
-  return id === 'advertising' || id === 'numbers' || id === 'quotes' ? 'business' : 'visitor';
+  return id === 'advertising' ? 'business' : 'visitor';
 }
 
 export function hasAdvertisingInfo(info: RetailInfo): boolean {
@@ -1619,6 +1618,10 @@ export function retailSectionSize(info: RetailInfo | null, id: RetailSectionId, 
 /**
  * Какие карточки реально нарисуются — в порядке на странице.
  *
+ * Порядок (владелец, 2026-10-11): сначала то, что нужно посетителю под
+ * рукой — схема («Что где»), парковка/проезд, якоря, еда и развлечения;
+ * реклама и прочее «для бизнеса» — в хвосте, ими мало кто листает.
+ *
  * `hasTenants` (владелец, 2026-09-25): «Путеводитель по ТЦ» (id 'floors')
  * теперь несёт и каталог арендаторов, поэтому рисуется и без floorsGuide,
  * если есть хоть один арендатор — иначе у ТЦ без текстового гида, но с
@@ -1628,17 +1631,17 @@ export function retailSectionIds(info: RetailInfo | null, hasTenants = false): R
   if (!info) return hasTenants ? ['floors'] : [];
   const ids: RetailSectionId[] = [];
   if (info.floorsGuide.length || hasTenants) ids.push('floors');
-  if (info.timeline.length) ids.push('retail-history');
+  if (hasGettingHereInfo(info)) ids.push('getting-here');
+  if (anchorsForPage(info).length) ids.push('anchors');
   if (info.food) ids.push('food');
   if (info.fun.length) ids.push('fun');
   // Старый досуг — только пока нет новых блоков (leisureForPage).
   if (leisureForPage(info).length) ids.push('leisure');
-  if (hasGettingHereInfo(info)) ids.push('getting-here');
   if (hasOffersEventsInfo(info)) ids.push('offers-events');
-  if (hasAdvertisingInfo(info)) ids.push('advertising');
   if (info.numbers.length) ids.push('numbers');
+  if (info.timeline.length) ids.push('retail-history');
   if (!info.reviewThemes && info.quotes.length) ids.push('quotes');
-  // Последними — вплотную к каталогу арендаторов, который идёт за ними.
-  if (anchorsForPage(info).length) ids.push('anchors');
+  // Реклама — почти никому из посетителей; в самом конце торговых блоков.
+  if (hasAdvertisingInfo(info)) ids.push('advertising');
   return ids;
 }

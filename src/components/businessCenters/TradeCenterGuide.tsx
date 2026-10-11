@@ -1,20 +1,19 @@
 import { useMemo, useState } from 'react';
 import { cn } from '../../lib/cn';
-import { glassCardShadow } from '../../lib/glass';
 import { pluralRu } from '../../lib/pluralRu';
 import { anchorsForPage, formatFloorBadge, formatFloorLabel } from '../../lib/tradeCenterRetail';
 import { SearchInput } from '../ui/SearchInput';
 import type { RetailInfo } from '../../data/businessCenters';
 import type { TenantOrganizationView } from '../../data/businessCenterTenants';
 import { buildFloorBoard, exactOrganization, nearbyOrganizations, normalizeBrand, popularShops, searchOrganizations, shopLabel, type UniqueBrand } from '../../lib/tradeCenterGuide';
-import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
-import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
+import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 
-export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] }: {
+export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [], index }: {
   info: RetailInfo | null;
   organizations: TenantOrganizationView[];
   name: string;
   uniqueBrands?: UniqueBrand[];
+  index?: number;
 }) {
   const floors = useMemo(() => buildFloorBoard(info?.floorsGuide ?? [], organizations), [info, organizations]);
   // «Часто ищут» — сначала якорные арендаторы: по числу отзывов наверх
@@ -43,13 +42,16 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
   const select = (org: TenantOrganizationView) => { setQuery(org.name); setSelected(org); };
 
   return (
-    <section id="floors" className={cardClass} style={glassCardShadow}>
+    <RetailCategorySpoiler
+      id="floors"
+      label={`Что где в ${name}`}
+      subtitle={subtitle || 'Схема этажей и поиск магазина'}
+      meta={floors.length ? `${floors.length} ур.` : null}
+      index={index}
+      defaultOpen
+    >
       {/* Сохраняем старые ссылки на арендаторов (владелец, 2026-09-25). */}
       <span id="tenants" className="block scroll-mt-32" aria-hidden="true" />
-      <div>
-        <CardTitle id="floors" label={`Что где в ${name}`} />
-        {subtitle && <p className="mt-1.5 text-sm text-ink-muted">{subtitle}</p>}
-      </div>
       {hasSearch && (
         <div className="rounded-[18px] border border-border bg-white px-4 py-3.5 sm:px-[18px]">
           <SearchInput type="search" aria-label={`Найти магазин в ${name}`} placeholder="Найти магазин" value={query}
@@ -57,9 +59,9 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
           <div aria-live="polite">
             {query.trim() && matches.length === 0 && <p className="mt-3 border-t border-dashed border-border pt-3 text-sm text-ink-muted">Не нашли „{query.trim()}“</p>}
             {matches.length > 0 && <ul className="mt-3 divide-y divide-dashed divide-border border-t border-dashed border-border">
-              {matches.map((org, index) => {
+              {matches.map((org, orgIndex) => {
                 const nearby = nearbyOrganizations(organizations, org);
-                return <li key={`${org.name}-${index}`}>
+                return <li key={`${org.name}-${orgIndex}`}>
                   <button type="button" onClick={() => select(org)} className="flex w-full flex-wrap items-baseline gap-x-2.5 gap-y-1 py-3 text-left text-sm hover:bg-surface-muted focus-visible:outline-primary">
                     <strong className="text-ink">{org.name}</strong>
                     {org.floor ? <span className="rounded-lg bg-primary px-2 py-0.5 text-xs font-bold text-white">{formatFloorLabel(org.floor)}</span>
@@ -72,7 +74,7 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
           </div>
           {popular.length > 0 && <div className="mt-2.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-muted">
             <span>Часто ищут:</span>
-            {popular.map((org, index) => <button key={`${org.name}-${index}`} type="button" className="underline decoration-dotted underline-offset-4 hover:text-primary" onClick={() => select(org)}>{org.name}</button>)}
+            {popular.map((org, orgIndex) => <button key={`${org.name}-${orgIndex}`} type="button" className="underline decoration-dotted underline-offset-4 hover:text-primary" onClick={() => select(org)}>{org.name}</button>)}
           </div>}
         </div>
       )}
@@ -108,8 +110,8 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
         </aside>}
       </div>}
       <div className="text-xs leading-relaxed text-ink-muted">
-        {hasSearch && <p className="mt-2">Полного списка арендаторов на странице нет: любой магазин находится поиском.</p>}
+        {hasSearch && <p>Полного списка арендаторов на странице нет: любой магазин находится поиском.</p>}
       </div>
-    </section>
+    </RetailCategorySpoiler>
   );
 }

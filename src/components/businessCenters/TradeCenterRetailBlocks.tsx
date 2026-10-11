@@ -1,23 +1,7 @@
-// Торговые блоки карточки ТЦ (2026-09-23): «Путеводитель по ТЦ» (этажи +
-// каталог арендаторов слиты в один блок, владелец, 2026-09-25 —
-// TradeCenterGuide.tsx), «Чем ТЦ вошёл в историю ритейла», «Где поесть» и
-// «Развлечения» (2026-09-24,
-// TradeCenterFoodFun.tsx; у ТЦ без retail_info.food/fun вместо них — старый
-// «Кино, еда, развлечения»); за ними — проезд, скидки и события,
-// «Реклама в ТЦ», «ТЦ в цифрах» и «Цитаты»
-// (TradeCenterExtraBlocks.tsx), последними — «Якорные арендаторы»
-// (2026-09-24: старая карточка «Первые в Беларуси и якоря» разделена на эти
-// два блока, см. TradeCenterAnchorsHistory.tsx). Данные —
-// business_centers.retail_info (у БЦ пусто, компонент не рисует ничего). Каждая карточка — только если по ней есть записи.
-//
-// Места в рейтингах до 2026-09-24 были жёлтыми плашками в первой из этих
-// карточек; владелец: «смешал две сущности — что на каком этаже и
-// награды». Теперь это отдельный блок «Награды и рейтинги»
-// (TradeCenterAwardsBlock.tsx), он стоит на месте блока «Награды».
-//
-// `after` — место для блока-рекомендации после карточки (как
-// renderRecommendationSlot у остальных блоков страницы): раскладка
-// рекомендаций видит эти карточки как отдельные разделы.
+// Торговые блоки карточки ТЦ: крупные категории-спойлеры в порядке
+// посетителя (схема → парковка → якоря → еда/развлечения → … → реклама).
+// Данные — business_centers.retail_info. Каждая карточка — только если
+// по ней есть записи. `after` — слот рекомендации после раздела.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Baby, Clapperboard, Dumbbell, Sparkles, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 import type { RetailInfo, RetailLeisureKind } from '../../data/businessCenters';
@@ -33,20 +17,17 @@ import {
   sortLeisure,
   type RetailSectionId,
 } from '../../lib/tradeCenterRetail';
-import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
-import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
-import { glassCardShadow } from '../../lib/glass';
+import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { TradeCenterGuide } from './TradeCenterGuide';
 import { loadBcExtra, peekBcExtra, type BcExtraFile } from '../../lib/buildData';
-import {
-  TradeCenterQuotesCard,
-} from './TradeCenterExtraBlocks';
+import { TradeCenterQuotesCard } from './TradeCenterExtraBlocks';
 import { TradeCenterNumbersCard } from './TradeCenterNumbers';
 import { TradeCenterAnchorsCard, TradeCenterHistoryCard } from './TradeCenterAnchorsHistory';
 import { TradeCenterGettingHere, TradeCenterOffersEvents } from './TradeCenterVisit';
 import { TradeCenterAdvertising } from './TradeCenterBusiness';
 import { TradeCenterFoodCard, TradeCenterFunCard } from './TradeCenterFoodFun';
 import { fitGridClass } from '../../lib/fitGrid';
+import { pluralRu } from '../../lib/pluralRu';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
   cinema: Clapperboard,
@@ -81,28 +62,41 @@ export function TradeCenterRetailBlocks({
     return () => { cancelled = true; };
   }, [slug]);
   const uniqueBrands = extra.slug === slug ? extra.data?.uniqueBrands : undefined;
-  if (!info) return <TradeCenterGuide key={slug} info={null} organizations={organizations} name={name} uniqueBrands={uniqueBrands} />;
+  if (!info) {
+    return <TradeCenterGuide key={slug} info={null} organizations={organizations} name={name} uniqueBrands={uniqueBrands} index={1} />;
+  }
   const ids = retailSectionIds(info, organizations.length > 0);
+  const n = (id: RetailSectionId) => {
+    const pos = ids.indexOf(id);
+    return pos >= 0 ? pos + 1 : undefined;
+  };
 
   // Старый досуг — только у ТЦ без «Где поесть»/«Развлечений».
   const leisure = sortLeisure(leisureForPage(info));
 
   return (
     <>
-      {ids.includes('floors') && <TradeCenterGuide key={slug} info={info} organizations={organizations} name={name} uniqueBrands={uniqueBrands} />}
+      {ids.includes('floors') && <TradeCenterGuide key={slug} info={info} organizations={organizations} name={name} uniqueBrands={uniqueBrands} index={n('floors')} />}
       {ids.includes('floors') && after?.('floors')}
 
-      {ids.includes('retail-history') && <TradeCenterHistoryCard timeline={info.timeline} title={retailHistoryTitle(name)} />}
-      {ids.includes('retail-history') && after?.('retail-history')}
+      {ids.includes('getting-here') && <TradeCenterGettingHere info={info} index={n('getting-here')} />}
+      {ids.includes('getting-here') && after?.('getting-here')}
 
-      {info.food && <TradeCenterFoodCard food={info.food} title={foodTitle(name)} />}
+      {ids.includes('anchors') && <TradeCenterAnchorsCard anchors={anchorsForPage(info)} index={n('anchors')} />}
+      {ids.includes('anchors') && after?.('anchors')}
+
+      {info.food && <TradeCenterFoodCard food={info.food} title={foodTitle(name)} index={n('food')} />}
       {info.food && after?.('food')}
-      {ids.includes('fun') && <TradeCenterFunCard fun={info.fun} title={funTitle(name)} />}
+      {ids.includes('fun') && <TradeCenterFunCard fun={info.fun} title={funTitle(name)} index={n('fun')} />}
       {ids.includes('fun') && after?.('fun')}
 
       {leisure.length > 0 && (
-        <div id="leisure" className={cardClass} style={glassCardShadow}>
-          <CardTitle id="leisure" />
+        <RetailCategorySpoiler
+          id="leisure"
+          subtitle="Кино, фудкорт и активности в одном списке"
+          meta={`${leisure.length} ${pluralRu(leisure.length, 'площадка', 'площадки', 'площадок')}`}
+          index={n('leisure')}
+        >
           <ul className={`grid gap-2 ${fitGridClass(leisure.length, 2)}`}>
             {leisure.map((entry, i) => {
               const Icon = LEISURE_ICONS[entry.kind];
@@ -127,23 +121,20 @@ export function TradeCenterRetailBlocks({
               );
             })}
           </ul>
-        </div>
+        </RetailCategorySpoiler>
       )}
       {leisure.length > 0 && after?.('leisure')}
 
-      {ids.includes('getting-here') && <TradeCenterGettingHere info={info} />}
-      {ids.includes('getting-here') && after?.('getting-here')}
-      {ids.includes('offers-events') && <TradeCenterOffersEvents info={info} />}
+      {ids.includes('offers-events') && <TradeCenterOffersEvents info={info} index={n('offers-events')} />}
       {ids.includes('offers-events') && after?.('offers-events')}
-      {ids.includes('advertising') && <TradeCenterAdvertising info={info} name={contactName} />}
-      {ids.includes('advertising') && after?.('advertising')}
-      {ids.includes('numbers') && <TradeCenterNumbersCard numbers={info.numbers} />}
+      {ids.includes('numbers') && <TradeCenterNumbersCard numbers={info.numbers} index={n('numbers')} />}
       {ids.includes('numbers') && after?.('numbers')}
-      {ids.includes('quotes') && <TradeCenterQuotesCard quotes={info.quotes} />}
+      {ids.includes('retail-history') && <TradeCenterHistoryCard timeline={info.timeline} title={retailHistoryTitle(name)} index={n('retail-history')} />}
+      {ids.includes('retail-history') && after?.('retail-history')}
+      {ids.includes('quotes') && <TradeCenterQuotesCard quotes={info.quotes} index={n('quotes')} />}
       {ids.includes('quotes') && after?.('quotes')}
-      {/* При блоках еды и развлечений кинотеатр/фудкорт/фитнес из якорей уходят (anchorsForPage). */}
-      {ids.includes('anchors') && <TradeCenterAnchorsCard anchors={anchorsForPage(info)} />}
-      {ids.includes('anchors') && after?.('anchors')}
+      {ids.includes('advertising') && <TradeCenterAdvertising info={info} name={contactName} index={n('advertising')} />}
+      {ids.includes('advertising') && after?.('advertising')}
     </>
   );
 }

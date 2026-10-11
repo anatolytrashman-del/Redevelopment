@@ -27,7 +27,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { glassCardShadow } from '../../lib/glass';
 import type { RetailAnchorCategory, RetailAnchorEntry, RetailTimelineEntry, RetailTimelineKind } from '../../data/businessCenters';
 import {
   TIMELINE_COLLAPSED,
@@ -38,9 +37,9 @@ import {
   timelineYear,
 } from '../../lib/tradeCenterRetail';
 import { Badge } from '../ui/Badge';
-import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
-import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
+import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { fitGridClass } from '../../lib/fitGrid';
+import { pluralRu } from '../../lib/pluralRu';
 
 const ANCHOR_ICONS: Record<RetailAnchorCategory, LucideIcon> = {
   гипермаркет: ShoppingCart,
@@ -100,28 +99,37 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
   );
 }
 
-export function TradeCenterAnchorsCard({ anchors }: { anchors: RetailAnchorEntry[] }) {
+export function TradeCenterAnchorsCard({ anchors, index }: { anchors: RetailAnchorEntry[]; index?: number }) {
   if (!anchors.length) return null;
   return (
-    <div id="anchors" className={cardClass} style={glassCardShadow}>
-      <CardTitle id="anchors" />
+    <RetailCategorySpoiler
+      id="anchors"
+      subtitle="Ради кого чаще всего едут в этот ТЦ"
+      meta={`${anchors.length} ${pluralRu(anchors.length, 'якорь', 'якоря', 'якорей')}`}
+      index={index}
+    >
       <ul className={`grid gap-2 ${fitGridClass(anchors.length, 3)}`}>
         {anchors.map((anchor, i) => (
           <AnchorTile key={`${anchor.name}-${i}`} anchor={anchor} />
         ))}
       </ul>
-    </div>
+    </RetailCategorySpoiler>
   );
 }
 
-export function TradeCenterHistoryCard({ timeline, title }: { timeline: RetailTimelineEntry[]; title: string }) {
+export function TradeCenterHistoryCard({ timeline, title, index }: { timeline: RetailTimelineEntry[]; title: string; index?: number }) {
   const [expanded, setExpanded] = useState(false);
   if (!timeline.length) return null;
   const collapsible = timeline.length > TIMELINE_COLLAPSED;
   const visibleCount = collapsible && !expanded ? TIMELINE_COLLAPSED : timeline.length;
   return (
-    <div id="retail-history" className={cardClass} style={glassCardShadow}>
-      <CardTitle id="retail-history" label={title} />
+    <RetailCategorySpoiler
+      id="retail-history"
+      label={title}
+      subtitle="Первые бренды, форматы и знаковые события"
+      meta={`${timeline.length} ${pluralRu(timeline.length, 'событие', 'события', 'событий')}`}
+      index={index}
+    >
       <ol className="flex flex-col">
         {timeline.map((entry, i) => {
           const month = timelineMonth(entry);
@@ -176,6 +184,6 @@ export function TradeCenterHistoryCard({ timeline, title }: { timeline: RetailTi
           {expanded ? 'Свернуть' : `Показать всё (${timeline.length})`}
         </button>
       )}
-    </div>
+    </RetailCategorySpoiler>
   );
 }

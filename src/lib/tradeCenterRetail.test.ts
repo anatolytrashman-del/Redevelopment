@@ -529,13 +529,13 @@ describe('удобства ТЦ: группы', () => {
 
 describe('разделы и размеры', () => {
   const base = normalizeRetailInfo({ hoursNote: 'x' }) as RetailInfo;
-  it('группы: посетитель, бизнес, якоря у каталога', () => {
+  it('группы: посетитель vs реклама для бизнеса', () => {
     expect(retailSectionGroup('floors')).toBe('visitor');
     expect(retailSectionGroup('retail-history')).toBe('visitor');
-    expect(retailSectionGroup('anchors')).toBe('tenants');
+    expect(retailSectionGroup('anchors')).toBe('visitor');
     expect(retailSectionGroup('getting-here')).toBe('visitor');
     expect(retailSectionGroup('advertising')).toBe('business');
-    expect(retailSectionGroup('quotes')).toBe('business');
+    expect(retailSectionGroup('quotes')).toBe('visitor');
   });
 
   it('скрытые часы и транспорт без маршрутов не добавляют высоту', () => {
@@ -680,7 +680,7 @@ describe('normalizeRetailInfo — якоря и лента', () => {
     ]);
     // Новая схема заменяет firsts целиком — «Старое» не подмешивается.
     expect(info!.timeline.map((t) => t.name)).toEqual(['New Balance', 'Ёлка']);
-    expect(retailSectionIds(info)).toEqual(['retail-history', 'anchors']);
+    expect(retailSectionIds(info)).toEqual(['anchors', 'retail-history']);
   });
 
   it('пустой timeline при новой схеме не тянет старые firsts', () => {
@@ -820,7 +820,7 @@ describe('normalizeRetailInfo — food и fun', () => {
     const withFun = normalizeRetailInfo({ fun: [{ name: 'Каток', kind: 'ice' }], leisure: [{ kind: 'kids', name: 'Йети' }], anchors });
     expect(leisureForPage(withFun)).toEqual([]);
     expect(anchorsForPage(withFun).map((a) => a.name)).toEqual(['Гиппо', 'Старый якорь']);
-    expect(retailSectionIds(withFun)).toEqual(['fun', 'anchors']);
+    expect(retailSectionIds(withFun)).toEqual(['anchors', 'fun']);
     const withoutFun = normalizeRetailInfo({ anchors });
     expect(anchorsForPage(withoutFun)).toHaveLength(6);
     // Одни только кинотеатр и фудкорт в якорях при новых блоках — карточки якорей нет.
@@ -838,7 +838,7 @@ describe('normalizeRetailInfo — food и fun', () => {
       hoursNote: 'x',
       anchors: [{ name: 'Гиппо', category: 'гипермаркет' }],
     });
-    expect(retailSectionIds(info)).toEqual(['floors', 'retail-history', 'food', 'fun', 'anchors']);
+    expect(retailSectionIds(info)).toEqual(['floors', 'anchors', 'food', 'fun', 'retail-history']);
     expect(retailSectionGroup('food')).toBe('visitor');
     expect(retailSectionGroup('fun')).toBe('visitor');
   });

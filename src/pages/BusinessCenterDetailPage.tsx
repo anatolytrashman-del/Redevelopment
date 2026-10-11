@@ -55,6 +55,7 @@ import { cn } from '../lib/cn';
 import { renderBold } from '../lib/renderBold';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
+import { CategorySpoiler } from '../components/ui/CategorySpoiler';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import { MetroValue, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
@@ -1920,46 +1921,35 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     if (!center) return [];
     const has = (id: string, cond: boolean) =>
       cond ? { id, label: isTc && id === 'offers' ? 'Аренда в ТЦ' : SECTION_LABELS[id].replace(/БЦ$/, V.abbr) } : null;
-    // Порядок пунктов повторяет порядок блоков на странице (владелец принял
-    // 2026-09-20; "Параметры здания" переехали под "Историю здания"
-    // 2026-09-22): что предлагают и почём → где оно → кто внутри → на фоне
-    // конкурентов → отзывы → блоки доверия (награды/СМИ/факты/история/
-    // параметры здания) → застройщик → FAQ.
+    // Порядок пунктов = порядок блоков. У БЦ — прежний (аренда сверху).
+    // У ТЦ (владелец, 2026-10-11): сначала посетительское (схема, парковка,
+    // якоря…), реклама и отдел аренды — в хвосте перед FAQ.
+    const rentalAvailable = Boolean(
+      center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts),
+    );
+    const offersAvailable =
+      saleStats !== null ||
+      rentStats !== null ||
+      Boolean(isTc && (center.retailInfo?.vacancies.length || center.retailInfo?.leasing));
+    const bcBusinessHead = !isTc
+      ? [
+          has('offers', offersAvailable),
+          has('rental', rentalAvailable),
+          center.lat != null && center.lng != null
+            ? {
+                id: 'map',
+                label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
+              }
+            : null,
+        ]
+      : [];
     return [
-      has('offers', saleStats !== null || rentStats !== null || Boolean(isTc && (center.retailInfo?.vacancies.length || center.retailInfo?.leasing))),
-      has(
-        'rental',
-        Boolean(
-          center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts),
-        ),
-      ),
-      // Карта есть у любого БЦ с координатами — с 2026-09-20 блок рисуется
-      // на всех страницах каталога, а не только там, где собран снимок
-      // точек. Подпись пункта меню повторяет заголовок блока: вести
-      // «Инфраструктуру рядом» на голую карту — обещать то, чего там нет.
-      // У ТЦ блок «Инфраструктура в 10 минутах пешком» снят (владелец,
-      // 2026-09-25: «убираем блок со всех страниц ТЦ»).
-      !isTc && center.lat != null && center.lng != null
-        ? {
-            id: 'map',
-            label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
-          }
-        : null,
-      // Торговые блоки ТЦ стоят между картой и каталогом арендаторов;
-      // каталог у ТЦ — часть «Путеводителя» (id 'floors'), отдельного
-      // пункта меню 'tenants' у ТЦ больше нет (владелец, 2026-09-25).
+      ...bcBusinessHead,
+      // Торговые блоки ТЦ: каталог — часть «Путеводителя» (id 'floors').
       ...(isTc ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : []).map((id) => has(id, true)),
       has('tenants', !isTc && tenantOrganizations.length > 0),
-      // «Инфраструктура» — пунктом меню только у ТЦ (у БЦ блок оборудования
-      // короткий и в меню не выводился).
       has('amenities', tcInfrastructure.length > 0),
-      has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
-      has(
-        'reviews',
-        hasReviewsBlock,
-      ),
-      // У ТЦ награды (в том числе строки из highlights) и места в рейтингах
-      // — один блок «Награды и рейтинги», общий блок «Награды» не рисуется.
+      has('reviews', hasReviewsBlock),
       has('awards', !isTc && awardItems.length > 0),
       isTc && (tcHasAwards || tcHasRanking)
         ? { id: 'awards-ranking', label: awardsRankingTitle(tcHasAwards, tcHasRanking) }
@@ -1975,6 +1965,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       has('developer', Boolean(center.developerInfo)),
+      has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
+      ...(isTc
+        ? [has('offers', offersAvailable), has('rental', rentalAvailable)]
+        : []),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -2130,24 +2124,17 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   // самому верхнему месту.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    // Торговые карточки ТЦ читаются двумя группами — «для посетителя»
-    // (этажи, история ритейла, еда, развлечения, посетителю) и «для бизнеса» (аренда и реклама,
-    // цифры, цитаты). Рекомендацию, выпавшую внутри группы, переносим за
-    // последнюю карточку той же группы; на стыке групп она остаётся. Если
-    // там уже стоит своя, оставляем как было: две рекомендации подряд хуже.
+    // Торговые карточки ТЦ: «посетитель» (схема → парковка → якоря → …) и
+    // «бизнес» (реклама). Рекомендацию внутри группы переносим за последнюю
+    // карточку группы; на стыке — оставляем. Две подряд хуже одной.
     const retailIds = new Set<string>(
       isTc && center ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : [],
     );
-    // «Якорные арендаторы» и каталог арендаторов под ними читаются как одно
-    // целое: рекомендация после якорей уезжает за каталог, если он есть.
-    const hasTenants = sectionSizes.some((section) => section.id === 'tenants');
     const lastRetailOf = (group: 'visitor' | 'business' | 'tenants') =>
-      group === 'tenants' && hasTenants
-        ? 'tenants'
-        : ([...sectionSizes]
-            .reverse()
-            .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
-            ?.id ?? null);
+      [...sectionSizes]
+        .reverse()
+        .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
+        ?.id ?? null;
     const planned = planRecommendationSlots(sectionSizes, recommendationBlocks.length);
     planned.forEach((sectionId, index) => {
       const block = recommendationBlocks[index];
@@ -3027,7 +3014,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             Сравнение со срезом рынка живёт в соседнем блоке «Цены в
             здании и по рынку», окупаемость не считается вовсе (обе
             причины — в комментариях тех файлов). */}
-        {!ownerMode && (isTc ? <TradeCenterLeasing info={center.retailInfo} name={center.name} sale={saleStats} rent={rentStats} /> : <BuildingOffersSection sale={saleStats} rent={rentStats} />)}
+        {/* У БЦ аренда/объявления сверху. У ТЦ (2026-10-11) — в хвосте:
+            посетителю сначала схема и парковка, отдел аренды почти никому. */}
+        {!ownerMode && !isTc && <BuildingOffersSection sale={saleStats} rent={rentStats} />}
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
@@ -3041,31 +3030,12 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             живёт. Подпись «4 предложения в здании» в таком случае врала бы
             настоящим временем, поэтому блок привязан к текущим объявлениям,
             а не только к снимку. */}
-        {offers !== null && offers.length > 0 && priceComparison && <PriceComparisonBlock comparison={priceComparison} />}
+        {!isTc && offers !== null && offers.length > 0 && priceComparison && <PriceComparisonBlock comparison={priceComparison} />}
 
-        {renderRecommendationSlot('offers')}
+        {!isTc && renderRecommendationSlot('offers')}
 
-        {/* Отдел аренды БЦ, с офиц. сайта БЦ (владелец, 2026-09-05, на
-            примере "Проспект"/Elite Estate — по нему нет объявлений на
-            Kufar/Realt, но на собственном сайте есть условия для
-            арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
-            Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
-            большинству сайтов БЦ из песочницы нет). Первая версия рисовала
-            всё одним абзацем — владелец: "верстка — пиздец, разбей на
-            логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (LabeledTextRow). Каждое поле
-            независимо может быть null — рисуем только то, что реально
-            нашлось. Порядок блоков страницы пересобран 2026-09-20 (владелец
-            принял предложенный порядок): условия аренды идут сразу за
-            "Объявления на рынке" — оба блока отвечают на один и тот же
-            вопрос "что тут есть и почём". Акцентный жёлтый блок с оговоркой
-            источника (`caveat`) и дисклеймер "собрано автоматически...
-            не куратировано вручную" под карточкой убраны тем же днём —
-            владелец: "убери все предупреждения такого плана с сайта".
-            Заголовок переименован и раздел "Площади и типы помещений" убран
-            2026-09-22 — владелец: это дублировало totalArea/floors, уже
-            показанные в "Параметрах здания", и вообще не про вопрос аренды. */}
-        {center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
+        {/* Отдел аренды БЦ — сразу за объявлениями. У ТЦ рисуется ниже. */}
+        {!isTc && center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <FileText className="h-5 w-5 shrink-0 text-icon" />
@@ -3080,7 +3050,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           </div>
         )}
 
-        {renderRecommendationSlot('rental')}
+        {!isTc && renderRecommendationSlot('rental')}
 
         {/* Карта и инфраструктура рядом — перед арендаторами и сравнением
             с конкурентами (владелец, 2026-09-20: принял предложенный
@@ -3158,15 +3128,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           </>
         )}
 
-        {/* Сравнение с конкурентами — после того как показали цену, условия
-            аренды, параметры здания и список арендаторов: сначала факты о
-            самом БЦ, потом оценка "дорого/дёшево" на их фоне (владелец,
-            2026-09-20: принял предложенный порядок блоков страницы; было
-            на этом же месте, но раньше — до параметров здания и
-            арендаторов — с общим комментарием на пару с картой ниже). */}
-        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
-
-        {renderRecommendationSlot('market')}
+        {/* У БЦ сравнение с конкурентами — после арендаторов. У ТЦ ниже,
+            ближе к «для бизнеса»: посетителю важнее схема и парковка. */}
+        {!isTc && center && marketPosition && <MarketPositionBlock position={marketPosition} />}
+        {!isTc && renderRecommendationSlot('market')}
 
         {isTc ? (
           reviewThemes && <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} />
@@ -3502,6 +3467,32 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         ) : null}
 
         {renderRecommendationSlot('developer')}
+
+        {/* У ТЦ сравнение с рынком и аренда — после посетительских блоков. */}
+        {isTc && center && marketPosition && <MarketPositionBlock position={marketPosition} />}
+        {isTc && renderRecommendationSlot('market')}
+
+        {!ownerMode && isTc && (
+          <TradeCenterLeasing info={center.retailInfo} name={center.name} sale={saleStats} rent={rentStats} />
+        )}
+        {isTc && renderRecommendationSlot('offers')}
+
+        {isTc && center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
+          <CategorySpoiler
+            id="rental"
+            title={`Отдел аренды ${V.abbr}`}
+            subtitle="Условия, ставки и контакты управляющей компании"
+            meta="Для бизнеса"
+            icon={FileText}
+          >
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+            </div>
+          </CategorySpoiler>
+        )}
+        {isTc && renderRecommendationSlot('rental')}
 
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка

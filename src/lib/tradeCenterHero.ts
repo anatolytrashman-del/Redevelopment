@@ -264,18 +264,28 @@ export function tcAnchorChipNames(info: RetailInfo | null, maxCount = 6): string
     .slice(0, maxCount);
 }
 
-export type TcQuickJumpId = 'food' | 'fun' | 'offers' | 'advertising';
+export type TcQuickJumpId = 'floors' | 'getting-here' | 'anchors' | 'food' | 'fun';
 
 export interface TcQuickJumpChip {
   id: TcQuickJumpId;
   label: string;
 }
 
-/** Чипы быстрого перехода — только к разделам, которые страница реально рисует (retailSectionIds). */
+/**
+ * Чипы быстрого перехода — только к разделам, которые страница реально
+ * рисует. Порядок посетителя (2026-10-11): схема, парковка, якоря, еда,
+ * развлечения. Аренда и реклама в чипы не попадают — ими почти не жмут.
+ */
 export function tcQuickJumpChips(info: RetailInfo | null): TcQuickJumpChip[] {
   if (!info) return [];
   const ids = new Set(retailSectionIds(info));
   const chips: TcQuickJumpChip[] = [];
+  if (ids.has('floors')) chips.push({ id: 'floors', label: 'Что где' });
+  if (ids.has('getting-here')) chips.push({ id: 'getting-here', label: 'Парковка' });
+  if (ids.has('anchors')) {
+    const count = anchorsForPage(info).length;
+    chips.push({ id: 'anchors', label: count > 0 ? `Якоря · ${count}` : 'Якоря' });
+  }
   if (ids.has('food')) {
     const count = tcFoodPointsCount(info.food);
     chips.push({ id: 'food', label: count > 0 ? `Где поесть · ${count}` : 'Где поесть' });
@@ -284,8 +294,6 @@ export function tcQuickJumpChips(info: RetailInfo | null): TcQuickJumpChip[] {
     const first = info.fun[0]?.name;
     chips.push({ id: 'fun', label: first ? `Развлечения · ${first}` : 'Развлечения' });
   }
-  if (info.leasing || info.vacancies.length) chips.push({ id: 'offers', label: 'Аренда в ТЦ' });
-  if (ids.has('advertising')) chips.push({ id: 'advertising', label: 'Реклама в ТЦ' });
   return chips;
 }
 

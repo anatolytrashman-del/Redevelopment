@@ -28,7 +28,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { glassCardShadow } from '../../lib/glass';
 import type {
   RetailFoodInfo,
   RetailFoodPlace,
@@ -49,8 +48,7 @@ import {
 import { fitGridClass } from '../../lib/fitGrid';
 import { foodMenuStats, foodMenuVisibleCounts, placeHoursShort } from '../../lib/tradeCenterFood';
 import { Badge } from '../ui/Badge';
-import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
-import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
+import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 
 
 const FUN_ICONS: Record<RetailFunKind, LucideIcon> = {
@@ -106,7 +104,7 @@ function FoodMenuRow({ place, hidden }: { place: RetailFoodPlace; hidden: boolea
   );
 }
 
-export function TradeCenterFoodCard({ food, title }: { food: RetailFoodInfo; title: string }) {
+export function TradeCenterFoodCard({ food, title, index }: { food: RetailFoodInfo; title: string; index?: number }) {
   const [expanded, setExpanded] = useState(false);
   const groups = groupFoodPlaces(food.places);
   const total = food.places.length;
@@ -114,9 +112,13 @@ export function TradeCenterFoodCard({ food, title }: { food: RetailFoodInfo; tit
   const collapsible = visible.reduce((sum, n) => sum + n, 0) < total;
   const stats = foodMenuStats(food);
   return (
-    <div id="food" className={cardClass} style={glassCardShadow}>
-      <CardTitle id="food" label={title} />
-      {food.summary && <p className="break-words text-sm leading-relaxed text-ink-muted">{food.summary}</p>}
+    <RetailCategorySpoiler
+      id="food"
+      label={title}
+      subtitle={food.summary || 'Кафе, рестораны и фудкорт'}
+      meta={total ? `${total} ${pluralRu(total, 'место', 'места', 'мест')}` : null}
+      index={index}
+    >
       {stats.length > 1 && (
         <dl className={cn('grid gap-2.5', fitGridClass(stats.length, 4, 'tiles'))}>
           {stats.map((stat) => (
@@ -163,7 +165,7 @@ export function TradeCenterFoodCard({ food, title }: { food: RetailFoodInfo; tit
           {expanded ? 'Свернуть' : `Показать все ${total} ${pluralRu(total, 'заведение', 'заведения', 'заведений')}`}
         </button>
       )}
-    </div>
+    </RetailCategorySpoiler>
   );
 }
 
@@ -221,7 +223,7 @@ function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
   );
 }
 
-export function TradeCenterFunCard({ fun, title }: { fun: RetailFunEntry[]; title: string }) {
+export function TradeCenterFunCard({ fun, title, index }: { fun: RetailFunEntry[]; title: string; index?: number }) {
   if (!fun.length) return null;
   const sorted = sortFun(fun);
   // Кинотеатр — во всю ширину; остальные по две. Непарная последняя плитка
@@ -229,13 +231,18 @@ export function TradeCenterFunCard({ fun, title }: { fun: RetailFunEntry[]; titl
   const rest = sorted.filter((f) => f.kind !== 'cinema');
   const lastRest = rest.length % 2 === 1 ? rest[rest.length - 1] : null;
   return (
-    <div id="fun" className={cardClass} style={glassCardShadow}>
-      <CardTitle id="fun" label={title} />
+    <RetailCategorySpoiler
+      id="fun"
+      label={title}
+      subtitle="Кино, детские зоны и активности"
+      meta={`${sorted.length} ${pluralRu(sorted.length, 'площадка', 'площадки', 'площадок')}`}
+      index={index}
+    >
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {sorted.map((entry, i) => (
           <FunTile key={`${entry.name}-${i}`} entry={entry} wide={entry.kind === 'cinema' || entry === lastRest} />
         ))}
       </ul>
-    </div>
+    </RetailCategorySpoiler>
   );
 }

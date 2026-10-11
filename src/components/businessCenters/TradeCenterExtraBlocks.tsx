@@ -1,23 +1,19 @@
 // Бизнес-карточки ТЦ без сносок на источники (владелец, 2026-09-25).
-import {
-  Quote,
-} from 'lucide-react';
+import { Quote } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { glassCardShadow } from '../../lib/glass';
-import type {
-  RetailQuoteEntry,
-} from '../../data/businessCenters';
-import {
-  formatRetailDate,
-  quoteText,
-} from '../../lib/tradeCenterRetail';
-import { RetailCardTitle } from './TradeCenterRetailParts';
-import { retailCardClass } from './tradeCenterRetailStyle';
+import type { RetailQuoteEntry } from '../../data/businessCenters';
+import { formatRetailDate, quoteText } from '../../lib/tradeCenterRetail';
+import { RetailCategorySpoiler } from './RetailCategorySpoiler';
+import { pluralRu } from '../../lib/pluralRu';
 
-export function TradeCenterQuotesCard({ quotes }: { quotes: RetailQuoteEntry[] }) {
+export function TradeCenterQuotesCard({ quotes, index }: { quotes: RetailQuoteEntry[]; index?: number }) {
   return (
-    <div id="quotes" className={retailCardClass} style={glassCardShadow}>
-      <RetailCardTitle id="quotes" />
+    <RetailCategorySpoiler
+      id="quotes"
+      subtitle="Что говорили о ТЦ управляющие и СМИ"
+      meta={`${quotes.length} ${pluralRu(quotes.length, 'цитата', 'цитаты', 'цитат')}`}
+      index={index}
+    >
       <div className={cn('grid grid-cols-1 gap-3', quotes.length > 1 && 'md:grid-cols-2')}>
         {quotes.map((q, i) => {
           const when = formatRetailDate(q.date);
@@ -34,6 +30,6 @@ export function TradeCenterQuotesCard({ quotes }: { quotes: RetailQuoteEntry[] }
           );
         })}
       </div>
-    </div>
+    </RetailCategorySpoiler>
   );
 }

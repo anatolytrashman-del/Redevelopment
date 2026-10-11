@@ -36,7 +36,8 @@ describe('секции бизнеса ТЦ', () => {
     expect(html).toContain('id="advertising"');
     expect(html).toContain('mailto:reklama@galleriaminsk.com');
     expect(html).not.toContain('id="business"');
-    expect(tcQuickJumpChips(info).map((chip) => chip.id)).toEqual(['offers', 'advertising']);
-    expect(tcQuickJumpChips(audienceOnly).map((chip) => chip.id)).toEqual(['advertising']);
+    // Аренда/реклама в быстрые чипы не попадают (посетительский порядок).
+    expect(tcQuickJumpChips(info).map((chip) => chip.id)).not.toContain('offers');
+    expect(tcQuickJumpChips(audienceOnly)).toEqual([]);
   });
 });
