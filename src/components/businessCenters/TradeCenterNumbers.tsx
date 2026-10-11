@@ -18,7 +18,7 @@ function NumberTile({ entry, wide }: { entry: RetailFigureEntry; wide: boolean }
     {/* Плиток мало и они широкие — иконка слева, а не над цифрой: иначе
         в плитке остаётся пустое поле справа. */}
     <span className={cn('block', wide && 'sm:flex sm:items-start sm:gap-3.5')}>
-      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon', wide ? 'mb-3 sm:mb-0' : 'mb-3')}><Icon className="h-[19px] w-[19px]" aria-hidden="true" /></span>
+      <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] text-ink/70', wide ? 'mb-3 sm:mb-0' : 'mb-3')}><Icon className="h-[19px] w-[19px]" strokeWidth={1.75} aria-hidden="true" /></span>
       <span className="block min-w-0">
         <span className="block break-words text-2xl font-extrabold leading-none tabular-nums">{entry.value}</span>
         <span className="mt-1.5 block break-words text-xs leading-snug text-ink-muted">{entry.label}</span>

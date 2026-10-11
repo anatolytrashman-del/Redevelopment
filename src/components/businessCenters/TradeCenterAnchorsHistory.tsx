@@ -72,7 +72,7 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
   return (
     <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/65 p-3">
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] text-ink/70"
         title={category ?? undefined}
         aria-hidden="true"
       >

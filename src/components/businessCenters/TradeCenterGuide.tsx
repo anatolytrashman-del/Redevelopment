@@ -79,28 +79,60 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [],
         </div>
       )}
       {(floors.length > 0 || hasUnique) && <div className={cn('grid gap-6', floors.length > 0 && hasUnique && 'lg:grid-cols-[minmax(0,1fr)_300px]')}>
-        {floors.length > 0 && <div className="rounded-[22px] bg-[#1b1c20] p-3.5 text-white">
-          <div className="mx-[30px] mb-2 h-2.5 rounded-t-[10px] bg-white/5" aria-hidden="true" />
-          <ol className="divide-y divide-white/10">
-            {floors.map((floor) => {
-              const hit = active?.floor === floor.floor;
-              const badge = formatFloorBadge(floor.floor);
-              // Длинная подпись этажа («доп. здания (ул. Ленина, 4/6/8)», «цокольный»)
-              // в колонку цифры не влезает — выносим её строкой над темой.
-              const longBadge = badge.length > 3;
-              return <li key={floor.floor} className={cn('grid grid-cols-[44px_minmax(0,1fr)] items-center gap-1 px-1.5 py-3 sm:grid-cols-[54px_minmax(0,1fr)]', hit && 'rounded-xl bg-[#2a1418]')}>
-                <span className={cn('text-center text-[22px] font-extrabold sm:text-[26px]', hit && 'text-primary')}>{longBadge ? '·' : badge}</span>
-                <div className="min-w-0">
-                  {longBadge && <p className={cn('mb-0.5 break-words text-xs font-bold uppercase tracking-wide text-white/55', hit && 'text-primary')}>{badge}</p>}
-                  <h3 className="text-base font-bold">{floor.theme}{hit && <span className="ml-2 inline-block rounded-md bg-primary px-1.5 py-px align-middle text-[11px] text-white">{active.name} здесь</span>}</h3>
-                  {floor.brands.length > 0 && <p className="mt-0.5 text-[13px] text-white/65">{floor.brands.join(' · ')}</p>}
-                </div>
-              </li>;
-            })}
-          </ol>
-        </div>}
-        {hasUnique && <aside className="rounded-[22px] border border-border bg-white p-5">
-          <h3 className="text-base font-bold text-ink">Только здесь</h3>
+        {floors.length > 0 && (
+          <div className="overflow-hidden rounded-[22px] bg-[#14151a] text-white">
+            {/* Шапка в духе «Answer first» на гайдах casinolist — без casino-green. */}
+            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5 sm:px-5">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-white/55">Схема этажей</p>
+              <p className="font-mono text-[11px] font-bold tabular-nums text-white/40">
+                {floors.length} {floors.length === 1 ? 'ур.' : 'ур.'}
+              </p>
+            </div>
+            <ol className="divide-y divide-white/10 px-3.5 py-1 sm:px-4">
+              {floors.map((floor) => {
+                const hit = active?.floor === floor.floor;
+                const badge = formatFloorBadge(floor.floor);
+                // Длинная подпись этажа («доп. здания (ул. Ленина, 4/6/8)», «цокольный»)
+                // в колонку цифры не влезает — выносим её строкой над темой.
+                const longBadge = badge.length > 3;
+                return (
+                  <li
+                    key={floor.floor}
+                    className={cn(
+                      'grid grid-cols-[44px_minmax(0,1fr)] items-center gap-1 px-1.5 py-3 sm:grid-cols-[54px_minmax(0,1fr)]',
+                      hit && 'rounded-xl bg-white/[0.07]',
+                    )}
+                  >
+                    <span className={cn('text-center font-mono text-[22px] font-extrabold tabular-nums sm:text-[26px]', hit && 'text-white')}>
+                      {longBadge ? '·' : badge}
+                    </span>
+                    <div className="min-w-0">
+                      {longBadge && (
+                        <p className="mb-0.5 break-words font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-white/45">
+                          {badge}
+                        </p>
+                      )}
+                      <h3 className="text-base font-bold">
+                        {floor.theme}
+                        {hit && (
+                          <span className="ml-2 inline-block rounded-md bg-white/15 px-1.5 py-px align-middle text-[11px] font-semibold text-white">
+                            {active.name} здесь
+                          </span>
+                        )}
+                      </h3>
+                      {floor.brands.length > 0 && (
+                        <p className="mt-0.5 text-[13px] text-white/60">{floor.brands.join(' · ')}</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
+        {hasUnique && <aside className="rounded-[22px] border border-ink/10 bg-[#faf8f4] p-5">
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/45">Только здесь</p>
+          <h3 className="mt-1 text-base font-bold text-ink">Уникальные магазины</h3>
           <p className="mt-1 text-xs leading-relaxed text-ink-muted">Этих магазинов нет в других торговых центрах Минска из нашего каталога</p>
           <ul className="mt-3.5 divide-y divide-border border-t border-border">
             {uniqueBrands.slice(0, 7).map((brand) => <li key={brand.name} className="flex items-baseline justify-between gap-2.5 py-2 text-sm font-semibold text-ink">

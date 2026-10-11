@@ -1,7 +1,8 @@
 // Крупные категории-спойлеры для длинных карточек (ТЦ): не FAQ-мелкота,
 // а полноценный блок с иконкой, крупным заголовком и короткой подписью.
-// <details> — контент в DOM и для краулеров, даже когда закрыто.
-// По #якорю из меню «На странице» спойлер сам раскрывается.
+// Визуальный язык — casinolist.pro (гайд + карточка): mono-номера, ink-
+// иконки вместо фирменного красного, спокойный open-state. <details> —
+// контент в DOM и для краулеров; по #якорю спойлер сам раскрывается.
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -47,48 +48,59 @@ export function CategorySpoiler({
   return (
     <details
       id={id}
-      className={cn('group mt-6 scroll-mt-32', glassCardClass, className)}
+      className={cn(
+        'group mt-6 scroll-mt-32 overflow-hidden',
+        glassCardClass,
+        // Open-state как у гайдов casinolist: чуть теплее фон, без красного.
+        'open:bg-[#faf8f4]/90',
+        className,
+      )}
       style={glassCardShadow}
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary
         className={cn(
-          'flex cursor-pointer list-none items-center gap-3.5 p-5 sm:gap-4 sm:p-6',
+          'flex cursor-pointer list-none items-center gap-3.5 p-5 sm:gap-4 sm:px-6 sm:py-5',
           'marker:content-none [&::-webkit-details-marker]:hidden',
-          'transition-colors hover:bg-white/35',
+          'transition-colors hover:bg-white/50',
         )}
       >
         {index != null && (
           <span
-            className="hidden w-8 shrink-0 font-mono text-[11px] font-bold tracking-[0.18em] text-ink-faint sm:block"
+            className="hidden w-8 shrink-0 font-mono text-[11px] font-bold tracking-[0.16em] text-ink/40 sm:block"
             aria-hidden="true"
           >
             {String(index).padStart(2, '0')}
           </span>
         )}
         {Icon && (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-icon-bg text-icon sm:h-14 sm:w-14">
-            <Icon className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />
+          // Ink-плашка вместо primary/icon-bg: красный на длинной ленте
+          // категорий утомляет (владелец, 2026-10-11). Как chip на гайдах
+          // casinolist — тёмный квадрат, белая иконка.
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-ink text-white sm:h-12 sm:w-12">
+            <Icon className="h-5 w-5 sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={1.75} aria-hidden="true" />
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <h2 className="text-xl font-extrabold tracking-tight text-ink sm:text-2xl">{title}</h2>
+          <h2 className="text-lg font-extrabold tracking-tight text-ink sm:text-xl">{title}</h2>
           {subtitle ? (
-            <p className="mt-1 max-w-2xl text-sm leading-snug text-ink-muted">{subtitle}</p>
+            <p className="mt-0.5 max-w-2xl text-sm leading-snug text-ink/55">{subtitle}</p>
           ) : null}
         </span>
         {meta ? (
-          <span className="hidden shrink-0 text-xs font-bold uppercase tracking-wide text-ink-muted sm:inline">
+          <span className="hidden shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/45 sm:inline">
             {meta}
           </span>
         ) : null}
-        <ChevronDown
-          className="h-5 w-5 shrink-0 text-ink-faint transition-transform duration-200 group-open:rotate-180"
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-ink/10 bg-white/70 text-ink/45 transition-colors group-open:border-ink/20 group-open:text-ink/70"
           aria-hidden="true"
-        />
+        >
+          <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
+        </span>
       </summary>
-      <div className="flex flex-col gap-4 border-t border-border/70 px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+      <div className="flex flex-col gap-4 border-t border-ink/8 px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
         {children}
       </div>
     </details>

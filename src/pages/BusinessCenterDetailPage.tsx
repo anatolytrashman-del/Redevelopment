@@ -2652,7 +2652,13 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                     onClick={() => setTocOpen(false)}
                     className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm leading-snug text-ink transition-colors hover:bg-surface-muted"
                   >
-                    <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon" />
+                    <SectionIcon
+                      className={cn(
+                        'mt-0.5 h-4 w-4 shrink-0',
+                        isTc ? 'text-ink/50' : 'text-icon',
+                      )}
+                      strokeWidth={isTc ? 1.75 : undefined}
+                    />
                     <span>{sec.label}</span>
                   </a>
                 );
@@ -2700,7 +2706,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               className={cn('min-h-0 overflow-y-auto p-4', glassCardClass)}
               style={glassCardShadow}
             >
-              <p className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">На странице</p>
+              <p className="px-2 pb-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/45">
+                На странице
+              </p>
               <div className="flex flex-col">
                 {pageSections.map((sec) => {
                   const SectionIcon = SECTION_ICONS[sec.id] ?? FileText;
@@ -2710,7 +2718,15 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                       href={`#${sec.id}`}
                       className="group flex items-start gap-3 rounded-xl px-2 py-2 text-sm leading-snug text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
                     >
-                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon transition-colors group-hover:text-primary" />
+                      <SectionIcon
+                        className={cn(
+                          'mt-0.5 h-4 w-4 shrink-0 transition-colors',
+                          isTc
+                            ? 'text-ink/45 group-hover:text-ink/70'
+                            : 'text-icon group-hover:text-primary',
+                        )}
+                        strokeWidth={isTc ? 1.75 : undefined}
+                      />
                       <span>{sec.label}</span>
                     </a>
                   );

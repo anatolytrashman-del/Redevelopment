@@ -53,7 +53,7 @@ export function TradeCenterLeasing({
       <div>
         <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wide text-ink-muted">Свободные помещения</h3>
         {sale || rent || listed.length ? <BuildingOffersSection sale={sale} rent={rent} listed={listed} embedded /> : <div className={`${boxClass} flex items-center gap-3.5`}>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-icon-bg font-bold text-icon" aria-hidden="true">0</span>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] font-bold text-ink/60" aria-hidden="true">0</span>
           <p className="text-sm text-ink">ТЦ не публикует список свободных площадей<span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">Узнать, что есть сейчас, можно напрямую в отделе аренды.</span></p>
         </div>}
       </div>
@@ -93,7 +93,7 @@ export function TradeCenterAdvertising({ info, name, index }: { info: RetailInfo
           const medium = advertisingMedium(point);
           const Icon = icons[medium.icon];
           return <article key={pointIndex} className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3.5">
-            <span className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[10px] bg-icon-bg text-icon"><Icon className="h-4 w-4" aria-hidden="true" /></span>
+            <span className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[10px] bg-ink/[0.06] text-ink/70"><Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" /></span>
             <div className="min-w-0"><h3 className="break-words text-sm font-bold text-ink">{medium.title}</h3>{medium.text && <p className="mt-0.5 break-words text-xs leading-relaxed text-ink-muted">{medium.text}</p>}</div>
           </article>;
         })}

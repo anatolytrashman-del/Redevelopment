@@ -181,10 +181,10 @@ function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
     >
       <div className="flex items-start gap-3">
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-icon-bg text-icon"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] text-ink/70"
           aria-hidden="true"
         >
-          <Icon className="h-5 w-5" />
+          <Icon className="h-5 w-5" strokeWidth={1.75} />
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-xs font-semibold text-ink-muted">{FUN_KIND_LABELS[entry.kind]}</span>
