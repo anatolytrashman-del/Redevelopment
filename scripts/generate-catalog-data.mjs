@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { join, resolve } from 'node:path';
 import { buildDataOffline } from './_buildFallback.mjs';
+import { slimPublicExtraFile } from './slimPublicTenantSnapshot.mjs';
 import ts from 'typescript';
 
 // Один фильтр для сборки и страницы, без копии правил (владелец, 2026-09-25).
@@ -339,15 +340,17 @@ async function writeExtras() {
     const isTc = tcSlugs.has(slug);
     writeFileSync(
       join(DIST_DATA, 'bc', `${slug}.extra.json`),
-      JSON.stringify({
-        generatedAt,
-        offers: offersBy.get(slug) ?? [],
-        reviews: isTc ? [] : (reviewsBy.get(slug) ?? []),
-        nearby: nearbyBy.get(slug) ?? [],
-        gis2: gis2By.get(slug)?.[0] ?? null,
-        tenants: tenantsBy.get(slug)?.[0] ?? null,
-        uniqueBrands: uniqueBrands.get(slug),
-      }),
+      JSON.stringify(
+        slimPublicExtraFile({
+          generatedAt,
+          offers: offersBy.get(slug) ?? [],
+          reviews: isTc ? [] : (reviewsBy.get(slug) ?? []),
+          nearby: nearbyBy.get(slug) ?? [],
+          gis2: gis2By.get(slug)?.[0] ?? null,
+          tenants: tenantsBy.get(slug)?.[0] ?? null,
+          uniqueBrands: uniqueBrands.get(slug),
+        }),
+      ),
     );
   }
   console.log(`[catalog-data] догружаемые данные: общие наборы + ${slugs.length} файлов .extra`);
@@ -401,7 +404,10 @@ async function copyExtrasFromProd() {
         // copyFromProd пропуск карточки только предупреждает; здесь это повод
         // собрать всё из базы, а не выкатить каталог с дырой.
         if (!existsSync(join(DIST_DATA, 'bc', `${slug}.json`))) throw new Error(`не скопирован /data/bc/${slug}.json`);
-        writeFileSync(join(DIST_DATA, 'bc', `${slug}.extra.json`), await get(`/data/bc/${slug}.extra.json`));
+        const raw = await get(`/data/bc/${slug}.extra.json`);
+        // Прод ещё может отдавать «толстый» снимок — ужимаем при копии,
+        // иначе reuseProdIfUnchanged выкатит старые 200+ КБ tenants.
+        writeFileSync(join(DIST_DATA, 'bc', `${slug}.extra.json`), JSON.stringify(slimPublicExtraFile(JSON.parse(raw))));
       }),
     );
   }
@@ -591,6 +597,7 @@ async function finalizeTcCatalogArtifacts() {
   const bcDir = join(DIST_DATA, 'bc');
   let patchedCards = 0;
   let clearedReviews = 0;
+  let slimmedExtras = 0;
   for (const row of tcRows) {
     const slug = row.slug;
     if (typeof slug !== 'string' || !/^[a-z0-9-]+$/.test(slug)) continue;
@@ -605,16 +612,21 @@ async function finalizeTcCatalogArtifacts() {
     }
     const extraPath = join(bcDir, `${slug}.extra.json`);
     if (existsSync(extraPath)) {
-      const extra = JSON.parse(readFileSync(extraPath, 'utf8'));
+      const before = readFileSync(extraPath, 'utf8');
+      const extra = slimPublicExtraFile(JSON.parse(before));
       if (Array.isArray(extra.reviews) && extra.reviews.length > 0) {
         extra.reviews = [];
-        writeFileSync(extraPath, JSON.stringify(extra));
         clearedReviews += 1;
+      }
+      const after = JSON.stringify(extra);
+      if (after !== before) {
+        writeFileSync(extraPath, after);
+        slimmedExtras += 1;
       }
     }
   }
   console.log(
-    `[catalog-data] финализация ТЦ: список ${tcRows.length}, карточек ${patchedCards}, .extra без отзывов ${clearedReviews}`,
+    `[catalog-data] финализация ТЦ: список ${tcRows.length}, карточек ${patchedCards}, .extra без отзывов ${clearedReviews}, ужато tenants ${slimmedExtras}`,
   );
 }
 

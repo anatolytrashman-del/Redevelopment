@@ -98,7 +98,10 @@
         window.__bcList = get(base === '/minsk/tc' ? '/data/trade-centers.json' : '/data/business-centers.json');
         // Ставки рынка и размеры лотов: без них первый кадр React рисует
         // карточки и блоки иначе, чем пререндер-снапшот, и вёрстка прыгает.
-        window.__bcMarket = get('/data/bc-market.json');
+        // ТЦ этот файл не читают (marketPosition для isTc = null, офисные
+        // ставки к ритейлу не применяются) — 120+ КБ на критическом пути
+        // до createRoot зря (карточка «Замка», 2026-10-11).
+        if (base !== '/minsk/tc') window.__bcMarket = get('/data/bc-market.json');
         var rest = path.slice(ownerPage ? '/bc'.length : base.length).replace(/^\/+|\/+$/g, '');
         // Карточка здания — ровно один сегмент пути. Разделы каталога с
         // такой же формой перечислены явно, чтобы не ходить за файлом,

@@ -95,6 +95,12 @@
   и зря съедает высоту. `FactTile tone="muted"` с иконкой ставит иконку
   рядом с числом (`BusinessCenterVisuals.tsx`). Новые метрики-числа — так же,
   пока горизонтали очевидно достаточно.
+- **Карточка ТЦ не должна тащить офисный рынок и толстый tenants.**
+  `createRoot` ждёт `__bcList` + `__bcExtra` (+ `__bcMarket` только у БЦ):
+  на `/minsk/tc/*` `bc-market.json` не качать; в `.extra` tenants ужимать
+  (`scripts/slimPublicTenantSnapshot.mjs`) — без `buildingUrl`/`buildingAddress`
+  и без `rawText`, когда `floor` уже есть. Иначе «Замок» ждёт +300 КБ до
+  интерактива.
 - **Пустая строка из `<input type="date">` — это не дата.** В колонку `date`
   она уходит ошибкой `invalid input syntax for type date`, а не NULL'ом.
   В `*Api.ts` любое поле даты писать через `value || null` (см. `dateOrNull`
