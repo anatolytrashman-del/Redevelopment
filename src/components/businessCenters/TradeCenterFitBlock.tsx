@@ -16,17 +16,22 @@ export function TradeCenterFitBlock({
   if (points.length === 0) return null;
   const wins = points.filter((p) => p.side === 'win');
   const loses = points.filter((p) => p.side === 'lose');
-  const preview =
-    wins.length && loses.length
+  const previewParts = [
+    wins[0]?.text ?? null,
+    loses[0]?.text ?? null,
+  ].filter(Boolean);
+  const preview = previewParts.length
+    ? previewParts.join(' · ')
+    : wins.length && loses.length
       ? `${wins.length} плюс · ${loses.length} минус к аналогам`
-      : wins[0]?.text ?? loses[0]?.text ?? null;
+      : null;
 
   return (
     <CategorySpoiler
       id="tc-fit"
       title="Сравнение с аналогами"
       subtitle={preview}
-      meta="Выигрывает · проигрывает"
+      meta={[wins.length ? `+${wins.length}` : null, loses.length ? `−${loses.length}` : null].filter(Boolean).join(' · ') || 'Выигрывает · проигрывает'}
       icon={Scale}
       index={index}
       defaultOpen

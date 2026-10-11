@@ -7,10 +7,12 @@ import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { pluralRu } from '../../lib/pluralRu';
 
 export function TradeCenterQuotesCard({ quotes, index }: { quotes: RetailQuoteEntry[]; index?: number }) {
+  const preview = quotes.slice(0, 2).map((q) => q.who.trim()).filter(Boolean).join(' · ')
+    || 'Что говорили о ТЦ управляющие и СМИ';
   return (
     <RetailCategorySpoiler
       id="quotes"
-      subtitle="Что говорили о ТЦ управляющие и СМИ"
+      subtitle={preview}
       meta={`${quotes.length} ${pluralRu(quotes.length, 'цитата', 'цитаты', 'цитат')}`}
       index={index}
     >

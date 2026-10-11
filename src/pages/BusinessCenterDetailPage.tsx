@@ -1,6 +1,12 @@
 import { TradeCenterFactCards } from '../components/businessCenters/TradeCenterFactCards';
 import { TradeCenterReviewThemes } from '../components/businessCenters/TradeCenterReviewThemes';
 import { reviewThemesFaq, reviewThemesVisible, yandexReviewsUrl } from '../lib/tradeCenterFactsReviews';
+import {
+  developerPreview,
+  developerPreviewMeta,
+  mediaMentionsPreview,
+  techParamsPreview,
+} from '../lib/tradeCenterSpoilerPreview';
 import { isHiddenVisitService } from '../lib/tradeCenterVisit';
 import { tenantDirectionLabel } from '../data/tenantIndustries';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -2509,15 +2515,26 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         totalArea: center.totalArea,
       })
     : [];
-  const techPreview = (() => {
+  const techPreview = isTc
+    ? techParamsPreview({
+        parkingShort: tcParkingShort(center.retailInfo?.parking ?? null),
+        parkingFallback: center.parking,
+        rows: redistributedTechnicalParams.buildingInformationRows,
+        totalArea: center.totalArea,
+        yearBuilt: center.yearBuilt,
+        architectureLead: architectureHighlights[0]?.text ?? null,
+      })
+    : null;
+  const techPreviewMeta = (() => {
     if (!isTc) return null;
-    const parkingShort = tcParkingShort(center.retailInfo?.parking ?? null);
-    if (parkingShort) return `Парковка · ${parkingShort}`;
-    if (center.parking && center.parking.length <= 56) return `Парковка · ${center.parking}`;
-    if (architectureHighlights[0]?.text) return architectureHighlights[0].text;
-    const row = redistributedTechnicalParams.buildingInformationRows[0];
-    if (row) return `${row.label}: ${row.value}`;
-    return 'Площадь, этажи, парковка и факты о здании';
+    const n =
+      architectureHighlights.length
+      + Number(Boolean(center.parking))
+      + Number(Boolean(accessHoursText))
+      + Number(Boolean(accessibilityAttributes))
+      + redistributedTechnicalParams.buildingInformationRows.length
+      + center.buildingFacts.length;
+    return n > 0 ? `${n} ${pluralRu(n, 'строка', 'строки', 'строк')}` : 'Параметры';
   })();
   return (
     <div className="min-h-svh bg-bg">
@@ -3276,8 +3293,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             <CategorySpoiler
               id="media"
               title="СМИ о здании"
-              subtitle={`${mediaMentions.length} ${mediaMentions.length === 1 ? 'материал' : mediaMentions.length < 5 ? 'материала' : 'материалов'}`}
-              meta={`${mediaMentions.length} мат.`}
+              subtitle={mediaMentionsPreview(mediaMentions)}
+              meta={`${mediaMentions.length} ${pluralRu(mediaMentions.length, 'материал', 'материала', 'материалов')}`}
               icon={Newspaper}
               index={sectionIndex('media')}
             >
@@ -3397,7 +3414,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             id="tech"
             title="Параметры здания"
             subtitle={techPreview}
-            meta="Параметры"
+            meta={techPreviewMeta}
             icon={Building2}
             index={sectionIndex('tech')}
           >
@@ -3687,8 +3704,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             <CategorySpoiler
               id="developer"
               title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
-              subtitle={developerMainName(center.developerInfo, center.developer)}
-              meta="Застройщик"
+              subtitle={developerPreview(center.developerInfo, developerMainName(center.developerInfo, center.developer))}
+              meta={developerPreviewMeta(center.developerInfo)}
               icon={HardHat}
               index={sectionIndex('developer')}
             >
@@ -3717,8 +3734,8 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             <CategorySpoiler
               id="developer"
               title="Застройщик"
-              subtitle={center.developer ?? center.developerInfo.description ?? 'Кто построил комплекс'}
-              meta="Застройщик"
+              subtitle={developerPreview(center.developerInfo, center.developer)}
+              meta={developerPreviewMeta(center.developerInfo)}
               icon={HardHat}
               index={sectionIndex('developer')}
             >
@@ -3780,8 +3797,18 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           <CategorySpoiler
             id="rental"
             title={`Отдел аренды ${V.abbr}`}
-            subtitle="Условия, ставки и контакты управляющей компании"
-            meta="Для бизнеса"
+            subtitle={[
+              center.rentalInfo.rates?.trim() || null,
+              center.rentalInfo.terms?.trim()
+                ? center.rentalInfo.terms.trim().match(/^.{1,72}?(?:[.!?](?=\s|$)|$)/)?.[0]?.replace(/[.!?]\s*$/, '')
+                : null,
+              center.rentalInfo.contacts ? 'есть контакты' : null,
+            ].filter(Boolean).join(' · ') || 'Условия, ставки и контакты управляющей компании'}
+            meta={[
+              center.rentalInfo.rates ? 'ставки' : null,
+              center.rentalInfo.terms ? 'условия' : null,
+              center.rentalInfo.contacts ? 'контакты' : null,
+            ].filter(Boolean).join(' · ') || 'Для бизнеса'}
             icon={FileText}
             index={sectionIndex('rental')}
           >

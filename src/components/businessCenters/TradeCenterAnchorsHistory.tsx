@@ -37,6 +37,7 @@ import {
   timelineMonth,
   timelineYear,
 } from '../../lib/tradeCenterRetail';
+import { timelinePreview } from '../../lib/tradeCenterSpoilerPreview';
 import { Badge } from '../ui/Badge';
 import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { tcChipSoftClass } from './tradeCenterRetailStyle';
@@ -130,7 +131,7 @@ export function TradeCenterHistoryCard({ timeline, title, index }: { timeline: R
     <RetailCategorySpoiler
       id="retail-history"
       label={title}
-      subtitle="Первые бренды, форматы и знаковые события"
+      subtitle={timelinePreview(timeline)}
       meta={`${timeline.length} ${pluralRu(timeline.length, 'событие', 'события', 'событий')}`}
       index={index}
     >

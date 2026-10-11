@@ -48,7 +48,7 @@ export function TradeCenterInfrastructure({
     <CategorySpoiler
       id="amenities"
       title="Инфраструктура"
-      subtitle={groups[0] ? `${groups[0].label} · ${groups[0].items.length}` : 'Сервисы и удобства'}
+      subtitle={groups.map((g) => `${g.label} · ${g.items.length}`).slice(0, 3).join(' · ') || 'Сервисы и удобства'}
       meta={`${itemCount} пунктов`}
       icon={LayoutGrid}
       index={index}

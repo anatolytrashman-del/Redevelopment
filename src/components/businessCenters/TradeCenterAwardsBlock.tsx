@@ -8,6 +8,7 @@ import {
   awardCategory, awardPill, rankingBadge, rankingSource, shortAwardTitle,
   shortRankingTitle, sortAwardTiles, sortRankingTiles,
 } from '../../lib/tradeCenterAwards';
+import { awardsRankingPreview } from '../../lib/tradeCenterSpoilerPreview';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 import { fitGridClass } from '../../lib/fitGrid';
 
@@ -40,7 +41,7 @@ export function TradeCenterAwardsBlock({
     <CategorySpoiler
       id="awards-ranking"
       title={awardsRankingTitle(hasAwards, hasRanking)}
-      subtitle="Места в рейтингах и отраслевые премии"
+      subtitle={awardsRankingPreview(ranking, awards.length ? awards : [])}
       meta={[hasRanking ? `${ranking.length} в рейтингах` : null, hasAwards ? `${awards.length || legacy.length} наград` : null].filter(Boolean).join(' · ') || null}
       icon={Trophy}
       index={index}
