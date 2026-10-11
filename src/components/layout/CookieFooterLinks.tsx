@@ -23,6 +23,9 @@ function RedevelopmentProductCredit() {
       Продукт компании{' '}
       <a
         href={platformOrigin()}
+        // data-platform-home: prerender rewrite (SITE→PUBLIC origin) не должен
+        // подменять ссылку на officelist/malllist — см. rewriteSnapshotForPublicOrigin.
+        data-platform-home=""
         className="inline-block font-extrabold tracking-wide text-ink hover:opacity-90"
         rel="noopener noreferrer"
       >

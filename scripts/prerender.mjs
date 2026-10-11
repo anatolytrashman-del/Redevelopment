@@ -79,6 +79,7 @@ import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
 import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
+import { ensureCatalogProductCredit } from './catalogFooterCredit.mjs';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
 import { tradeCenterPaths } from './_tcPaths.mjs';
 import {
@@ -252,6 +253,9 @@ function rewriteSnapshotForPublicOrigin(html) {
   let out = stripThirdPartyAnalytics(html)
     .replaceAll(SITE_ORIGIN, PUBLIC_ORIGIN)
     .replace(/(<meta property="og:site_name" content=")[^"]*(")/, `$1${brand}$2`);
+  // Подвал: «продукт REDEVELOPMENT» + ссылка всегда на платформу (не на
+  // officelist/malllist после replaceAll выше). См. catalogFooterCredit.mjs.
+  out = ensureCatalogProductCredit(out, PLATFORM_ORIGIN);
   // Вебмастер проверяет meta на финальной странице (/ у officelist → /minsk/bc).
   const yandex = catalogYandexVerification();
   if (yandex) {
