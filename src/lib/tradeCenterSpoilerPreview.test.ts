@@ -46,7 +46,12 @@ describe('превью спойлеров ТЦ', () => {
       { url: 'https://d.by/1', title: 'E', date: null, outlet: 'Realt' },
       { url: 'https://e.by/1', title: 'F', date: null, outlet: 'БелТА' },
     ])).toBe('Onliner · CityDog · Tut.by · Realt · ещё 1');
-    expect(mediaMentionsPreview([{ url: 'https://x.by', title: 'X', date: null, outlet: '' }]))
+    expect(mediaMentionsPreview([
+      { url: 'https://a.by/1', title: 'Большой репортаж про фасад', date: null, outlet: 'Onliner' },
+      { url: 'https://a.by/2', title: 'Второй материал', date: null, outlet: 'Onliner' },
+      { url: 'https://a.by/3', title: 'Третий', date: null, outlet: 'Onliner' },
+    ])).toBe('Onliner: Большой репортаж про фасад · Второй материал · ещё 1');
+    expect(mediaMentionsPreview([{ url: 'https://x.by', title: '', date: null, outlet: '' }]))
       .toBe('1 материал');
   });
 

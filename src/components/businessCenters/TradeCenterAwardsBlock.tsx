@@ -9,6 +9,7 @@ import {
   shortRankingTitle, sortAwardTiles, sortRankingTiles,
 } from '../../lib/tradeCenterAwards';
 import { awardsRankingPreview } from '../../lib/tradeCenterSpoilerPreview';
+import { pluralRu } from '../../lib/pluralRu';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 import { fitGridClass } from '../../lib/fitGrid';
 
@@ -42,7 +43,15 @@ export function TradeCenterAwardsBlock({
       id="awards-ranking"
       title={awardsRankingTitle(hasAwards, hasRanking)}
       subtitle={awardsRankingPreview(ranking, awards.length ? awards : [])}
-      meta={[hasRanking ? `${ranking.length} в рейтингах` : null, hasAwards ? `${awards.length || legacy.length} наград` : null].filter(Boolean).join(' · ') || null}
+      meta={[
+        hasRanking ? `${ranking.length} в рейтингах` : null,
+        hasAwards
+          ? (() => {
+            const n = awards.length || legacy.length;
+            return `${n} ${pluralRu(n, 'награда', 'награды', 'наград')}`;
+          })()
+          : null,
+      ].filter(Boolean).join(' · ') || null}
       icon={Trophy}
       index={index}
     >

@@ -25,6 +25,8 @@ import type { ReviewThemes } from './tradeCenterFactsReviews';
 
 function lowerFirst(text: string): string {
   if (!text) return text;
+  // Не трогаем аббревиатуры (ТРЦ, LED), кавычки и уже строчные.
+  if (/^[«"„(]/.test(text) || /^[A-ZА-ЯЁ]{2,}(?![а-яё])/u.test(text)) return text;
   return text.charAt(0).toLocaleLowerCase('ru-RU') + text.slice(1);
 }
 
@@ -73,16 +75,25 @@ export function awardsRankingPreview(
   return joinParts(parts, 2) || 'Места в рейтингах и отраслевые премии';
 }
 
-/** «Onliner · CityDog · Tut.by · ещё 2». */
+/** «Onliner · CityDog · Tut.by» или при одном издании — краткие заголовки. */
 export function mediaMentionsPreview(mentions: MediaMention[]): string {
   const outlets = [...new Set(mentions.map((m) => m.outlet.trim()).filter(Boolean))];
-  if (!outlets.length) {
-    const n = mentions.length;
-    return `${n} ${pluralRu(n, 'материал', 'материала', 'материалов')}`;
+  if (outlets.length >= 2) {
+    const shown = outlets.slice(0, 4);
+    const rest = outlets.length - shown.length;
+    return rest > 0 ? `${shown.join(' · ')} · ещё ${rest}` : shown.join(' · ');
   }
-  const shown = outlets.slice(0, 4);
-  const rest = outlets.length - shown.length;
-  return rest > 0 ? `${shown.join(' · ')} · ещё ${rest}` : shown.join(' · ');
+  const shortTitle = (title: string) => (title.length > 42 ? `${title.slice(0, 40).trim()}…` : title);
+  const titles = mentions.map((m) => m.title.trim()).filter(Boolean).map(shortTitle);
+  if (titles.length) {
+    const shown = titles.slice(0, 2);
+    const rest = titles.length - shown.length;
+    const body = shown.join(' · ');
+    const withOutlet = outlets[0] ? `${outlets[0]}: ${body}` : body;
+    return rest > 0 ? `${withOutlet} · ещё ${rest}` : withOutlet;
+  }
+  const n = mentions.length;
+  return `${n} ${pluralRu(n, 'материал', 'материала', 'материалов')}`;
 }
 
 /** Первый факт; если короткий — второй через «·». */
