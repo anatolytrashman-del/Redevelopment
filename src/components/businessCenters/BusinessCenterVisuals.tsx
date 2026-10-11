@@ -159,6 +159,26 @@ export function FactTile({
   tone?: 'default' | 'muted';
 }) {
   const muted = tone === 'muted';
+  // muted + иконка + число: в одну строку (владелец, 2026-10-11) — места
+  // хватает, иконка над «477» выглядит пусто. default оставляем колонкой.
+  if (muted && Icon && !text) {
+    return (
+      <div
+        className={
+          'flex items-center gap-2.5 rounded-control border border-border/70 bg-surface-muted/70 p-3' +
+          (span ? ` ${SPAN_CLASSES[span]}` : '')
+        }
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff1e8] text-[#c45c3a]">
+          <Icon className="h-4 w-4" strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-base font-bold leading-tight text-ink">{value}</div>
+          {label && <p className="mt-0.5 text-xs leading-snug text-ink-muted">{label}</p>}
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className={

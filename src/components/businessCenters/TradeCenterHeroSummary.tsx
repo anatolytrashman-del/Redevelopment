@@ -200,37 +200,36 @@ export function TradeCenterHeroSummary({
           >
             Коротко о ТЦ
           </h2>
-          <ul className={`mt-2 grid gap-2 ${fitGridClass(mustHave.length, 2, 'tiles')}`}>
+          {/* Одна высота плиток: короткий ответ + line-clamp, иначе длинные
+              якоря раздувают ячейку рядом с «Парковкой» (2026-10-11). */}
+          <ul className={`mt-2 grid auto-rows-fr gap-2 ${fitGridClass(mustHave.length, 2, 'tiles')}`}>
             {mustHave.map((item) => {
               const Icon = MUST_HAVE_ICONS[item.kind];
               const body = (
                 <>
-                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}>
-                    <Icon className="h-4.5 w-4.5" strokeWidth={1.75} aria-hidden="true" />
+                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}>
+                    <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                   </span>
-                  <span className="min-w-0">
+                  <span className="min-w-0 flex-1">
                     <span className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                       {item.label}
                     </span>
-                    <span className="mt-0.5 block break-words text-sm font-bold leading-snug text-ink">
+                    <span className="mt-0.5 block truncate text-sm font-bold leading-snug text-ink">
                       {item.value}
                     </span>
                   </span>
                 </>
               );
+              const tileClass =
+                'flex h-full min-h-[3.25rem] items-center gap-2.5 rounded-2xl border border-[#efdfd4] bg-white/90 px-3 py-2';
               return (
-                <li key={`${item.kind}-${item.label}`}>
+                <li key={`${item.kind}-${item.label}`} className="min-h-0">
                   {item.href ? (
-                    <a
-                      href={item.href}
-                      className="flex min-h-[4.25rem] items-start gap-2.5 rounded-2xl border border-[#efdfd4] bg-white/90 px-3 py-2.5 transition-colors hover:bg-[#fff8f2]"
-                    >
+                    <a href={item.href} className={cn(tileClass, 'transition-colors hover:bg-[#fff8f2]')}>
                       {body}
                     </a>
                   ) : (
-                    <div className="flex min-h-[4.25rem] items-start gap-2.5 rounded-2xl border border-[#efdfd4] bg-white/90 px-3 py-2.5">
-                      {body}
-                    </div>
+                    <div className={tileClass}>{body}</div>
                   )}
                 </li>
               );
@@ -252,12 +251,14 @@ export function TradeCenterHeroSummary({
         </h2>
         <div className="mt-2.5 space-y-2">
           <InfoRow label="Адрес">{displayAddress}</InfoRow>
-          {(nearestMetro || center.metro) && (
+          {/* Метро/парковка — только если их ещё нет в must-have (дубли на
+              первом экране запрещены, 2026-10-11). */}
+          {!mustHave.some((item) => item.kind === 'metro') && (nearestMetro || center.metro) && (
             <InfoRow label="Метро">
               <MetroValue nearestMetro={nearestMetro} displayMetro={displayMetro} fallbackMetro={center.metro} />
             </InfoRow>
           )}
-          {parkingShort && (
+          {!mustHave.some((item) => item.kind === 'parking') && parkingShort && (
             <InfoRow label="Парковка">
               <Car className="h-3.5 w-3.5 shrink-0 text-[#c45c3a]/70" />
               {parkingShort}

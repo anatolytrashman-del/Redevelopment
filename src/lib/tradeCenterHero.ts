@@ -403,9 +403,11 @@ export interface TcMustHaveItem {
 }
 
 /**
- * Must-have саммари для первого экрана: парковка, якорь, развлечения, еда —
- * то, что человек хочет узнать за 3 секунды (владелец, 2026-10-11).
- * Без дубля статуса «открыто» — он уже в блоке «Сейчас».
+ * Must-have саммари для первого экрана: парковка, якоря, развлечения, еда —
+ * короткие ответы одной высоты (владелец, 2026-10-11). Без дубля статуса
+ * «открыто» (он в «Сейчас») и без длинных списков имён в плитке — иначе
+ * «Парковка» и «Якоря» разъезжаются по высоте. Якоря: счёт (их обычно 5–7),
+ * не два имени «ради одного».
  */
 export function tcMustHaveItems(info: RetailInfo | null, opts?: {
   parkingShort?: string | null;
@@ -419,8 +421,15 @@ export function tcMustHaveItems(info: RetailInfo | null, opts?: {
   if (opts?.metroLabel) {
     items.push({ kind: 'metro', label: 'Метро', value: opts.metroLabel, href: '#getting-here' });
   }
-  const anchors = anchorsForPage(info).slice(0, 2);
-  if (anchors.length) {
+  const anchors = anchorsForPage(info);
+  if (anchors.length >= 3) {
+    items.push({
+      kind: 'anchor',
+      label: 'Якоря',
+      value: `${anchors.length}\u00a0${pluralRu(anchors.length, 'якорь', 'якоря', 'якорей')}`,
+      href: '#anchors',
+    });
+  } else if (anchors.length > 0) {
     items.push({
       kind: 'anchor',
       label: 'Якоря',
@@ -429,7 +438,7 @@ export function tcMustHaveItems(info: RetailInfo | null, opts?: {
     });
   }
   const fun = sortFun(info.fun).slice(0, 3);
-  if (fun.length) {
+  if (fun.length > 0) {
     items.push({
       kind: 'fun',
       label: 'Развлечения',

@@ -310,6 +310,20 @@ describe('tcHeroPhotoLead / tcHeroInsideLines / tcMeaningfulAltNames', () => {
     const items = tcMustHaveItems(info, { parkingShort: 'более 2000 мест', metroLabel: '«Победителей» · 400\u00a0м' });
     expect(items.map((i) => i.kind)).toEqual(['parking', 'metro', 'anchor', 'fun', 'food']);
     expect(items.some((i) => /открыт|закрыт/i.test(i.value))).toBe(false);
+    // Один якорь в фикстуре — имя; при ≥3 будет счёт «N якорей».
+    expect(items.find((i) => i.kind === 'anchor')?.value).toContain('Корона');
+  });
+
+  it('must-have — при многих якорях короткий счёт, не список имён', () => {
+    const many = {
+      ...info,
+      anchors: Array.from({ length: 6 }, (_, i) => ({
+        ...info.anchors[0],
+        name: `Якорь ${i + 1}`,
+      })),
+    };
+    const items = tcMustHaveItems(many, { parkingShort: '2000 мест' });
+    expect(items.find((i) => i.kind === 'anchor')?.value).toBe('6\u00a0якорей');
   });
 
   it('fit — win/lose только из фактов карточки', () => {
