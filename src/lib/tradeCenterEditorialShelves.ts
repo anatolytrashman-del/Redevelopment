@@ -95,9 +95,9 @@ export interface TcBrowseFigure {
   value: string;
   label: string;
   icon: TcBrowseFigureIcon;
-  /** Цвет иконки/числа: gold | primary | ink | success. */
-  tone: 'gold' | 'primary' | 'ink' | 'success';
-  /** Подсветить рамкой — обычно первая цифра (всего ТЦ). */
+  /** Только золото у главной цифры, остальное — ink (без радуги). */
+  tone: 'gold' | 'ink';
+  /** Первая плитка — акцент. */
   accent?: boolean;
   href?: string;
 }
@@ -470,6 +470,7 @@ function pushFigure(
  * Сводка ключевых цифр для корня /minsk/tc — как «At a glance» у casinolist.
  * Без tcIndex не считаем (иначе мигание урезанной → полной сводки).
  * Ровно TC_BROWSE_FIGURE_SLOTS плиток — две полные строки по 6 на lg+.
+ * Порядок фиксированный (не «что успело набраться»), тон — gold только у ТЦ.
  */
 export function buildTcBrowseFigures(
   centers: BusinessCenter[] | null,
@@ -480,34 +481,14 @@ export function buildTcBrowseFigures(
   const eligible = centers.filter(isEligible);
   if (!eligible.length) return [];
 
-  const tones: Array<TcBrowseFigure['tone']> = ['gold', 'success', 'primary', 'ink'];
-  let toneI = 0;
-  const nextTone = () => tones[toneI++ % tones.length];
-
-  const figures: TcBrowseFigure[] = [];
-
-  pushFigure(figures, {
-    id: 'total',
-    value: eligible.length.toLocaleString('ru-RU'),
-    label: 'ТЦ',
-    icon: 'malls',
-    tone: 'gold',
-    accent: true,
-    href: basePath === '/minsk/tc' ? TC_ALL_LIST_HREF : `${basePath}?view=list`,
-  });
+  const listHref = basePath === '/minsk/tc' ? TC_ALL_LIST_HREF : `${basePath}?view=list`;
+  const topicHref = (slug: string) => {
+    const hub = tcTopicHubBySlug(slug);
+    return hub ? tcTopicHubUrl(hub, basePath) : undefined;
+  };
 
   const withArea = eligible.filter((c) => typeof c.totalArea === 'number' && c.totalArea > 0);
-  if (withArea.length) {
-    const sum = withArea.reduce((s, c) => s + (c.totalArea ?? 0), 0);
-    pushFigure(figures, {
-      id: 'area',
-      value: formatTotalArea(sum),
-      label: 'суммарная площадь',
-      icon: 'area',
-      tone: nextTone(),
-    });
-  }
-
+  const areaSum = withArea.reduce((s, c) => s + (c.totalArea ?? 0), 0);
   const nearMetro = eligible.filter((c) => {
     const d = c.nearestMetroStations
       ?.map((s) => s.distanceMeters)
@@ -515,91 +496,89 @@ export function buildTcBrowseFigures(
     if (!d?.length) return false;
     return Math.min(...d) <= 800;
   }).length;
-  if (nearMetro > 0) {
-    pushFigure(figures, {
-      id: 'metro',
-      value: nearMetro.toLocaleString('ru-RU'),
-      label: 'у метро ≤800 м',
-      icon: 'metro',
-      tone: nextTone(),
-    });
-  }
 
-  const topicSpecs: {
-    slug: string;
-    label: string;
-    icon: TcBrowseFigureIcon;
-  }[] = [
-    { slug: 'cinema', label: 'с кино', icon: 'cinema' },
-    { slug: 'free-parking', label: 'бесплатная парковка', icon: 'parking' },
-    { slug: 'foodcourt', label: 'фудкорт', icon: 'food' },
-    { slug: 'kids', label: 'с детьми', icon: 'kids' },
-    { slug: 'entertainment', label: 'развлечения', icon: 'fun' },
-    { slug: 'shopping', label: 'шопинг', icon: 'shopping' },
-    { slug: 'center', label: 'в центре', icon: 'center' },
-    { slug: 'budget', label: 'недорого', icon: 'budget' },
+  // Редакционный набор: короткие ярлыки, без «1518 брендов» и прочих шумов.
+  const candidates: Array<TcBrowseFigure | null> = [
+    {
+      id: 'total',
+      value: eligible.length.toLocaleString('ru-RU'),
+      label: 'ТЦ',
+      icon: 'malls',
+      tone: 'gold',
+      accent: true,
+      href: listHref,
+    },
+    withArea.length
+      ? {
+          id: 'area',
+          value: formatTotalArea(areaSum),
+          label: 'площадь',
+          icon: 'area',
+          tone: 'ink',
+        }
+      : null,
+    nearMetro > 0
+      ? {
+          id: 'metro',
+          value: nearMetro.toLocaleString('ru-RU'),
+          label: 'у метро',
+          icon: 'metro',
+          tone: 'ink',
+        }
+      : null,
+    ...(['shopping', 'cinema', 'free-parking', 'foodcourt', 'kids', 'entertainment', 'center', 'budget'] as const).map(
+      (slug) => {
+        const labels: Record<string, { label: string; icon: TcBrowseFigureIcon }> = {
+          shopping: { label: 'шопинг', icon: 'shopping' },
+          cinema: { label: 'кино', icon: 'cinema' },
+          'free-parking': { label: 'парковка', icon: 'parking' },
+          foodcourt: { label: 'фудкорт', icon: 'food' },
+          kids: { label: 'с детьми', icon: 'kids' },
+          entertainment: { label: 'развлечения', icon: 'fun' },
+          center: { label: 'в центре', icon: 'center' },
+          budget: { label: 'недорого', icon: 'budget' },
+        };
+        const n = topicCount(eligible, slug, tcIndex);
+        if (n < 1) return null;
+        const meta = labels[slug];
+        return {
+          id: `topic-${slug}`,
+          value: n.toLocaleString('ru-RU'),
+          label: meta.label,
+          icon: meta.icon,
+          tone: 'ink' as const,
+          href: topicHref(slug),
+        };
+      },
+    ),
+    (() => {
+      const late = featureCount(eligible, tcIndex, 'late');
+      return late > 0
+        ? {
+            id: 'late',
+            value: late.toLocaleString('ru-RU'),
+            label: 'допоздна',
+            icon: 'late' as const,
+            tone: 'ink' as const,
+          }
+        : null;
+    })(),
+    (() => {
+      const grocery = featureCount(eligible, tcIndex, 'grocery');
+      return grocery > 0
+        ? {
+            id: 'grocery',
+            value: grocery.toLocaleString('ru-RU'),
+            label: 'продукты',
+            icon: 'grocery' as const,
+            tone: 'ink' as const,
+          }
+        : null;
+    })(),
   ];
-  for (const spec of topicSpecs) {
-    const n = topicCount(eligible, spec.slug, tcIndex);
-    if (n < 1) continue;
-    const hub = tcTopicHubBySlug(spec.slug);
-    pushFigure(figures, {
-      id: `topic-${spec.slug}`,
-      value: n.toLocaleString('ru-RU'),
-      label: spec.label,
-      icon: spec.icon,
-      tone: nextTone(),
-      href: hub ? tcTopicHubUrl(hub, basePath) : undefined,
-    });
-  }
 
-  const brandHubs = collectTcStoreHubs(tcIndex).filter(
-    (h) => eligible.filter((c) => matchesTcStoreHub(c, h, tcIndex.get(c.slug))).length >= TC_FEATURED_BRAND_MIN,
-  );
-  if (brandHubs.length > 0) {
-    pushFigure(figures, {
-      id: 'brands',
-      value: brandHubs.length.toLocaleString('ru-RU'),
-      label: 'брендов в каталоге',
-      icon: 'brands',
-      tone: nextTone(),
-    });
-  }
-
-  const late = featureCount(eligible, tcIndex, 'late');
-  if (late > 0) {
-    pushFigure(figures, {
-      id: 'late',
-      value: late.toLocaleString('ru-RU'),
-      label: 'после 22:00',
-      icon: 'late',
-      tone: nextTone(),
-    });
-  }
-
-  const grocery = featureCount(eligible, tcIndex, 'grocery');
-  if (grocery > 0) {
-    pushFigure(figures, {
-      id: 'grocery',
-      value: grocery.toLocaleString('ru-RU'),
-      label: 'с продуктами',
-      icon: 'grocery',
-      tone: nextTone(),
-    });
-  }
-
-  const parkingAny = featureCount(eligible, tcIndex, 'parking');
-  if (parkingAny > 0) {
-    pushFigure(figures, {
-      id: 'parking-any',
-      value: parkingAny.toLocaleString('ru-RU'),
-      label: 'с парковкой',
-      icon: 'parking',
-      tone: nextTone(),
-    });
-  }
-
-  // Ровно две строки по 6 на lg — не обрезаем посередине ряда.
+  const figures: TcBrowseFigure[] = [];
+  for (const fig of candidates) pushFigure(figures, fig);
   return figures.slice(0, TC_BROWSE_FIGURE_SLOTS);
 }
 
