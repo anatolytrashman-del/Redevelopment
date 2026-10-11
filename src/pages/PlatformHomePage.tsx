@@ -42,6 +42,12 @@ const MODULES = [
   },
 ] as const;
 
+const PRINCIPLE_STEPS = [
+  { t: 'Модуль', d: 'узкий процесс' },
+  { t: 'ИИ', d: 'повторяющееся' },
+  { t: 'Человек', d: 'решения' },
+] as const;
+
 export function PlatformHomePage() {
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
@@ -82,7 +88,7 @@ export function PlatformHomePage() {
         >
           <div className="flex min-w-0 flex-col justify-center gap-5">
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight text-ink sm:text-3xl sm:leading-[1.2]">
-              Умные модули под конкретные процессы в&nbsp;недвижимости
+              Умные модули для закупок, продаж и&nbsp;документов
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
               Для команд в&nbsp;строительстве, редевелопменте и&nbsp;продажах. Вы принимаете
@@ -117,23 +123,23 @@ export function PlatformHomePage() {
                 height={32}
                 className="h-8 w-8 shrink-0"
               />
-              <p className="text-lg font-extrabold leading-snug text-ink">
-                На умных моделях <span className="text-[#c45a38]">Claude</span>
+              <p className="text-lg font-extrabold leading-none text-ink whitespace-nowrap">
+                На умных ИИ-моделях
               </p>
             </div>
             <ul className="flex flex-col gap-2.5 text-sm font-medium leading-snug text-ink-muted">
               <li className="relative pl-4 before:absolute before:left-0 before:top-[0.55em] before:h-1.5 before:w-1.5 before:rounded-full before:bg-[#d97757]">
                 <strong className="font-bold text-ink">Claude</strong> от{' '}
-                <strong className="font-bold text-ink">Anthropic</strong> — передовой ИИ
-                одного из лидеров рынка для сложных задач
+                <strong className="font-bold text-ink">Anthropic</strong> — передовой ИИ для сложных
+                задач
               </li>
               <li className="relative pl-4 before:absolute before:left-0 before:top-[0.55em] before:h-1.5 before:w-1.5 before:rounded-full before:bg-[#d97757]">
                 Не общий чат, а <strong className="font-bold text-ink">узкий помощник</strong> внутри
-                конкретного модуля
+                модуля
               </li>
               <li className="relative pl-4 before:absolute before:left-0 before:top-[0.55em] before:h-1.5 before:w-1.5 before:rounded-full before:bg-[#d97757]">
-                Работает только в <strong className="font-bold text-ink">заданных ситуациях</strong>;
-                незнакомое отдаёт человеку
+                Только в <strong className="font-bold text-ink">заданных ситуациях</strong>; остальное —
+                человеку
               </li>
             </ul>
           </aside>
@@ -148,8 +154,8 @@ export function PlatformHomePage() {
           <h2 id="quote-heading" className="sr-only">
             Отзыв после первой демонстрации
           </h2>
-          <blockquote>
-            <p className="text-lg font-extrabold leading-snug tracking-tight text-ink sm:text-xl lg:whitespace-nowrap lg:text-2xl">
+          <blockquote className="min-w-0">
+            <p className="text-lg font-extrabold leading-snug tracking-tight text-ink sm:text-xl lg:text-[1.35rem] xl:text-2xl">
               «Мне кажется, все компании рано или поздно придут к внедрению такого софта.»
             </p>
             <footer className="mt-3 text-sm leading-snug text-ink-muted">
@@ -158,13 +164,13 @@ export function PlatformHomePage() {
               </cite>
               <span className="text-ink-faint">
                 {' '}
-                — сказал собственнику после демо, модуль внедрили
+                — сказал собственнику после самой первой демки; модуль внедрили с&nbsp;первого раза
               </span>
             </footer>
           </blockquote>
         </section>
 
-        {/* Принцип — две колонки: текст + формула */}
+        {/* Принцип — две колонки: текст + три шага */}
         <section
           className={cn(
             'platform-home-rise platform-home-rise-d2 grid items-stretch gap-6 p-6 sm:gap-8 sm:p-8 lg:grid-cols-[1.35fr_0.85fr]',
@@ -184,27 +190,18 @@ export function PlatformHomePage() {
           </div>
 
           <aside
-            className="flex min-w-0 flex-col justify-center gap-4 rounded-[1.25rem] border border-border bg-white/70 p-5 sm:p-6"
-            aria-label="Формула модуля"
+            className="flex min-w-0 flex-col justify-center gap-2.5"
+            aria-label="Модуль, ИИ и человек"
           >
-            <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Формула</p>
-            <ol className="flex flex-col gap-3">
-              {[
-                { n: '01', t: 'Модуль', d: 'узкий процесс' },
-                { n: '02', t: 'ИИ', d: 'повторяющееся' },
-                { n: '03', t: 'Человек', d: 'решения' },
-              ].map((step) => (
-                <li key={step.n} className="flex items-baseline gap-3">
-                  <span className="w-7 shrink-0 text-xs font-extrabold text-ink-faint">{step.n}</span>
-                  <span className="text-base font-extrabold text-ink">{step.t}</span>
-                  <span className="text-sm text-ink-muted">{step.d}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="text-sm font-bold text-ink">
-              модуль <span className="text-ink-faint">+</span> ИИ{' '}
-              <span className="text-ink-faint">+</span> человек
-            </p>
+            {PRINCIPLE_STEPS.map((step) => (
+              <div
+                key={step.t}
+                className="flex items-baseline gap-3 rounded-xl border border-border bg-white/70 px-4 py-3"
+              >
+                <span className="text-base font-extrabold text-ink">{step.t}</span>
+                <span className="text-sm text-ink-muted">{step.d}</span>
+              </div>
+            ))}
           </aside>
         </section>
 
@@ -219,7 +216,7 @@ export function PlatformHomePage() {
             Модули
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-muted sm:text-base">
-            Каждый — под свой бизнес-процесс. Первый — закрытая демо; остальные в&nbsp;очереди.
+            Каждый — под свой бизнес-процесс.
           </p>
 
           <ul className="mt-6 grid gap-3 md:grid-cols-3">
