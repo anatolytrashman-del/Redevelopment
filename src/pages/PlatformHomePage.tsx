@@ -155,7 +155,7 @@ export function PlatformHomePage() {
               >
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 text-lg font-extrabold tracking-tight text-ink">
-                    {cat.mark}
+                    <span>{cat.mark}</span>
                     <ArrowRight
                       className="h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
                       aria-hidden
