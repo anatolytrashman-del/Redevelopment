@@ -1,6 +1,6 @@
-// «Кому подойдёт этот ТЦ» — формат win/lose как на casinolist (не казино-
-// тематика): кому да, кому нет, только из фактов карточки.
-import { Check, UserRound, X } from 'lucide-react';
+// Сравнение с аналогами — формат win/lose как на casinolist «кому подойдёт»:
+// в чём ТЦ выигрывает и проигрывает, только из фактов карточки.
+import { Check, Scale, X } from 'lucide-react';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 import { tcChipSoftClass } from './tradeCenterRetailStyle';
 import { cn } from '../../lib/cn';
@@ -16,22 +16,26 @@ export function TradeCenterFitBlock({
   if (points.length === 0) return null;
   const wins = points.filter((p) => p.side === 'win');
   const loses = points.filter((p) => p.side === 'lose');
-  const preview = wins[0]?.text ?? loses[0]?.text ?? null;
+  const preview =
+    wins.length && loses.length
+      ? `${wins.length} плюс · ${loses.length} минус к аналогам`
+      : wins[0]?.text ?? loses[0]?.text ?? null;
 
   return (
     <CategorySpoiler
       id="tc-fit"
-      title="Кому подойдёт этот ТЦ"
+      title="Сравнение с аналогами"
       subtitle={preview}
-      meta={`${wins.length} плюс · ${loses.length} минус`}
-      icon={UserRound}
+      meta="Выигрывает · проигрывает"
+      icon={Scale}
       index={index}
+      defaultOpen
     >
       <div className={cn('grid gap-3', wins.length > 0 && loses.length > 0 && 'md:grid-cols-2')}>
         {wins.length > 0 && (
           <div className="rounded-2xl border border-[#efdfd4] bg-[#fff8f2]/80 p-4">
             <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/80">
-              Подойдёт, если
+              Выигрывает у аналогов
             </h3>
             <ul className="mt-2.5 flex flex-col gap-2">
               {wins.map((point) => (
@@ -48,7 +52,7 @@ export function TradeCenterFitBlock({
         {loses.length > 0 && (
           <div className="rounded-2xl border border-border bg-white/80 p-4">
             <h3 className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/45">
-              Скорее нет, если
+              Проигрывает аналогам
             </h3>
             <ul className="mt-2.5 flex flex-col gap-2">
               {loses.map((point) => (

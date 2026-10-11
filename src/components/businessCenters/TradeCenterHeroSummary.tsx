@@ -201,22 +201,28 @@ export function TradeCenterHeroSummary({
       )}
 
       {mustHave.length > 0 && (
-        <section aria-labelledby="tc-musthave-title">
+        <section
+          className="rounded-2xl border border-[#efdfd4] bg-[#fff8f2]/70 px-3.5 py-3.5"
+          aria-labelledby="tc-musthave-title"
+        >
           <h2
             id="tc-musthave-title"
             className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/80"
           >
-            Коротко о ТЦ
+            Что внутри · must-have
           </h2>
-          {/* Одна высота плиток: короткий ответ + line-clamp, иначе длинные
-              якоря раздувают ячейку рядом с «Парковкой» (2026-10-11). */}
-          <ul className={`mt-2 grid auto-rows-fr gap-2 ${fitGridClass(mustHave.length, 2, 'tiles')}`}>
+          <p className="mt-1 text-xs leading-snug text-ink/50">
+            Парковка, якоря, еда и развлечения — коротко, без листания страницы
+          </p>
+          {/* Графический блок пунктов (не подпись под фото): одна высота,
+              короткие ответы (2026-10-11). */}
+          <ul className={`mt-2.5 grid auto-rows-fr gap-2 ${fitGridClass(mustHave.length, 2, 'tiles')}`}>
             {mustHave.map((item) => {
               const Icon = MUST_HAVE_ICONS[item.kind];
               const body = (
                 <>
-                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}>
-                    <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                  <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}>
+                    <Icon className="h-4.5 w-4.5" strokeWidth={1.75} aria-hidden="true" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
@@ -229,11 +235,11 @@ export function TradeCenterHeroSummary({
                 </>
               );
               const tileClass =
-                'flex h-full min-h-[3.25rem] items-center gap-2.5 rounded-2xl border border-[#efdfd4] bg-white/90 px-3 py-2';
+                'flex h-full min-h-[3.5rem] items-center gap-2.5 rounded-2xl border border-[#efdfd4] bg-white px-3 py-2.5 shadow-sm';
               return (
                 <li key={`${item.kind}-${item.label}`} className="min-h-0">
                   {item.href ? (
-                    <a href={item.href} className={cn(tileClass, 'transition-colors hover:bg-[#fff8f2]')}>
+                    <a href={item.href} className={cn(tileClass, 'transition-colors hover:bg-[#fff1e8]')}>
                       {body}
                     </a>
                   ) : (

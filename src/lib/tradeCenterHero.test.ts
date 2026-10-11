@@ -326,15 +326,16 @@ describe('tcHeroPhotoLead / tcHeroInsideLines / tcMeaningfulAltNames', () => {
     expect(items.find((i) => i.kind === 'anchor')?.value).toBe('6\u00a0якорей');
   });
 
-  it('fit — win/lose только из фактов карточки', () => {
+  it('fit — выигрывает/проигрывает аналогам только из фактов', () => {
     const points = tcFitPoints(info, {
       parkingSpaces: '2000',
       tenantCount: 477,
       hasMetro: true,
       totalArea: 93000,
     });
-    expect(points.some((p) => p.side === 'win' && /кино.*каток|каток.*кино/i.test(p.text))).toBe(true);
+    expect(points.some((p) => p.side === 'win' && /кино|каток/i.test(p.text))).toBe(true);
     expect(points.some((p) => p.side === 'win' && /парковк/i.test(p.text))).toBe(true);
+    expect(points.some((p) => p.side === 'win' && /аналог|крупн|больше|шире|ряду/i.test(p.text))).toBe(true);
     expect(points.filter((p) => p.side === 'win').length).toBeLessThanOrEqual(3);
     expect(points.filter((p) => p.side === 'lose').length).toBeLessThanOrEqual(3);
   });

@@ -465,8 +465,8 @@ export interface TcFitPoint {
 }
 
 /**
- * «Кому подойдёт» в духе casinolist: в чём ТЦ выигрывает / проигрывает
- * типичным ожиданиям. Только из фактов карточки — без выдуманных рейтингов.
+ * Сравнение с аналогами в духе casinolist «кому подойдёт»:
+ * выигрывает / проигрывает — только из фактов карточки.
  */
 export function tcFitPoints(info: RetailInfo | null, params: {
   parkingSpaces: string | null;
@@ -479,32 +479,41 @@ export function tcFitPoints(info: RetailInfo | null, params: {
   const funKinds = new Set(info.fun.map((f) => f.kind));
   const foodCount = info.food?.places.length ?? 0;
   const parkingN = params.parkingSpaces ? Number(String(params.parkingSpaces).replace(/[^\d]/g, '')) : null;
+  const spacesLabel = params.parkingSpaces
+    ? String(params.parkingSpaces).replace(/^более\s+/iu, '').replace(/\s+мест$/iu, '')
+    : null;
 
   if (funKinds.has('cinema') && funKinds.has('ice')) {
-    points.push({ side: 'win', text: 'Если нужна связка кино + каток в одном ТЦ — здесь оба.' });
+    points.push({ side: 'win', text: 'Кино и каток в одном комплексе — у многих ТЦ только одно из двух.' });
   } else if (funKinds.has('cinema') || funKinds.has('kids')) {
-    points.push({ side: 'win', text: 'Если едете с детьми или в кино — развлечения на месте.' });
+    points.push({ side: 'win', text: 'Свой блок развлечений (кино или дети) — не только торговая галерея.' });
+  } else if (info.fun.length === 0) {
+    points.push({ side: 'lose', text: 'Без своего кино/катка/детского центра — слабее досуговых ТРЦ.' });
   }
   if (parkingN != null && parkingN >= 1000) {
-    points.push({ side: 'win', text: `Если важна большая парковка — около ${params.parkingSpaces} мест.` });
+    points.push({ side: 'win', text: `Парковка около ${spacesLabel} мест — заметно больше типичного районного ТЦ.` });
   } else if (!params.parkingSpaces) {
-    points.push({ side: 'lose', text: 'Если без парковки никуда — отдельной сводки мест на карточке нет.' });
+    points.push({ side: 'lose', text: 'Нет сводки по числу мест — проигрывает ТЦ с явной большой парковкой.' });
   }
   if (foodCount >= 15) {
-    points.push({ side: 'win', text: `Если планируете поесть здесь — ${foodCount} ${pluralRu(foodCount, 'заведение', 'заведения', 'заведений')}.` });
+    points.push({ side: 'win', text: `${foodCount} ${pluralRu(foodCount, 'точка', 'точки', 'точек')} еды — шире выбор, чем у компактных ТЦ.` });
   } else if (foodCount > 0 && foodCount < 8) {
-    points.push({ side: 'lose', text: 'Если ищете большой фуд-выбор — точек питания немного.' });
+    points.push({ side: 'lose', text: 'Фуд-выбор скромный — проигрывает ТРЦ с большим фудкортом.' });
   }
   if (params.hasMetro) {
-    points.push({ side: 'win', text: 'Если удобнее на метро — станция рядом указана в проезде.' });
+    points.push({ side: 'win', text: 'Есть привязка к метро — удобнее аналогов «только на машине».' });
   } else {
-    points.push({ side: 'lose', text: 'Если нужна станция метро у входа — в карточке её нет.' });
+    points.push({ side: 'lose', text: 'Без станции у входа — проигрывает ТЦ у метро.' });
   }
   if (params.tenantCount >= 300) {
-    points.push({ side: 'win', text: `Если нужен крупный состав — ${params.tenantCount} магазинов и сервисов.` });
+    points.push({ side: 'win', text: `${params.tenantCount} магазинов и сервисов — крупный состав по меркам города.` });
+  } else if (params.tenantCount > 0 && params.tenantCount < 80) {
+    points.push({ side: 'lose', text: 'Небольшой состав арендаторов — слабее крупных ТРЦ по выбору брендов.' });
   }
-  if (params.totalArea != null && params.totalArea < 40000) {
-    points.push({ side: 'lose', text: 'Если сравниваете с крупнейшими ТРЦ города — площадь скромнее.' });
+  if (params.totalArea != null && params.totalArea >= 80000) {
+    points.push({ side: 'win', text: 'Крупная торговая площадь — в ряду главных ТРЦ города.' });
+  } else if (params.totalArea != null && params.totalArea < 40000) {
+    points.push({ side: 'lose', text: 'Площадь скромнее крупнейших ТРЦ — меньше «всего в одном месте».' });
   }
   // Не больше 3+3, без пустого «всё хорошо».
   const wins = points.filter((p) => p.side === 'win').slice(0, 3);
