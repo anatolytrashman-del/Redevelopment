@@ -1,11 +1,40 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { cn } from '../lib/cn';
-import { glassCardClass, glassCardShadow } from '../lib/glass';
+import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { SiteBrandLogo } from '../components/layout/SiteBrandLogo';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { SITES } from '../lib/sites';
+
+// Тот же Telegram, что на лендинге Red One (ObjectLandingPage).
+const FOUNDER_TELEGRAM_URL = 'https://t.me/a_trashman';
+const FOUNDER_ONLINE_FROM_HOUR = 9;
+const FOUNDER_ONLINE_TO_HOUR = 23;
+
+function TelegramLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="12" fill="#29A9EB" />
+      <path
+        fill="#FFFFFF"
+        d="M5 12.3 18.5 7c.6-.2 1.1.2.9 1.1l-2.3 10.9c-.2.7-.6.9-1.2.6l-3.4-2.5-1.6 1.6c-.2.2-.3.3-.6.3l.2-3.1 5.7-5.1c.2-.2 0-.3-.3-.1l-7 4.4L5 13.7c-.6-.2-.6-.6 0-.9z"
+      />
+      <path fill="#B9DCF2" d="m10.5 15.4-.2 3.1c.3 0 .4-.1.6-.3l1.6-1.6-2-1.2z" />
+    </svg>
+  );
+}
+
+function isFounderOnlineNow() {
+  const moscowHour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Moscow',
+      hour: 'numeric',
+      hour12: false,
+    }).format(new Date()),
+  );
+  return moscowHour >= FOUNDER_ONLINE_FROM_HOUR && moscowHour < FOUNDER_ONLINE_TO_HOUR;
+}
 
 // Главная redevelopment.pro — каталоги + платформа умных модулей.
 // Preview 2026-10-11: лого без меню; блок каталогов над блоком модулей.
@@ -45,9 +74,16 @@ const CATALOGS: {
 ];
 
 export function PlatformHomePage() {
+  const [founderOnline, setFounderOnline] = useState(isFounderOnlineNow);
+
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL });
     setOrganizationJsonLd(true);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setFounderOnline(isFounderOnlineNow()), 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   return (
@@ -60,8 +96,31 @@ export function PlatformHomePage() {
       </a>
 
       <header className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center px-4 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-8">
           <SiteBrandLogo to="/" />
+          <a
+            href={FOUNDER_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            title={founderOnline ? 'Онлайн — на связи' : 'Офлайн — отвечу завтра'}
+            aria-label={`Написать основателю в Telegram — ${founderOnline ? 'онлайн' : 'офлайн'}`}
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 text-sm font-medium text-ink hover:border-primary hover:text-primary sm:py-1.5',
+              glassPillClass,
+            )}
+            style={glassPillShadow}
+          >
+            <span className="relative flex h-7 w-7 shrink-0 items-center justify-center sm:h-5 sm:w-5">
+              <TelegramLogo className="h-7 w-7 sm:h-5 sm:w-5" />
+              <span
+                className={cn(
+                  'absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full ring-2 ring-white',
+                  founderOnline ? 'bg-success' : 'bg-ink-faint',
+                )}
+              />
+            </span>
+            <span className="hidden sm:inline">Написать основателю</span>
+          </a>
         </div>
       </header>
 
