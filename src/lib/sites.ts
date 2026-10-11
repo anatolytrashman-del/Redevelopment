@@ -147,14 +147,25 @@ function canonicalizeOfficesPath(path: string): string {
   return path.replace(/^\/minsk\/bcminsk/, '/minsk/bc').replace(/^\/bc(?=\/|$)/, '/minsk/bc');
 }
 
+/** Прод-хосты трёх сайтов — только с них уводим каталоги 301. */
+function isSplitProductionHost(bare: string): boolean {
+  return bare === PLATFORM.host || bare === OFFICES.host || bare === MALLS.host;
+}
+
 /**
  * Куда 301-ить запрос с host+pathname при включённом сплите.
  * null — редирект не нужен (уже на своём домене или путь платформы).
+ *
+ * Превью Vercel (`*.vercel.app`) и localhost сюда не попадают: иначе
+ * branch-деплой malllist сразу уезжает на живой malllist.pro со старым
+ * кодом (владелец, 2026-10-11).
  */
 export function crossDomainRedirect(host: string, pathname: string): string | null {
   if (!CATALOG_DOMAIN_SPLIT_ENABLED) return null;
 
   const bare = host.replace(/^www\./, '').toLowerCase();
+  if (!isSplitProductionHost(bare)) return null;
+
   const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
   const siteId = siteIdForPath(path);
   const isWww = host.toLowerCase().startsWith('www.');

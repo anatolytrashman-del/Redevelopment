@@ -43,6 +43,8 @@ export function DeveloperDeepCard({
   logoAlt,
   contacts,
   showSources = true,
+  /** Без внешней карточки/заголовка — контент внутри CategorySpoiler на ТЦ. */
+  embedded = false,
 }: {
   info: DeveloperInfo;
   /** «Кто стоит за торговым центром «Замок»». */
@@ -53,6 +55,7 @@ export function DeveloperDeepCard({
   /** Контакты — тот же кусок, что у простой карточки (страница собирает). */
   contacts: ReactNode;
   showSources?: boolean;
+  embedded?: boolean;
 }) {
   const [showAllPortfolio, setShowAllPortfolio] = useState(false);
   const profile = info.profile ?? null;
@@ -63,17 +66,24 @@ export function DeveloperDeepCard({
   const portfolioGroups = groupPortfolio(portfolio, showAllPortfolio ? Infinity : PORTFOLIO_PREVIEW);
   const hiddenCount = portfolio.length - portfolioGroups.reduce((sum, g) => sum + g.items.length, 0);
 
-  return (
-    <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-6 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="flex min-w-0 items-center gap-2 text-lg font-bold text-ink">
-          <HardHat className="h-5 w-5 shrink-0 text-icon" />
-          <span className="min-w-0 break-words">{title}</span>
-        </h2>
-        {info.logoUrl && (
+  const body = (
+    <>
+      {!embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="flex min-w-0 items-center gap-2 text-lg font-bold text-ink">
+            <HardHat className="h-5 w-5 shrink-0 text-icon" />
+            <span className="min-w-0 break-words">{title}</span>
+          </h2>
+          {info.logoUrl && (
+            <img src={info.logoUrl} alt={logoAlt} loading="lazy" className="h-9 w-auto max-w-[10rem] object-contain" />
+          )}
+        </div>
+      )}
+      {embedded && info.logoUrl && (
+        <div className="flex justify-end">
           <img src={info.logoUrl} alt={logoAlt} loading="lazy" className="h-9 w-auto max-w-[10rem] object-contain" />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Главная компания */}
       <div className="flex flex-col gap-3">
@@ -209,6 +219,16 @@ export function DeveloperDeepCard({
       {contacts}
 
       {showSources && <SourcesLine entries={collectDeveloperSources(info)} />}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex flex-col gap-6">{body}</div>;
+  }
+
+  return (
+    <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-6 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+      {body}
     </div>
   );
 }

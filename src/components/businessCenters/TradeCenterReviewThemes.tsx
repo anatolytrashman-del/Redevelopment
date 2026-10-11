@@ -1,23 +1,31 @@
 import { MessageSquare } from 'lucide-react';
 import type { HighlightRatingEntry } from '../../lib/businessCenterDisplay';
 import { reviewThemeColumns, reviewThemesShowShares, reviewThemesVisible, reviewThemeWidth, type ReviewThemes } from '../../lib/tradeCenterFactsReviews';
-import { glassCardShadow } from '../../lib/glass';
-import { retailCardClass } from './tradeCenterRetailStyle';
+import { CategorySpoiler } from '../ui/CategorySpoiler';
 
-export function TradeCenterReviewThemes({ themes, rating, yandexUrl }: {
+export function TradeCenterReviewThemes({ themes, rating, yandexUrl, index }: {
   themes: ReviewThemes;
   rating?: HighlightRatingEntry;
   yandexUrl?: string;
+  index?: number;
 }) {
   const columns = reviewThemeColumns(themes);
   if (!reviewThemesVisible(themes)) return null;
   const shares = reviewThemesShowShares(themes);
+  const preview = rating
+    ? `${rating.value} на Яндекс Картах`
+    : themes.reviewCount
+      ? `${themes.reviewCount.toLocaleString('ru-RU')} отзывов`
+      : 'Темы из отзывов в Яндекс Картах';
   return (
-    <section id="reviews" className={retailCardClass} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <span className="rounded-lg bg-icon-bg p-1"><MessageSquare className="h-5 w-5 text-icon" /></span>
-        Что говорят посетители
-      </h2>
+    <CategorySpoiler
+      id="reviews"
+      title="Что говорят посетители"
+      subtitle={preview}
+      meta={themes.reviewCount ? `${themes.reviewCount.toLocaleString('ru-RU')} отзывов` : null}
+      icon={MessageSquare}
+      index={index}
+    >
       {rating && (
         <div className="rounded-[20px] border border-border bg-white px-5 py-4 sm:max-w-72">
           <div className="text-[44px] font-extrabold leading-none text-ink">{rating.value}</div>
@@ -48,6 +56,6 @@ export function TradeCenterReviewThemes({ themes, rating, yandexUrl }: {
           </div>
         ))}
       </div>
-    </section>
+    </CategorySpoiler>
   );
 }

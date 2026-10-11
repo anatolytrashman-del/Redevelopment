@@ -8,6 +8,7 @@ import type { BusinessCenterReview } from '../../data/businessCenterReviews';
 import { parseHighlightRatings, parseReviewQuote } from '../../lib/businessCenterDisplay';
 import { AXIS_DOMAIN_PCT, type ComparisonBar, type MarketPosition } from '../../lib/businessCenterMarketPosition';
 import type { PriceCard, PriceComparison } from '../../lib/businessCenterPriceCompare';
+import { CategorySpoiler } from '../ui/CategorySpoiler';
 
 // Авторские блоки карточки БЦ (Б1, Б10, Б11 плана
 // docs/bc-catalog-redesign-plan.md) — то, чего на странице не было вовсе:
@@ -84,22 +85,17 @@ function ComparisonRow({ bar }: { bar: ComparisonBar }) {
 
 export function MarketPositionBlock({
   position,
+  asSpoiler = false,
+  index,
 }: {
   position: MarketPosition;
+  /** ТЦ: сворачиваемый CategorySpoiler вместо всегда открытой карточки. */
+  asSpoiler?: boolean;
+  index?: number;
 }) {
   if (position.bars.length === 0) return null;
-  return (
-    // id — якорь для липкого меню «На странице» (Б7). scroll-mt — чтобы
-    // заголовок не уезжал под липкую шапку при переходе по якорю.
-    <div id="market" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
-      <div>
-        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-          <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
-          Место среди конкурентов
-        </h2>
-        <p className="ml-7 mt-1 text-xs text-ink-muted sm:text-sm">Сравнение с медианой БЦ того же класса</p>
-      </div>
-
+  const body = (
+    <>
       {/* Шапка шкалы — те же колонки, что у строк ниже, поэтому подписи концов
           шкалы встают ровно над треками, не требуя лишней синхронизации ширин. */}
       <div className="flex items-center gap-3 sm:gap-4">
@@ -124,6 +120,34 @@ export function MarketPositionBlock({
           <ComparisonRow key={bar.label} bar={bar} />
         ))}
       </div>
+    </>
+  );
+  if (asSpoiler) {
+    return (
+      <CategorySpoiler
+        id="market"
+        title="Место среди конкурентов"
+        subtitle={position.summary ?? 'Сравнение с медианой зданий того же класса'}
+        meta={`${position.bars.length} метрик`}
+        icon={Gauge}
+        index={index}
+      >
+        {body}
+      </CategorySpoiler>
+    );
+  }
+  return (
+    // id — якорь для липкого меню «На странице» (Б7). scroll-mt — чтобы
+    // заголовок не уезжал под липкую шапку при переходе по якорю.
+    <div id="market" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+          <Gauge className="h-5 w-5 shrink-0 text-ink-muted" />
+          Место среди конкурентов
+        </h2>
+        <p className="ml-7 mt-1 text-xs text-ink-muted sm:text-sm">Сравнение с медианой БЦ того же класса</p>
+      </div>
+      {body}
     </div>
   );
 }
@@ -215,26 +239,51 @@ export function extractHistoryPoints(center: BusinessCenter): HistoryPoint[] {
   return points.sort((a, b) => a.year - b.year);
 }
 
-export function HistoryTimeline({ center }: { center: BusinessCenter }) {
+export function HistoryTimeline({
+  center,
+  asSpoiler = false,
+  index,
+}: {
+  center: BusinessCenter;
+  asSpoiler?: boolean;
+  index?: number;
+}) {
   const points = useMemo(() => extractHistoryPoints(center), [center]);
   // Одна точка — это не шкала, а предложение: такой «таймлайн» выглядел бы
   // как ошибка вёрстки. Текст в этом случае остаётся в общем блоке фактов.
   if (points.length < 2) return null;
+  const list = (
+    <ol className="flex flex-col gap-4 border-l border-border pl-5">
+      {points.map((p) => (
+        <li key={p.year} className="relative">
+          <span className="absolute -left-[1.6rem] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
+          <span className="block text-sm font-bold text-ink">{p.year}</span>
+          <span className="block text-sm leading-relaxed text-ink-muted">{renderBold(p.text)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+  if (asSpoiler) {
+    return (
+      <CategorySpoiler
+        id="history"
+        title="История здания"
+        subtitle={`${points[0].year}–${points[points.length - 1].year}`}
+        meta={`${points.length} дат`}
+        icon={History}
+        index={index}
+      >
+        {list}
+      </CategorySpoiler>
+    );
+  }
   return (
     <div id="history" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
       <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
         <History className="h-5 w-5 shrink-0 text-ink-muted" />
         История здания
       </h2>
-      <ol className="flex flex-col gap-4 border-l border-border pl-5">
-        {points.map((p) => (
-          <li key={p.year} className="relative">
-            <span className="absolute -left-[1.6rem] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
-            <span className="block text-sm font-bold text-ink">{p.year}</span>
-            <span className="block text-sm leading-relaxed text-ink-muted">{renderBold(p.text)}</span>
-          </li>
-        ))}
-      </ol>
+      {list}
     </div>
   );
 }

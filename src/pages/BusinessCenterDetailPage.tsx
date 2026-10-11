@@ -39,6 +39,7 @@ import {
   Palette,
   Phone,
   Presentation,
+  Scale,
   ScrollText,
   ShoppingBag,
   Sparkles,
@@ -55,9 +56,21 @@ import { cn } from '../lib/cn';
 import { renderBold } from '../lib/renderBold';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
+import { CategorySpoiler } from '../components/ui/CategorySpoiler';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
-import { MetroValue, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
+import {
+  MetroValue,
+  TradeCenterHeroSubtitle,
+  TradeCenterHeroSummary,
+} from '../components/businessCenters/TradeCenterHeroSummary';
+import { TradeCenterFitBlock } from '../components/businessCenters/TradeCenterFitBlock';
+import {
+  tcFitPoints,
+  tcMeaningfulAltNames,
+  tcParkingShort,
+  tcParkingSpaces,
+} from '../lib/tradeCenterHero';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import {
@@ -240,6 +253,7 @@ const SECTION_LABELS: Record<string, string> = {
   numbers: RETAIL_SECTION_LABELS.numbers,
   quotes: RETAIL_SECTION_LABELS.quotes,
   anchors: RETAIL_SECTION_LABELS.anchors,
+  'tc-fit': 'Сравнение с аналогами',
   // «БЦ» подменяется на «ТЦ» в каталоге торговых центров (см. sectionLabel).
   rental: 'Отдел аренды БЦ',
   offers: 'Что сдают и продают',
@@ -259,6 +273,7 @@ const SECTION_ICONS: Record<string, typeof FileText> = {
   tech: Building2,
   tenants: Users,
   amenities: LayoutGrid,
+  'tc-fit': Scale,
   ...RETAIL_SECTION_ICONS,
   rental: FileText,
   offers: Banknote,
@@ -1920,46 +1935,45 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     if (!center) return [];
     const has = (id: string, cond: boolean) =>
       cond ? { id, label: isTc && id === 'offers' ? 'Аренда в ТЦ' : SECTION_LABELS[id].replace(/БЦ$/, V.abbr) } : null;
-    // Порядок пунктов повторяет порядок блоков на странице (владелец принял
-    // 2026-09-20; "Параметры здания" переехали под "Историю здания"
-    // 2026-09-22): что предлагают и почём → где оно → кто внутри → на фоне
-    // конкурентов → отзывы → блоки доверия (награды/СМИ/факты/история/
-    // параметры здания) → застройщик → FAQ.
+    // Порядок пунктов = порядок блоков. У БЦ — прежний (аренда сверху).
+    // У ТЦ (владелец, 2026-10-11): сначала посетительское (схема, парковка,
+    // якоря…), реклама и отдел аренды — в хвосте перед FAQ.
+    const rentalAvailable = Boolean(
+      center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts),
+    );
+    const offersAvailable =
+      saleStats !== null ||
+      rentStats !== null ||
+      Boolean(isTc && (center.retailInfo?.vacancies.length || center.retailInfo?.leasing));
+    const bcBusinessHead = !isTc
+      ? [
+          has('offers', offersAvailable),
+          has('rental', rentalAvailable),
+          center.lat != null && center.lng != null
+            ? {
+                id: 'map',
+                label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
+              }
+            : null,
+        ]
+      : [];
     return [
-      has('offers', saleStats !== null || rentStats !== null || Boolean(isTc && (center.retailInfo?.vacancies.length || center.retailInfo?.leasing))),
-      has(
-        'rental',
-        Boolean(
-          center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts),
-        ),
-      ),
-      // Карта есть у любого БЦ с координатами — с 2026-09-20 блок рисуется
-      // на всех страницах каталога, а не только там, где собран снимок
-      // точек. Подпись пункта меню повторяет заголовок блока: вести
-      // «Инфраструктуру рядом» на голую карту — обещать то, чего там нет.
-      // У ТЦ блок «Инфраструктура в 10 минутах пешком» снят (владелец,
-      // 2026-09-25: «убираем блок со всех страниц ТЦ»).
-      !isTc && center.lat != null && center.lng != null
-        ? {
-            id: 'map',
-            label: hasNearbyContent(center, nearbyPlaces) ? SECTION_LABELS.map : 'Расположение',
-          }
-        : null,
-      // Торговые блоки ТЦ стоят между картой и каталогом арендаторов;
-      // каталог у ТЦ — часть «Путеводителя» (id 'floors'), отдельного
-      // пункта меню 'tenants' у ТЦ больше нет (владелец, 2026-09-25).
+      ...bcBusinessHead,
+      // Торговые блоки ТЦ: каталог — часть «Путеводителя» (id 'floors').
       ...(isTc ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : []).map((id) => has(id, true)),
       has('tenants', !isTc && tenantOrganizations.length > 0),
-      // «Инфраструктура» — пунктом меню только у ТЦ (у БЦ блок оборудования
-      // короткий и в меню не выводился).
       has('amenities', tcInfrastructure.length > 0),
-      has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
       has(
-        'reviews',
-        hasReviewsBlock,
+        'tc-fit',
+        isTc &&
+          tcFitPoints(center.retailInfo, {
+            parkingSpaces: tcParkingSpaces(center.retailInfo?.parking ?? null),
+            tenantCount: tenantOrganizations.length,
+            hasMetro: Boolean(center.metro || (center.nearestMetroStations?.length ?? 0) > 0),
+            totalArea: center.totalArea,
+          }).length > 0,
       ),
-      // У ТЦ награды (в том числе строки из highlights) и места в рейтингах
-      // — один блок «Награды и рейтинги», общий блок «Награды» не рисуется.
+      has('reviews', hasReviewsBlock),
       has('awards', !isTc && awardItems.length > 0),
       isTc && (tcHasAwards || tcHasRanking)
         ? { id: 'awards-ranking', label: awardsRankingTitle(tcHasAwards, tcHasRanking) }
@@ -1975,6 +1989,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           Boolean(center.parking || accessHoursText || accessibilityAttributes),
       ),
       has('developer', Boolean(center.developerInfo)),
+      has('market', Boolean(marketPosition && marketPosition.bars.length > 0)),
+      ...(isTc
+        ? [has('offers', offersAvailable), has('rental', rentalAvailable)]
+        : []),
       has('faq', faqItems.length > 0),
     ].filter((v): v is { id: string; label: string } => v !== null);
   }, [
@@ -2130,24 +2148,17 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   // самому верхнему месту.
   const recommendationSlots = useMemo(() => {
     const slots = new Map<string, RecommendationBlockId[]>();
-    // Торговые карточки ТЦ читаются двумя группами — «для посетителя»
-    // (этажи, история ритейла, еда, развлечения, посетителю) и «для бизнеса» (аренда и реклама,
-    // цифры, цитаты). Рекомендацию, выпавшую внутри группы, переносим за
-    // последнюю карточку той же группы; на стыке групп она остаётся. Если
-    // там уже стоит своя, оставляем как было: две рекомендации подряд хуже.
+    // Торговые карточки ТЦ: «посетитель» (схема → парковка → якоря → …) и
+    // «бизнес» (реклама). Рекомендацию внутри группы переносим за последнюю
+    // карточку группы; на стыке — оставляем. Две подряд хуже одной.
     const retailIds = new Set<string>(
       isTc && center ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : [],
     );
-    // «Якорные арендаторы» и каталог арендаторов под ними читаются как одно
-    // целое: рекомендация после якорей уезжает за каталог, если он есть.
-    const hasTenants = sectionSizes.some((section) => section.id === 'tenants');
     const lastRetailOf = (group: 'visitor' | 'business' | 'tenants') =>
-      group === 'tenants' && hasTenants
-        ? 'tenants'
-        : ([...sectionSizes]
-            .reverse()
-            .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
-            ?.id ?? null);
+      [...sectionSizes]
+        .reverse()
+        .find((section) => retailIds.has(section.id) && retailSectionGroup(section.id as RetailSectionId) === group)
+        ?.id ?? null;
     const planned = planRecommendationSlots(sectionSizes, recommendationBlocks.length);
     planned.forEach((sectionId, index) => {
       const block = recommendationBlocks[index];
@@ -2485,6 +2496,29 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         )}
       </div>
     );
+  const heroAltNames = isTc ? tcMeaningfulAltNames(center.name, center.altNames) : center.altNames;
+  const sectionIndex = (id: string) => {
+    const pos = pageSections.findIndex((section) => section.id === id);
+    return pos >= 0 ? pos + 1 : undefined;
+  };
+  const tcFit = isTc
+    ? tcFitPoints(center.retailInfo, {
+        parkingSpaces: tcParkingSpaces(center.retailInfo?.parking ?? null),
+        tenantCount: tenantOrganizations.length,
+        hasMetro: Boolean(nearestMetro || center.metro),
+        totalArea: center.totalArea,
+      })
+    : [];
+  const techPreview = (() => {
+    if (!isTc) return null;
+    const parkingShort = tcParkingShort(center.retailInfo?.parking ?? null);
+    if (parkingShort) return `Парковка · ${parkingShort}`;
+    if (center.parking && center.parking.length <= 56) return `Парковка · ${center.parking}`;
+    if (architectureHighlights[0]?.text) return architectureHighlights[0].text;
+    const row = redistributedTechnicalParams.buildingInformationRows[0];
+    if (row) return `${row.label}: ${row.value}`;
+    return 'Площадь, этажи, парковка и факты о здании';
+  })();
   return (
     <div className="min-h-svh bg-bg">
       {/* Сквозная шапка каталога (владелец, 2026-09-22). Раньше на карточке
@@ -2665,7 +2699,13 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                     onClick={() => setTocOpen(false)}
                     className="flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm leading-snug text-ink transition-colors hover:bg-surface-muted"
                   >
-                    <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon" />
+                    <SectionIcon
+                      className={cn(
+                        'mt-0.5 h-4 w-4 shrink-0',
+                        isTc ? 'text-[#c45c3a]/80' : 'text-icon',
+                      )}
+                      strokeWidth={isTc ? 1.75 : undefined}
+                    />
                     <span>{sec.label}</span>
                   </a>
                 );
@@ -2713,7 +2753,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               className={cn('min-h-0 overflow-y-auto p-4', glassCardClass)}
               style={glassCardShadow}
             >
-              <p className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">На странице</p>
+              <p className="px-2 pb-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/45">
+                На странице
+              </p>
               <div className="flex flex-col">
                 {pageSections.map((sec) => {
                   const SectionIcon = SECTION_ICONS[sec.id] ?? FileText;
@@ -2723,7 +2765,15 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                       href={`#${sec.id}`}
                       className="group flex items-start gap-3 rounded-xl px-2 py-2 text-sm leading-snug text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
                     >
-                      <SectionIcon className="mt-0.5 h-4 w-4 shrink-0 text-icon transition-colors group-hover:text-primary" />
+                      <SectionIcon
+                        className={cn(
+                          'mt-0.5 h-4 w-4 shrink-0 transition-colors',
+                          isTc
+                            ? 'text-[#c45c3a]/75 group-hover:text-[#c45c3a]'
+                            : 'text-icon group-hover:text-primary',
+                        )}
+                        strokeWidth={isTc ? 1.75 : undefined}
+                      />
                       <span>{sec.label}</span>
                     </a>
                   );
@@ -2746,7 +2796,16 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               основная сводка стоят рядом. Прежняя вертикальная версия целиком
               сохранена в родительском коммите этой правки и откатывается
               одним revert без затрагивания остальных блоков страницы. */}
-          <div className="grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+          <div
+            className={cn(
+              'grid',
+              // ТЦ: фото шире — широкий фасад меньше режется по бокам
+              // (владелец, 2026-10-11: «фотка не влезает»).
+              isTc
+                ? 'lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-stretch'
+                : 'lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]',
+            )}
+          >
             {/* Квадрат на мобильном, не 16:9 (владелец, 2026-09-22: «не
                 нравится, что на мобильной версии обрезается половина
                 картинки»). Все 143 фото в каталоге — 1200×1200, и контейнер
@@ -2757,34 +2816,38 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 быть не должно», ради которого в 2026-09-20 включали cover.
                 Появится неквадратное фото — cover обрежет его по короткой
                 стороне, как и раньше; заводить под это отдельную логику
-                незачем, пока съёмка идёт в квадрат. На lg и шире всё
-                по-прежнему: фото в колонке рядом со сводкой, высота по
-                min-h. На планшете (md, 768–1023) квадрат во всю ширину
-                занимал бы 768 px высоты — весь первый экран под одним фото,
-                поэтому там 4:3: кадр режется, но вчетверо меньше, чем
-                резало 16:9. */}
-            <div className="relative aspect-square w-full overflow-hidden bg-surface-muted/70 md:aspect-[4/3] lg:aspect-auto lg:min-h-[28rem]">
-              {/* cover, не contain — владелец, 2026-09-20: "на некоторых
-                  разрешениях фото не вписано в высоту карточки, остаются
-                  поля — полей быть не должно, где это возможно". contain
-                  сохраняет весь кадр, но на контейнере с фиксированной
-                  aspect-ratio/min-height даёт пустые поля у любого фото, чьё
-                  соотношение сторон не совпадает с контейнером — было заметно
-                  почти на каждом здании, а не только у двух прежних
-                  исключений (port/victoria-plaza, для которых cover включали
-                  точечно). */}
-              <PhotoBlock center={center} variant="detail" fit="cover" />
+                незачем, пока съёмка идёт в квадрат. На планшете (md,
+                768–1023) квадрат во всю ширину занимал бы 768 px высоты —
+                весь первый экран под одним фото, поэтому там 4:3.
+                У ТЦ на lg: колонка на всю высоту правой сводки (без дыры
+                под квадратом), cover заполняет без полей; колонка шире
+                1.15fr — меньше боковой обрезки фасада. */}
+                        <div
+              className={cn(
+                'relative aspect-square w-full overflow-hidden bg-surface-muted/70 md:aspect-[4/3]',
+                isTc
+                  ? 'lg:aspect-auto lg:h-full lg:min-h-[24rem] lg:self-stretch'
+                  : 'lg:aspect-auto lg:min-h-[28rem]',
+              )}
+            >
+              <PhotoBlock
+                center={center}
+                variant="detail"
+                fit="cover"
+                imgClassName={isTc ? 'lg:absolute lg:inset-0 lg:h-full lg:w-full' : undefined}
+              />
               {/* Владелец, 2026-09-20: "если БЦ построен, вообще убирай тег
                   Работает — помечаем только строящиеся". Достроенное здание
                   и так по умолчанию работает, отдельная пометка для него
                   избыточна; "Строится" — исключение, которое стоит подсветить. */}
               {center.status === 'under_construction' && (
-                <div className="absolute left-4 top-4">
+                <div className="absolute left-4 top-4 z-10">
                   <Badge tone="warning" className="shadow-sm backdrop-blur-sm">
                     Строится
                   </Badge>
                 </div>
               )}
+              {/* Статус и «Кино·Каток» с фото убраны — дубль с «Сейчас»/must-have (2026-10-11). */}
               {/* Избранное — в правом углу фотки (владелец, 2026-09-21:
                   "добавление в избранное перенесем в правый угол фотки").
                   Рейтинг Яндекс.Карт, который раньше был бейджем в этом же
@@ -2794,19 +2857,20 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   в избранное с мобилки". Ниже xl та же кнопка стоит в
                   sticky-строке рядом с «Все БЦ»/«Содержание» (secondRow
                   выше); дублировать её на фотке незачем. */}
-              <div className="absolute right-4 top-4 hidden xl:block">
+              <div className="absolute right-4 top-4 z-10 hidden xl:block">
                 {!ownerMode && <FavoriteButton slug={center.slug} />}
               </div>
             </div>
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               {/* Второе имя здания — сразу под заголовком, а не только в
                   title: по Wordstat БЦ «V» ищут как «Столица» чаще, чем под
                   основным именем, и человек, пришедший по такому запросу,
                   должен увидеть знакомое слово на первом экране, иначе
                   решит, что попал не туда. */}
-              <h1 className="text-2xl font-extrabold leading-tight text-ink">{fullName(center)}</h1>
+              {isTc && <TradeCenterHeroSubtitle center={center} />}
+              <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-[1.75rem]">{fullName(center)}</h1>
               {redistributedTechnicalParams.corpora.length >= 2 && (
                 <p className="text-sm font-semibold text-ink-muted">
                   Комплекс из {redistributedTechnicalParams.corpora.length}{' '}
@@ -2819,15 +2883,14 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   Информация проверена администрацией БЦ
                 </p>
               )}
-              {center.altNames.length > 0 && (
+              {/* У ТЦ прячем дубли формата («ТРЦ Замок» / «ТЦ Замок» рядом
+                  с заголовком) — оставляем только имена, которые реально
+                  отличаются (напр. латиница). */}
+              {heroAltNames.length > 0 && (
                 <p className="text-sm text-ink-muted">
-                  Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
+                  Также известен как {heroAltNames.map((alt) => `«${alt}»`).join(', ')}
                 </p>
               )}
-              {/* Формат/этажность/год одной приглушённой строкой — только у
-                  ТЦ (владелец, 2026-09-25): у БЦ эти же факты уже есть в
-                  плитках ниже, а формат объекта («ТРЦ», «аутлет»…) у БЦ не
-                  собирается вовсе. */}
             </div>
 
             {/* У ТЦ вместо «Расположения», плиток класс/площадь/год/рейтинг
@@ -3027,7 +3090,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             Сравнение со срезом рынка живёт в соседнем блоке «Цены в
             здании и по рынку», окупаемость не считается вовсе (обе
             причины — в комментариях тех файлов). */}
-        {!ownerMode && (isTc ? <TradeCenterLeasing info={center.retailInfo} name={center.name} sale={saleStats} rent={rentStats} /> : <BuildingOffersSection sale={saleStats} rent={rentStats} />)}
+        {/* У БЦ аренда/объявления сверху. У ТЦ (2026-10-11) — в хвосте:
+            посетителю сначала схема и парковка, отдел аренды почти никому. */}
+        {!ownerMode && !isTc && <BuildingOffersSection sale={saleStats} rent={rentStats} />}
 
         {/* Цены здания против рынка. Прежде здесь лежали два предложения с
             процентами («Аренда в этом здании — $15/м²/мес, это выше на 30%
@@ -3041,31 +3106,12 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             живёт. Подпись «4 предложения в здании» в таком случае врала бы
             настоящим временем, поэтому блок привязан к текущим объявлениям,
             а не только к снимку. */}
-        {offers !== null && offers.length > 0 && priceComparison && <PriceComparisonBlock comparison={priceComparison} />}
+        {!isTc && offers !== null && offers.length > 0 && priceComparison && <PriceComparisonBlock comparison={priceComparison} />}
 
-        {renderRecommendationSlot('offers')}
+        {!isTc && renderRecommendationSlot('offers')}
 
-        {/* Отдел аренды БЦ, с офиц. сайта БЦ (владелец, 2026-09-05, на
-            примере "Проспект"/Elite Estate — по нему нет объявлений на
-            Kufar/Realt, но на собственном сайте есть условия для
-            арендаторов: "пройдись по сайтам БЦ и поищешь такую информацию").
-            Собрано веб-поиском (Gemini через ProxyAPI — прямого доступа к
-            большинству сайтов БЦ из песочницы нет). Первая версия рисовала
-            всё одним абзацем — владелец: "верстка — пиздец, разбей на
-            логические блоки, используй форматирование" — теперь отдельная
-            подписанная строка на каждый раздел (LabeledTextRow). Каждое поле
-            независимо может быть null — рисуем только то, что реально
-            нашлось. Порядок блоков страницы пересобран 2026-09-20 (владелец
-            принял предложенный порядок): условия аренды идут сразу за
-            "Объявления на рынке" — оба блока отвечают на один и тот же
-            вопрос "что тут есть и почём". Акцентный жёлтый блок с оговоркой
-            источника (`caveat`) и дисклеймер "собрано автоматически...
-            не куратировано вручную" под карточкой убраны тем же днём —
-            владелец: "убери все предупреждения такого плана с сайта".
-            Заголовок переименован и раздел "Площади и типы помещений" убран
-            2026-09-22 — владелец: это дублировало totalArea/floors, уже
-            показанные в "Параметрах здания", и вообще не про вопрос аренды. */}
-        {center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
+        {/* Отдел аренды БЦ — сразу за объявлениями. У ТЦ рисуется ниже. */}
+        {!isTc && center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
           <div id="rental" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <FileText className="h-5 w-5 shrink-0 text-icon" />
@@ -3080,7 +3126,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           </div>
         )}
 
-        {renderRecommendationSlot('rental')}
+        {!isTc && renderRecommendationSlot('rental')}
 
         {/* Карта и инфраструктура рядом — перед арендаторами и сравнением
             с конкурентами (владелец, 2026-09-20: принял предложенный
@@ -3117,6 +3163,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             contactName={center.name}
             organizations={tenantOrganizations}
             after={renderRecommendationSlot}
+            sectionIndex={sectionIndex}
           />
         )}
 
@@ -3148,8 +3195,9 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         {isTc ? (
           <>
             {renderRecommendationSlot('tenants')}
-            <TradeCenterInfrastructure groups={tcInfrastructure} />
+            <TradeCenterInfrastructure groups={tcInfrastructure} index={sectionIndex('amenities')} />
             {renderRecommendationSlot('amenities')}
+            {tcFit.length > 0 && <TradeCenterFitBlock points={tcFit} index={sectionIndex('tc-fit')} />}
           </>
         ) : (
           <>
@@ -3158,18 +3206,13 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           </>
         )}
 
-        {/* Сравнение с конкурентами — после того как показали цену, условия
-            аренды, параметры здания и список арендаторов: сначала факты о
-            самом БЦ, потом оценка "дорого/дёшево" на их фоне (владелец,
-            2026-09-20: принял предложенный порядок блоков страницы; было
-            на этом же месте, но раньше — до параметров здания и
-            арендаторов — с общим комментарием на пару с картой ниже). */}
-        {center && marketPosition && <MarketPositionBlock position={marketPosition} />}
-
-        {renderRecommendationSlot('market')}
+        {/* У БЦ сравнение с конкурентами — после арендаторов. У ТЦ ниже,
+            ближе к «для бизнеса»: посетителю важнее схема и парковка. */}
+        {!isTc && center && marketPosition && <MarketPositionBlock position={marketPosition} />}
+        {!isTc && renderRecommendationSlot('market')}
 
         {isTc ? (
-          reviewThemes && <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} />
+          reviewThemes && <TradeCenterReviewThemes themes={reviewThemes} rating={parseHighlightRatings(center.highlights)[0]} yandexUrl={reviewThemes.orgId ? `https://yandex.by/maps/org/${reviewThemes.orgId}/reviews/` : yandexReviewsUrl(tenantSnapshot?.sourceUrl)} index={sectionIndex('reviews')} />
         ) : <WhatTheySayBlock key={center.slug} center={center} reviewQuotes={reviewQuotes} reviews={reviews} />}
 
         {renderRecommendationSlot('reviews')}
@@ -3192,7 +3235,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             награды из retail_info.awards (или, пока их нет, те же строки
             из highlights) и места в рейтингах ТЦ Минска одной карточкой. */}
         {isTc && (
-          <TradeCenterAwardsBlock info={center.retailInfo} legacyAwardLines={awardItems} renderLine={renderBold} />
+          <TradeCenterAwardsBlock info={center.retailInfo} legacyAwardLines={awardItems} renderLine={renderBold} index={sectionIndex('awards-ranking')} />
         )}
         {isTc && renderRecommendationSlot('awards-ranking')}
         {!isTc && awardItems.length > 0 && (
@@ -3228,12 +3271,43 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
 
             Критерии отбора публикаций — docs/bc-media-research-brief.md. */}
         {mediaMentions.length > 0 && (
+          isTc ? (
+            <CategorySpoiler
+              id="media"
+              title="СМИ о здании"
+              subtitle={`${mediaMentions.length} ${mediaMentions.length === 1 ? 'материал' : mediaMentions.length < 5 ? 'материала' : 'материалов'}`}
+              meta={`${mediaMentions.length} мат.`}
+              icon={Newspaper}
+              index={sectionIndex('media')}
+            >
+              <ul className="flex flex-col divide-y divide-border">
+              {mediaMentions.map((mention, i) => (
+                <li key={i} className="py-3 first:pt-0 last:pb-0">
+                  <a
+                    href={mention.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4"
+                  >
+                    <MediaOutletMark url={mention.url} outlet={mention.outlet} />
+                    <span className="min-w-0 flex-1">
+                      <span className="text-sm leading-relaxed text-ink-muted underline-offset-4 group-hover:underline">
+                        {mention.title}
+                        <ExternalLink className="ml-1.5 inline h-3.5 w-3.5 shrink-0 -translate-y-px align-middle text-ink-muted/50 group-hover:text-primary" />
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            </CategorySpoiler>
+          ) : (
           <div id="media" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
               <Newspaper className="h-5 w-5 shrink-0 text-icon" />
               СМИ о здании
             </h2>
-            <ul className="flex flex-col divide-y divide-border">
+              <ul className="flex flex-col divide-y divide-border">
               {mediaMentions.map((mention, i) => (
                 <li key={i} className="py-3 first:pt-0 last:pb-0">
                   <a
@@ -3254,6 +3328,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               ))}
             </ul>
           </div>
+          )
         )}
 
         {renderRecommendationSlot('media')}
@@ -3274,7 +3349,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             СМИ/факты/история), после цены, параметров здания, арендаторов
             и сравнения с конкурентами (владелец принял предложенный
             порядок блоков). */}
-        {factCards !== null && <TradeCenterFactCards key={`facts-${center.slug}`} facts={factCards} />}
+        {factCards !== null && <TradeCenterFactCards key={`facts-${center.slug}`} facts={factCards} index={sectionIndex('facts')} />}
         {factCards === null && visibleHighlights.length > 0 && (
           <div id="facts" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -3304,7 +3379,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
 
         {renderRecommendationSlot('facts')}
 
-        {center && <HistoryTimeline center={center} />}
+        {center && <HistoryTimeline center={center} asSpoiler={isTc} index={sectionIndex('history')} />}
 
         {renderRecommendationSlot('history')}
 
@@ -3316,11 +3391,148 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             "Интересных фактов", то есть под тем блоком, что реально оказался
             перед ним на странице. Раньше стоял сразу после "Условий для
             арендаторов", теперь — здесь; сама разметка блока не менялась. */}
+        {isTc ? (
+          <CategorySpoiler
+            id="tech"
+            title="Параметры здания"
+            subtitle={techPreview}
+            meta="Параметры"
+            icon={Building2}
+            index={sectionIndex('tech')}
+          >
+
+          {/* Один сплошной список фактов о здании, без подзаголовков по
+              ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,
+              ПО ДРУГИМ ИСТОЧНИКАМ нелогичная, у нас один единый блок
+              информации о здании" — раньше парковка/часы/доступная среда,
+              технические параметры и исследованные факты рисовались тремя
+              отдельными блоками со своими заголовками и обрамлением, хотя
+              для читателя это один и тот же список "что известно о
+              здании"). Порядок внутри остаётся прежним (сначала
+              эксплуатационные строки, потом технические параметры, потом
+              исследованные факты) — он и был логичным, лишним был только
+              заголовок, объясняющий это через происхождение данных. */}
+          {(architectureHighlights.length > 0 ||
+            center.parking ||
+            accessHoursText ||
+            accessibilityAttributes ||
+            redistributedTechnicalParams.buildingInformationRows.length > 0 ||
+            center.buildingFacts.length > 0) && (
+            <div className="overflow-hidden rounded-control border border-border">
+              <table role="table" className="block w-full border-collapse text-sm sm:table">
+                <tbody role="rowgroup" className="block sm:table-row-group">
+                  {architectureHighlights.map((h, i) => (
+                    <tr role="row" key={`arch-${i}`} className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
+                        {h.label}
+                      </th>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">{h.text}</td>
+                    </tr>
+                  ))}
+                  {center.parking && (
+                    <tr role="row" className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
+                        Парковка
+                      </th>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">{center.parking}</td>
+                    </tr>
+                  )}
+                  {accessHoursText && (
+                    <tr role="row" className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
+                        Часы работы
+                      </th>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
+                        {accessHoursText.toLocaleLowerCase('ru-RU') === 'круглосуточно' ? '24/7' : accessHoursText}
+                      </td>
+                    </tr>
+                  )}
+                  {accessibilityAttributes && (
+                    <tr role="row" className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th scope="row" role="rowheader" className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2">
+                        Доступная среда
+                      </th>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
+                        <AccessibilityChips text={accessibilityAttributes} />
+                      </td>
+                    </tr>
+                  )}
+                  {redistributedTechnicalParams.buildingInformationRows.map((row) => (
+                    <tr
+                      role="row"
+                      key={row.label}
+                      className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row">
+                      <th
+                        scope="row"
+                        role="rowheader"
+                        className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2"
+                      >
+                        {row.label}
+                      </th>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
+                        {redistributedTechnicalParams.corpusBreakdown[row.label] ? (
+                          <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+                            {redistributedTechnicalParams.corpusBreakdown[row.label].map((entry) => (
+                              <Fragment key={entry.corpusLabel}>
+                                <dt className="text-ink-muted">{entry.corpusLabel}</dt>
+                                <dd>{entry.value}</dd>
+                              </Fragment>
+                            ))}
+                          </dl>
+                        ) : (
+                          row.value
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {center.buildingFacts.map((fact, index) => (
+                    <tr
+                      role="row"
+                      key={`${fact.label}-${index}`}
+                      className="block border-b border-border last:border-b-0 odd:bg-surface-muted/40 sm:table-row"
+                    >
+                      <th
+                        scope="row"
+                        role="rowheader"
+                        className="block w-full break-words [overflow-wrap:anywhere] pb-1 pt-2 pl-3 pr-3 text-left align-top font-medium text-ink-muted sm:table-cell sm:w-2/5 sm:py-2 sm:pr-2"
+                      >
+                        {fact.label}
+                        {fact.corpusLabel && (
+                          <span className="block text-xs font-normal text-ink-faint">{fact.corpusLabel}</span>
+                        )}
+                      </th>
+                      <td role="cell" className="block w-full break-words [overflow-wrap:anywhere] pb-2 pt-0 pl-3 pr-3 text-ink sm:table-cell sm:w-auto sm:py-2 sm:pl-2">
+                        <span>{fact.value}</span>
+                        {fact.note && <span className="block text-xs text-ink-faint">{fact.note}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {/* Эко-сертификация — переехала сюда из "Интересных фактов"
+              2026-09-21 (владелец: "все переноси в блок про здание,
+              Параметры здания"). Остаётся абзацем (LabeledTextRow, markdown
+              жирный текст и буллеты) под таблицей — эти тексты обычно
+              длиннее одной строки, в отличие от архитектуры (см.
+              architectureHighlights выше), которую владелец 2026-09-22
+              попросил сократить и увести в саму таблицу первой строкой. */}
+          {ecoHighlights.length > 0 && (
+            <div className="flex flex-col divide-y divide-border">
+              {ecoHighlights.map((s, i) => (
+                <LabeledTextRow key={i} icon={HIGHLIGHT_ICONS[s.icon]} label={s.label} text={s.text} />
+              ))}
+            </div>
+          )}
+          </CategorySpoiler>
+        ) : (
         <div id="tech" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
           <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
             <Building2 className="h-5 w-5 shrink-0 text-icon" />
             Параметры здания
           </h2>
+
           {/* Один сплошной список фактов о здании, без подзаголовков по
               ТИПУ ИСТОЧНИКА (владелец, 2026-09-20: "надпись ДОПОЛНИТЕЛЬНО,
               ПО ДРУГИМ ИСТОЧНИКАМ нелогичная, у нас один единый блок
@@ -3446,6 +3658,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             </div>
           )}
         </div>
+        )}
 
         {renderRecommendationSlot('tech')}
 
@@ -3469,15 +3682,62 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             этой карточки рисуется развёрнутый блок «Кто стоит за…»
             (DeveloperDeepCard); без них карточка прежняя. */}
         {center.developerInfo && hasDeveloperDeepData(center.developerInfo) ? (
-          <DeveloperDeepCard
-            showSources={!isTc}
-            info={center.developerInfo}
-            title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
-            mainName={developerMainName(center.developerInfo, center.developer)}
-            logoAlt={center.developer ?? shortName(center)}
-            contacts={developerContacts}
-          />
+          isTc ? (
+            <CategorySpoiler
+              id="developer"
+              title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
+              subtitle={developerMainName(center.developerInfo, center.developer)}
+              meta="Застройщик"
+              icon={HardHat}
+              index={sectionIndex('developer')}
+            >
+              <DeveloperDeepCard
+                embedded
+                showSources={false}
+                info={center.developerInfo}
+                title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
+                mainName={developerMainName(center.developerInfo, center.developer)}
+                logoAlt={center.developer ?? shortName(center)}
+                contacts={developerContacts}
+              />
+            </CategorySpoiler>
+          ) : (
+            <DeveloperDeepCard
+              showSources
+              info={center.developerInfo}
+              title={`Кто стоит за ${V.oneIns} «${shortName(center)}»`}
+              mainName={developerMainName(center.developerInfo, center.developer)}
+              logoAlt={center.developer ?? shortName(center)}
+              contacts={developerContacts}
+            />
+          )
         ) : center.developerInfo ? (
+          isTc ? (
+            <CategorySpoiler
+              id="developer"
+              title="Застройщик"
+              subtitle={center.developer ?? center.developerInfo.description ?? 'Кто построил комплекс'}
+              meta="Застройщик"
+              icon={HardHat}
+              index={sectionIndex('developer')}
+            >
+              {center.developerInfo.logoUrl && (
+                <div className="flex justify-end">
+                  <img
+                    src={center.developerInfo.logoUrl}
+                    alt={center.developer ?? shortName(center)}
+                    loading="lazy"
+                    className="h-9 w-auto max-w-[10rem] object-contain"
+                  />
+                </div>
+              )}
+              {center.developer && <p className="text-sm font-semibold text-ink">{center.developer}</p>}
+              {center.developerInfo.description && (
+                <p className="text-sm leading-relaxed text-ink-muted">{center.developerInfo.description}</p>
+              )}
+              {developerContacts}
+            </CategorySpoiler>
+          ) : (
           <div id="developer" className={cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
@@ -3499,9 +3759,39 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             )}
             {developerContacts}
           </div>
+          )
         ) : null}
 
         {renderRecommendationSlot('developer')}
+
+        {/* У ТЦ сравнение с рынком и аренда — после посетительских блоков. */}
+        {isTc && center && marketPosition && (
+          <MarketPositionBlock position={marketPosition} asSpoiler index={sectionIndex('market')} />
+        )}
+        {isTc && renderRecommendationSlot('market')}
+
+        {!ownerMode && isTc && (
+          <TradeCenterLeasing info={center.retailInfo} name={center.name} sale={saleStats} rent={rentStats} index={sectionIndex('offers')} />
+        )}
+        {isTc && renderRecommendationSlot('offers')}
+
+        {isTc && center.rentalInfo && (center.rentalInfo.terms || center.rentalInfo.rates || center.rentalInfo.contacts) && (
+          <CategorySpoiler
+            id="rental"
+            title={`Отдел аренды ${V.abbr}`}
+            subtitle="Условия, ставки и контакты управляющей компании"
+            meta="Для бизнеса"
+            icon={FileText}
+            index={sectionIndex('rental')}
+          >
+            <div className="flex flex-col divide-y divide-border">
+              <LabeledTextRow icon={ScrollText} label="Условия аренды" text={center.rentalInfo.terms} />
+              <LabeledTextRow icon={Banknote} label="Ставки" text={center.rentalInfo.rates} />
+              <LabeledTextRow icon={Phone} label="Контакты отдела аренды" text={center.rentalInfo.contacts} />
+            </div>
+          </CategorySpoiler>
+        )}
+        {isTc && renderRecommendationSlot('rental')}
 
         {/* Б12. Собственникам и УК — способ поправить данные. Пишем прямо
             в почту: отдельной формы с лидом здесь не заводим, это не заявка

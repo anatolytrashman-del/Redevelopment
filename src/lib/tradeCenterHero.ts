@@ -7,7 +7,7 @@
 import type { RetailFigureEntry, RetailFoodInfo, RetailFunEntry, RetailHoursEntry, RetailInfo, RetailParking } from '../data/businessCenters';
 import { pluralRu } from './pluralRu';
 import { parkingSpacesShort } from './tradeCenterVisit';
-import { anchorsForPage, retailSectionIds } from './tradeCenterRetail';
+import { FUN_KIND_LABELS, anchorsForPage, retailSectionIds, sortFun } from './tradeCenterRetail';
 
 /** «ТЦ» / «40+ м²» и т.п. — подпись строкой под «Также известен как…». */
 export function tcHeroSubtitle(params: {
@@ -264,18 +264,28 @@ export function tcAnchorChipNames(info: RetailInfo | null, maxCount = 6): string
     .slice(0, maxCount);
 }
 
-export type TcQuickJumpId = 'food' | 'fun' | 'offers' | 'advertising';
+export type TcQuickJumpId = 'floors' | 'getting-here' | 'anchors' | 'food' | 'fun';
 
 export interface TcQuickJumpChip {
   id: TcQuickJumpId;
   label: string;
 }
 
-/** Чипы быстрого перехода — только к разделам, которые страница реально рисует (retailSectionIds). */
+/**
+ * Чипы быстрого перехода — только к разделам, которые страница реально
+ * рисует. Порядок посетителя (2026-10-11): схема, парковка, якоря, еда,
+ * развлечения. Аренда и реклама в чипы не попадают — ими почти не жмут.
+ */
 export function tcQuickJumpChips(info: RetailInfo | null): TcQuickJumpChip[] {
   if (!info) return [];
   const ids = new Set(retailSectionIds(info));
   const chips: TcQuickJumpChip[] = [];
+  if (ids.has('floors')) chips.push({ id: 'floors', label: 'Что где' });
+  if (ids.has('getting-here')) chips.push({ id: 'getting-here', label: 'Парковка' });
+  if (ids.has('anchors')) {
+    const count = anchorsForPage(info).length;
+    chips.push({ id: 'anchors', label: count > 0 ? `Якоря · ${count}` : 'Якоря' });
+  }
   if (ids.has('food')) {
     const count = tcFoodPointsCount(info.food);
     chips.push({ id: 'food', label: count > 0 ? `Где поесть · ${count}` : 'Где поесть' });
@@ -284,8 +294,6 @@ export function tcQuickJumpChips(info: RetailInfo | null): TcQuickJumpChip[] {
     const first = info.fun[0]?.name;
     chips.push({ id: 'fun', label: first ? `Развлечения · ${first}` : 'Развлечения' });
   }
-  if (info.leasing || info.vacancies.length) chips.push({ id: 'offers', label: 'Аренда в ТЦ' });
-  if (ids.has('advertising')) chips.push({ id: 'advertising', label: 'Реклама в ТЦ' });
   return chips;
 }
 
@@ -297,4 +305,218 @@ export function tcFoodPointsCount(food: RetailFoodInfo | null): number {
 /** Первое развлечение — для подписи чипа, если оно есть. */
 export function tcFirstFunName(fun: RetailFunEntry[]): string | null {
   return fun[0]?.name ?? null;
+}
+
+// --- Главный экран: ценность «зачем ехать» (без чипов — владелец их снял) ---
+
+/** Короткая подпись развлечения для оверлея/строк: «Кино», «Каток», имя детского. */
+function funLeadLabel(entry: RetailFunEntry): string {
+  if (entry.kind === 'cinema') return 'Кино';
+  if (entry.kind === 'ice') return 'Каток';
+  if (entry.kind === 'kids' || entry.kind === 'concert') return entry.name;
+  return FUN_KIND_LABELS[entry.kind] || entry.name;
+}
+
+/**
+ * Строка на фото: зачем сюда ехать одним взглядом.
+ * «Кино · Каток · Discovery Maxi · Prime Hall» — без обрыва.
+ */
+export function tcHeroPhotoLead(info: RetailInfo | null, maxParts = 4): string | null {
+  if (!info) return null;
+  const parts: string[] = [];
+  for (const entry of sortFun(info.fun)) {
+    const label = funLeadLabel(entry);
+    if (!parts.includes(label)) parts.push(label);
+    if (parts.length >= maxParts) break;
+  }
+  if (parts.length) return parts.join(' · ');
+  const anchors = anchorsForPage(info).slice(0, 3).map((a) => a.name);
+  return anchors.length ? anchors.join(' · ') : null;
+}
+
+export interface TcHeroInsideLine {
+  href: string;
+  label: string;
+  detail: string;
+}
+
+/**
+ * Inventory-строки «что внутри» (как на карточке casinolist: ответ сразу,
+ * не пилюли-чипы). До трёх строк со ссылкой в раздел.
+ */
+export function tcHeroInsideLines(info: RetailInfo | null): TcHeroInsideLine[] {
+  if (!info) return [];
+  const lines: TcHeroInsideLine[] = [];
+  const anchors = anchorsForPage(info).slice(0, 3);
+  if (anchors.length) {
+    lines.push({
+      href: '#anchors',
+      label: 'Якоря',
+      detail: anchors.map((a) => a.name).join(' · '),
+    });
+  }
+  const fun = sortFun(info.fun).slice(0, 3);
+  if (fun.length) {
+    lines.push({
+      href: '#fun',
+      label: 'Развлечения',
+      detail: fun.map((entry) => funLeadLabel(entry)).join(' · '),
+    });
+  }
+  const foodCount = info.food?.places.length ?? 0;
+  if (foodCount > 0) {
+    lines.push({
+      href: '#food',
+      label: 'Где поесть',
+      detail: `${foodCount}\u00a0${pluralRu(foodCount, 'заведение', 'заведения', 'заведений')}`,
+    });
+  }
+  return lines.slice(0, 3);
+}
+
+/**
+ * Alt-имена, которые реально отличаются от заголовка (не «ТРЦ Замок» /
+ * «ТЦ Замок» рядом с «ТРЦ «Замок»»).
+ */
+export function tcMeaningfulAltNames(name: string, altNames: string[]): string[] {
+  const strip = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[«»"'„“]/g, '')
+      .replace(/^(трц|тц|трк|молл)\s+/u, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const base = strip(name);
+  return altNames.filter((alt) => {
+    const n = strip(alt);
+    return n.length > 0 && n !== base;
+  });
+}
+
+export type TcMustHaveKind = 'parking' | 'fun' | 'food' | 'anchor' | 'hours' | 'metro';
+
+export interface TcMustHaveItem {
+  kind: TcMustHaveKind;
+  label: string;
+  value: string;
+  href?: string;
+}
+
+/**
+ * Must-have саммари для первого экрана: парковка, якоря, развлечения, еда —
+ * короткие ответы одной высоты (владелец, 2026-10-11). Без дубля статуса
+ * «открыто» (он в «Сейчас») и без длинных списков имён в плитке — иначе
+ * «Парковка» и «Якоря» разъезжаются по высоте. Якоря: счёт (их обычно 5–7),
+ * не два имени «ради одного».
+ */
+export function tcMustHaveItems(info: RetailInfo | null, opts?: {
+  parkingShort?: string | null;
+  metroLabel?: string | null;
+}): TcMustHaveItem[] {
+  if (!info) return [];
+  const items: TcMustHaveItem[] = [];
+  if (opts?.parkingShort) {
+    items.push({ kind: 'parking', label: 'Парковка', value: opts.parkingShort, href: '#getting-here' });
+  }
+  if (opts?.metroLabel) {
+    items.push({ kind: 'metro', label: 'Метро', value: opts.metroLabel, href: '#getting-here' });
+  }
+  const anchors = anchorsForPage(info);
+  if (anchors.length >= 3) {
+    items.push({
+      kind: 'anchor',
+      label: 'Якоря',
+      value: `${anchors.length}\u00a0${pluralRu(anchors.length, 'якорь', 'якоря', 'якорей')}`,
+      href: '#anchors',
+    });
+  } else if (anchors.length > 0) {
+    items.push({
+      kind: 'anchor',
+      label: 'Якоря',
+      value: anchors.map((a) => a.name).join(' · '),
+      href: '#anchors',
+    });
+  }
+  // До двух коротких ярлыков — иначе плитка шире «6 якорей» / «22 заведения».
+  const fun = sortFun(info.fun).slice(0, 2);
+  if (fun.length > 0) {
+    items.push({
+      kind: 'fun',
+      label: 'Развлечения',
+      value: fun.map((entry) => funLeadLabel(entry)).join(' · '),
+      href: '#fun',
+    });
+  }
+  const foodCount = info.food?.places.length ?? 0;
+  if (foodCount > 0) {
+    items.push({
+      kind: 'food',
+      label: 'Еда',
+      value: `${foodCount}\u00a0${pluralRu(foodCount, 'заведение', 'заведения', 'заведений')}`,
+      href: '#food',
+    });
+  }
+  return items.slice(0, 6);
+}
+
+export interface TcFitPoint {
+  side: 'win' | 'lose';
+  text: string;
+}
+
+/**
+ * Сравнение с аналогами в духе casinolist «кому подойдёт»:
+ * выигрывает / проигрывает — только из фактов карточки.
+ */
+export function tcFitPoints(info: RetailInfo | null, params: {
+  parkingSpaces: string | null;
+  tenantCount: number;
+  hasMetro: boolean;
+  totalArea: number | null;
+}): TcFitPoint[] {
+  if (!info) return [];
+  const points: TcFitPoint[] = [];
+  const funKinds = new Set(info.fun.map((f) => f.kind));
+  const foodCount = info.food?.places.length ?? 0;
+  const parkingN = params.parkingSpaces ? Number(String(params.parkingSpaces).replace(/[^\d]/g, '')) : null;
+  const spacesLabel = params.parkingSpaces
+    ? String(params.parkingSpaces).replace(/^более\s+/iu, '').replace(/\s+мест$/iu, '')
+    : null;
+
+  if (funKinds.has('cinema') && funKinds.has('ice')) {
+    points.push({ side: 'win', text: 'Кино и каток в одном комплексе — у многих ТЦ только одно из двух.' });
+  } else if (funKinds.has('cinema') || funKinds.has('kids')) {
+    points.push({ side: 'win', text: 'Свой блок развлечений (кино или дети) — не только торговая галерея.' });
+  } else if (info.fun.length === 0) {
+    points.push({ side: 'lose', text: 'Без своего кино/катка/детского центра — слабее досуговых ТРЦ.' });
+  }
+  if (parkingN != null && parkingN >= 1000) {
+    points.push({ side: 'win', text: `Парковка около ${spacesLabel} мест — заметно больше типичного районного ТЦ.` });
+  } else if (!params.parkingSpaces) {
+    points.push({ side: 'lose', text: 'Нет сводки по числу мест — проигрывает ТЦ с явной большой парковкой.' });
+  }
+  if (foodCount >= 15) {
+    points.push({ side: 'win', text: `${foodCount} ${pluralRu(foodCount, 'точка', 'точки', 'точек')} еды — шире выбор, чем у компактных ТЦ.` });
+  } else if (foodCount > 0 && foodCount < 8) {
+    points.push({ side: 'lose', text: 'Фуд-выбор скромный — проигрывает ТРЦ с большим фудкортом.' });
+  }
+  if (params.hasMetro) {
+    points.push({ side: 'win', text: 'Есть привязка к метро — удобнее аналогов «только на машине».' });
+  } else {
+    points.push({ side: 'lose', text: 'Без станции у входа — проигрывает ТЦ у метро.' });
+  }
+  if (params.tenantCount >= 300) {
+    points.push({ side: 'win', text: `${params.tenantCount} магазинов и сервисов — крупный состав по меркам города.` });
+  } else if (params.tenantCount > 0 && params.tenantCount < 80) {
+    points.push({ side: 'lose', text: 'Небольшой состав арендаторов — слабее крупных ТРЦ по выбору брендов.' });
+  }
+  if (params.totalArea != null && params.totalArea >= 80000) {
+    points.push({ side: 'win', text: 'Крупная торговая площадь — в ряду главных ТРЦ города.' });
+  } else if (params.totalArea != null && params.totalArea < 40000) {
+    points.push({ side: 'lose', text: 'Площадь скромнее крупнейших ТРЦ — меньше «всего в одном месте».' });
+  }
+  // Не больше 3+3, без пустого «всё хорошо».
+  const wins = points.filter((p) => p.side === 'win').slice(0, 3);
+  const loses = points.filter((p) => p.side === 'lose').slice(0, 3);
+  return [...wins, ...loses];
 }

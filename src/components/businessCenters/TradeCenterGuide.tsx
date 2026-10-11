@@ -1,20 +1,19 @@
 import { useMemo, useState } from 'react';
 import { cn } from '../../lib/cn';
-import { glassCardShadow } from '../../lib/glass';
 import { pluralRu } from '../../lib/pluralRu';
 import { anchorsForPage, formatFloorBadge, formatFloorLabel } from '../../lib/tradeCenterRetail';
 import { SearchInput } from '../ui/SearchInput';
 import type { RetailInfo } from '../../data/businessCenters';
 import type { TenantOrganizationView } from '../../data/businessCenterTenants';
 import { buildFloorBoard, exactOrganization, nearbyOrganizations, normalizeBrand, popularShops, searchOrganizations, shopLabel, type UniqueBrand } from '../../lib/tradeCenterGuide';
-import { RetailCardTitle as CardTitle } from './TradeCenterRetailParts';
-import { retailCardClass as cardClass } from './tradeCenterRetailStyle';
+import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 
-export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] }: {
+export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [], index }: {
   info: RetailInfo | null;
   organizations: TenantOrganizationView[];
   name: string;
   uniqueBrands?: UniqueBrand[];
+  index?: number;
 }) {
   const floors = useMemo(() => buildFloorBoard(info?.floorsGuide ?? [], organizations), [info, organizations]);
   // «Часто ищут» — сначала якорные арендаторы: по числу отзывов наверх
@@ -36,20 +35,25 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
   const hasUnique = hasSearch && floors.length > 0 && uniqueBrands.length >= 3;
   if (!hasSearch && !floors.length) return null;
   const approximateCount = Math.floor(shopCount / 10) * 10;
-  const subtitle = [
-    floors.length ? `${floors.length} ${pluralRu(floors.length, 'уровень', 'уровня', 'уровней')}` : '',
-    shopCount ? `около ${approximateCount} ${pluralRu(approximateCount, 'магазина', 'магазинов', 'магазинов')}, кафе и сервисов` : '',
-  ].filter(Boolean).join(', ');
+  // Превью спойлера — быстрый ответ, подробности внутри (владелец, 2026-10-11).
+  const subtitle = floors[0]
+    ? `${formatFloorBadge(floors[0].floor)} эт. — ${floors[0].theme}`
+    : shopCount
+      ? `около ${approximateCount} ${pluralRu(approximateCount, 'магазина', 'магазинов', 'магазинов')}`
+      : 'Схема этажей и поиск магазина';
   const select = (org: TenantOrganizationView) => { setQuery(org.name); setSelected(org); };
 
   return (
-    <section id="floors" className={cardClass} style={glassCardShadow}>
+    <RetailCategorySpoiler
+      id="floors"
+      label={`Что где в ${name}`}
+      subtitle={subtitle || 'Схема этажей и поиск магазина'}
+      meta={floors.length ? `${floors.length} ур.` : null}
+      index={index}
+      defaultOpen
+    >
       {/* Сохраняем старые ссылки на арендаторов (владелец, 2026-09-25). */}
       <span id="tenants" className="block scroll-mt-32" aria-hidden="true" />
-      <div>
-        <CardTitle id="floors" label={`Что где в ${name}`} />
-        {subtitle && <p className="mt-1.5 text-sm text-ink-muted">{subtitle}</p>}
-      </div>
       {hasSearch && (
         <div className="rounded-[18px] border border-border bg-white px-4 py-3.5 sm:px-[18px]">
           <SearchInput type="search" aria-label={`Найти магазин в ${name}`} placeholder="Найти магазин" value={query}
@@ -57,9 +61,9 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
           <div aria-live="polite">
             {query.trim() && matches.length === 0 && <p className="mt-3 border-t border-dashed border-border pt-3 text-sm text-ink-muted">Не нашли „{query.trim()}“</p>}
             {matches.length > 0 && <ul className="mt-3 divide-y divide-dashed divide-border border-t border-dashed border-border">
-              {matches.map((org, index) => {
+              {matches.map((org, orgIndex) => {
                 const nearby = nearbyOrganizations(organizations, org);
-                return <li key={`${org.name}-${index}`}>
+                return <li key={`${org.name}-${orgIndex}`}>
                   <button type="button" onClick={() => select(org)} className="flex w-full flex-wrap items-baseline gap-x-2.5 gap-y-1 py-3 text-left text-sm hover:bg-surface-muted focus-visible:outline-primary">
                     <strong className="text-ink">{org.name}</strong>
                     {org.floor ? <span className="rounded-lg bg-primary px-2 py-0.5 text-xs font-bold text-white">{formatFloorLabel(org.floor)}</span>
@@ -72,33 +76,65 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
           </div>
           {popular.length > 0 && <div className="mt-2.5 flex flex-wrap gap-x-2 gap-y-1 text-xs text-ink-muted">
             <span>Часто ищут:</span>
-            {popular.map((org, index) => <button key={`${org.name}-${index}`} type="button" className="underline decoration-dotted underline-offset-4 hover:text-primary" onClick={() => select(org)}>{org.name}</button>)}
+            {popular.map((org, orgIndex) => <button key={`${org.name}-${orgIndex}`} type="button" className="underline decoration-dotted underline-offset-4 hover:text-primary" onClick={() => select(org)}>{org.name}</button>)}
           </div>}
         </div>
       )}
       {(floors.length > 0 || hasUnique) && <div className={cn('grid gap-6', floors.length > 0 && hasUnique && 'lg:grid-cols-[minmax(0,1fr)_300px]')}>
-        {floors.length > 0 && <div className="rounded-[22px] bg-[#1b1c20] p-3.5 text-white">
-          <div className="mx-[30px] mb-2 h-2.5 rounded-t-[10px] bg-white/5" aria-hidden="true" />
-          <ol className="divide-y divide-white/10">
-            {floors.map((floor) => {
-              const hit = active?.floor === floor.floor;
-              const badge = formatFloorBadge(floor.floor);
-              // Длинная подпись этажа («доп. здания (ул. Ленина, 4/6/8)», «цокольный»)
-              // в колонку цифры не влезает — выносим её строкой над темой.
-              const longBadge = badge.length > 3;
-              return <li key={floor.floor} className={cn('grid grid-cols-[44px_minmax(0,1fr)] items-center gap-1 px-1.5 py-3 sm:grid-cols-[54px_minmax(0,1fr)]', hit && 'rounded-xl bg-[#2a1418]')}>
-                <span className={cn('text-center text-[22px] font-extrabold sm:text-[26px]', hit && 'text-primary')}>{longBadge ? '·' : badge}</span>
-                <div className="min-w-0">
-                  {longBadge && <p className={cn('mb-0.5 break-words text-xs font-bold uppercase tracking-wide text-white/55', hit && 'text-primary')}>{badge}</p>}
-                  <h3 className="text-base font-bold">{floor.theme}{hit && <span className="ml-2 inline-block rounded-md bg-primary px-1.5 py-px align-middle text-[11px] text-white">{active.name} здесь</span>}</h3>
-                  {floor.brands.length > 0 && <p className="mt-0.5 text-[13px] text-white/65">{floor.brands.join(' · ')}</p>}
-                </div>
-              </li>;
-            })}
-          </ol>
-        </div>}
-        {hasUnique && <aside className="rounded-[22px] border border-border bg-white p-5">
-          <h3 className="text-base font-bold text-ink">Только здесь</h3>
+        {floors.length > 0 && (
+          <div className="overflow-hidden rounded-[22px] border border-[#efdfd4] bg-[#fff8f2] text-ink">
+            {/* Светлая схема: shopping, не траурная доска. */}
+            <div className="flex items-center justify-between gap-3 border-b border-[#efdfd4] px-4 py-2.5 sm:px-5">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-[#c45c3a]/80">Схема этажей</p>
+              <p className="font-mono text-[11px] font-bold tabular-nums text-[#c45c3a]/55">
+                {floors.length} {floors.length === 1 ? 'ур.' : 'ур.'}
+              </p>
+            </div>
+            <ol className="divide-y divide-[#efdfd4] px-3.5 py-1 sm:px-4">
+              {floors.map((floor) => {
+                const hit = active?.floor === floor.floor;
+                const badge = formatFloorBadge(floor.floor);
+                // Длинная подпись этажа («доп. здания (ул. Ленина, 4/6/8)», «цокольный»)
+                // в колонку цифры не влезает — выносим её строкой над темой.
+                const longBadge = badge.length > 3;
+                return (
+                  <li
+                    key={floor.floor}
+                    className={cn(
+                      'grid grid-cols-[44px_minmax(0,1fr)] items-center gap-1 px-1.5 py-3 sm:grid-cols-[54px_minmax(0,1fr)]',
+                      hit && 'rounded-xl bg-[#ffe8dc]/70',
+                    )}
+                  >
+                    <span className={cn('text-center font-mono text-[22px] font-extrabold tabular-nums text-[#c45c3a] sm:text-[26px]')}>
+                      {longBadge ? '·' : badge}
+                    </span>
+                    <div className="min-w-0">
+                      {longBadge && (
+                        <p className="mb-0.5 break-words font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-[#c45c3a]/70">
+                          {badge}
+                        </p>
+                      )}
+                      <h3 className="text-base font-bold text-ink">
+                        {floor.theme}
+                        {hit && (
+                          <span className="ml-2 inline-block rounded-md bg-[#ffe8dc] px-1.5 py-px align-middle text-[11px] font-semibold text-[#c45c3a]">
+                            {active.name} здесь
+                          </span>
+                        )}
+                      </h3>
+                      {floor.brands.length > 0 && (
+                        <p className="mt-0.5 text-[13px] text-ink/55">{floor.brands.join(' · ')}</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
+        {hasUnique && <aside className="rounded-[22px] border border-[#efdfd4] bg-[#fff8f2] p-5">
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/75">Только здесь</p>
+          <h3 className="mt-1 text-base font-bold text-ink">Уникальные магазины</h3>
           <p className="mt-1 text-xs leading-relaxed text-ink-muted">Этих магазинов нет в других торговых центрах Минска из нашего каталога</p>
           <ul className="mt-3.5 divide-y divide-border border-t border-border">
             {uniqueBrands.slice(0, 7).map((brand) => <li key={brand.name} className="flex items-baseline justify-between gap-2.5 py-2 text-sm font-semibold text-ink">
@@ -108,8 +144,8 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [] 
         </aside>}
       </div>}
       <div className="text-xs leading-relaxed text-ink-muted">
-        {hasSearch && <p className="mt-2">Полного списка арендаторов на странице нет: любой магазин находится поиском.</p>}
+        {hasSearch && <p>Полного списка арендаторов на странице нет: любой магазин находится поиском.</p>}
       </div>
-    </section>
+    </RetailCategorySpoiler>
   );
 }

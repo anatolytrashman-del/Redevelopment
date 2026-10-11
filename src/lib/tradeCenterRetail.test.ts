@@ -66,6 +66,7 @@ import {
   normalizeRetailInfo,
   vacanciesFaqAnswer,
   retailSectionIds,
+  sortFloorsInOrder,
   sortFloorsTopDown,
 } from './tradeCenterRetail';
 
@@ -118,10 +119,11 @@ describe('floorSortKey', () => {
   });
 });
 
-describe('sortFloorsTopDown', () => {
-  it('сверху вниз: верхний первым, подземные и безномерные в конце', () => {
+describe('sortFloorsTopDown / sortFloorsInOrder', () => {
+  it('сверху вниз и по порядку номеров; диапазон 2–3 не NaN', () => {
     const floors = ['1', '-1', '2–3', 'цоколь', '6', '−2', '4'].map((floor) => ({ floor }));
     expect(sortFloorsTopDown(floors).map((f) => f.floor)).toEqual(['6', '4', '2–3', '1', '-1', '−2', 'цоколь']);
+    expect(sortFloorsInOrder(floors).map((f) => f.floor)).toEqual(['−2', '-1', '1', '2–3', '4', '6', 'цоколь']);
   });
 
   it('не меняет исходный массив', () => {
@@ -527,15 +529,40 @@ describe('удобства ТЦ: группы', () => {
   });
 });
 
+describe('essenceText', () => {
+  it('цельная фраза без обрыва; иначе null', async () => {
+    const { essenceText } = await import('./tradeCenterRetail');
+    expect(essenceText(null)).toBeNull();
+    expect(essenceText('Коротко.')).toBe('Коротко.');
+    expect(
+      essenceText(
+        'Крытый каток с натуральным льдом работает круглый год. Есть прокат и раздевалки.',
+      ),
+    ).toBe('Крытый каток с натуральным льдом работает круглый год.');
+    expect(
+      essenceText(
+        'Продуктовый гипермаркет сети «Корона», который принадлежит сам ТРЦ, открылся первым, в декабре 2012 года.',
+      ),
+    ).toBe('Продуктовый гипермаркет сети «Корона», который принадлежит сам ТРЦ.');
+    expect(
+      essenceText(
+        'Детский центр в космической тематике обновился и заново открылся 11 декабря 2025 года: лабиринт с горками, батутами, паучьей башней и ещё много всего лишнего для плитки.',
+      ),
+    ).toBe('Детский центр в космической тематике обновился и заново открылся 11 декабря 2025 года.');
+    expect(essenceText('Оченьдлинноесловобезпробеловизнаковпрепинаниякотороеникуданевлезаетвплитку.', 40)).toBeNull();
+    expect(essenceText('Текст с обрывом…')).toBe('Текст с обрывом.');
+  });
+});
+
 describe('разделы и размеры', () => {
   const base = normalizeRetailInfo({ hoursNote: 'x' }) as RetailInfo;
-  it('группы: посетитель, бизнес, якоря у каталога', () => {
+  it('группы: посетитель vs реклама для бизнеса', () => {
     expect(retailSectionGroup('floors')).toBe('visitor');
     expect(retailSectionGroup('retail-history')).toBe('visitor');
-    expect(retailSectionGroup('anchors')).toBe('tenants');
+    expect(retailSectionGroup('anchors')).toBe('visitor');
     expect(retailSectionGroup('getting-here')).toBe('visitor');
     expect(retailSectionGroup('advertising')).toBe('business');
-    expect(retailSectionGroup('quotes')).toBe('business');
+    expect(retailSectionGroup('quotes')).toBe('visitor');
   });
 
   it('скрытые часы и транспорт без маршрутов не добавляют высоту', () => {
@@ -680,7 +707,7 @@ describe('normalizeRetailInfo — якоря и лента', () => {
     ]);
     // Новая схема заменяет firsts целиком — «Старое» не подмешивается.
     expect(info!.timeline.map((t) => t.name)).toEqual(['New Balance', 'Ёлка']);
-    expect(retailSectionIds(info)).toEqual(['retail-history', 'anchors']);
+    expect(retailSectionIds(info)).toEqual(['anchors', 'retail-history']);
   });
 
   it('пустой timeline при новой схеме не тянет старые firsts', () => {
@@ -820,7 +847,7 @@ describe('normalizeRetailInfo — food и fun', () => {
     const withFun = normalizeRetailInfo({ fun: [{ name: 'Каток', kind: 'ice' }], leisure: [{ kind: 'kids', name: 'Йети' }], anchors });
     expect(leisureForPage(withFun)).toEqual([]);
     expect(anchorsForPage(withFun).map((a) => a.name)).toEqual(['Гиппо', 'Старый якорь']);
-    expect(retailSectionIds(withFun)).toEqual(['fun', 'anchors']);
+    expect(retailSectionIds(withFun)).toEqual(['anchors', 'fun']);
     const withoutFun = normalizeRetailInfo({ anchors });
     expect(anchorsForPage(withoutFun)).toHaveLength(6);
     // Одни только кинотеатр и фудкорт в якорях при новых блоках — карточки якорей нет.
@@ -838,7 +865,7 @@ describe('normalizeRetailInfo — food и fun', () => {
       hoursNote: 'x',
       anchors: [{ name: 'Гиппо', category: 'гипермаркет' }],
     });
-    expect(retailSectionIds(info)).toEqual(['floors', 'retail-history', 'food', 'fun', 'anchors']);
+    expect(retailSectionIds(info)).toEqual(['floors', 'anchors', 'food', 'fun', 'retail-history']);
     expect(retailSectionGroup('food')).toBe('visitor');
     expect(retailSectionGroup('fun')).toBe('visitor');
   });

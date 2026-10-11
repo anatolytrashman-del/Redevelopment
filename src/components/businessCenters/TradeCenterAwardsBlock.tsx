@@ -2,14 +2,13 @@
 // «Крупнейший торговый центр Минска по…» не читается (владелец, 2026-09-29).
 import type { ReactNode } from 'react';
 import { Trophy } from 'lucide-react';
-import { glassCardShadow } from '../../lib/glass';
 import type { RetailInfo } from '../../data/businessCenters';
 import { awardsRankingTitle } from '../../lib/tradeCenterRetail';
 import {
   awardCategory, awardPill, rankingBadge, rankingSource, shortAwardTitle,
   shortRankingTitle, sortAwardTiles, sortRankingTiles,
 } from '../../lib/tradeCenterAwards';
-import { retailCardClass } from './tradeCenterRetailStyle';
+import { CategorySpoiler } from '../ui/CategorySpoiler';
 import { fitGridClass } from '../../lib/fitGrid';
 
 const goldClass = 'bg-[#f6efdc] text-[#b88a1e]';
@@ -23,10 +22,12 @@ export function TradeCenterAwardsBlock({
   info,
   legacyAwardLines = [],
   renderLine = (line) => line,
+  index,
 }: {
   info: RetailInfo | null;
   legacyAwardLines?: string[];
   renderLine?: (line: string) => ReactNode;
+  index?: number;
 }) {
   const awards = sortAwardTiles(info?.awards ?? []);
   const legacy = awards.length ? [] : legacyAwardLines;
@@ -36,11 +37,14 @@ export function TradeCenterAwardsBlock({
   if (!hasAwards && !hasRanking) return null;
 
   return (
-    <div id="awards-ranking" className={retailCardClass} style={glassCardShadow}>
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
-        <Trophy className="h-5 w-5 shrink-0 text-icon" />
-        {awardsRankingTitle(hasAwards, hasRanking)}
-      </h2>
+    <CategorySpoiler
+      id="awards-ranking"
+      title={awardsRankingTitle(hasAwards, hasRanking)}
+      subtitle="Места в рейтингах и отраслевые премии"
+      meta={[hasRanking ? `${ranking.length} в рейтингах` : null, hasAwards ? `${awards.length || legacy.length} наград` : null].filter(Boolean).join(' · ') || null}
+      icon={Trophy}
+      index={index}
+    >
       {hasRanking && (
         <section className="flex flex-col gap-2.5">
           <PartTitle>Места в рейтингах</PartTitle>
@@ -88,6 +92,6 @@ export function TradeCenterAwardsBlock({
           </ul>
         </section>
       )}
-    </div>
+    </CategorySpoiler>
   );
 }

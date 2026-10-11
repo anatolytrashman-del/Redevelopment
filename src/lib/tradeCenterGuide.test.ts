@@ -16,14 +16,14 @@ describe('табло этажей', () => {
     expect(parseFloorGuide('одежда и обувь. Второе предложение', ['Mango'])).toEqual({ theme: 'Одежда и обувь', brands: ['Mango'] });
   });
   it('при наличии гида не добавляет гостиницу и офисы', () => {
-    expect(buildFloorBoard([entry('-1', 'продукты'), entry('6', 'еда')], [org('Отель', '8'), org('Офис', '21')]).map((row) => row.floor)).toEqual(['6', '-1']);
+    expect(buildFloorBoard([entry('-1', 'продукты'), entry('6', 'еда')], [org('Отель', '8'), org('Офис', '21')]).map((row) => row.floor)).toEqual(['-1', '6']);
   });
   it('без гида обрезает башню и сводит категории, сортирует бренды по отзывам', () => {
     const shops = [org('Mango', '2', 'Магазин одежды', 10), org('Zara', '2'), org('Кафе', '2', 'Кафе', 20), org('Обувь', '2', 'Магазин обуви'), org('Бутик', '2'), org('Офис', '21', 'Офис'), org('Маркет', '-1', 'Супермаркет')];
     const board = buildFloorBoard([], shops);
-    expect(board.map((row) => row.floor)).toEqual(['2', '-1']);
-    expect(board[0].theme).toBe('Одежда и еда');
-    expect(board[0].brands.slice(0, 2)).toEqual(['Кафе', 'Mango']);
+    expect(board.map((row) => row.floor)).toEqual(['-1', '2']);
+    expect(board[1].theme).toBe('Одежда и еда');
+    expect(board[1].brands.slice(0, 2)).toEqual(['Кафе', 'Mango']);
     expect(buildFloorBoard([], [org('Магазин', null)])).toEqual([]);
     expect(buildFloorBoard([], [org('Магазин', '0')])[0].floor).toBe('0');
   });
