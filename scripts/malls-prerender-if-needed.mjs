@@ -8,7 +8,7 @@ import { DEPLOYED_SITE_MODE } from './domainSplit.mjs';
 if (DEPLOYED_SITE_MODE !== 'malls') process.exit(0);
 
 console.log('[malls-prerender] PUBLIC_SITE=malls — пререндер ТЦ с платформы + OG');
-for (const script of ['prerender.mjs', 'generate-og-cards.mjs']) {
+for (const script of ['prerender.mjs', 'generate-og-cards.mjs', 'sync-catalog-root-shell.mjs']) {
   const result = spawnSync(process.execPath, [`scripts/${script}`], {
     stdio: 'inherit',
     env: process.env,

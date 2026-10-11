@@ -277,9 +277,17 @@ function AdminChunkFallback() {
 function MalllistRoutes() {
   return (
     <Routes>
-      {/* / — SPA-редирект на каталог; middleware не делает 307, чтобы meta
-          yandex-verification на корне оставалась читаемой (как у officelist). */}
-      <Route path="/" element={<Navigate to="/minsk/tc" replace />} />
+      {/* / — сразу каталог (не Navigate): иначе createRoot сносит снапшот и
+          секунду виден голый h1 из шелла. Middleware не делает 307 с корня,
+          чтобы meta yandex-verification оставалась на /. */}
+      <Route
+        path="/"
+        element={
+          <CatalogKindProvider kind="tc">
+            <BusinessCentersMinskPage />
+          </CatalogKindProvider>
+        }
+      />
       <Route path="/minsk" element={<Navigate to="/minsk/tc" replace />} />
       <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
       <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
@@ -347,7 +355,9 @@ const businessCenterCatalogRoutes = (
 function OfficelistRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/minsk/bc" replace />} />
+      {/* / — сразу каталог (см. MalllistRoutes): без Navigate нет вспышки
+          голого текста до монтирования. */}
+      <Route path="/" element={<BusinessCentersMinskPage />} />
       <Route path="/minsk" element={<Navigate to="/minsk/bc" replace />} />
       {businessCenterCatalogRoutes}
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />

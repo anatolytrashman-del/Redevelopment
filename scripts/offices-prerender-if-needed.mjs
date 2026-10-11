@@ -6,7 +6,7 @@ import { DEPLOYED_SITE_MODE } from './domainSplit.mjs';
 if (DEPLOYED_SITE_MODE !== 'offices') process.exit(0);
 
 console.log('[offices-prerender] PUBLIC_SITE=offices — пререндер БЦ с платформы + OG');
-for (const script of ['prerender.mjs', 'generate-og-cards.mjs']) {
+for (const script of ['prerender.mjs', 'generate-og-cards.mjs', 'sync-catalog-root-shell.mjs']) {
   const result = spawnSync(process.execPath, [`scripts/${script}`], {
     stdio: 'inherit',
     env: process.env,
