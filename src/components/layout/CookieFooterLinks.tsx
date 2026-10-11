@@ -8,8 +8,8 @@ import { reopenCookieBanner } from './CookieBanner';
 // по центру). Вынесено отдельным компонентом, чтобы вставлять в разных
 // местах одинаково, не дублируя разметку.
 //
-// 2026-10-11: на officelist/malllist сверху — «продукт компании» с лого
-// REDEVELOPMENT (RED красным), как в SiteBrandLogo платформы.
+// 2026-10-11: на officelist/malllist — «продукт компании» с лого
+// REDEVELOPMENT (RED красным); реквизиты ИП там не показываем (владелец).
 
 /** Базовые реквизиты оператора для подвала. */
 export const SITE_OPERATOR_REQUISITES = {
@@ -42,11 +42,13 @@ export function CookieFooterLinks() {
   return (
     <div className="flex flex-col items-center gap-2 text-center text-xs text-ink-muted">
       {catalogSite && <RedevelopmentProductCredit />}
-      <p className="leading-relaxed font-normal">
-        {r.name}
-        {' · '}
-        ИНН {r.inn}
-      </p>
+      {!catalogSite && (
+        <p className="leading-relaxed font-normal">
+          {r.name}
+          {' · '}
+          ИНН {r.inn}
+        </p>
+      )}
       <p>
         <Link to="/privacy" className="underline hover:text-ink">
           Политика конфиденциальности

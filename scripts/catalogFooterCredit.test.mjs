@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ensureCatalogProductCredit,
   restorePlatformHomeHrefs,
+  stripCatalogOperatorRequisites,
 } from './catalogFooterCredit.mjs';
 
 const PLATFORM = 'https://redevelopment.pro';
@@ -26,7 +27,6 @@ describe('catalogFooterCredit', () => {
     expect(out).toContain('Продукт компании');
     expect(out).toContain(`href="${PLATFORM}"`);
     expect(out).toContain('data-platform-home');
-    expect(out).toContain('ИП Трэшмен');
   });
 
   it('restores platform href after origin rewrite', () => {
@@ -48,5 +48,13 @@ describe('catalogFooterCredit', () => {
     expect(out).toContain('Продукт компании');
     expect(out).toContain(`href="${PLATFORM}"`);
     expect(out).toContain('Политика конфиденциальности');
+  });
+
+  it('strips IP requisites from catalog footers', () => {
+    const out = ensureCatalogProductCredit(FOOTER_WITHOUT, PLATFORM);
+    expect(out).toContain('Продукт компании');
+    expect(out).not.toContain('ИП Трэшмен');
+    expect(out).not.toContain('ИНН');
+    expect(stripCatalogOperatorRequisites(FOOTER_WITH_WRONG_HREF)).not.toContain('ИП Трэшмен');
   });
 });
