@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RetailFigureEntry, RetailFoodInfo, RetailFunEntry, RetailHoursEntry, RetailParking } from '../data/businessCenters';
+import type { RetailFigureEntry, RetailFoodInfo, RetailFunEntry, RetailHoursEntry, RetailInfo, RetailParking } from '../data/businessCenters';
 import {
   hoursLiveStatus,
   laterClosingZones,
@@ -9,7 +9,10 @@ import {
   tcAudienceVisitorsPerDay,
   tcFirstFunName,
   tcFoodPointsCount,
+  tcHeroInsideLines,
+  tcHeroPhotoLead,
   tcHeroSubtitle,
+  tcMeaningfulAltNames,
   tcParkingShort,
   tcParkingSpaces,
   tcQuickJumpChips,
@@ -241,5 +244,63 @@ describe('tcFoodPointsCount / tcFirstFunName', () => {
 describe('tcQuickJumpChips', () => {
   it('null info — пусто', () => {
     expect(tcQuickJumpChips(null)).toEqual([]);
+  });
+});
+
+describe('tcHeroPhotoLead / tcHeroInsideLines / tcMeaningfulAltNames', () => {
+  const info = {
+    factCards: null,
+    reviewThemes: null,
+    floorsGuide: [],
+    anchors: [
+      {
+        name: 'Гипермаркет «Корона»',
+        category: 'гипермаркет' as const,
+        floor: '1',
+        area: null,
+        since: null,
+        text: '',
+        yandexUrl: null,
+        source: null,
+        sourceUrl: null,
+      },
+    ],
+    timeline: [],
+    leisure: [],
+    food: food([
+      { name: 'A', type: 'cafe' as const, cuisine: null, floor: null, inFoodcourt: null, yandexUrl: null, note: null },
+      { name: 'B', type: 'cafe' as const, cuisine: null, floor: null, inFoodcourt: null, yandexUrl: null, note: null },
+    ]),
+    fun: [fun('3D-Кино «В Замке»'), { ...fun('Ледовый каток'), kind: 'ice' as const, name: 'Ледовый каток' }],
+    ranking: [],
+    awards: [],
+    hours: [],
+    hoursNote: null,
+    parking: null,
+    transport: [],
+    services: [],
+    rules: [],
+    loyalty: [],
+    events: [],
+    audience: [],
+    leasing: null,
+    advertising: null,
+    numbers: [],
+    quotes: [],
+    vacancies: [],
+    tenantsAt: null,
+  } as RetailInfo;
+
+  it('lead на фото — короткие ярлыки развлечений', () => {
+    expect(tcHeroPhotoLead(info)).toBe('Кино · Каток');
+  });
+
+  it('inside — inventory-строки со ссылками', () => {
+    expect(tcHeroInsideLines(info).map((line) => line.href)).toEqual(['#anchors', '#fun', '#food']);
+    expect(tcHeroInsideLines(info)[2]?.detail).toBe('2\u00a0заведения');
+  });
+
+  it('alt-имена без дублей формата', () => {
+    expect(tcMeaningfulAltNames('ТРЦ «Замок»', ['ТРЦ «Замок»', 'ТЦ «Замок»', 'Zamok'])).toEqual(['Zamok']);
   });
 });

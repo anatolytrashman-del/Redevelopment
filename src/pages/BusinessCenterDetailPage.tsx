@@ -58,7 +58,13 @@ import { Badge } from '../components/ui/Badge';
 import { CategorySpoiler } from '../components/ui/CategorySpoiler';
 import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCenterVisuals';
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
-import { MetroValue, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
+import {
+  MetroValue,
+  TradeCenterHeroPhotoOverlays,
+  TradeCenterHeroSubtitle,
+  TradeCenterHeroSummary,
+} from '../components/businessCenters/TradeCenterHeroSummary';
+import { tcMeaningfulAltNames } from '../lib/tradeCenterHero';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import {
@@ -2472,6 +2478,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         )}
       </div>
     );
+  const heroAltNames = isTc ? tcMeaningfulAltNames(center.name, center.altNames) : center.altNames;
   return (
     <div className="min-h-svh bg-bg">
       {/* Сквозная шапка каталога (владелец, 2026-09-22). Раньше на карточке
@@ -2782,12 +2789,15 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   и так по умолчанию работает, отдельная пометка для него
                   избыточна; "Строится" — исключение, которое стоит подсветить. */}
               {center.status === 'under_construction' && (
-                <div className="absolute left-4 top-4">
+                <div className="absolute left-4 top-4 z-10">
                   <Badge tone="warning" className="shadow-sm backdrop-blur-sm">
                     Строится
                   </Badge>
                 </div>
               )}
+              {/* ТЦ: статус «открыто» и строка «зачем ехать» прямо на фото —
+                  фото уже есть, пусть несёт ценность (2026-10-11). */}
+              {isTc && <TradeCenterHeroPhotoOverlays center={center} />}
               {/* Избранное — в правом углу фотки (владелец, 2026-09-21:
                   "добавление в избранное перенесем в правый угол фотки").
                   Рейтинг Яндекс.Карт, который раньше был бейджем в этом же
@@ -2797,19 +2807,20 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   в избранное с мобилки". Ниже xl та же кнопка стоит в
                   sticky-строке рядом с «Все БЦ»/«Содержание» (secondRow
                   выше); дублировать её на фотке незачем. */}
-              <div className="absolute right-4 top-4 hidden xl:block">
+              <div className="absolute right-4 top-4 z-10 hidden xl:block">
                 {!ownerMode && <FavoriteButton slug={center.slug} />}
               </div>
             </div>
 
             <div className="flex flex-col gap-4 p-5 sm:p-6">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               {/* Второе имя здания — сразу под заголовком, а не только в
                   title: по Wordstat БЦ «V» ищут как «Столица» чаще, чем под
                   основным именем, и человек, пришедший по такому запросу,
                   должен увидеть знакомое слово на первом экране, иначе
                   решит, что попал не туда. */}
-              <h1 className="text-2xl font-extrabold leading-tight text-ink">{fullName(center)}</h1>
+              {isTc && <TradeCenterHeroSubtitle center={center} />}
+              <h1 className="text-2xl font-extrabold leading-tight text-ink sm:text-[1.75rem]">{fullName(center)}</h1>
               {redistributedTechnicalParams.corpora.length >= 2 && (
                 <p className="text-sm font-semibold text-ink-muted">
                   Комплекс из {redistributedTechnicalParams.corpora.length}{' '}
@@ -2822,15 +2833,14 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   Информация проверена администрацией БЦ
                 </p>
               )}
-              {center.altNames.length > 0 && (
+              {/* У ТЦ прячем дубли формата («ТРЦ Замок» / «ТЦ Замок» рядом
+                  с заголовком) — оставляем только имена, которые реально
+                  отличаются (напр. латиница). */}
+              {heroAltNames.length > 0 && (
                 <p className="text-sm text-ink-muted">
-                  Также известен как {center.altNames.map((alt) => `«${alt}»`).join(', ')}
+                  Также известен как {heroAltNames.map((alt) => `«${alt}»`).join(', ')}
                 </p>
               )}
-              {/* Формат/этажность/год одной приглушённой строкой — только у
-                  ТЦ (владелец, 2026-09-25): у БЦ эти же факты уже есть в
-                  плитках ниже, а формат объекта («ТРЦ», «аутлет»…) у БЦ не
-                  собирается вовсе. */}
             </div>
 
             {/* У ТЦ вместо «Расположения», плиток класс/площадь/год/рейтинг

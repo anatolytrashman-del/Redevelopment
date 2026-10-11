@@ -7,7 +7,7 @@
 import type { RetailFigureEntry, RetailFoodInfo, RetailFunEntry, RetailHoursEntry, RetailInfo, RetailParking } from '../data/businessCenters';
 import { pluralRu } from './pluralRu';
 import { parkingSpacesShort } from './tradeCenterVisit';
-import { anchorsForPage, retailSectionIds } from './tradeCenterRetail';
+import { FUN_KIND_LABELS, anchorsForPage, retailSectionIds, sortFun } from './tradeCenterRetail';
 
 /** «ТЦ» / «40+ м²» и т.п. — подпись строкой под «Также известен как…». */
 export function tcHeroSubtitle(params: {
@@ -305,4 +305,90 @@ export function tcFoodPointsCount(food: RetailFoodInfo | null): number {
 /** Первое развлечение — для подписи чипа, если оно есть. */
 export function tcFirstFunName(fun: RetailFunEntry[]): string | null {
   return fun[0]?.name ?? null;
+}
+
+// --- Главный экран: ценность «зачем ехать» (без чипов — владелец их снял) ---
+
+/** Короткая подпись развлечения для оверлея/строк: «Кино», «Каток», имя детского. */
+function funLeadLabel(entry: RetailFunEntry): string {
+  if (entry.kind === 'cinema') return 'Кино';
+  if (entry.kind === 'ice') return 'Каток';
+  if (entry.kind === 'kids' || entry.kind === 'concert') return entry.name;
+  return FUN_KIND_LABELS[entry.kind] || entry.name;
+}
+
+/**
+ * Строка на фото: зачем сюда ехать одним взглядом.
+ * «Кино · Каток · Discovery Maxi · Prime Hall» — без обрыва.
+ */
+export function tcHeroPhotoLead(info: RetailInfo | null, maxParts = 4): string | null {
+  if (!info) return null;
+  const parts: string[] = [];
+  for (const entry of sortFun(info.fun)) {
+    const label = funLeadLabel(entry);
+    if (!parts.includes(label)) parts.push(label);
+    if (parts.length >= maxParts) break;
+  }
+  if (parts.length) return parts.join(' · ');
+  const anchors = anchorsForPage(info).slice(0, 3).map((a) => a.name);
+  return anchors.length ? anchors.join(' · ') : null;
+}
+
+export interface TcHeroInsideLine {
+  href: string;
+  label: string;
+  detail: string;
+}
+
+/**
+ * Inventory-строки «что внутри» (как на карточке casinolist: ответ сразу,
+ * не пилюли-чипы). До трёх строк со ссылкой в раздел.
+ */
+export function tcHeroInsideLines(info: RetailInfo | null): TcHeroInsideLine[] {
+  if (!info) return [];
+  const lines: TcHeroInsideLine[] = [];
+  const anchors = anchorsForPage(info).slice(0, 3);
+  if (anchors.length) {
+    lines.push({
+      href: '#anchors',
+      label: 'Якоря',
+      detail: anchors.map((a) => a.name).join(' · '),
+    });
+  }
+  const fun = sortFun(info.fun).slice(0, 3);
+  if (fun.length) {
+    lines.push({
+      href: '#fun',
+      label: 'Развлечения',
+      detail: fun.map((entry) => funLeadLabel(entry)).join(' · '),
+    });
+  }
+  const foodCount = info.food?.places.length ?? 0;
+  if (foodCount > 0) {
+    lines.push({
+      href: '#food',
+      label: 'Где поесть',
+      detail: `${foodCount}\u00a0${pluralRu(foodCount, 'заведение', 'заведения', 'заведений')}`,
+    });
+  }
+  return lines.slice(0, 3);
+}
+
+/**
+ * Alt-имена, которые реально отличаются от заголовка (не «ТРЦ Замок» /
+ * «ТЦ Замок» рядом с «ТРЦ «Замок»»).
+ */
+export function tcMeaningfulAltNames(name: string, altNames: string[]): string[] {
+  const strip = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[«»"'„“]/g, '')
+      .replace(/^(трц|тц|трк|молл)\s+/u, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const base = strip(name);
+  return altNames.filter((alt) => {
+    const n = strip(alt);
+    return n.length > 0 && n !== base;
+  });
 }
