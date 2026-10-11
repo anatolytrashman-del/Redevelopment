@@ -86,7 +86,7 @@ export function CategorySpoiler({
         <span className="min-w-0 flex-1">
           <h2 className="text-lg font-extrabold tracking-tight text-ink sm:text-xl">{title}</h2>
           {subtitle ? (
-            <p className="mt-0.5 max-w-2xl text-sm leading-snug text-ink/55">{subtitle}</p>
+            <p className="mt-0.5 max-w-3xl text-sm leading-snug text-ink/55 line-clamp-2">{subtitle}</p>
           ) : null}
         </span>
         {meta ? (

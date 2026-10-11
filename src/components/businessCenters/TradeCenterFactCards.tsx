@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Lightbulb } from 'lucide-react';
 import type { RetailInfo } from '../../data/businessCenters';
 import { moreFactsLabel } from '../../lib/tradeCenterFactsReviews';
+import { factCardsPreview } from '../../lib/tradeCenterSpoilerPreview';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 import { pluralRu } from '../../lib/pluralRu';
 
@@ -15,12 +16,11 @@ export function TradeCenterFactCards({
   const [expanded, setExpanded] = useState(false);
   if (!facts.length) return null;
   const visible = expanded ? facts : facts.slice(0, 6);
-  const preview = facts[0]?.headline ?? 'Короткие детали, которых нет в шапке';
   return (
     <CategorySpoiler
       id="facts"
       title="Интересные факты"
-      subtitle={preview}
+      subtitle={factCardsPreview(facts)}
       meta={`${facts.length} ${pluralRu(facts.length, 'факт', 'факта', 'фактов')}`}
       icon={Lightbulb}
       index={index}

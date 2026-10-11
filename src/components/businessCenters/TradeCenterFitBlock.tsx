@@ -74,8 +74,10 @@ export function TradeCenterFitBlock({
   if (points.length === 0) return null;
   const wins = points.filter((p) => p.side === 'win');
   const loses = points.filter((p) => p.side === 'lose');
-  const preview =
-    wins.length && loses.length
+  const previewParts = [wins[0]?.text ?? null, loses[0]?.text ?? null].filter(Boolean);
+  const preview = previewParts.length
+    ? previewParts.join(' · ')
+    : wins.length && loses.length
       ? `${wins.length} сильнее · ${loses.length} слабее`
       : wins.length > 0
         ? `Сильнее аналогов в ${wins.length}`

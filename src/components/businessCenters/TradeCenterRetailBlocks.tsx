@@ -96,7 +96,7 @@ export function TradeCenterRetailBlocks({
       {leisure.length > 0 && (
         <RetailCategorySpoiler
           id="leisure"
-          subtitle="Кино, фудкорт и активности в одном списке"
+          subtitle={leisure.slice(0, 3).map((entry) => entry.name).join(' · ') || 'Кино, фудкорт и активности'}
           meta={`${leisure.length} ${pluralRu(leisure.length, 'площадка', 'площадки', 'площадок')}`}
           index={n('leisure')}
         >

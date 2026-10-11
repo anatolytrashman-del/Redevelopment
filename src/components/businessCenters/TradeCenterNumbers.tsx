@@ -3,6 +3,7 @@ import { ArrowUpDown, Building2, Car, Flag, HardHat, Monitor, PanelsTopLeft, Spa
 import type { RetailFigureEntry } from '../../data/businessCenters';
 import { cn } from '../../lib/cn';
 import { groupNumbers, holidayDate, numberFormat, numberIcon } from '../../lib/tradeCenterNumbers';
+import { numbersPreview } from '../../lib/tradeCenterSpoilerPreview';
 import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { tcChipSoftClass } from './tradeCenterRetailStyle';
 import { balancedColumns, fitGridClass } from '../../lib/fitGrid';
@@ -64,7 +65,7 @@ export function TradeCenterNumbersCard({ numbers, index }: { numbers: RetailFigu
   return (
     <RetailCategorySpoiler
       id="numbers"
-      subtitle="Площадь, трафик и другие опорные цифры"
+      subtitle={numbersPreview(numbers)}
       meta={`${total} показателей`}
       index={index}
     >

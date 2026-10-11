@@ -8,6 +8,7 @@ import type { BusinessCenterReview } from '../../data/businessCenterReviews';
 import { parseHighlightRatings, parseReviewQuote } from '../../lib/businessCenterDisplay';
 import { AXIS_DOMAIN_PCT, type ComparisonBar, type MarketPosition } from '../../lib/businessCenterMarketPosition';
 import type { PriceCard, PriceComparison } from '../../lib/businessCenterPriceCompare';
+import { timelinePreview } from '../../lib/tradeCenterSpoilerPreview';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 
 // Авторские блоки карточки БЦ (Б1, Б10, Б11 плана
@@ -268,7 +269,7 @@ export function HistoryTimeline({
       <CategorySpoiler
         id="history"
         title="История здания"
-        subtitle={`${points[0].year}–${points[points.length - 1].year}`}
+        subtitle={timelinePreview(points.map((p) => ({ year: p.year, text: p.text })))}
         meta={`${points.length} дат`}
         icon={History}
         index={index}

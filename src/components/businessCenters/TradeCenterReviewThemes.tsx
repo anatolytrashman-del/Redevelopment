@@ -1,6 +1,7 @@
 import { MessageSquare } from 'lucide-react';
 import type { HighlightRatingEntry } from '../../lib/businessCenterDisplay';
 import { reviewThemeColumns, reviewThemesShowShares, reviewThemesVisible, reviewThemeWidth, type ReviewThemes } from '../../lib/tradeCenterFactsReviews';
+import { reviewThemesPreview } from '../../lib/tradeCenterSpoilerPreview';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 
 export function TradeCenterReviewThemes({ themes, rating, yandexUrl, index }: {
@@ -12,17 +13,13 @@ export function TradeCenterReviewThemes({ themes, rating, yandexUrl, index }: {
   const columns = reviewThemeColumns(themes);
   if (!reviewThemesVisible(themes)) return null;
   const shares = reviewThemesShowShares(themes);
-  const preview = rating
-    ? `${rating.value} на Яндекс Картах`
-    : themes.reviewCount
-      ? `${themes.reviewCount.toLocaleString('ru-RU')} отзывов`
-      : 'Темы из отзывов в Яндекс Картах';
+  const count = themes.reviewCount ?? themes.reviews;
   return (
     <CategorySpoiler
       id="reviews"
       title="Что говорят посетители"
-      subtitle={preview}
-      meta={themes.reviewCount ? `${themes.reviewCount.toLocaleString('ru-RU')} отзывов` : null}
+      subtitle={reviewThemesPreview(themes, rating)}
+      meta={count ? `${count.toLocaleString('ru-RU')} отзывов` : null}
       icon={MessageSquare}
       index={index}
     >

@@ -2,6 +2,7 @@ import { Car, Image, Megaphone, Monitor, Play, Sparkles, Store, Volume2 } from '
 import type { RetailInfo } from '../../data/businessCenters';
 import type { DealStats } from '../../lib/businessCenterOfferStats';
 import { advertisingMedium, compactAudience, leasingFormats, parseBusinessContacts } from '../../lib/tradeCenterBusiness';
+import { leasingPreview, leasingPreviewMeta } from '../../lib/tradeCenterSpoilerPreview';
 import { BuildingOffersSection } from './BuildingOffersSection';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
 import { essenceText } from '../../lib/tradeCenterRetail';
@@ -64,12 +65,13 @@ export function TradeCenterLeasing({
   const listed = info?.vacancies ?? [];
   if (!leasing && !sale && !rent && !listed.length) return null;
   const formats = leasingFormats(leasing);
+  const previewInput = { leasing, sale, rent, listed, name };
   return (
     <CategorySpoiler
       id="offers"
       title="Аренда в ТЦ"
-      subtitle={leasing?.contacts ? `Помещения сдаёт сама управляющая компания ${name}` : 'Свободные площади и отдел аренды'}
-      meta="Для бизнеса"
+      subtitle={leasingPreview(previewInput)}
+      meta={leasingPreviewMeta(previewInput)}
       icon={Store}
       index={index}
     >
@@ -94,12 +96,24 @@ export function TradeCenterLeasing({
 export function TradeCenterAdvertising({ info, name, index }: { info: RetailInfo; name: string; index?: number }) {
   const { audience, advertising } = info;
   if (!audience.length && !advertising) return null;
-  const lead = advertising?.text?.match(/^.*?(?:[.!?](?=\s|$)|$)/)?.[0];
+  const audiencePreview = audience.slice(0, 2).map((entry) => {
+    const tile = compactAudience(entry);
+    return `${tile.value} ${tile.label}`;
+  });
+  const mediaCount = advertising?.points.length ?? 0;
+  const lead = advertising?.text?.match(/^.*?(?:[.!?](?=\s|$)|$)/)?.[0]?.trim() || null;
+  const subtitle = [
+    ...audiencePreview,
+    mediaCount ? `${mediaCount} ${mediaCount === 1 ? 'носитель' : mediaCount < 5 ? 'носителя' : 'носителей'}` : null,
+    !audiencePreview.length && !mediaCount ? lead : null,
+  ].filter(Boolean).join(' · ') || 'Носители, аудитория и контакты отдела рекламы';
   return (
     <RetailCategorySpoiler
       id="advertising"
-      subtitle={lead || 'Носители, аудитория и контакты отдела рекламы'}
-      meta="Для бизнеса"
+      subtitle={subtitle}
+      meta={audience.length || mediaCount
+        ? [audience.length ? `${audience.length} метрик` : null, mediaCount ? `${mediaCount} носителей` : null].filter(Boolean).join(' · ')
+        : 'Для бизнеса'}
       index={index}
     >
       {audience.length > 0 && <div className={`grid gap-2.5 ${fitGridClass(audience.length, 5, 'tiles')}`}>
