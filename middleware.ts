@@ -255,6 +255,13 @@ export default function middleware(request: Request) {
   // Платформа: / отдаёт главную модулей (PlatformHomePage), без 307.
   // Malllist: / — index.html (meta Вебмастера) + SPA Navigate на /minsk/tc;
   // /minsk → каталог ТЦ.
+  //
+  // Явный early-return для платформенного корня: раньше здесь был 307→/minsk
+  // (oodobu до 2026-10-11). Не возвращать редирект.
+  if (siteMode === 'platform' && (normalized === '/' || normalized === '')) {
+    return next();
+  }
+
   if (siteMode === 'malls') {
     if (normalized === '/minsk') {
       return Response.redirect(new URL('/minsk/tc', url), 307);
