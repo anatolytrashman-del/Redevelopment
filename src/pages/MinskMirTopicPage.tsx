@@ -29,6 +29,7 @@ import type { MinskMirTopicSlug } from '../data/minskMirTopics';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
+import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenter } from '../data/businessCenters';
 import { absolutePublicUrl, platformOrigin } from '../lib/sites';
@@ -782,6 +783,7 @@ export function MinskMirTopicPage() {
             ))}
           </ul>
         </div>
+        <CookieFooterLinks />
       </main>
     </div>
   );

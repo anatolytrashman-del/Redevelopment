@@ -57,6 +57,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setFaqJsonLd, setBreadcrumbJsonLd } from '../lib/pageMeta';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
+import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenter } from '../data/businessCenters';
 import { absolutePublicUrl, catalogSiteUrl, platformOrigin } from '../lib/sites';
@@ -3193,6 +3194,7 @@ export function DistrictGuidePage() {
           </a>{' '}
           в информационных целях и будут незамедлительно удалены по обоснованному требованию правообладателя.
         </p>
+            <CookieFooterLinks />
           </div>
         </div>
       </main>

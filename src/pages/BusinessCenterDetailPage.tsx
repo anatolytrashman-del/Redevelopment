@@ -59,6 +59,7 @@ import { PhotoBlock, FactTile } from '../components/businessCenters/BusinessCent
 import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import { MetroValue, TradeCenterHeroSummary } from '../components/businessCenters/TradeCenterHeroSummary';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
+import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
@@ -3584,7 +3585,17 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
               Яндекс.Карты) и полный список конкретных сайтов остались только
               в попапе SourcesTrademarkNote — по клику на "Полный список
               источников", не в подверстке блока. */}
-          {isTc ? <p className="text-sm text-ink-muted">Все сведения носят справочный характер. Названия и товарные знаки принадлежат их правообладателям.</p> : <SourcesTrademarkNote />}
+          {isTc ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-ink-muted">
+                Все сведения носят справочный характер. Названия и товарные знаки принадлежат их
+                правообладателям.
+              </p>
+              <CookieFooterLinks />
+            </div>
+          ) : (
+            <SourcesTrademarkNote />
+          )}
         </div>
 
         </main>
