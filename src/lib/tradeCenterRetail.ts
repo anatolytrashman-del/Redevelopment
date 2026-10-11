@@ -1180,25 +1180,36 @@ export function funMetaParts(entry: RetailFunEntry): string[] {
 }
 
 /**
- * Короткий смысл для плиток карточки ТЦ (владелец, 2026-10-11): в якорях и
- * развлечениях полные абзацы лишние — теги/meta уже несут детали. Берём
- * первое предложение; если длинное — первую клаузулу до запятой/двоеточия,
- * иначе обрезаем по словам.
+ * Короткий смысл для плиток карточки ТЦ (владелец, 2026-10-11): полное
+ * предложение или цельная клаузула — без «…» и обрыва посередине. Если
+ * уместить нельзя, текста в плитке нет (теги/meta уже несут детали).
  */
 export function essenceText(text: string | null | undefined, maxLen = 72): string | null {
   if (!text) return null;
-  const trimmed = text.replace(/\s+/g, ' ').trim();
+  let trimmed = text.replace(/\s+/g, ' ').trim().replace(/…+\s*$/u, '').trim();
   if (!trimmed) return null;
-  const first = trimmed.match(/^(.+?[.!?…])(?:\s|$)/u)?.[1] ?? trimmed;
-  if (first.length <= maxLen) return first;
-  // «Продуктовый гипермаркет сети «Корона», который…» → до первой запятой.
-  const clause = first.match(/^(.{24,}?)[,:;—–]\s/u)?.[1]?.trim();
-  if (clause && clause.length <= maxLen) {
-    return /[.!?…]$/u.test(clause) ? clause : `${clause}.`;
+  const first = trimmed.match(/^(.+?[.!?])(?:\s|$)/u)?.[1] ?? trimmed.replace(/[.!?]+$/u, '').trim();
+  if (!first) return null;
+  if (first.length <= maxLen) return finishEssence(first);
+
+  // Самая длинная клаузула ≤ maxLen; иначе первая цельная ≤ softMax.
+  const softMax = Math.min(96, Math.max(maxLen, Math.round(maxLen * 1.35)));
+  let hard: string | null = null;
+  let soft: string | null = null;
+  const re = /[,:;—–]\s/gu;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(first)) !== null) {
+    const clause = first.slice(0, match.index).trim();
+    if (clause.length < 20) continue;
+    if (clause.length <= maxLen) hard = clause;
+    else if (!soft && clause.length <= softMax) soft = clause;
   }
-  const cut = first.slice(0, maxLen - 1);
-  const space = cut.lastIndexOf(' ');
-  return `${(space > 28 ? cut.slice(0, space) : cut).trim()}…`;
+  const pick = hard ?? soft;
+  return pick ? finishEssence(pick) : null;
+}
+
+function finishEssence(value: string): string {
+  return /[.!?]$/u.test(value) ? value : `${value}.`;
 }
 
 // «4-й уровень паркинга» — место словами, к нему «этаж» не приписываем.
