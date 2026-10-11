@@ -1179,6 +1179,22 @@ export function funMetaParts(entry: RetailFunEntry): string[] {
   ].filter((part): part is string => Boolean(part));
 }
 
+/**
+ * Короткий смысл для плиток карточки ТЦ (владелец, 2026-10-11): в развлечениях
+ * и якорях полные абзацы лишние — теги/meta уже несут детали. Берём первое
+ * предложение, обрезаем по словам, если всё ещё длинно.
+ */
+export function essenceText(text: string | null | undefined, maxLen = 120): string | null {
+  if (!text) return null;
+  const trimmed = text.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return null;
+  const first = trimmed.match(/^(.+?[.!?…])(?:\s|$)/u)?.[1] ?? trimmed;
+  if (first.length <= maxLen) return first;
+  const cut = first.slice(0, maxLen - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > 48 ? cut.slice(0, space) : cut).trim()}…`;
+}
+
 // «4-й уровень паркинга» — место словами, к нему «этаж» не приписываем.
 function formatFunFloor(floor: string): string {
   return /[а-яё]{3,}/iu.test(floor) ? floor : formatFloorLabel(floor);

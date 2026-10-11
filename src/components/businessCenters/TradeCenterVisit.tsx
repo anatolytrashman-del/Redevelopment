@@ -4,6 +4,7 @@ import type { RetailInfo } from '../../data/businessCenters';
 import { METRO_LINE_DOT_CLASS } from '../../lib/businessCenterCatalogFilter';
 import { cn } from '../../lib/cn';
 import { eventDateForVisit, eventsForVisit, loyaltyForVisit, parkingForVisit, transportForVisit } from '../../lib/tradeCenterVisit';
+import { essenceText } from '../../lib/tradeCenterRetail';
 import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { fitGridClass } from '../../lib/fitGrid';
 
@@ -91,24 +92,50 @@ export function TradeCenterOffersEvents({ info, index }: { info: RetailInfo; ind
       meta={metaParts.join(' · ') || null}
       index={index}
     >
-      {loyalty.map((program, programIndex) => <div key={`${program.name}-${programIndex}`} className="grid grid-cols-1 items-center gap-[18px] rounded-[20px] bg-[#1b1c20] px-5 py-[18px] text-white md:grid-cols-[1.1fr_2fr]">
-        <div><h3 className="text-base font-bold">{program.name}</h3>{program.subtitle && <p className="mt-1 text-xs text-white/65">{program.subtitle}</p>}</div>
-        {program.facts.length > 0 ? <dl className={cn('grid gap-2', fitGridClass(program.facts.length, 3, 'tiles'))}>
-          {program.facts.map((fact) => <div key={fact.label} className="min-w-0 rounded-xl bg-white/[0.06] px-3 py-2.5">
-            <dd className="break-words text-base font-extrabold">{fact.value}</dd><dt className="mt-0.5 break-words text-[11px] leading-snug text-white/65 [hyphens:auto]">{fact.label}</dt>
-          </div>)}
-        </dl> : <p className="text-sm leading-relaxed text-white/65">{program.fallback}</p>}
-      </div>)}
-      {events.length > 0 && <div className={cn('grid items-start gap-2.5', fitGridClass(events.length, 3))}>
-        {events.map((event, eventIndex) => <article key={`${event.name}-${eventIndex}`} className="min-w-0 rounded-[18px] border border-border bg-white px-4 py-3.5">
-          {eventDateForVisit(event) && <p className="text-[11px] font-bold uppercase tracking-wide text-primary">{eventDateForVisit(event)}</p>}
-          <h3 className="mt-1 text-[15px] font-bold">{event.name}</h3>
-          {event.text && <details open={eventIndex === 0} className="mt-2 text-xs text-ink-muted">
-            <summary className="cursor-pointer list-none hover:text-ink focus-visible:outline-primary">Подробнее ▾</summary>
-            <p className="mt-1.5 text-[13px] leading-relaxed">{event.text}</p>
-          </details>}
-        </article>)}
-      </div>}
+      {loyalty.map((program, programIndex) => (
+        <div
+          key={`${program.name}-${programIndex}`}
+          className="grid grid-cols-1 items-center gap-[18px] rounded-[20px] border border-[#efdfd4] bg-[#fff1e8] px-5 py-[18px] text-ink md:grid-cols-[1.1fr_2fr]"
+        >
+          <div>
+            <h3 className="text-base font-bold">{program.name}</h3>
+            {program.subtitle && <p className="mt-1 text-xs text-ink/55">{program.subtitle}</p>}
+          </div>
+          {program.facts.length > 0 ? (
+            <dl className={cn('grid gap-2', fitGridClass(program.facts.length, 3, 'tiles'))}>
+              {program.facts.map((fact) => (
+                <div key={fact.label} className="min-w-0 rounded-xl bg-white/80 px-3 py-2.5">
+                  <dd className="break-words text-base font-extrabold text-[#c45c3a]">{fact.value}</dd>
+                  <dt className="mt-0.5 break-words text-[11px] leading-snug text-ink/55 [hyphens:auto]">{fact.label}</dt>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-sm leading-relaxed text-ink/60">{program.fallback}</p>
+          )}
+        </div>
+      ))}
+      {events.length > 0 && (
+        <div className={cn('grid items-start gap-2.5', fitGridClass(events.length, 3))}>
+          {events.map((event, eventIndex) => {
+            const blurb = essenceText(event.text, 110);
+            return (
+              <article
+                key={`${event.name}-${eventIndex}`}
+                className="min-w-0 rounded-[18px] border border-[#efdfd4] bg-white px-4 py-3.5"
+              >
+                {eventDateForVisit(event) && (
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#c45c3a]">
+                    {eventDateForVisit(event)}
+                  </p>
+                )}
+                <h3 className="mt-1 text-[15px] font-bold">{event.name}</h3>
+                {blurb && <p className="mt-1.5 text-[13px] leading-snug text-ink/60">{blurb}</p>}
+              </article>
+            );
+          })}
+        </div>
+      )}
     </RetailCategorySpoiler>
   );
 }

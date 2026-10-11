@@ -33,11 +33,13 @@ import {
   TIMELINE_KIND_LABELS,
   anchorCategoryLabel,
   anchorMetaParts,
+  essenceText,
   timelineMonth,
   timelineYear,
 } from '../../lib/tradeCenterRetail';
 import { Badge } from '../ui/Badge';
 import { RetailCategorySpoiler } from './RetailCategorySpoiler';
+import { tcChipSoftClass } from './tradeCenterRetailStyle';
 import { fitGridClass } from '../../lib/fitGrid';
 import { pluralRu } from '../../lib/pluralRu';
 
@@ -69,14 +71,15 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
   const Icon = ANCHOR_ICONS[anchor.category ?? 'другое'];
   const category = anchorCategoryLabel(anchor);
   const meta = anchorMetaParts(anchor);
+  const blurb = essenceText(anchor.text, 100);
   return (
-    <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/65 p-3">
+    <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-[#efdfd4] bg-white/80 p-3">
       <span
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] text-ink/70"
+        className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}
         title={category ?? undefined}
         aria-hidden="true"
       >
-        <Icon className="h-4.5 w-4.5" />
+        <Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         {anchor.yandexUrl ? (
@@ -84,7 +87,7 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
             href={anchor.yandexUrl}
             target="_blank"
             rel="nofollow noopener noreferrer"
-            className="break-words text-sm font-bold leading-snug text-ink underline decoration-ink-faint/40 underline-offset-2 hover:text-primary-hover"
+            className="break-words text-sm font-bold leading-snug text-ink underline decoration-ink-faint/40 underline-offset-2 hover:text-[#c45c3a]"
           >
             {anchor.name}
           </a>
@@ -93,7 +96,7 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
         )}
         {category && <span className="text-xs font-semibold text-ink-muted">{category}</span>}
         {meta.length > 0 && <span className="text-xs text-ink-muted">{meta.join(' · ')}</span>}
-        {anchor.text && <span className="mt-1 break-words text-xs leading-relaxed text-ink-muted">{anchor.text}</span>}
+        {blurb && <span className="mt-1 break-words text-xs leading-snug text-ink/60">{blurb}</span>}
       </span>
     </li>
   );
@@ -135,6 +138,7 @@ export function TradeCenterHistoryCard({ timeline, title, index }: { timeline: R
           const month = timelineMonth(entry);
           const first = i === 0;
           const last = i === visibleCount - 1;
+          const blurb = essenceText(entry.text, 140);
           return (
             // Скрытые строки остаются в разметке (`hidden`), а не вырезаются:
             // пререндер и поисковики видят ленту целиком.
@@ -154,12 +158,12 @@ export function TradeCenterHistoryCard({ timeline, title, index }: { timeline: R
               <div className="relative flex justify-center" aria-hidden="true">
                 <span
                   className={cn(
-                    'absolute w-px bg-ink-faint/30',
+                    'absolute w-px bg-[#e8d0c4]',
                     first ? 'top-3' : 'top-0',
                     last ? 'h-3' : 'bottom-0',
                   )}
                 />
-                <span className="relative mt-2 h-3 w-3 rounded-full border-2 border-primary bg-white" />
+                <span className="relative mt-2 h-3 w-3 rounded-full border-2 border-[#c45c3a] bg-white" />
               </div>
               <div className={cn('flex min-w-0 flex-col gap-1', last ? 'pb-0' : 'pb-5')}>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -168,7 +172,7 @@ export function TradeCenterHistoryCard({ timeline, title, index }: { timeline: R
                     {TIMELINE_KIND_LABELS[entry.kind]}
                   </Badge>
                 </div>
-                {entry.text && <p className="break-words text-sm leading-relaxed text-ink-muted">{entry.text}</p>}
+                {blurb && <p className="break-words text-sm leading-snug text-ink/60">{blurb}</p>}
               </div>
             </li>
           );

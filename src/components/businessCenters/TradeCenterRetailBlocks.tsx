@@ -9,6 +9,7 @@ import type { TenantOrganizationView } from '../../data/businessCenterTenants';
 import {
   LEISURE_KIND_LABELS,
   anchorsForPage,
+  essenceText,
   foodTitle,
   funTitle,
   leisureForPage,
@@ -17,6 +18,7 @@ import {
   sortLeisure,
   type RetailSectionId,
 } from '../../lib/tradeCenterRetail';
+import { cn } from '../../lib/cn';
 import { RetailCategorySpoiler } from './RetailCategorySpoiler';
 import { TradeCenterGuide } from './TradeCenterGuide';
 import { loadBcExtra, peekBcExtra, type BcExtraFile } from '../../lib/buildData';
@@ -28,6 +30,7 @@ import { TradeCenterAdvertising } from './TradeCenterBusiness';
 import { TradeCenterFoodCard, TradeCenterFunCard } from './TradeCenterFoodFun';
 import { fitGridClass } from '../../lib/fitGrid';
 import { pluralRu } from '../../lib/pluralRu';
+import { tcChipSoftClass } from './tradeCenterRetailStyle';
 
 const LEISURE_ICONS: Record<RetailLeisureKind, LucideIcon> = {
   cinema: Clapperboard,
@@ -100,21 +103,22 @@ export function TradeCenterRetailBlocks({
           <ul className={`grid gap-2 ${fitGridClass(leisure.length, 2)}`}>
             {leisure.map((entry, i) => {
               const Icon = LEISURE_ICONS[entry.kind];
+              const blurb = essenceText(entry.text);
               return (
                 <li
                   key={`${entry.name}-${i}`}
-                  className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/65 p-3"
+                  className="flex min-w-0 items-start gap-3 rounded-2xl border border-[#efdfd4] bg-white/80 p-3"
                 >
                   <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] text-ink/70"
+                    className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}
                     title={LEISURE_KIND_LABELS[entry.kind]}
                   >
                     <Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block break-words text-sm font-semibold leading-snug text-ink">{entry.name}</span>
-                    {entry.text && (
-                      <span className="mt-1 block break-words text-sm leading-relaxed text-ink-muted">{entry.text}</span>
+                    {blurb && (
+                      <span className="mt-1 block break-words text-sm leading-snug text-ink/60">{blurb}</span>
                     )}
                   </span>
                 </li>

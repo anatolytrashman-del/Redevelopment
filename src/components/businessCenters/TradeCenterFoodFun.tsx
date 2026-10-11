@@ -39,6 +39,7 @@ import type {
 import { pluralRu } from '../../lib/pluralRu';
 import {
   FUN_KIND_LABELS,
+  essenceText,
   formatFloorLabel,
   formatFoodFloor,
   funMetaParts,
@@ -49,6 +50,7 @@ import { fitGridClass } from '../../lib/fitGrid';
 import { foodMenuStats, foodMenuVisibleCounts, placeHoursShort } from '../../lib/tradeCenterFood';
 import { Badge } from '../ui/Badge';
 import { RetailCategorySpoiler } from './RetailCategorySpoiler';
+import { tcChipSoftClass } from './tradeCenterRetailStyle';
 
 
 const FUN_ICONS: Record<RetailFunKind, LucideIcon> = {
@@ -172,16 +174,17 @@ export function TradeCenterFoodCard({ food, title, index }: { food: RetailFoodIn
 function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
   const Icon = FUN_ICONS[entry.kind];
   const meta = funMetaParts(entry);
+  const blurb = essenceText(entry.text);
   return (
     <li
       className={cn(
-        'flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-white/65 p-4',
+        'flex min-w-0 flex-col gap-2.5 rounded-2xl border border-[#efdfd4] bg-white/80 p-4',
         wide && 'md:col-span-2',
       )}
     >
       <div className="flex items-start gap-3">
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] text-ink/70"
+          className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}
           aria-hidden="true"
         >
           <Icon className="h-5 w-5" strokeWidth={1.75} />
@@ -207,13 +210,13 @@ function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
           <span className="break-words">{entry.hours}</span>
         </p>
       )}
-      {entry.text && <p className="break-words text-sm leading-relaxed text-ink-muted">{entry.text}</p>}
+      {blurb && <p className="break-words text-sm leading-snug text-ink/60">{blurb}</p>}
       {entry.yandexUrl && (
         <a
           href={entry.yandexUrl}
           target="_blank"
           rel="nofollow noopener noreferrer"
-          className="mt-auto inline-flex w-fit items-center gap-1 text-xs font-semibold text-primary-hover hover:underline"
+          className="mt-auto inline-flex w-fit items-center gap-1 text-xs font-semibold text-[#c45c3a] hover:underline"
         >
           На Яндекс Картах
           <ExternalLink className="h-3 w-3" aria-hidden="true" />

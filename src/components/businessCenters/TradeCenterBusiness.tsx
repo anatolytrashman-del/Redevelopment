@@ -4,7 +4,10 @@ import type { DealStats } from '../../lib/businessCenterOfferStats';
 import { advertisingMedium, compactAudience, leasingFormats, parseBusinessContacts } from '../../lib/tradeCenterBusiness';
 import { BuildingOffersSection } from './BuildingOffersSection';
 import { CategorySpoiler } from '../ui/CategorySpoiler';
+import { essenceText } from '../../lib/tradeCenterRetail';
 import { RetailCategorySpoiler } from './RetailCategorySpoiler';
+import { tcChipSoftClass } from './tradeCenterRetailStyle';
+import { cn } from '../../lib/cn';
 import { fitGridClass } from '../../lib/fitGrid';
 
 const boxClass = 'min-w-0 rounded-[20px] border border-border bg-white px-5 py-[18px]';
@@ -12,16 +15,36 @@ const icons = { monitor: Monitor, play: Play, volume: Volume2, image: Image, car
 
 function BusinessContact({ title, text }: { title: string; text: string }) {
   const contacts = parseBusinessContacts(text);
-  return <div className="flex flex-wrap items-center justify-between gap-4 rounded-[20px] bg-[#1b1c20] px-5 py-[18px] text-white">
-    <div className="min-w-0">
-      <h3 className="text-sm font-bold">{title}</h3>
-      {(contacts.hours || contacts.rest) && <p className="mt-1 text-xs text-white/60">{contacts.hours ?? contacts.rest}</p>}
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-[20px] border border-[#efdfd4] bg-[#fff1e8] px-5 py-[18px] text-ink">
+      <div className="min-w-0">
+        <h3 className="text-sm font-bold">{title}</h3>
+        {(contacts.hours || contacts.rest) && (
+          <p className="mt-1 text-xs text-ink/55">{contacts.hours ?? contacts.rest}</p>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-wrap gap-2">
+        {contacts.phones.map((phone) => (
+          <a
+            key={phone.href}
+            href={phone.href}
+            className="rounded-xl bg-[#c45c3a] px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-[#b04e30]"
+          >
+            {phone.label}
+          </a>
+        ))}
+        {contacts.emails.map((email) => (
+          <a
+            key={email.href}
+            href={email.href}
+            className="break-all rounded-xl bg-white/90 px-3.5 py-2.5 text-sm font-semibold text-ink hover:bg-white"
+          >
+            {email.label}
+          </a>
+        ))}
+      </div>
     </div>
-    <div className="flex min-w-0 flex-wrap gap-2">
-      {contacts.phones.map((phone) => <a key={phone.href} href={phone.href} className="rounded-xl bg-primary px-3.5 py-2.5 text-sm font-semibold hover:bg-primary-hover">{phone.label}</a>)}
-      {contacts.emails.map((email) => <a key={email.href} href={email.href} className="break-all rounded-xl bg-white/[0.06] px-3.5 py-2.5 text-sm font-semibold hover:bg-white/15">{email.label}</a>)}
-    </div>
-  </div>;
+  );
 }
 
 export function TradeCenterLeasing({
@@ -53,7 +76,7 @@ export function TradeCenterLeasing({
       <div>
         <h3 className="mb-2.5 text-xs font-bold uppercase tracking-wide text-ink-muted">Свободные помещения</h3>
         {sale || rent || listed.length ? <BuildingOffersSection sale={sale} rent={rent} listed={listed} embedded /> : <div className={`${boxClass} flex items-center gap-3.5`}>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink/[0.06] font-bold text-ink/60" aria-hidden="true">0</span>
+          <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-bold', tcChipSoftClass)} aria-hidden="true">0</span>
           <p className="text-sm text-ink">ТЦ не публикует список свободных площадей<span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">Узнать, что есть сейчас, можно напрямую в отделе аренды.</span></p>
         </div>}
       </div>
@@ -92,9 +115,13 @@ export function TradeCenterAdvertising({ info, name, index }: { info: RetailInfo
         {advertising.points.map((point, pointIndex) => {
           const medium = advertisingMedium(point);
           const Icon = icons[medium.icon];
+          const blurb = essenceText(medium.text, 100);
           return <article key={pointIndex} className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3.5">
-            <span className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[10px] bg-ink/[0.06] text-ink/70"><Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" /></span>
-            <div className="min-w-0"><h3 className="break-words text-sm font-bold text-ink">{medium.title}</h3>{medium.text && <p className="mt-0.5 break-words text-xs leading-relaxed text-ink-muted">{medium.text}</p>}</div>
+            <span className={cn('flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[10px]', tcChipSoftClass)}><Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" /></span>
+            <div className="min-w-0">
+              <h3 className="break-words text-sm font-bold text-ink">{medium.title}</h3>
+              {blurb && <p className="mt-0.5 break-words text-xs leading-snug text-ink/60">{blurb}</p>}
+            </div>
           </article>;
         })}
       </div>}
