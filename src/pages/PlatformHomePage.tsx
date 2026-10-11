@@ -88,26 +88,19 @@ export function PlatformHomePage() {
         >
           <div className="flex min-w-0 flex-col justify-center gap-5">
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight text-ink sm:text-3xl sm:leading-[1.2]">
-              Умные модули для закупок, продаж и&nbsp;документов
+              Умные модули для индустрии недвижимости
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
               Для команд в&nbsp;строительстве, редевелопменте и&nbsp;продажах. Вы принимаете
               решения — модуль закрывает повторяющуюся работу вокруг них.
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <a
-                href="#modules"
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md bg-black/[0.06] px-5 py-2.5 text-sm font-bold text-ink-muted"
+                aria-disabled="true"
               >
-                Смотреть модули
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </a>
-              <a
-                href="/zakupki"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white/70 px-5 py-2.5 text-sm font-bold text-ink transition-colors hover:border-ink/25"
-              >
-                Модуль закупок
-              </a>
+                В работе
+              </span>
             </div>
           </div>
 
