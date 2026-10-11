@@ -16,12 +16,30 @@ const NEW_CSS = '/assets/index-vmqKJlxP.css';
 const NEW_FILES = new Set([NEW_ENTRY, ...NEW_PRELOADS, NEW_CSS].map((p) => p.slice('/assets/'.length)));
 const assetExists = (name) => NEW_FILES.has(name);
 
+const NEW_PRIME = `<script>
+      (function () {
+        var path = location.pathname;
+        window.__bcKind = 'tc';
+        window.__bcList = get('/data/trade-centers.json');
+        if (base !== '/minsk/tc') window.__bcMarket = get('/data/bc-market.json');
+      })();
+    </script>`;
+const OLD_PRIME = `<script>
+      (function () {
+        var path = location.pathname;
+        window.__bcKind = 'tc';
+        window.__bcList = get('/data/trade-centers.json');
+        window.__bcMarket = get('/data/bc-market.json');
+      })();
+    </script>`;
+
 const template = `<!doctype html>
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="preload" as="font" type="font/woff2" href="/fonts/Montserrat-Regular.woff2" crossorigin>
+    ${NEW_PRIME}
     <link rel="stylesheet" crossorigin href="${NEW_CSS}">
   </head>
   <body>
@@ -34,7 +52,7 @@ const OLD_ENTRY = '/assets/index-BDEH5jS3.js';
 const OLD_PRELOADS = ['/assets/react-BatatxyT.js', '/assets/chevron-up-Cq1x2Yz-.js', '/assets/badgeColor-Dold1234.js'];
 const OLD_CSS = '/assets/index-Cold9876.css';
 
-const snapshot = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="preload" as="font" type="font/woff2" href="/fonts/Montserrat-Regular.woff2" crossorigin=""><link rel="stylesheet" crossorigin="" href="${OLD_CSS}"><title>БЦ А-100 — аренда офисов</title><meta property="og:image" content="https://redevelopment.pro/og/minsk-bcminsk-a-100.png"></head><body><div id="root"><h1>Бизнес-центр А-100</h1><p>Цена $12/м²</p></div>${loaderOf(OLD_ENTRY, OLD_PRELOADS).replace('<script data-entry-loader>', '<script data-entry-loader="">')}</body></html>`;
+const snapshot = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="preload" as="font" type="font/woff2" href="/fonts/Montserrat-Regular.woff2" crossorigin="">${OLD_PRIME}<link rel="stylesheet" crossorigin="" href="${OLD_CSS}"><title>БЦ А-100 — аренда офисов</title><meta property="og:image" content="https://redevelopment.pro/og/minsk-bcminsk-a-100.png"></head><body><div id="root"><h1>Бизнес-центр А-100</h1><p>Цена $12/м²</p></div>${loaderOf(OLD_ENTRY, OLD_PRELOADS).replace('<script data-entry-loader>', '<script data-entry-loader="">')}</body></html>`;
 
 describe('extractBuildBlocks', () => {
   it('достаёт stylesheet-ссылку и лоадер из dist/index.html', () => {
@@ -43,6 +61,8 @@ describe('extractBuildBlocks', () => {
     expect(blocks.loader.startsWith('<script data-entry-loader>')).toBe(true);
     expect(blocks.loader.endsWith('</script>')).toBe(true);
     expect(blocks.loader).toContain(NEW_ENTRY);
+    expect(blocks.catalogPrime).toContain("base !== '/minsk/tc'");
+    expect(blocks.catalogPrime).toContain('window.__bcList');
   });
 
   it('падает, если сборка не оставила лоадера или stylesheet — это системная проблема, а не одного пути', () => {
@@ -73,8 +93,19 @@ describe('adoptBuildAssets', () => {
     // ровно один лоадер и одна stylesheet-ссылка
     expect(html.match(/data-entry-loader/g)).toHaveLength(1);
     expect(html.match(/rel="stylesheet"/g)).toHaveLength(1);
+    // прайм каталога — из текущей сборки (не старый безусловный bc-market)
+    expect(html).toContain("if (base !== '/minsk/tc') window.__bcMarket");
+    expect(html).not.toContain(`${OLD_PRIME}`);
     // все ссылки на ассеты — только существующие файлы этой сборки
     expect(assetRefsOf(html).every(assetExists)).toBe(true);
+  });
+
+  it('без прайма в копии не отказывается — админка и страницы вне раздела', () => {
+    const noPrime = snapshot.replace(OLD_PRIME, '');
+    const { html, reason } = adoptBuildAssets(noPrime, blocks, assetExists);
+    expect(reason).toBeNull();
+    expect(html).toContain(NEW_ENTRY);
+    expect(html).not.toContain('window.__bcList');
   });
 
   it('состав чанков в лоадере не сопоставляется по именам — новый/переименованный чанк не мешает', () => {
