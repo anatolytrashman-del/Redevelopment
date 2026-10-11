@@ -1329,12 +1329,16 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // рынок бизнес-центров в Минске» уехали отсюда на /minsk/bc/guide,
   // здесь вместо них одна строка-ссылка туда.
   const isGeneralCatalog = isCatalogRoot && centers !== null && centers.length > 0;
+  // Корень ТЦ по умолчанию — полки подборок без бокового фильтра и без
+  // сетки «весь каталог». Полный список — отдельная подборка (?view=list).
+  const showTcListView = isTc && isCatalogRoot && searchParams.get('view') === 'list';
+  const isTcBrowseHome = isTc && isGeneralCatalog && !showTcListView;
 
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
-    () => (isTc && isGeneralCatalog ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : []),
-    [isTc, isGeneralCatalog, centers, tcIndex, V.basePath],
+    () => (isTcBrowseHome ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : []),
+    [isTcBrowseHome, centers, tcIndex, V.basePath],
   );
 
   const rentMethodology = summary.rentMedian != null
@@ -1411,17 +1415,20 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       add('Где посмотреть, кто управляет зданиями и что сейчас сдаётся в каталоге?', 'На странице «Аналитика каталога БЦ». Там указано, кто управляет зданиями: товарищество собственников или единая УК. Там же — здания с активными объявлениями и диапазоны площади лотов. Данные внешних источников помогают оценить рынок офисов в целом.');
       add('Как работают фильтры и подборки?', 'Фильтры оставляют здания с выбранными характеристиками. Список и сводка обновляются вместе с фильтрами. Сортировка меняет порядок. Карточки, таблица и карта помогают просматривать результаты, сравнение — сопоставлять выбранные здания. В справочнике по бизнес-центрам Минска есть подборки по классу и статусу строительства. Там же можно выбрать район, микрорайон, улицу или метро. Полный список названий в справочнике ведёт на страницы зданий.');
     } else {
-      if (isCatalogRoot) {
+      if (isTcBrowseHome || (isCatalogRoot && !showTcListView)) {
         add(
-          'Что такое авторские подборки в каталоге ТЦ?',
-          'Это короткие срезы каталога по сценарию: шопинг, кино, бесплатная парковка, популярные бренды, а также топовые районы и станции метро по числу и качеству торговых центров. Подборка ведёт на отдельную страницу со списком подходящих ТЦ.',
+          'Что такое подборки в каталоге ТЦ?',
+          'Короткие срезы: сценарий (шопинг, кино, парковка), бренд, район или станция метро. Подборка открывает список подходящих ТЦ. Полный каталог — отдельная подборка «Все ТЦ».',
         );
       }
-      add('Как работают фильтры?', `Фильтры оставляют ${V.many} с выбранными характеристиками: формат, район, микрорайон, станция метро и расстояние до неё. Список обновляется вместе с фильтрами, счётчик у каждого варианта показывает, сколько зданий останется, если его выбрать. На главной каталога сверху также есть авторские подборки по интересам.`);
+      add(
+        'Как работают фильтры?',
+        `На страницах подборок и полного списка фильтры оставляют ${V.many} с выбранными характеристиками: формат, район, микрорайон, станция метро. Список обновляется вместе с фильтрами.`,
+      );
     }
     add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак подтверждён данными.');
     return items;
-  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot]);
+  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot, isTcBrowseHome, showTcListView]);
 
   useEffect(() => {
     setFaqJsonLd(pageIsIndexable ? faqItems : []);
@@ -1570,13 +1577,105 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       <CatalogTopNav
         centers={centers}
         width="max-w-6xl"
-        navOffsetClassName="lg:ml-[calc(64px+max(0px,(100%-1008px)/2))]"
+        navOffsetClassName={
+          isTcBrowseHome ? undefined : 'lg:ml-[calc(64px+max(0px,(100%-1008px)/2))]'
+        }
       />
 
       {/* <main> — единственный main-landmark (Accessibility «Document does
           not have a main landmark»), шапка — вне него. */}
-      {/* Сетка и ширина основного контента — как на странице Минск Мира. */}
+      {/* Сетка и ширина основного контента — как на странице Минск Мира.
+          Корень ТЦ (полки) — на всю ширину, без колонки фильтров. */}
       <main className="mx-auto max-w-6xl px-4 pt-6 pb-12 sm:px-8 sm:pt-12">
+        {isTcBrowseHome ? (
+          <div className="space-y-6">
+            <section
+              className={cn(
+                'relative overflow-hidden p-6 sm:p-10 lg:p-12',
+                glassCardClass,
+              )}
+              style={glassCardShadow}
+            >
+              <span
+                className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-primary/[0.08] blur-3xl"
+                aria-hidden
+              />
+              <span
+                className="pointer-events-none absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-[#c9a227]/15 blur-3xl"
+                aria-hidden
+              />
+              <div className="relative grid items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-12">
+                <div className="flex flex-col gap-5">
+                  <p className="text-sm font-semibold tracking-[0.14em] text-ink-muted uppercase">
+                    MallList · Минск
+                  </p>
+                  <h1
+                    className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl lg:text-[3.4rem]"
+                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                  >
+                    Куда в ТЦ?
+                  </h1>
+                  <p className="max-w-lg text-base leading-relaxed text-ink/70 sm:text-lg">
+                    Листай подборки — шопинг, кино, бренд, район, метро.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <a
+                      href="#tc-shelves"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(228,21,43,0.28)] transition-transform hover:-translate-y-0.5"
+                    >
+                      Выбрать
+                      <ArrowRight className="h-4 w-4" aria-hidden />
+                    </a>
+                  </div>
+                  <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
+                    <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                    {UPDATED_BADGE_LABEL}
+                  </span>
+                </div>
+                <div
+                  className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem] sm:aspect-square"
+                  aria-hidden
+                >
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background:
+                        'linear-gradient(145deg, #1a1c22 0%, #3a1520 42%, #c45c2a 100%)',
+                    }}
+                  />
+                  <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full opacity-90">
+                    <line x1="10" y1="22" x2="90" y2="22" stroke="#c9a227" strokeWidth="1.6" />
+                    <line x1="10" y1="40" x2="90" y2="40" stroke="rgba(247,241,228,0.4)" strokeWidth="1.4" />
+                    <line x1="10" y1="58" x2="90" y2="58" stroke="rgba(247,241,228,0.28)" strokeWidth="1.4" />
+                    <line x1="10" y1="76" x2="90" y2="76" stroke="rgba(247,241,228,0.18)" strokeWidth="1.4" />
+                    <line x1="28" y1="10" x2="28" y2="90" stroke="rgba(247,241,228,0.35)" strokeWidth="1.4" />
+                    <line x1="50" y1="10" x2="50" y2="90" stroke="#c9a227" strokeWidth="1.6" />
+                    <line x1="72" y1="10" x2="72" y2="90" stroke="rgba(247,241,228,0.35)" strokeWidth="1.4" />
+                    <rect x="34" y="28" width="32" height="32" fill="none" stroke="rgba(247,241,228,0.55)" strokeWidth="1.6" />
+                  </svg>
+                  {centers && (
+                    <p
+                      className="absolute bottom-4 left-4 right-4 text-sm font-bold text-white/90 sm:text-base"
+                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                    >
+                      {centers.filter((c) => c.status !== 'under_construction').length} ТЦ
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <div id="tc-shelves">
+              <TradeCenterEditorialShelves shelves={tcEditorialShelves} />
+            </div>
+
+            {faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />}
+            <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
+              <h2 className="text-lg font-bold text-ink">Источники</h2>
+              <SourcesTrademarkNote />
+            </div>
+          </div>
+        ) : (
         <div className="lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-10">
           <aside aria-label="Фильтры каталога" className="min-w-0 space-y-4 lg:sticky lg:top-24">
           {/* Отдельный блок, не часть CatalogFilterPanel (владелец,
@@ -1625,13 +1724,27 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           />
           </aside>
           <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
+          {showTcListView && (
+            <Link
+              to={V.basePath}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+            >
+              ← К подборкам
+            </Link>
+          )}
           <div
             className={cn('flex flex-col gap-6 overflow-hidden p-6 sm:flex-row sm:items-center sm:p-8', glassCardClass)}
             style={glassCardShadow}
           >
             <div className="contents sm:flex sm:min-w-0 sm:flex-[3] sm:flex-col sm:gap-3">
-              <h1 className="order-1 text-2xl font-extrabold leading-tight text-ink sm:order-none sm:text-3xl">{heroH1}</h1>
-              <p className="order-3 text-base text-ink-muted sm:order-none">{heroIntro}</p>
+              <h1 className="order-1 text-2xl font-extrabold leading-tight text-ink sm:order-none sm:text-3xl">
+                {showTcListView ? 'Все торговые центры Минска' : heroH1}
+              </h1>
+              <p className="order-3 text-base text-ink-muted sm:order-none">
+                {showTcListView
+                  ? `${bcCountLabel} — полный список с фильтрами.`
+                  : heroIntro}
+              </p>
               <span className="order-4 flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d] sm:order-none">
                 <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
                 {UPDATED_BADGE_LABEL}
@@ -1673,10 +1786,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               `summary` при этом не выброшен — тем же значением пользуется
               SEO-текст (FAQ/подзаголовки хабов) ниже по файлу. */}
 
-          {isTc && isGeneralCatalog && tcEditorialShelves.length > 0 && (
-            <TradeCenterEditorialShelves shelves={tcEditorialShelves} />
-          )}
-
           {/* К14. Сравнение — блоком НАД результатами, а не модалкой:
               вложенных модалок в проекте не бывает, а сравнение смотрят,
               продолжая листать каталог. */}
@@ -1711,19 +1820,6 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           ) : (
             <div className="space-y-6">
-              {isTc && isGeneralCatalog && tcEditorialShelves.length > 0 && (
-                <div className="flex flex-col gap-1 px-0.5">
-                  <h2
-                    className="text-[1.65rem] font-black tracking-tight text-ink sm:text-3xl"
-                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                  >
-                    Весь каталог
-                  </h2>
-                  <p className="text-sm text-ink/65">
-                    {orderedCenters.length} {V.plural(orderedCenters.length)} Минска — полный список ниже.
-                  </p>
-                </div>
-              )}
               <div className="grid grid-cols-2 items-stretch gap-3 sm:gap-5 lg:grid-cols-3">
                 {orderedCenters.slice(0, visibleCount).map((c) => (
                   <BusinessCenterCard key={c.slug} center={c} />
@@ -1890,6 +1986,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             </div>
           </div>
         </div>
+        )}
       </main>
     </div>
   );

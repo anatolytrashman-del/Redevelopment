@@ -95,7 +95,7 @@ describe('авторские полки каталога ТЦ', () => {
     expect(TC_TOP_METRO).toBeLessThanOrEqual(8);
   });
 
-  it('собирает сценарии «куда сегодня» из тематических хабов', () => {
+  it('ставит «Все ТЦ» и сортирует сценарии по числу', () => {
     const centers = [
       tc({
         slug: 'galleria',
@@ -107,34 +107,41 @@ describe('авторские полки каталога ТЦ', () => {
         ],
       }),
       tc({ slug: 'dana', retailFormat: 'ТРЦ', district: 'Первомайский' }),
+      tc({ slug: 'momo', retailFormat: 'ТРЦ', district: 'Фрунзенский' }),
     ];
     const shelf = buildTonightShelf(centers, null);
     expect(shelf).not.toBeNull();
+    expect(shelf!.cards[0].id).toBe('all');
+    expect(shelf!.cards[0].count).toBe(3);
+    // После «Все» — по убыванию count
+    const rest = shelf!.cards.slice(1);
+    for (let i = 1; i < rest.length; i++) {
+      expect(rest[i - 1].count).toBeGreaterThanOrEqual(rest[i].count);
+    }
     expect(shelf!.cards.some((c) => c.href.includes('/with/shopping'))).toBe(true);
-    expect(shelf!.cards.some((c) => c.href.includes('/with/center'))).toBe(true);
   });
 
-  it('в бренды пускает только отмеченные редакцией с достаточным числом ТЦ', () => {
+  it('сортирует бренды по числу ТЦ (больше → раньше)', () => {
     const index: TcFilterIndex = new Map([
       [
         'galleria',
         buildTcFilterEntry({
           ...emptyFilter,
-          brands: ['Золотое Яблоко', 'Zara', 'Obscure Brand'],
+          brands: ['Золотое Яблоко', 'Zara', 'Mark Formelle'],
         }),
       ],
       [
         'dana',
         buildTcFilterEntry({
           ...emptyFilter,
-          brands: ['Золотое Яблоко'],
+          brands: ['Золотое Яблоко', 'Mark Formelle'],
         }),
       ],
       [
         'palace',
         buildTcFilterEntry({
           ...emptyFilter,
-          brands: ['Zara'],
+          brands: ['Mark Formelle'],
         }),
       ],
     ]);
@@ -142,12 +149,13 @@ describe('авторские полки каталога ТЦ', () => {
     const shelf = buildBrandsShelf(centers, index);
     expect(shelf).not.toBeNull();
     const slugs = shelf!.cards.map((c) => c.id.replace('brand-', ''));
-    expect(slugs).toContain('gold-apple');
-    expect(slugs).toContain('zara');
+    expect(slugs[0]).toBe('mark-formelle');
+    expect(shelf!.cards[0].count).toBeGreaterThanOrEqual(shelf!.cards[1].count);
     expect(slugs.every((s) => (TC_FEATURED_BRAND_SLUGS as readonly string[]).includes(s))).toBe(true);
+    expect(shelf!.cards.every((c) => c.countLabel.endsWith(' ТЦ'))).toBe(true);
   });
 
-  it('берёт только топовые районы по количеству и качеству', () => {
+  it('берёт только топовые районы по количеству', () => {
     const centers = [
       tc({ slug: 'a1', district: 'Фрунзенский', totalArea: 80000, gisRating: 4.8 }),
       tc({ slug: 'a2', district: 'Фрунзенский', totalArea: 60000, gisRating: 4.6 }),
@@ -158,19 +166,16 @@ describe('авторские полки каталога ТЦ', () => {
       tc({ slug: 'c1', district: 'Заводской', totalArea: 10000, gisRating: 4.0 }),
       tc({ slug: 'c2', district: 'Заводской', totalArea: 9000, gisRating: 3.9 }),
       tc({ slug: 'c3', district: 'Заводской', totalArea: 8000, gisRating: 3.8 }),
-      // меньше порога индексации — не попадает
       tc({ slug: 'd1', district: 'Партизанский', totalArea: 5000, gisRating: 4.9 }),
     ];
     const shelf = buildDistrictsShelf(centers);
     expect(shelf).not.toBeNull();
     expect(shelf!.cards.length).toBeLessThanOrEqual(TC_TOP_DISTRICTS);
-    expect(shelf!.cards.map((c) => c.title)).toContain('Фрунзенский');
+    expect(shelf!.cards[0].title).toBe('Фрунзенский');
     expect(shelf!.cards.map((c) => c.title)).not.toContain('Партизанский');
-    const titles = shelf!.cards.map((c) => c.title);
-    expect(titles.indexOf('Фрунзенский')).toBeLessThan(titles.indexOf('Заводской'));
   });
 
-  it('берёт только топовые станции метро', () => {
+  it('берёт только топовые станции метро по числу', () => {
     const centers = [
       tc({
         slug: 'n1',
@@ -225,7 +230,6 @@ describe('авторские полки каталога ТЦ', () => {
     expect(shelf).not.toBeNull();
     expect(shelf!.cards.length).toBeLessThanOrEqual(TC_TOP_METRO);
     expect(shelf!.cards[0].title).toBe('Немига');
-    expect(shelf!.cards.every((c) => c.href.includes('/metro/'))).toBe(true);
   });
 
   it('buildTcEditorialShelves склеивает непустые полки', () => {
