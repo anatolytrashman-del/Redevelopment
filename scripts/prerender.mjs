@@ -221,6 +221,10 @@ const MINSK_MIR_TOPIC_SLUGS = ['biznes-centr', 'kovorking', 'kupit-ofis', 'arend
 // повторится на других лендингах объектов — добавлять их сюда по
 // одному, не переводить всю сотню сразу.
 const ALWAYS_FULL_RENDER_PATHS = new Set([
+  // Корень платформы (PlatformHomePage, 2026-10-11): на проде / ещё 307→/minsk,
+  // поэтому fetchPathLive('/') не копирует; без честного рендера в preview
+  // остаётся голый SPA-шелл, а залипший 307 в браузере уводит на хаб.
+  '',
   'minsk/minsk-mir',
   'minsk/one',
   // Посадочные гида — на officelist; копия с платформы даёт 301.
@@ -1176,6 +1180,8 @@ async function main() {
           ...(await bcCatalogPaths()),
         ]
       : [
+          // '' = / — главная платформы модулей (см. ALWAYS_FULL_RENDER_PATHS).
+          '',
           ...landingPaths,
           ...(includeBcOnPlatform ? await bcCatalogPaths() : []),
           ...(includeTcOnPlatform ? tradeCenterCatalogPaths() : []),
@@ -1227,6 +1233,7 @@ async function main() {
     : IS_OFFICES_DEPLOY
       ? new Set(['privacy', 'minsk/bc', 'minsk/minsk-mir'])
       : new Set([
+          '',
           ...landingPaths,
           ...STATIC_PATHS.filter((p) => {
             if (!includeBcOnPlatform && (p === 'minsk/bc' || p.startsWith('minsk/bc/'))) return false;

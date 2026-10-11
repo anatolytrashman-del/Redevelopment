@@ -183,12 +183,12 @@ export function setArticleJsonLd(article: {
   });
 }
 
-// Organization — только на хабе /minsk (аудит поиска 2026-09-07: «Organization
-// на главной»). Отдельный слот в index.html, не article-json-ld — у хаба
-// нет статьи, а у гидов/каталога Article нужен сам по себе. Остальные
-// страницы вызывают с false при монтировании (через setGenericPageMeta/
-// setObjectPageMeta/setBusinessCenterPageMeta), чтобы при SPA-переходе с
-// хаба разметка организации не оставалась на чужой странице.
+// Organization — на главной платформы (/) и хабах каталогов (аудит поиска
+// 2026-09-07: «Organization на главной»). Отдельный слот в index.html, не
+// article-json-ld — у главной нет статьи, а у гидов/каталога Article нужен
+// сам по себе. Остальные страницы вызывают с false при монтировании (через
+// setGenericPageMeta/setObjectPageMeta/setBusinessCenterPageMeta), чтобы при
+// SPA-переходе разметка организации не оставалась на чужой странице.
 // ItemList — для рейтинговых/подборочных страниц (аудит поиска 2026-09-07,
 // «Лучшие бизнес-центры Минска — с методикой и датой»): каждый пункт —
 // ссылка на настоящую карточку БЦ с её позицией в списке. Единственный
@@ -314,8 +314,7 @@ export function setOrganizationJsonLd(enabled: boolean) {
     logo: 'https://redevelopment.pro/apple-touch-icon.png',
     image: DEFAULT_OG_IMAGE,
     description:
-      'Редевелопмент коммерческой недвижимости в Минске: справочник бизнес-центров, гиды по районам и аналитика рынка.',
-    areaServed: { '@type': 'City', name: 'Минск' },
+      'Умные модули для работы с недвижимостью: закупки, продажи и подбор. Решение остаётся за вами — модули закрывают рутину.',
   });
 }
 

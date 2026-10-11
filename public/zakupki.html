@@ -11,7 +11,7 @@
   <meta property="og:site_name" content="Redevelopment" />
   <meta property="og:locale" content="ru_RU" />
   <meta property="og:title" content="Умный модуль закупки стройматериалов" />
-  <meta property="og:description" content="Экономия на ФОТ и цене: рынок за минуты, рутину закрывает Claude. Для стройки в Зелёном и других проектов." />
+  <meta property="og:description" content="Экономия на ФОТ и цене: рынок за минуты, текучку закрывает Claude." />
   <meta property="og:url" content="https://redevelopment.pro/zakupki/" />
   <meta property="og:image" content="https://redevelopment.pro/og/zakupki.png" />
   <meta property="og:image:secure_url" content="https://redevelopment.pro/og/zakupki.png" />
@@ -22,7 +22,7 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Умный модуль закупки стройматериалов" />
-  <meta name="twitter:description" content="Экономия на ФОТ и цене: рынок за минуты, рутину закрывает Claude." />
+  <meta name="twitter:description" content="Экономия на ФОТ и цене: рынок за минуты, текучку закрывает Claude." />
   <meta name="twitter:image" content="https://redevelopment.pro/og/zakupki.png" />
 
   <link rel="canonical" href="https://redevelopment.pro/zakupki/" />
@@ -119,6 +119,7 @@
       letter-spacing: 0.02em;
       color: var(--ink);
     }
+    a.brand:hover { color: var(--ink); }
     .brand .red {
       color: var(--primary);
       font-weight: 900;
@@ -824,7 +825,7 @@
   <div class="page">
     <header class="topbar">
       <div class="topbar-inner">
-        <span class="brand"><span class="red">RED</span>EVELOPMENT</span>
+        <a class="brand" href="/"><span class="red">RED</span>EVELOPMENT</a>
       </div>
     </header>
 
@@ -832,25 +833,21 @@
       <!-- Hero -->
       <section class="glass hero rise">
         <div class="hero-copy">
-          <p class="who-for">
-            Для <b>Михаила Зуева</b> · <b>Основа</b> ·
-            <span class="who-site">стройка в&nbsp;посёлке&nbsp;Зелёном</span>
-          </p>
           <h1>Умный модуль закупки стройматериалов</h1>
           <p class="lede">
             Экономит на&nbsp;закупках и&nbsp;ФОТ: больше конкуренции между поставщиками,
-            меньше ручной работы. Решения принимает человек, рутину закрывает&nbsp;Claude.
+            меньше ручной работы. Решения принимает человек, текучку закрывает&nbsp;Claude.
           </p>
         </div>
         <aside class="claude-panel" aria-label="Claude">
           <div class="claude-panel-top">
             <img class="claude-mark" src="/zakupki-static/claude-asterisk.svg" alt="" width="32" height="32" />
-            <p class="claude-title">На всех этапах — <span class="claude-name">Claude</span></p>
+            <p class="claude-title">На умных моделях <span class="claude-name">Claude</span></p>
           </div>
           <ul>
-            <li>Модели <strong>Anthropic</strong> — не масс-маркет ИИ-чат</li>
-            <li>Действует только в&nbsp;<strong>заданных ситуациях</strong></li>
-            <li>Незнакомое отдаёт человеку; на типовом <strong>самообучается</strong></li>
+            <li><strong>Claude</strong> от&nbsp;<strong>Anthropic</strong> — передовой ИИ одного из&nbsp;лидеров рынка для сложных задач</li>
+            <li>Не общий чат, а&nbsp;<strong>узкий помощник</strong> внутри модуля закупки</li>
+            <li>Работает только в&nbsp;<strong>заданных ситуациях</strong>; незнакомое отдаёт человеку</li>
             <li>Сценарии правятся <strong>обычным языком</strong> в&nbsp;админке</li>
           </ul>
         </aside>
@@ -871,9 +868,9 @@
             </div>
             <h3>Сокращает затраты на ФОТ</h3>
             <p>
-              Рутину закрывает Claude — закупщику остаются решения.
-              На&nbsp;<strong>Зелёном</strong> вместо троих справится
-              <strong>один человек за&nbsp;пару часов в&nbsp;день</strong>.
+              Текучку закрывает Claude — закупщику остаются решения.
+              Работа закупщика сокращается <strong>кратно</strong> за&nbsp;счёт
+              автоматизации текучки.
             </p>
           </article>
 
@@ -909,7 +906,7 @@
       <section class="glass section rise rise-d2">
         <div class="section-head">
           <h2>Как работает модуль</h2>
-          <p>Порядок действий: человек принимает решение — Claude закрывает рутину между шагами.</p>
+          <p>Порядок действий: человек принимает решение — Claude закрывает текучку между шагами.</p>
         </div>
 
         <div class="schema" aria-label="Схема пути">
@@ -973,7 +970,7 @@
             <div class="sch-dot">C</div>
             <div class="sch-card">
               <p class="sch-who">Claude</p>
-              <p class="sch-t">Подготовил саммари Ивану</p>
+              <p class="sch-t">Подготовил саммари на согласование</p>
               <p class="sch-d">Короткое резюме для согласования</p>
             </div>
           </div>
@@ -1010,7 +1007,7 @@
                 <h3 class="j-t">Актуальная ведомость всегда в&nbsp;модуле — не&nbsp;в&nbsp;переписке</h3>
               </div>
               <p class="j-d">
-                Не&nbsp;надо искать последнюю версию в&nbsp;чате Битрикса.
+                Не&nbsp;надо искать последнюю версию в&nbsp;чате.
                 Закупщик сразу видит изменения — <strong>нет пересылки</strong>
                 и&nbsp;<strong>нет ошибок при заказе</strong>.
               </p>
@@ -1078,7 +1075,7 @@
               <p class="j-d">
                 Цены от&nbsp;дешевле к&nbsp;дороже; «то, что просили» и&nbsp;замены не смешиваются.
                 Сравнение — по позициям или поставкой целиком (комплекты вроде грильято).
-                Саммари Ивану для согласования.
+                Саммари на согласование.
               </p>
               <div class="rank" aria-hidden="true">
                 <div class="rank-row win"><span class="rn">1</span><span>Лучшая цена · выбрано</span><span class="rp">−12%</span></div>
