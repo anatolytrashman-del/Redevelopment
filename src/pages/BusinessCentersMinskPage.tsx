@@ -114,8 +114,11 @@ import {
   tcStoreHubUrl,
   type TcStoreHub,
 } from '../lib/tradeCenterStoreHubs';
-import { buildTcEditorialShelves } from '../lib/tradeCenterEditorialShelves';
-import { TradeCenterEditorialShelves } from '../components/businessCenters/TradeCenterEditorialShelves';
+import { buildTcBrowseFigures, buildTcEditorialShelves } from '../lib/tradeCenterEditorialShelves';
+import {
+  TradeCenterBrowseGlance,
+  TradeCenterEditorialShelves,
+} from '../components/businessCenters/TradeCenterEditorialShelves';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
@@ -1340,6 +1343,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     () => (isTcBrowseHome ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : []),
     [isTcBrowseHome, centers, tcIndex, V.basePath],
   );
+  // Сводка «At a glance» — ключевые цифры каталога (как у casinolist LV).
+  const tcBrowseFigures = useMemo(
+    () => (isTcBrowseHome ? buildTcBrowseFigures(centers, tcIndex, V.basePath) : []),
+    [isTcBrowseHome, centers, tcIndex, V.basePath],
+  );
 
   const rentMethodology = summary.rentMedian != null
     ? `Медиана аренды — $${summary.rentMedian}/м² в месяц, по ${summary.rentBuildings} зданиям текущей выборки с объявлениями. Сначала берётся медиана ставки объявлений каждого здания, затем медиана этих значений; при чётном числе — среднее двух центральных. Площадь здания не служит весом.`
@@ -1420,6 +1428,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           'Что такое подборки в каталоге ТЦ?',
           'Короткие срезы: сценарий (шопинг, кино, парковка), бренд, район или станция метро. Подборка открывает список подходящих ТЦ. Полный каталог — отдельная подборка «Все ТЦ».',
         );
+        if (tcBrowseFigures.length > 0) {
+          const parts = tcBrowseFigures.map((f) => `${f.value} — ${f.label}`);
+          add(
+            'Какие ключевые цифры есть в каталоге ТЦ?',
+            `В сводке на главной: ${parts.join('; ')}. Считаем только готовые ТЦ в черте Минска; площадь — сумма известных значений.`,
+          );
+        }
       }
       add(
         'Как работают фильтры?',
@@ -1428,7 +1443,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак подтверждён данными.');
     return items;
-  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot, isTcBrowseHome, showTcListView]);
+  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot, isTcBrowseHome, showTcListView, tcBrowseFigures]);
 
   useEffect(() => {
     setFaqJsonLd(pageIsIndexable ? faqItems : []);
@@ -1588,82 +1603,75 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           Корень ТЦ (полки) — на всю ширину, без колонки фильтров. */}
       <main className="mx-auto max-w-6xl px-4 pt-6 pb-12 sm:px-8 sm:pt-12">
         {isTcBrowseHome ? (
-          <div className="space-y-6">
-            <section
-              className={cn(
-                'relative overflow-hidden p-6 sm:p-10 lg:p-12',
-                glassCardClass,
-              )}
+          <div className="space-y-5 sm:space-y-6">
+            {/* Компактный hero как у casinolist LV: заголовок + мета-строка +
+                маленькая обложка справа — без огромной пустой картинки. */}
+            <header
+              className={cn('ml-reveal relative overflow-hidden px-5 py-7 sm:px-8 sm:py-9', glassCardClass)}
               style={glassCardShadow}
             >
               <span
-                className="pointer-events-none absolute -right-24 -top-28 h-80 w-80 rounded-full bg-primary/[0.08] blur-3xl"
+                className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-90"
+                style={{
+                  background:
+                    'radial-gradient(ellipse at 78% 20%, rgba(201,162,39,0.14), transparent 38%), linear-gradient(155deg,#ffffff 0%,#f7f5f0 55%,#f0efed 100%)',
+                }}
                 aria-hidden
               />
-              <span
-                className="pointer-events-none absolute -bottom-20 -left-16 h-64 w-64 rounded-full bg-[#c9a227]/15 blur-3xl"
-                aria-hidden
-              />
-              <div className="relative grid items-center gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-12">
-                <div className="flex flex-col gap-5">
-                  <p className="text-sm font-semibold tracking-[0.14em] text-ink-muted uppercase">
+              <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)] lg:gap-8">
+                <div className="flex min-w-0 flex-col gap-3">
+                  <p className="text-[11px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
                     MallList · Минск
                   </p>
                   <h1
-                    className="max-w-xl text-4xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl lg:text-[3.4rem]"
+                    className="text-3xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl"
                     style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
                   >
-                    Куда в ТЦ?
+                    Каталог ТЦ Минска
                   </h1>
-                  <p className="max-w-lg text-base leading-relaxed text-ink/70 sm:text-lg">
-                    Листай подборки — шопинг, кино, бренд, район, метро.
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 pt-1">
-                    <a
-                      href="#tc-shelves"
-                      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(228,21,43,0.28)] transition-transform hover:-translate-y-0.5"
-                    >
-                      Выбрать
-                      <ArrowRight className="h-4 w-4" aria-hidden />
-                    </a>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[12px] font-semibold text-ink/55">
+                    <span className="tabular-nums text-ink">
+                      {tcBrowseFigures[0]?.value ?? '—'} ТЦ
+                    </span>
+                    <span className="text-ink/25" aria-hidden>
+                      ·
+                    </span>
+                    <span>подборки по сценарию, бренду, району и метро</span>
+                    <span className="text-ink/25" aria-hidden>
+                      ·
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[#0f6b3d]">
+                      <BadgeCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      {UPDATED_BADGE_LABEL}
+                    </span>
                   </div>
-                  <span className="flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d]">
-                    <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-                    {UPDATED_BADGE_LABEL}
-                  </span>
                 </div>
-                <div
-                  className="relative aspect-[4/3] overflow-hidden rounded-[1.5rem] sm:aspect-square"
-                  aria-hidden
-                >
+                <div className="relative mx-auto w-36 sm:w-44 lg:w-full" aria-hidden>
                   <div
-                    className="absolute inset-0"
+                    className="ml-lookbook-cover relative aspect-square overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10"
                     style={{
-                      background:
-                        'linear-gradient(145deg, #1a1c22 0%, #3a1520 42%, #c45c2a 100%)',
+                      background: 'linear-gradient(160deg, #1a1c22 0%, #3a1520 48%, #c45c2a 100%)',
                     }}
-                  />
-                  <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full opacity-90">
-                    <line x1="10" y1="22" x2="90" y2="22" stroke="#c9a227" strokeWidth="1.6" />
-                    <line x1="10" y1="40" x2="90" y2="40" stroke="rgba(247,241,228,0.4)" strokeWidth="1.4" />
-                    <line x1="10" y1="58" x2="90" y2="58" stroke="rgba(247,241,228,0.28)" strokeWidth="1.4" />
-                    <line x1="10" y1="76" x2="90" y2="76" stroke="rgba(247,241,228,0.18)" strokeWidth="1.4" />
-                    <line x1="28" y1="10" x2="28" y2="90" stroke="rgba(247,241,228,0.35)" strokeWidth="1.4" />
-                    <line x1="50" y1="10" x2="50" y2="90" stroke="#c9a227" strokeWidth="1.6" />
-                    <line x1="72" y1="10" x2="72" y2="90" stroke="rgba(247,241,228,0.35)" strokeWidth="1.4" />
-                    <rect x="34" y="28" width="32" height="32" fill="none" stroke="rgba(247,241,228,0.55)" strokeWidth="1.6" />
-                  </svg>
-                  {centers && (
-                    <p
-                      className="absolute bottom-4 left-4 right-4 text-sm font-bold text-white/90 sm:text-base"
-                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                    >
-                      {centers.filter((c) => c.status !== 'under_construction').length} ТЦ
-                    </p>
-                  )}
+                  >
+                    <span
+                      className="pointer-events-none absolute inset-0 opacity-50"
+                      style={{
+                        background:
+                          'radial-gradient(circle at 50% 18%, rgba(255,255,255,0.16), transparent 48%)',
+                      }}
+                    />
+                    <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
+                      <path d="M0 100 L100 0" stroke="#c9a227" strokeWidth="22" opacity="0.45" />
+                      <path d="M-20 90 L90 -20" stroke="rgba(247,241,228,0.45)" strokeWidth="14" />
+                      <path d="M20 120 L120 20" stroke="rgba(0,0,0,0.28)" strokeWidth="10" />
+                    </svg>
+                    <span className="pointer-events-none absolute left-2.5 top-2.5 z-[1] h-2.5 w-2.5 rounded-full bg-[#c9a227] ring-2 ring-white/25" />
+                  </div>
                 </div>
               </div>
-            </section>
+            </header>
+
+            <TradeCenterBrowseGlance figures={tcBrowseFigures} />
 
             <div id="tc-shelves">
               <TradeCenterEditorialShelves shelves={tcEditorialShelves} />
