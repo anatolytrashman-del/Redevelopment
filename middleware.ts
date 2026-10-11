@@ -258,8 +258,19 @@ export default function middleware(request: Request) {
   //
   // Явный early-return для платформенного корня: раньше здесь был 307→/minsk
   // (oodobu до 2026-10-11). Не возвращать редирект.
-  if (siteMode === 'platform' && (normalized === '/' || normalized === '')) {
-    return next();
+  //
+  // Preview/Vercel alias: no-store, чтобы браузер не залипал на старом 307→/minsk
+  // (владелец, 2026-10-11: «снова старая ссылка» на git-preview).
+  const isPlatformRoot =
+    siteMode === 'platform' && (normalized === '/' || normalized === '');
+  if (isPlatformRoot) {
+    return next({
+      headers: {
+        'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
+        'CDN-Cache-Control': 'no-store',
+        'Vercel-CDN-Cache-Control': 'no-store',
+      },
+    });
   }
 
   if (siteMode === 'malls') {
