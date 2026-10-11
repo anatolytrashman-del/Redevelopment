@@ -1959,10 +1959,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       : [];
     return [
       ...bcBusinessHead,
-      // Торговые блоки ТЦ: каталог — часть «Путеводителя» (id 'floors').
-      ...(isTc ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : []).map((id) => has(id, true)),
-      has('tenants', !isTc && tenantOrganizations.length > 0),
-      has('amenities', tcInfrastructure.length > 0),
+      // Сравнение с аналогами — сразу после hero (владелец, 2026-10-11).
       has(
         'tc-fit',
         isTc &&
@@ -1973,6 +1970,10 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             totalArea: center.totalArea,
           }).length > 0,
       ),
+      // Торговые блоки ТЦ: каталог — часть «Путеводителя» (id 'floors').
+      ...(isTc ? retailSectionIds(center.retailInfo, tenantOrganizations.length > 0) : []).map((id) => has(id, true)),
+      has('tenants', !isTc && tenantOrganizations.length > 0),
+      has('amenities', tcInfrastructure.length > 0),
       has('reviews', hasReviewsBlock),
       has('awards', !isTc && awardItems.length > 0),
       isTc && (tcHasAwards || tcHasRanking)
@@ -3062,6 +3063,12 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           </div>
         </div>
 
+        {/* Сравнение с аналогами — сразу под главным блоком (владелец,
+            2026-10-11): раньше стояло после инфраструктуры и терялось. */}
+        {isTc && tcFit.length > 0 && (
+          <TradeCenterFitBlock points={tcFit} index={sectionIndex('tc-fit')} />
+        )}
+
         {/* "Интересные факты" — отдельная от условий аренды категория:
             история объекта, известные арендаторы, награды/СМИ, рейтинг и
             отзывы с карт (владелец, 2026-09-06: "подтянуть рейтинг из
@@ -3198,7 +3205,6 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             {renderRecommendationSlot('tenants')}
             <TradeCenterInfrastructure groups={tcInfrastructure} index={sectionIndex('amenities')} />
             {renderRecommendationSlot('amenities')}
-            {tcFit.length > 0 && <TradeCenterFitBlock points={tcFit} index={sectionIndex('tc-fit')} />}
           </>
         ) : (
           <>
