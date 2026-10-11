@@ -2821,15 +2821,20 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 У ТЦ на lg: колонка на всю высоту правой сводки (без дыры
                 под квадратом), cover заполняет без полей; колонка шире
                 1.15fr — меньше боковой обрезки фасада. */}
-            <div
+                        <div
               className={cn(
-                'relative aspect-square w-full overflow-hidden md:aspect-[4/3]',
+                'relative aspect-square w-full overflow-hidden bg-surface-muted/70 md:aspect-[4/3]',
                 isTc
-                  ? 'bg-surface-muted/70 lg:aspect-auto lg:h-full lg:min-h-[22rem]'
-                  : 'bg-surface-muted/70 lg:aspect-auto lg:min-h-[28rem]',
+                  ? 'lg:aspect-auto lg:h-full lg:min-h-[24rem] lg:self-stretch'
+                  : 'lg:aspect-auto lg:min-h-[28rem]',
               )}
             >
-              <PhotoBlock center={center} variant="detail" fit="cover" />
+              <PhotoBlock
+                center={center}
+                variant="detail"
+                fit="cover"
+                imgClassName={isTc ? 'lg:absolute lg:inset-0 lg:h-full lg:w-full' : undefined}
+              />
               {/* Владелец, 2026-09-20: "если БЦ построен, вообще убирай тег
                   Работает — помечаем только строящиеся". Достроенное здание
                   и так по умолчанию работает, отдельная пометка для него

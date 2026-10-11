@@ -143,9 +143,14 @@ export function TradeCenterHeroSummary({
   const laterZones = laterClosingZones(hours, mainHours);
 
   const parking = info?.parking ?? null;
-  // Must-have: только «N мест» — без въезда, иначе плитка длиннее «6 якорей».
+  // Must-have: «2000+ мест» вместо «более 2000 мест» — без переноса в плитке.
   const parkingSpaces = tcParkingSpaces(parking);
-  const parkingMustHave = parkingSpaces ? `${parkingSpaces}\u00a0мест` : null;
+  const parkingMustHave = (() => {
+    if (!parkingSpaces) return null;
+    const more = parkingSpaces.match(/^более\s+(.+)$/iu);
+    if (more) return `${more[1].replace(/\s+мест$/iu, '')}+\u00a0мест`;
+    return /мест/iu.test(parkingSpaces) ? parkingSpaces : `${parkingSpaces}\u00a0мест`;
+  })();
   const parkingShort = parkingMustHave ?? tcParkingShort(parking);
   const metroLabel = nearestMetro
     ? `«${nearestMetro.name}» · ${(displayMetro ?? nearestMetro).distanceMeters}\u00a0м`
