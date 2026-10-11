@@ -116,9 +116,9 @@ export function PlatformHomePage() {
           style={glassCardShadow}
         >
           <div className="flex min-w-0 flex-col justify-center gap-5">
-            <h1 className="text-2xl font-extrabold leading-tight tracking-tight text-ink sm:text-3xl sm:leading-[1.2]">
+            <h2 className="text-2xl font-extrabold leading-tight tracking-tight text-ink sm:text-3xl sm:leading-[1.2]">
               Умные модули для индустрии недвижимости
-            </h1>
+            </h2>
             <p className="max-w-xl text-base leading-relaxed text-ink-muted sm:text-lg">
               Для команд в&nbsp;строительстве, редевелопменте и&nbsp;продажах. Вы принимаете
               решения — модуль закрывает повторяющуюся работу вокруг них.
