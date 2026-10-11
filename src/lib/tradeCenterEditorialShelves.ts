@@ -89,17 +89,26 @@ export type TcBrowseFigureIcon =
   | 'center'
   | 'budget';
 
+/** Тон плитки сводки — как на casinolist At a glance (gold → felt/primary/ink). */
+export type TcBrowseFigureTone = 'gold' | 'felt' | 'primary' | 'ink';
+
 /** Ключевая цифра блока «сводка» на корне каталога ТЦ (ритм casinolist At a glance). */
 export interface TcBrowseFigure {
   id: string;
   value: string;
   label: string;
   icon: TcBrowseFigureIcon;
-  /** Только золото у главной цифры, остальное — ink (без радуги). */
-  tone: 'gold' | 'ink';
-  /** Первая плитка — акцент. */
+  tone: TcBrowseFigureTone;
+  /** Первая плитка — золотая рамка. */
   accent?: boolean;
   href?: string;
+}
+
+/** Ритм цветов как у casinolist: первая gold, дальше felt → primary → ink. */
+export function glanceToneAt(index: number): TcBrowseFigureTone {
+  if (index === 0) return 'gold';
+  const cycle: TcBrowseFigureTone[] = ['felt', 'primary', 'ink'];
+  return cycle[(index - 1) % cycle.length]!;
 }
 
 /** Ровно столько плиток, чтобы на lg+ было две полные строки по 6. */
@@ -182,15 +191,16 @@ function countLabel(n: number): string {
 }
 
 function formatTotalArea(m2: number): string {
+  // Короткие значения — длинное «2,2 млн м²» ломает ряд icon+number в плитке.
   if (m2 >= 1_000_000) {
     const mln = m2 / 1_000_000;
     const rounded = Math.round(mln * 10) / 10;
-    return `${rounded.toLocaleString('ru-RU')} млн м²`;
+    return `${rounded.toLocaleString('ru-RU')} млн`;
   }
   if (m2 >= 1_000) {
-    return `${Math.round(m2 / 1_000).toLocaleString('ru-RU')} тыс. м²`;
+    return `${Math.round(m2 / 1_000).toLocaleString('ru-RU')} тыс.`;
   }
-  return `${Math.round(m2).toLocaleString('ru-RU')} м²`;
+  return Math.round(m2).toLocaleString('ru-RU');
 }
 
 function topicCount(
@@ -469,8 +479,8 @@ function pushFigure(
 /**
  * Сводка ключевых цифр для корня /minsk/tc — как «At a glance» у casinolist.
  * Без tcIndex не считаем (иначе мигание урезанной → полной сводки).
- * Ровно TC_BROWSE_FIGURE_SLOTS плиток — две полные строки по 6 на lg+.
- * Порядок фиксированный (не «что успело набраться»), тон — gold только у ТЦ.
+ * Ровно TC_BROWSE_FIGURE_SLOTS плиток — две полные строки по 6 на xl+.
+ * Тона — ритм casinolist (gold / felt / primary / ink).
  */
 export function buildTcBrowseFigures(
   centers: BusinessCenter[] | null,
@@ -498,6 +508,7 @@ export function buildTcBrowseFigures(
   }).length;
 
   // Редакционный набор: короткие ярлыки, без «1518 брендов» и прочих шумов.
+  // tone/accent проставляем ниже по индексу (ритм casinolist).
   const candidates: Array<TcBrowseFigure | null> = [
     {
       id: 'total',
@@ -505,7 +516,6 @@ export function buildTcBrowseFigures(
       label: 'ТЦ',
       icon: 'malls',
       tone: 'gold',
-      accent: true,
       href: listHref,
     },
     withArea.length
@@ -579,7 +589,11 @@ export function buildTcBrowseFigures(
 
   const figures: TcBrowseFigure[] = [];
   for (const fig of candidates) pushFigure(figures, fig);
-  return figures.slice(0, TC_BROWSE_FIGURE_SLOTS);
+  return figures.slice(0, TC_BROWSE_FIGURE_SLOTS).map((fig, i) => ({
+    ...fig,
+    tone: glanceToneAt(i),
+    accent: i === 0,
+  }));
 }
 
 /** Для тестов и отладки — сколько ТЦ матчит хаб. */
