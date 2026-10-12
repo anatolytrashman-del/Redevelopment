@@ -1,12 +1,11 @@
 // Крупные категории-спойлеры для длинных карточек (ТЦ): не FAQ-мелкота,
 // а полноценный блок с иконкой, крупным заголовком и короткой подписью.
-// Тёплый shopping-тон (персик/терракота) — не фирменный красный и не
-// траурный чёрный. <details> — контент в DOM; по #якорю сам раскрывается.
+// Серый/ink-стиль (как до shopping-персика): mono-номера, ink-плашки,
+// спокойный open-state. <details> — контент в DOM; по #якорю сам раскрывается.
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
-import { tcChipClass } from '../businessCenters/tradeCenterRetailStyle';
 
 export function CategorySpoiler({
   id,
@@ -51,7 +50,7 @@ export function CategorySpoiler({
       className={cn(
         'group mt-6 scroll-mt-32 overflow-hidden',
         glassCardClass,
-        'open:bg-[#fff8f2]/95',
+        'open:bg-surface-muted/50',
         className,
       )}
       style={glassCardShadow}
@@ -62,24 +61,19 @@ export function CategorySpoiler({
         className={cn(
           'flex cursor-pointer list-none items-center gap-3.5 p-5 sm:gap-4 sm:px-6 sm:py-5',
           'marker:content-none [&::-webkit-details-marker]:hidden',
-          'transition-colors hover:bg-[#fff8f2]/70',
+          'transition-colors hover:bg-white/50',
         )}
       >
         {index != null && (
           <span
-            className="w-7 shrink-0 font-mono text-[11px] font-bold tracking-[0.16em] text-[#c45c3a]/55 sm:w-8"
+            className="w-7 shrink-0 font-mono text-[11px] font-bold tracking-[0.16em] text-ink/40 sm:w-8"
             aria-hidden="true"
           >
             {String(index).padStart(2, '0')}
           </span>
         )}
         {Icon && (
-          <span
-            className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12',
-              tcChipClass,
-            )}
-          >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-muted text-ink sm:h-12 sm:w-12">
             <Icon className="h-5 w-5 sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={1.75} aria-hidden="true" />
           </span>
         )}
@@ -90,17 +84,17 @@ export function CategorySpoiler({
           ) : null}
         </span>
         {meta ? (
-          <span className="hidden shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/70 sm:inline">
+          <span className="hidden shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/45 sm:inline">
             {meta}
           </span>
         ) : null}
         {/* Подпись + шеврон: владелец, 2026-10-11 — иконку раскрытия сделать
-            нагляднее. group-open меняет «Ещё» → «Свернуть». */}
+            нагляднее. group-open меняет «Ещё» → «Свернуть». Серый, не персик. */}
         <span
           className={cn(
-            'flex shrink-0 items-center gap-1 rounded-full border border-[#e0b9a8] bg-[#ffe8dc] px-2.5 py-1.5',
-            'text-[11px] font-bold uppercase tracking-[0.12em] text-[#c45c3a]',
-            'transition-colors group-open:border-[#c45c3a]/40 group-open:bg-white',
+            'flex shrink-0 items-center gap-1 rounded-full border border-border bg-surface-muted px-2.5 py-1.5',
+            'text-[11px] font-bold uppercase tracking-[0.12em] text-ink/60',
+            'transition-colors group-open:border-ink/20 group-open:bg-white group-open:text-ink/70',
           )}
           aria-hidden="true"
         >
@@ -109,7 +103,7 @@ export function CategorySpoiler({
           <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-180" />
         </span>
       </summary>
-      <div className="flex flex-col gap-4 border-t border-[#efdfd4] px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+      <div className="flex flex-col gap-4 border-t border-border px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
         {children}
       </div>
     </details>

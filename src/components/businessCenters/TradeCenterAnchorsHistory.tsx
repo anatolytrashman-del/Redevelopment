@@ -74,7 +74,7 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
   const meta = anchorMetaParts(anchor);
   const blurb = essenceText(anchor.text, 72);
   return (
-    <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-[#efdfd4] bg-white/80 p-3">
+    <li className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/80 p-3">
       <span
         className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}
         title={category ?? undefined}
@@ -88,7 +88,7 @@ function AnchorTile({ anchor }: { anchor: RetailAnchorEntry }) {
             href={anchor.yandexUrl}
             target="_blank"
             rel="nofollow noopener noreferrer"
-            className="break-words text-sm font-bold leading-snug text-ink underline decoration-ink-faint/40 underline-offset-2 hover:text-[#c45c3a]"
+            className="break-words text-sm font-bold leading-snug text-ink underline decoration-ink-faint/40 underline-offset-2 hover:text-ink"
           >
             {anchor.name}
           </a>
@@ -160,12 +160,12 @@ export function TradeCenterHistoryCard({ timeline, title, index }: { timeline: R
               <div className="relative flex justify-center" aria-hidden="true">
                 <span
                   className={cn(
-                    'absolute w-px bg-[#e8d0c4]',
+                    'absolute w-px bg-border',
                     first ? 'top-3' : 'top-0',
                     last ? 'h-3' : 'bottom-0',
                   )}
                 />
-                <span className="relative mt-2 h-3 w-3 rounded-full border-2 border-[#c45c3a] bg-white" />
+                <span className="relative mt-2 h-3 w-3 rounded-full border-2 border-ink/50 bg-white" />
               </div>
               <div className={cn('flex min-w-0 flex-col gap-1', last ? 'pb-0' : 'pb-5')}>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

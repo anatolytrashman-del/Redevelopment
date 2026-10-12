@@ -97,7 +97,7 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
 /** Подпись под заголовком — формат/этажность/год. */
 export function TradeCenterHeroSubtitle({ center }: { center: BusinessCenter }) {
   return (
-    <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/80">
+    <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/55">
       {tcHeroSubtitle({
         retailFormat: center.retailFormat,
         floors: center.floors,
@@ -169,12 +169,12 @@ export function TradeCenterHeroSummary({
     <>
       {mainHours && (
         <section
-          className="rounded-2xl border border-[#efdfd4] bg-[#fff1e8] px-3.5 py-3.5"
+          className="rounded-2xl border border-border bg-surface-muted px-3.5 py-3.5"
           aria-labelledby="hours-summary-title"
         >
           <h2
             id="hours-summary-title"
-            className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/80"
+            className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/55"
           >
             <Clock className="h-3.5 w-3.5 shrink-0" />
             Сейчас
@@ -202,12 +202,12 @@ export function TradeCenterHeroSummary({
 
       {mustHave.length > 0 && (
         <section
-          className="rounded-2xl border border-[#efdfd4] bg-[#fff8f2]/70 px-3.5 py-3.5"
+          className="rounded-2xl border border-border bg-surface-muted/60 px-3.5 py-3.5"
           aria-labelledby="tc-musthave-title"
         >
           <h2
             id="tc-musthave-title"
-            className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/80"
+            className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/55"
           >
             Что внутри · must-have
           </h2>
@@ -235,11 +235,11 @@ export function TradeCenterHeroSummary({
                 </>
               );
               const tileClass =
-                'flex h-full min-h-[3.5rem] items-center gap-2.5 rounded-2xl border border-[#efdfd4] bg-white px-3 py-2.5 shadow-sm';
+                'flex h-full min-h-[3.5rem] items-center gap-2.5 rounded-2xl border border-border bg-white px-3 py-2.5 shadow-sm';
               return (
                 <li key={`${item.kind}-${item.label}`} className="min-h-0">
                   {item.href ? (
-                    <a href={item.href} className={cn(tileClass, 'transition-colors hover:bg-[#fff1e8]')}>
+                    <a href={item.href} className={cn(tileClass, 'transition-colors hover:bg-surface-muted')}>
                       {body}
                     </a>
                   ) : (
@@ -253,12 +253,12 @@ export function TradeCenterHeroSummary({
       )}
 
       <section
-        className="rounded-2xl border border-[#efdfd4] bg-[#fff8f2]/80 px-3.5 py-3"
+        className="rounded-2xl border border-border bg-surface-muted/70 px-3.5 py-3"
         aria-labelledby="tc-directions-title"
       >
         <h2
           id="tc-directions-title"
-          className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/80"
+          className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/55"
         >
           <MapPin className="h-3.5 w-3.5 shrink-0" />
           Как добраться
@@ -274,7 +274,7 @@ export function TradeCenterHeroSummary({
           )}
           {!mustHave.some((item) => item.kind === 'parking') && parkingShort && (
             <InfoRow label="Парковка">
-              <Car className="h-3.5 w-3.5 shrink-0 text-[#c45c3a]/70" />
+              <Car className="h-3.5 w-3.5 shrink-0 text-ink/50" />
               {parkingShort}
             </InfoRow>
           )}
@@ -298,7 +298,7 @@ export function TradeCenterHeroSummary({
                       {tile.value}
                     </span>
                   ) : (
-                    <span className="text-[#c45c3a]">{tile.value}</span>
+                    <span className="text-ink">{tile.value}</span>
                   )
                 }
               />
