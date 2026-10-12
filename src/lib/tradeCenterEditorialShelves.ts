@@ -162,7 +162,7 @@ const TONIGHT_ART: Record<string, { art: TcLookbookArt; from: string; to: string
   foodcourt: { art: 'foodcourt', from: '#b4532a', to: '#6b2a12', shelfTitle: 'Фудкорт' },
   kids: { art: 'kids', from: '#c26b8a', to: '#7a3048', shelfTitle: 'С детьми' },
   entertainment: { art: 'entertainment', from: '#6b3fa0', to: '#2e1848', shelfTitle: 'Развлечения' },
-  budget: { art: 'budget', from: '#2f6b4f', to: '#143528', shelfTitle: 'Недорого' },
+  budget: { art: 'budget', from: '#2f6b4f', to: '#143528', shelfTitle: 'Недорогие' },
   center: { art: 'center', from: '#e4152b', to: '#8a0c1a', shelfTitle: 'Центр' },
 };
 
@@ -316,8 +316,8 @@ export function buildTonightShelf(
   if (!cards.length) return null;
   return {
     id: 'tonight',
-    title: 'Сценарий',
-    lead: 'Выбирай — и открывай список.',
+    title: 'Выбирайте по интересам',
+    lead: 'Готовые подборки ТЦ — кликните и откройте список.',
     cards,
   };
 }
@@ -356,8 +356,8 @@ export function buildBrandsShelf(
   if (!cards.length) return null;
   return {
     id: 'brands',
-    title: 'Бренд',
-    lead: 'Где искать любимый магазин.',
+    title: 'Ищите знакомый бренд',
+    lead: 'Подборки ТЦ, где есть этот магазин.',
     cards,
   };
 }
@@ -400,8 +400,8 @@ export function buildDistrictsShelf(
   if (!cards.length) return null;
   return {
     id: 'districts',
-    title: 'Район',
-    lead: 'Только плотные по ТЦ.',
+    title: 'Выбирайте район',
+    lead: 'Подборки самых плотных районов по числу ТЦ.',
     cards,
   };
 }
@@ -440,8 +440,8 @@ export function buildMetroShelf(
   if (!cards.length) return null;
   return {
     id: 'metro',
-    title: 'Метро',
-    lead: 'Сойти — и в ТЦ.',
+    title: 'Сойдите у метро',
+    lead: 'Подборки ТЦ у станций — сошли и уже на месте.',
     cards,
   };
 }
@@ -546,7 +546,7 @@ export function buildTcBrowseFigures(
           kids: { label: 'с детьми', icon: 'kids' },
           entertainment: { label: 'развлечения', icon: 'fun' },
           center: { label: 'в центре', icon: 'center' },
-          budget: { label: 'недорого', icon: 'budget' },
+          budget: { label: 'недорогие', icon: 'budget' },
         };
         const n = topicCount(eligible, slug, tcIndex);
         if (n < 1) return null;
