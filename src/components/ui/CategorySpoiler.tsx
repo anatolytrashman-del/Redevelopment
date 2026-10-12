@@ -5,6 +5,7 @@
 // Правка шапки (subtitle / «Ещё») меняет пререндер-HTML карточек ТЦ —
 // public-refresh обязан переснимать /minsk/tc/:slug, иначе первый кадр
 // остаётся со старой разметкой до гидрации (мигание на проде, 2026-10-12).
+// malllist сверяет public-build-id со своим продом, не с платформой.
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/cn';
