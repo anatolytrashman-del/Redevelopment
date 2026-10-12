@@ -914,30 +914,37 @@ const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел Б�
 async function decidePrerenderMode() {
   if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
   if (process.env.PRERENDER_FORCE_FULL === '1') return { full: true, scope: 'all', reason: 'PRERENDER_FORCE_FULL=1' };
-  // malllist / officelist: эталон каталога обычно копируем с платформы
-  // (adoptBuildAssets + rewrite origin). Но если сменился отпечаток
-  // публичного кода — на malllist тоже public-refresh: иначе параллельный
-  // деплой копирует ещё старый HTML карточек ТЦ с платформы, а JS уже новый
-  // → то же мигание, что чинили на платформе (2026-10-12).
+  // malllist / officelist: fetchPathLive сначала берёт HTML со СВОЕГО прода
+  // (PUBLIC_ORIGIN), платформа при redirects.* на каталог отвечает 308.
+  // Отпечаток тоже сверяем со своим продом: сверка с платформой при
+  // параллельном деплое давала ложное «код не менялся» → быстрый режим →
+  // копия своего же старого HTML + новый JS (мигание на zamok, 2026-10-12).
   if (IS_MALLS_DEPLOY) {
-    if (await publicCodeChangedSinceLive()) {
+    if (await publicCodeChangedSinceLive(PUBLIC_ORIGIN)) {
       return {
         full: true,
         scope: 'public-refresh',
-        reason: 'malls: публичный код изменился — честный рендер карточек ТЦ',
+        reason: 'malls: публичный код изменился относительно своего прода — честный рендер карточек ТЦ',
       };
     }
     return {
       full: false,
       scope: 'all',
-      reason: 'malls: копия ТЦ с платформы + честный рендер главной',
+      reason: 'malls: копия со своего прода / платформы + честный рендер главной',
     };
   }
   if (IS_OFFICES_DEPLOY) {
+    if (await publicCodeChangedSinceLive(PUBLIC_ORIGIN)) {
+      return {
+        full: true,
+        scope: 'public-refresh',
+        reason: 'offices: публичный код изменился относительно своего прода — честный рендер',
+      };
+    }
     return {
       full: false,
       scope: 'all',
-      reason: 'offices: копия БЦ с платформы',
+      reason: 'offices: копия со своего прода / платформы',
     };
   }
   if (!process.env.VERCEL) {
@@ -1016,7 +1023,8 @@ async function decidePrerenderMode() {
 // Любая неопределённость (файла на проде ещё нет, сеть подвела, отпечаток не
 // посчитался) — полный режим, как и везде в этой логике: тихая SEO-регрессия
 // дороже лишних минут сборки.
-async function publicCodeChangedSinceLive() {
+/** @param {string} [liveOrigin] с каким продом сверять отпечаток (по умолчанию платформа). */
+async function publicCodeChangedSinceLive(liveOrigin = SITE_ORIGIN) {
   let localId;
   try {
     localId = computePublicBuildId().id;
@@ -1025,12 +1033,12 @@ async function publicCodeChangedSinceLive() {
     return true;
   }
   try {
-    const res = await fetch(`${SITE_ORIGIN}/public-build-id.txt`, {
+    const res = await fetch(`${liveOrigin}/public-build-id.txt`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
-      console.log(`[prerender] /public-build-id.txt на проде недоступен (${res.status}) — полный режим`);
+      console.log(`[prerender] ${liveOrigin}/public-build-id.txt недоступен (${res.status}) — полный режим`);
       return true;
     }
     // До первого деплоя с этим шагом сборки файла на проде нет, и SPA-рерайт
@@ -1038,14 +1046,14 @@ async function publicCodeChangedSinceLive() {
     // недостаточно проверить res.ok, нужен ещё и формат отпечатка.
     const liveId = (await res.text()).trim();
     if (!/^[0-9a-f]{32}$/.test(liveId)) {
-      console.log('[prerender] на проде ещё нет /public-build-id.txt (ответ не похож на отпечаток) — полный режим');
+      console.log(`[prerender] на ${liveOrigin} ещё нет /public-build-id.txt (ответ не похож на отпечаток) — полный режим`);
       return true;
     }
     if (liveId === localId) {
-      console.log(`[prerender] публичный код не менялся (отпечаток ${localId}) — правки не касаются маркетинговых страниц`);
+      console.log(`[prerender] публичный код не менялся vs ${liveOrigin} (отпечаток ${localId}) — правки не касаются маркетинговых страниц`);
       return false;
     }
-    console.log(`[prerender] публичный код изменился (${liveId} → ${localId}) — полный режим`);
+    console.log(`[prerender] публичный код изменился vs ${liveOrigin} (${liveId} → ${localId}) — полный режим`);
     return true;
   } catch (err) {
     console.warn('[prerender] не удалось сверить отпечаток публичного кода с продом — полный режим:', err);
