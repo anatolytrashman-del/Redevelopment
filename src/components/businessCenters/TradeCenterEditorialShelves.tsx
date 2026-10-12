@@ -421,12 +421,14 @@ const GLANCE_TONE_CLASS: Record<TcBrowseFigure['tone'], string> = {
 
 function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?: string }) {
   return (
-    <li className={cn('ml-reveal shrink-0 snap-start w-[9.5rem] sm:w-[11rem] lg:w-[12rem]', delayClass)}>
+    // На мобилке ~2.3 карточки в ряд — виден край третьей, иначе скролл
+    // незаметен (ровно 2 влезают при w-[9.5rem] + p-6).
+    <li className={cn('ml-reveal shrink-0 snap-start w-[7.75rem] sm:w-[11rem] lg:w-[12rem]', delayClass)}>
       <Link
         to={card.href}
         title={`${card.title} — ${card.countLabel}`}
         aria-label={`${card.title} — ${card.countLabel}`}
-        className="group flex flex-col gap-2.5 rounded-xl p-1.5 -m-1.5 transition-colors hover:bg-white/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]/50"
+        className="group flex flex-col gap-2 rounded-xl p-1 -m-1 transition-colors hover:bg-white/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]/50 sm:gap-2.5 sm:p-1.5 sm:-m-1.5"
       >
         <span
           className="ml-lookbook-cover relative aspect-square w-full overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10"
@@ -463,19 +465,30 @@ function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?
 function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
   return (
     <section aria-labelledby={`tc-shelf-${shelf.id}`} className="flex flex-col gap-3">
-      <div className="px-0.5">
-        <h3
-          id={`tc-shelf-${shelf.id}`}
-          className="text-2xl font-bold tracking-tight text-ink sm:text-[1.75rem]"
-          style={DISPLAY}
-        >
-          {shelf.title}
-        </h3>
-        <p className="mt-1 text-sm text-ink/60">{shelf.lead}</p>
+      <div className="flex items-end justify-between gap-3 px-0.5">
+        <div className="min-w-0">
+          <h3
+            id={`tc-shelf-${shelf.id}`}
+            className="text-[1.35rem] font-bold tracking-tight text-ink sm:text-[1.75rem]"
+            style={DISPLAY}
+          >
+            {shelf.title}
+          </h3>
+          <p className="mt-1 text-sm text-ink/60">{shelf.lead}</p>
+        </div>
+        {shelf.cards.length > 2 ? (
+          <span
+            className="shrink-0 pb-0.5 text-[11px] font-bold tracking-wide text-ink/35 sm:text-[12px]"
+            aria-hidden
+          >
+            Листайте →
+          </span>
+        ) : null}
       </div>
       <ul
-        className="ml-lookbook-shelf-row -mx-1 flex list-none gap-3 overflow-x-auto px-1 pb-2"
+        className="ml-lookbook-shelf-row -mx-1 flex list-none gap-2.5 overflow-x-auto px-1 pb-2 sm:gap-3"
         style={{ scrollbarGutter: 'stable' }}
+        aria-label={`${shelf.title}: листайте вбок`}
       >
         {shelf.cards.map((card, i) => (
           <LookbookCard
@@ -536,7 +549,7 @@ export function TradeCenterEditorialShelves({ shelves }: { shelves: TcEditorialS
   if (!shelves.length) return null;
   return (
     <div
-      className={cn('flex flex-col gap-9 overflow-hidden p-6 sm:gap-11 sm:p-8', glassCardClass)}
+      className={cn('flex flex-col gap-8 overflow-hidden p-4 sm:gap-11 sm:p-8', glassCardClass)}
       style={glassCardShadow}
     >
       {shelves.map((shelf) => (
