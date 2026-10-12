@@ -82,15 +82,15 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [],
       )}
       {(floors.length > 0 || hasUnique) && <div className={cn('grid gap-6', floors.length > 0 && hasUnique && 'lg:grid-cols-[minmax(0,1fr)_300px]')}>
         {floors.length > 0 && (
-          <div className="overflow-hidden rounded-[22px] border border-[#efdfd4] bg-[#fff8f2] text-ink">
+          <div className="overflow-hidden rounded-[22px] border border-border bg-surface-muted/50 text-ink">
             {/* Светлая схема: shopping, не траурная доска. */}
-            <div className="flex items-center justify-between gap-3 border-b border-[#efdfd4] px-4 py-2.5 sm:px-5">
-              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-[#c45c3a]/80">Схема этажей</p>
-              <p className="font-mono text-[11px] font-bold tabular-nums text-[#c45c3a]/55">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5 sm:px-5">
+              <p className="font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-ink/55">Схема этажей</p>
+              <p className="font-mono text-[11px] font-bold tabular-nums text-ink/40">
                 {floors.length} {floors.length === 1 ? 'ур.' : 'ур.'}
               </p>
             </div>
-            <ol className="divide-y divide-[#efdfd4] px-3.5 py-1 sm:px-4">
+            <ol className="divide-y divide-border px-3.5 py-1 sm:px-4">
               {floors.map((floor) => {
                 const hit = active?.floor === floor.floor;
                 const badge = formatFloorBadge(floor.floor);
@@ -102,22 +102,22 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [],
                     key={floor.floor}
                     className={cn(
                       'grid grid-cols-[44px_minmax(0,1fr)] items-center gap-1 px-1.5 py-3 sm:grid-cols-[54px_minmax(0,1fr)]',
-                      hit && 'rounded-xl bg-[#ffe8dc]/70',
+                      hit && 'rounded-xl bg-surface-muted/80',
                     )}
                   >
-                    <span className={cn('text-center font-mono text-[22px] font-extrabold tabular-nums text-[#c45c3a] sm:text-[26px]')}>
+                    <span className={cn('text-center font-mono text-[22px] font-extrabold tabular-nums text-ink sm:text-[26px]')}>
                       {longBadge ? '·' : badge}
                     </span>
                     <div className="min-w-0">
                       {longBadge && (
-                        <p className="mb-0.5 break-words font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-[#c45c3a]/70">
+                        <p className="mb-0.5 break-words font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-ink/50">
                           {badge}
                         </p>
                       )}
                       <h3 className="text-base font-bold text-ink">
                         {floor.theme}
                         {hit && (
-                          <span className="ml-2 inline-block rounded-md bg-[#ffe8dc] px-1.5 py-px align-middle text-[11px] font-semibold text-[#c45c3a]">
+                          <span className="ml-2 inline-block rounded-md bg-surface-muted px-1.5 py-px align-middle text-[11px] font-semibold text-ink">
                             {active.name} здесь
                           </span>
                         )}
@@ -132,8 +132,8 @@ export function TradeCenterGuide({ info, organizations, name, uniqueBrands = [],
             </ol>
           </div>
         )}
-        {hasUnique && <aside className="rounded-[22px] border border-[#efdfd4] bg-[#fff8f2] p-5">
-          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[#c45c3a]/75">Только здесь</p>
+        {hasUnique && <aside className="rounded-[22px] border border-border bg-surface-muted/50 p-5">
+          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-ink/55">Только здесь</p>
           <h3 className="mt-1 text-base font-bold text-ink">Уникальные магазины</h3>
           <p className="mt-1 text-xs leading-relaxed text-ink-muted">Этих магазинов нет в других торговых центрах Минска из нашего каталога</p>
           <ul className="mt-3.5 divide-y divide-border border-t border-border">

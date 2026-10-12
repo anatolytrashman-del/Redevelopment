@@ -95,7 +95,7 @@ export function TradeCenterOffersEvents({ info, index }: { info: RetailInfo; ind
       {loyalty.map((program, programIndex) => (
         <div
           key={`${program.name}-${programIndex}`}
-          className="grid grid-cols-1 items-center gap-[18px] rounded-[20px] border border-[#efdfd4] bg-[#fff1e8] px-5 py-[18px] text-ink md:grid-cols-[1.1fr_2fr]"
+          className="grid grid-cols-1 items-center gap-[18px] rounded-[20px] border border-border bg-surface-muted px-5 py-[18px] text-ink md:grid-cols-[1.1fr_2fr]"
         >
           <div>
             <h3 className="text-base font-bold">{program.name}</h3>
@@ -105,7 +105,7 @@ export function TradeCenterOffersEvents({ info, index }: { info: RetailInfo; ind
             <dl className={cn('grid gap-2', fitGridClass(program.facts.length, 3, 'tiles'))}>
               {program.facts.map((fact) => (
                 <div key={fact.label} className="min-w-0 rounded-xl bg-white/80 px-3 py-2.5">
-                  <dd className="break-words text-base font-extrabold text-[#c45c3a]">{fact.value}</dd>
+                  <dd className="break-words text-base font-extrabold text-ink">{fact.value}</dd>
                   <dt className="mt-0.5 break-words text-[11px] leading-snug text-ink/55 [hyphens:auto]">{fact.label}</dt>
                 </div>
               ))}
@@ -122,10 +122,10 @@ export function TradeCenterOffersEvents({ info, index }: { info: RetailInfo; ind
             return (
               <article
                 key={`${event.name}-${eventIndex}`}
-                className="min-w-0 rounded-[18px] border border-[#efdfd4] bg-white px-4 py-3.5"
+                className="min-w-0 rounded-[18px] border border-border bg-white px-4 py-3.5"
               >
                 {eventDateForVisit(event) && (
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#c45c3a]">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-ink">
                     {eventDateForVisit(event)}
                   </p>
                 )}

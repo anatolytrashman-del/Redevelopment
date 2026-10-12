@@ -17,7 +17,7 @@ const icons = { monitor: Monitor, play: Play, volume: Volume2, image: Image, car
 function BusinessContact({ title, text }: { title: string; text: string }) {
   const contacts = parseBusinessContacts(text);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-[20px] border border-[#efdfd4] bg-[#fff1e8] px-5 py-[18px] text-ink">
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-[20px] border border-border bg-surface-muted px-5 py-[18px] text-ink">
       <div className="min-w-0">
         <h3 className="text-sm font-bold">{title}</h3>
         {(contacts.hours || contacts.rest) && (
@@ -29,7 +29,7 @@ function BusinessContact({ title, text }: { title: string; text: string }) {
           <a
             key={phone.href}
             href={phone.href}
-            className="rounded-xl bg-[#c45c3a] px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-[#b04e30]"
+            className="rounded-xl bg-primary px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover"
           >
             {phone.label}
           </a>

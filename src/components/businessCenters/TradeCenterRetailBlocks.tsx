@@ -107,7 +107,7 @@ export function TradeCenterRetailBlocks({
               return (
                 <li
                   key={`${entry.name}-${i}`}
-                  className="flex min-w-0 items-start gap-3 rounded-2xl border border-[#efdfd4] bg-white/80 p-3"
+                  className="flex min-w-0 items-start gap-3 rounded-2xl border border-border bg-white/80 p-3"
                 >
                   <span
                     className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', tcChipSoftClass)}

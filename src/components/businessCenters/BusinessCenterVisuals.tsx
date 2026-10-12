@@ -169,7 +169,7 @@ export function FactTile({
           (span ? ` ${SPAN_CLASSES[span]}` : '')
         }
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff1e8] text-[#c45c3a]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-muted text-ink">
           <Icon className="h-4 w-4" strokeWidth={1.75} />
         </span>
         <div className="min-w-0">
@@ -192,7 +192,7 @@ export function FactTile({
         <span
           className={
             'flex shrink-0 items-center justify-center rounded-xl ' +
-            (muted ? 'h-8 w-8 bg-[#fff1e8] text-[#c45c3a]' : 'h-9 w-9 bg-surface-muted text-ink')
+            (muted ? 'h-8 w-8 bg-surface-muted text-ink' : 'h-9 w-9 bg-surface-muted text-ink')
           }
         >
           <Icon className="h-4 w-4" strokeWidth={1.75} />

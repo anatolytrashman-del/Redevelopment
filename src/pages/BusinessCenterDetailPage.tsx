@@ -2720,7 +2720,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                     <SectionIcon
                       className={cn(
                         'mt-0.5 h-4 w-4 shrink-0',
-                        isTc ? 'text-[#c45c3a]/80' : 'text-icon',
+                        'text-icon',
                       )}
                       strokeWidth={isTc ? 1.75 : undefined}
                     />
@@ -2787,7 +2787,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                         className={cn(
                           'mt-0.5 h-4 w-4 shrink-0 transition-colors',
                           isTc
-                            ? 'text-[#c45c3a]/75 group-hover:text-[#c45c3a]'
+                            ? 'text-ink/55 group-hover:text-ink'
                             : 'text-icon group-hover:text-primary',
                         )}
                         strokeWidth={isTc ? 1.75 : undefined}

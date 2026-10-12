@@ -179,7 +179,7 @@ function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
   return (
     <li
       className={cn(
-        'flex min-w-0 flex-col gap-2.5 rounded-2xl border border-[#efdfd4] bg-white/80 p-4',
+        'flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-white/80 p-4',
         wide && 'md:col-span-2',
       )}
     >
@@ -217,7 +217,7 @@ function FunTile({ entry, wide }: { entry: RetailFunEntry; wide: boolean }) {
           href={entry.yandexUrl}
           target="_blank"
           rel="nofollow noopener noreferrer"
-          className="mt-auto inline-flex w-fit items-center gap-1 text-xs font-semibold text-[#c45c3a] hover:underline"
+          className="mt-auto inline-flex w-fit items-center gap-1 text-xs font-semibold text-ink hover:underline"
         >
           На Яндекс Картах
           <ExternalLink className="h-3 w-3" aria-hidden="true" />

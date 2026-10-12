@@ -73,10 +73,10 @@ export function TradeCenterNumbersCard({ numbers, index }: { numbers: RetailFigu
         {group.label && <h3 className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{group.label}</h3>}
         {group.kind === 'scale' && <div className={cn('grid gap-3.5', fitGridClass(group.entries.length, 2))}>{group.entries.map((entry, entryIndex) => <ScaleNumber key={`${entry.label}-${entryIndex}`} entry={entry} />)}</div>}
         {group.kind === 'building' && <div className={cn('grid items-start gap-2.5', fitGridClass(group.entries.length, 5, 'tiles'))}>{group.entries.map((entry, entryIndex) => <NumberTile key={`${entry.label}-${entry.value}-${entryIndex}`} entry={entry} wide={balancedColumns(group.entries.length, 5) <= 3} />)}</div>}
-        {group.kind === 'holidays' && <div className={cn('grid grid-cols-1 overflow-hidden rounded-[22px] border border-[#efdfd4] bg-[#fff1e8] text-ink', HOLIDAY_COLUMNS[balancedColumns(group.entries.length, 3)])}>
-          {group.entries.map((entry, entryIndex) => <div key={`${entry.label}-${entryIndex}`} className="min-w-0 border-[#efdfd4] px-5 py-[18px] max-md:border-t max-md:first:border-t-0 md:border-l">
-            {holidayDate(entry) && <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#c45c3a]">{holidayDate(entry)}</p>}
-            <p className="break-words text-[28px] font-extrabold leading-none tabular-nums text-[#c45c3a]">{entry.value}</p>
+        {group.kind === 'holidays' && <div className={cn('grid grid-cols-1 overflow-hidden rounded-[22px] border border-border bg-surface-muted text-ink', HOLIDAY_COLUMNS[balancedColumns(group.entries.length, 3)])}>
+          {group.entries.map((entry, entryIndex) => <div key={`${entry.label}-${entryIndex}`} className="min-w-0 border-border px-5 py-[18px] max-md:border-t max-md:first:border-t-0 md:border-l">
+            {holidayDate(entry) && <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink">{holidayDate(entry)}</p>}
+            <p className="break-words text-[28px] font-extrabold leading-none tabular-nums text-ink">{entry.value}</p>
             <p className="mt-1.5 break-words text-xs leading-snug text-ink/55">{entry.label}</p>
           </div>)}
         </div>}

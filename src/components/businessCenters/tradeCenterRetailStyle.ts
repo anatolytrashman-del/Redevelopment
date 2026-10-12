@@ -36,7 +36,7 @@ export const RETAIL_SECTION_ICONS: Record<RetailSectionId, LucideIcon> = {
 
 export const retailCardClass = cn('mt-6 flex scroll-mt-32 flex-col gap-4 p-6 sm:p-8', glassCardClass);
 
-// Тёплый shopping-акцент для категорий ТЦ (владелец, 2026-10-11): не
-// фирменный красный (утомляет) и не траурный ink — персик + терракота.
-export const tcChipClass = 'bg-[#ffe8dc] text-[#c45c3a]';
-export const tcChipSoftClass = 'bg-[#fff1e8] text-[#b85a3a]';
+// Серый акцент для категорий ТЦ (владелец, 2026-10-12: персик/терракота
+// «не наш фирменный стиль» — обратно к surface-muted / ink).
+export const tcChipClass = 'bg-surface-muted text-ink';
+export const tcChipSoftClass = 'bg-surface-muted text-ink-muted';
