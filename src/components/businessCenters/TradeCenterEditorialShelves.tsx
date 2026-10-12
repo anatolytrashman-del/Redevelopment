@@ -450,9 +450,11 @@ function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?
           />
         </span>
         {/* font-bold (700), не font-black: ExtraBold-файл субсетирован только
-            под латинские A–Z — иначе «Mark Formelle» рвёт вес по буквам. */}
+            под латинские A–Z — иначе «Mark Formelle» рвёт вес по буквам.
+            line-clamp-2: на мобилке «Площадь Якуба Коласа» / «Академия наук»
+            не влезают в одну строку при w-[7.75rem]. */}
         <span className="min-w-0 px-0.5">
-          <span className="block truncate text-[15px] font-bold leading-snug tracking-tight text-ink sm:text-[16px]">
+          <span className="line-clamp-2 min-h-[2.4em] text-[13px] font-bold leading-snug tracking-tight text-ink sm:min-h-0 sm:text-[16px] sm:leading-snug">
             {card.title}
           </span>
           <span className="mt-0.5 block text-[12px] font-semibold tabular-nums text-ink-muted">
