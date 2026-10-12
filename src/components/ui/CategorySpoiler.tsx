@@ -2,6 +2,9 @@
 // а полноценный блок с иконкой, крупным заголовком и короткой подписью.
 // Серый/ink-стиль (как до shopping-персика): mono-номера, ink-плашки,
 // спокойный open-state. <details> — контент в DOM; по #якорю сам раскрывается.
+// Правка шапки (subtitle / «Ещё») меняет пререндер-HTML карточек ТЦ —
+// public-refresh обязан переснимать /minsk/tc/:slug, иначе первый кадр
+// остаётся со старой разметкой до гидрации (мигание на проде, 2026-10-12).
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/cn';
