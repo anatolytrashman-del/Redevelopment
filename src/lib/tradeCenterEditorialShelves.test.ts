@@ -121,6 +121,17 @@ describe('авторские полки каталога ТЦ', () => {
       expect(rest[i - 1].count).toBeGreaterThanOrEqual(rest[i].count);
     }
     expect(shelf!.cards.some((c) => c.href.includes('/with/shopping'))).toBe(true);
+    expect(shelf!.title).toBe('Выбирайте по интересам');
+    expect(shelf!.lead.toLowerCase()).toContain('подборк');
+  });
+
+  it('карточка budget — «Недорогие», не «Недорого»', () => {
+    const index: TcFilterIndex = new Map([
+      ['outlet', buildTcFilterEntry({ ...emptyFilter, brands: ['Sinsay'] })],
+    ]);
+    const shelf = buildTonightShelf([tc({ slug: 'outlet', retailFormat: 'аутлет' })], index);
+    expect(shelf).not.toBeNull();
+    expect(shelf!.cards.find((c) => c.id === 'topic-budget')?.title).toBe('Недорогие');
   });
 
   it('ставит «Золотое яблоко» первым, остальных — по числу ТЦ', () => {
@@ -158,6 +169,8 @@ describe('авторские полки каталога ТЦ', () => {
     }
     expect(slugs.every((s) => (TC_FEATURED_BRAND_SLUGS as readonly string[]).includes(s))).toBe(true);
     expect(shelf!.cards.every((c) => c.countLabel.endsWith(' ТЦ'))).toBe(true);
+    expect(shelf!.title).toBe('Ищите знакомый бренд');
+    expect(shelf!.lead.toLowerCase()).toContain('подборк');
   });
 
   it('берёт только топовые районы по количеству', () => {
@@ -178,6 +191,8 @@ describe('авторские полки каталога ТЦ', () => {
     expect(shelf!.cards.length).toBeLessThanOrEqual(TC_TOP_DISTRICTS);
     expect(shelf!.cards[0].title).toBe('Фрунзенский');
     expect(shelf!.cards.map((c) => c.title)).not.toContain('Партизанский');
+    expect(shelf!.title).toBe('Выбирайте район');
+    expect(shelf!.lead.toLowerCase()).toContain('подборк');
   });
 
   it('берёт только топовые станции метро по числу', () => {
@@ -235,6 +250,8 @@ describe('авторские полки каталога ТЦ', () => {
     expect(shelf).not.toBeNull();
     expect(shelf!.cards.length).toBeLessThanOrEqual(TC_TOP_METRO);
     expect(shelf!.cards[0].title).toBe('Немига');
+    expect(shelf!.title).toBe('Сойдите у метро');
+    expect(shelf!.lead.toLowerCase()).toContain('подборк');
   });
 
   it('собирает ключевые цифры сводки без нулей и только с tcIndex', () => {
