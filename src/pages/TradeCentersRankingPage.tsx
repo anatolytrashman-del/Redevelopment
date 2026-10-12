@@ -29,7 +29,7 @@ import { nearestMetroStation } from '../lib/metroStations';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { EMPTY_OFFER_INDEX } from '../lib/businessCenterCatalogFilter';
 import { tcTopicHubUrl, TC_TOPIC_HUBS } from '../lib/tradeCenterHubs';
-import { loadYandexCardRatings, type YandexCardRatingIndex } from '../lib/yandexCardsApi';
+import { loadYandexCardRatings, peekYandexCardRatings, type YandexCardRatingIndex } from '../lib/yandexCardsApi';
 
 const DATE_PUBLISHED = '2026-10-04';
 const PAGE_URL = `${catalogSiteUrl('tc')}/rating`;
@@ -68,8 +68,10 @@ function RatedRankingRow({ ranked, place }: { ranked: RankedCenter; place: numbe
 }
 
 export function TradeCentersRankingPage() {
+  // Стартуем с прайма сборки (index.html → __tcRatings → peek): иначе
+  // ratings=null гасит весь список снапшота и даёт CLS ~0,5.
   const [centers, setCenters] = useState<BusinessCenter[] | null>(() => snapshotBusinessCenters('tc'));
-  const [ratings, setRatings] = useState<YandexCardRatingIndex | null>(null);
+  const [ratings, setRatings] = useState<YandexCardRatingIndex | null>(() => peekYandexCardRatings());
   const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export function TradeCentersRankingPage() {
       .catch(() => setCenters((prev) => prev ?? []));
     loadYandexCardRatings()
       .then(setRatings)
-      .catch(() => setRatings(new Map()));
+      .catch(() => setRatings((prev) => prev ?? new Map()));
   }, []);
 
   const ranking = useMemo(() => (centers && ratings ? buildTcRanking(centers, ratings) : []), [centers, ratings]);

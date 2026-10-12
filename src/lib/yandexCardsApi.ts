@@ -5,6 +5,7 @@
 // читает отсюда (или из /data/tc-ratings.json сборки).
 import { supabase } from './supabase';
 import { withRetry } from './withRetry';
+import { loadBuildData, peekBuildData } from './buildData';
 
 export interface YandexCardRating {
   slug: string;
@@ -13,6 +14,10 @@ export interface YandexCardRating {
 }
 
 export type YandexCardRatingIndex = Map<string, YandexCardRating>;
+
+type TcRatingsFile = {
+  rows?: { business_center_slug: string; rating: number | null; rating_count: number | null }[];
+};
 
 function indexFromRows(rows: { business_center_slug: string; rating: number | null; rating_count: number | null }[]): YandexCardRatingIndex {
   const map: YandexCardRatingIndex = new Map();
@@ -29,17 +34,20 @@ function indexFromRows(rows: { business_center_slug: string; rating: number | nu
   return map;
 }
 
+function indexFromFile(data: TcRatingsFile | null): YandexCardRatingIndex | null {
+  if (!data || !Array.isArray(data.rows) || data.rows.length === 0) return null;
+  const index = indexFromRows(data.rows);
+  return index.size > 0 ? index : null;
+}
+
+/** Уже разобранный прайм из index.html — синхронно для первого кадра рейтинга. */
+export function peekYandexCardRatings(): YandexCardRatingIndex | null {
+  return indexFromFile(peekBuildData<TcRatingsFile>('tc-ratings.json'));
+}
+
 /** Файл сборки — без похода в базу на пререндере и на CDN. */
 export async function loadTcRatingsFromBuild(): Promise<YandexCardRatingIndex | null> {
-  try {
-    const res = await fetch('/data/tc-ratings.json');
-    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null;
-    const data = (await res.json()) as { rows?: { business_center_slug: string; rating: number | null; rating_count: number | null }[] };
-    if (!Array.isArray(data.rows) || data.rows.length === 0) return null;
-    return indexFromRows(data.rows);
-  } catch {
-    return null;
-  }
+  return indexFromFile(await loadBuildData<TcRatingsFile>('tc-ratings.json'));
 }
 
 /** Постранично: PostgREST молча режет выборки >1000. */

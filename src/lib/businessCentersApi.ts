@@ -169,6 +169,8 @@ interface BuildSnapshotWindow {
   __bcExtra?: { slug: string; data: Promise<unknown> };
   /** Выжимка /data/tc-filters.json — прайм для корня каталога ТЦ. */
   __tcFilters?: Promise<unknown>;
+  /** /data/tc-ratings.json — прайм для /minsk/tc/rating (иначе CLS списка). */
+  __tcRatings?: Promise<unknown>;
   // Какой каталог начал качать инлайн-скрипт: под /minsk/tc — торговые
   // центры (trade-centers.json), иначе бизнес-центры. Нет — значит 'bc'.
   __bcKind?: CatalogKind;
@@ -240,6 +242,7 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
   const market = w.__bcMarket ? seedBuildData('bc-market.json', w.__bcMarket) : null;
   const extra = w.__bcExtra ? seedBuildData(bcExtraFile(w.__bcExtra.slug), w.__bcExtra.data) : null;
   const tcFilters = w.__tcFilters ? seedBuildData('tc-filters.json', w.__tcFilters) : null;
+  const tcRatings = w.__tcRatings ? seedBuildData('tc-ratings.json', w.__tcRatings) : null;
   // Монтирование ждёт ВСЁ, что уже нарисовано в пререндер-снапшоте: React
   // здесь не гидратирует, а строит DOM заново, и его первый кадр обязан
   // совпасть со снапшотом. 2026-09-23 карточка ждала только файл здания —
@@ -248,7 +251,7 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
   // это ожидание не задевает — фото снапшота к монтированию уже нарисовано,
   // а все эти файлы качаются с низким приоритетом и канал ему не отнимают.
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
-  await Promise.race([Promise.all([list, detail, market, extra, tcFilters]), timeout]);
+  await Promise.race([Promise.all([list, detail, market, extra, tcFilters, tcRatings]), timeout]);
 }
 
 export async function fetchBusinessCenters(kind: CatalogKind = 'bc'): Promise<BusinessCenter[]> {
