@@ -78,6 +78,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { extname, join, normalize } from 'node:path';
 import { computePublicBuildId } from './public-build-id.mjs';
 import { adoptBuildAssets, extractBuildBlocks } from './prerender-snapshot.mjs';
+import { needsHonestPublicRefresh as pathNeedsHonestPublicRefresh } from './prerender-public-refresh.mjs';
 import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 import { ensureCatalogProductCredit } from './catalogFooterCredit.mjs';
 import { fallbackRows, offlineRows } from './_buildFallback.mjs';
@@ -893,29 +894,19 @@ function isBusinessCenterSectionPath(path) {
   return path === 'minsk/bc' || path.startsWith('minsk/bc/');
 }
 
-/** Карточка ТЦ (/minsk/tc/:slug), не хаб with/format/rating/district/metro. */
-function isTradeCenterCardPath(path) {
-  if (!path.startsWith('minsk/tc/')) return false;
-  const rest = path.slice('minsk/tc/'.length);
-  if (!rest || rest.includes('/')) return false;
-  return true;
-}
-
 /**
  * В режиме public-refresh (сменился отпечаток публичного кода) честно
- * рендерим только то, что могло поменять разметку из-за правок каталога ТЦ /
- * лендингов / статики. Раздел БЦ и карточки ТЦ — копия с прода: их сотни,
- * а правки подборок /store|/with их HTML не трогают (владелец, 2026-10-04).
+ * рендерим хабы/карточки ТЦ, лендинги и статику. Раздел БЦ копируем с прода
+ * (сотни страниц). Карточки ТЦ раньше тоже копировали (2026-10-04) — после
+ * правок спойлеров на проде мигало «старый HTML → гидрация новым JS»
+ * (2026-10-12); логика — scripts/prerender-public-refresh.mjs.
  */
 function needsHonestPublicRefresh(path, landingPathSet) {
-  if (isBusinessCenterSectionPath(path)) return false;
-  if (isTradeCenterCardPath(path)) return false;
-  if (path.startsWith('minsk/tc/store/')) return false;
-  if (path === 'minsk/tc' || path.startsWith('minsk/tc/')) return true;
-  if (ALWAYS_FULL_RENDER_PATHS.has(path)) return true;
-  if (landingPathSet.has(path)) return true;
-  if (path === 'minsk' || STATIC_PATHS.includes(path)) return true;
-  return false;
+  return pathNeedsHonestPublicRefresh(path, {
+    landingPathSet,
+    alwaysFullPaths: ALWAYS_FULL_RENDER_PATHS,
+    staticPaths: STATIC_PATHS,
+  });
 }
 
 const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел БЦ рендерится из файлов сборки, остальное копируется с прода';
@@ -923,10 +914,19 @@ const SUPABASE_OUTAGE_REASON = 'Supabase закрыт (402) — раздел Б�
 async function decidePrerenderMode() {
   if (process.env.PRERENDER_OUTAGE === '1') return { full: false, scope: 'all', reason: 'PRERENDER_OUTAGE=1', outage: true };
   if (process.env.PRERENDER_FORCE_FULL === '1') return { full: true, scope: 'all', reason: 'PRERENDER_FORCE_FULL=1' };
-  // malllist / officelist: эталон каталога уже на платформе — копируем
-  // снапшоты оттуда (adoptBuildAssets + rewrite origin). Полный headless
-  // здесь не нужен: разметка каталога та же, что на redevelopment.pro.
+  // malllist / officelist: эталон каталога обычно копируем с платформы
+  // (adoptBuildAssets + rewrite origin). Но если сменился отпечаток
+  // публичного кода — на malllist тоже public-refresh: иначе параллельный
+  // деплой копирует ещё старый HTML карточек ТЦ с платформы, а JS уже новый
+  // → то же мигание, что чинили на платформе (2026-10-12).
   if (IS_MALLS_DEPLOY) {
+    if (await publicCodeChangedSinceLive()) {
+      return {
+        full: true,
+        scope: 'public-refresh',
+        reason: 'malls: публичный код изменился — честный рендер карточек ТЦ',
+      };
+    }
     return {
       full: false,
       scope: 'all',
@@ -979,10 +979,9 @@ async function decidePrerenderMode() {
     console.warn('[prerender] не удалось проверить/потребить deploy_debounce — полный режим на всякий случай:', err);
     return { full: true, scope: 'all', reason: 'deploy_debounce недоступен' };
   }
-  // Код публичных страниц менялся? Раньше это включало ПОЛНЫЙ рендер всех
-  // ~300+ путей, включая нетронутый раздел БЦ. С ростом /minsk/tc/* это
-  // стало 20+ минут (2026-10-04). Теперь — scope public-refresh: честно
-  // только хабы ТЦ / статика / лендинги, БЦ и карточки ТЦ копируем с прода.
+  // Код публичных страниц менялся? Раньше — полный рендер всех ~300+ путей
+  // (~20+ мин с ростом /minsk/tc/*, 2026-10-04). Теперь — public-refresh:
+  // честно хабы и карточки ТЦ / статика / лендинги; раздел БЦ копируем.
   if (await publicCodeChangedSinceLive()) {
     return { full: true, scope: 'public-refresh', reason: 'код публичных страниц изменился' };
   }
@@ -1344,7 +1343,7 @@ async function main() {
       : fullScope === 'objects'
         ? `[prerender] ЧАСТИЧНЫЙ режим (${decision.reason}) — заново рендерю ${partialCount} путей, зависящих от объектов, остальные ${paths.length - partialCount} копирую с прода`
         : fullScope === 'public-refresh'
-          ? `[prerender] ТОЧЕЧНЫЙ режим (${decision.reason}) — заново рендерю ${publicRefreshCount} путей (хабы ТЦ/статика/лендинги), раздел БЦ и карточки ТЦ копирую с прода; /store/* в пререндер не входят`
+          ? `[prerender] ТОЧЕЧНЫЙ режим (${decision.reason}) — заново рендерю ${publicRefreshCount} путей (хабы и карточки ТЦ/статика/лендинги), раздел БЦ копирую с прода; /store/* в пререндер не входят`
           : `[prerender] ПОЛНЫЙ режим (${decision.reason}) — рендерю каждый путь headless-браузером`,
   );
   if (fullMode && fullScope === 'all' && !process.env.VERCEL) {
