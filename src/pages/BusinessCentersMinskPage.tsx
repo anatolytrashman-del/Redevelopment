@@ -1611,7 +1611,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             {/* Компактный hero как у casinolist LV: заголовок + мета-строка +
                 маленькая обложка справа — без огромной пустой картинки. */}
             <header
-              className={cn('ml-reveal relative overflow-hidden px-5 py-7 sm:px-8 sm:py-9', glassCardClass)}
+              className={cn('ml-reveal relative overflow-hidden px-4 py-5 sm:px-8 sm:py-9', glassCardClass)}
               style={glassCardShadow}
             >
               <span
@@ -1622,35 +1622,36 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 }}
                 aria-hidden
               />
-              <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)] lg:gap-8">
-                <div className="flex min-w-0 flex-col gap-3">
+              {/* Всегда в ряд: текст + компактная обложка справа — на мобилке
+                  не стекаем в колонку (иначе квадрат по центру и пустота). */}
+              <div className="relative grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)] lg:gap-8">
+                <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
                   <p className="text-[11px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
                     MallList · Минск
                   </p>
                   <h1
-                    className="text-3xl font-bold leading-[1.05] tracking-tight text-ink sm:text-5xl"
+                    className="text-[1.65rem] font-bold leading-[1.08] tracking-tight text-ink sm:text-5xl"
                     style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
                   >
                     Каталог ТЦ Минска
                   </h1>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-[12px] font-semibold text-ink/55">
-                    <span className="tabular-nums text-ink">
-                      {tcBrowseFigures[0]?.value ?? '—'} ТЦ
+                  <div className="flex flex-col gap-1 pt-0.5 text-[12px] font-semibold text-ink/55 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="tabular-nums text-ink">
+                        {tcBrowseFigures[0]?.value ?? '—'} ТЦ
+                      </span>
+                      <span className="text-ink/25" aria-hidden>
+                        ·
+                      </span>
+                      <span>подборки по интересам, бренду, району и метро</span>
                     </span>
-                    <span className="text-ink/25" aria-hidden>
-                      ·
-                    </span>
-                    <span>подборки по сценарию, бренду, району и метро</span>
-                    <span className="text-ink/25" aria-hidden>
-                      ·
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[#0f6b3d]">
+                    <span className="inline-flex items-center gap-1 text-[#0f6b3d] sm:before:mx-0.5 sm:before:text-ink/25 sm:before:content-['·']">
                       <BadgeCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
                       {UPDATED_BADGE_LABEL}
                     </span>
                   </div>
                 </div>
-                <div className="relative mx-auto w-36 sm:w-44 lg:w-full" aria-hidden>
+                <div className="relative w-full shrink-0" aria-hidden>
                   <div
                     className="ml-lookbook-cover relative aspect-square overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10"
                     style={{
@@ -1669,7 +1670,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       <path d="M-20 90 L90 -20" stroke="rgba(247,241,228,0.45)" strokeWidth="14" />
                       <path d="M20 120 L120 20" stroke="rgba(0,0,0,0.28)" strokeWidth="10" />
                     </svg>
-                    <span className="pointer-events-none absolute left-2.5 top-2.5 z-[1] h-2.5 w-2.5 rounded-full bg-[#c9a227] ring-2 ring-white/25" />
+                    <span className="pointer-events-none absolute left-2 top-2 z-[1] h-2 w-2 rounded-full bg-[#c9a227] ring-2 ring-white/25 sm:left-2.5 sm:top-2.5 sm:h-2.5 sm:w-2.5" />
                   </div>
                 </div>
               </div>
