@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { attachAppleShelfScroll } from '../../lib/appleShelfScroll';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
 import type {
@@ -423,7 +425,7 @@ function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?
   return (
     // На мобилке ~2.3 карточки в ряд — виден край третьей, иначе скролл
     // незаметен (ровно 2 влезают при w-[9.5rem] + p-6).
-    <li className={cn('ml-reveal shrink-0 snap-start w-[7.75rem] sm:w-[11rem] lg:w-[12rem]', delayClass)}>
+    <li className={cn('ml-reveal shrink-0 w-[7.75rem] sm:w-[11rem] lg:w-[12rem]', delayClass)}>
       <Link
         to={card.href}
         title={`${card.title} — ${card.countLabel}`}
@@ -463,6 +465,15 @@ function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?
 }
 
 function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
+  const rowRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el || shelf.cards.length < 3) return;
+    const handle = attachAppleShelfScroll(el);
+    return () => handle.destroy();
+  }, [shelf.cards.length, shelf.id]);
+
   return (
     <section aria-labelledby={`tc-shelf-${shelf.id}`} className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-3 px-0.5">
@@ -486,8 +497,8 @@ function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
         ) : null}
       </div>
       <ul
+        ref={rowRef}
         className="ml-lookbook-shelf-row -mx-1 flex list-none gap-2.5 overflow-x-auto px-1 pb-2 sm:gap-3"
-        style={{ scrollbarGutter: 'stable' }}
         aria-label={`${shelf.title}: листайте вбок`}
       >
         {shelf.cards.map((card, i) => (
