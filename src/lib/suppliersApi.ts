@@ -26,6 +26,7 @@ function fromRow(row: SupplierRow): Supplier {
     messengers: row.messengers ?? [],
     termsNote: row.terms_note ?? '',
     verified: row.verified,
+    preferred: row.preferred === true,
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
     blockedReason: row.blocked_reason,
@@ -53,6 +54,7 @@ export type SupplierInput = Omit<
   | 'deletedAt'
   | 'blockedReason'
   | 'blockedAt'
+  | 'preferred'
   | 'supplierKind'
   | 'ownBrands'
   | 'articlePrefixes'
@@ -148,6 +150,7 @@ export interface SupplierCatalogHintRow {
   inn: string | null;
   email: string;
   phone: string;
+  preferred: boolean;
 }
 
 export function fetchSupplierCatalogHints(): Promise<Map<string, SupplierCatalogHintRow>> {
@@ -156,7 +159,7 @@ export function fetchSupplierCatalogHints(): Promise<Map<string, SupplierCatalog
     for (let from = 0; ; from += PAGE_SIZE) {
       const { data, error } = await supabase
         .from('suppliers')
-        .select('id, supplier_kind, own_brands, resold_brands, product_kinds, inn, email, phone')
+        .select('id, supplier_kind, own_brands, resold_brands, product_kinds, inn, email, phone, preferred')
         .is('deleted_at', null)
         .order('id')
         .range(from, from + PAGE_SIZE - 1);
@@ -170,6 +173,7 @@ export function fetchSupplierCatalogHints(): Promise<Map<string, SupplierCatalog
         inn: string | null;
         email: string | null;
         phone: string | null;
+        preferred: boolean | null;
       }[];
       for (const r of rows) {
         map.set(r.id, {
@@ -180,10 +184,28 @@ export function fetchSupplierCatalogHints(): Promise<Map<string, SupplierCatalog
           inn: r.inn,
           email: r.email ?? '',
           phone: r.phone ?? '',
+          preferred: r.preferred === true,
         });
       }
       if (rows.length < PAGE_SIZE) return map;
     }
+  });
+}
+
+// Избранный — отметка на компании. Рассылки ведомости умеют писать только им.
+export function setSupplierPreferred(id: string, preferred: boolean): Promise<Supplier> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('suppliers').update({ preferred }).eq('id', id).select().single();
+    if (error) throw error;
+    return fromRow(data as SupplierRow);
+  });
+}
+
+export function fetchPreferredSupplierIds(): Promise<Set<string>> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('suppliers').select('id').is('deleted_at', null).eq('preferred', true);
+    if (error) throw error;
+    return new Set(((data ?? []) as { id: string }[]).map((r) => r.id));
   });
 }
 

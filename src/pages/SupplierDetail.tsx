@@ -19,6 +19,7 @@ import {
   Send,
   SlidersHorizontal,
   ShieldCheck,
+  Star,
   Trash2,
 } from 'lucide-react';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -51,7 +52,7 @@ import {
   type SupplierMessengerContact,
 } from '../data/supplierResearch';
 import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '../data/supplierReliability';
-import { fetchSupplier, fetchSupplierMergeCandidates, mergeSuppliers, setSupplierBlocked } from '../lib/suppliersApi';
+import { fetchSupplier, fetchSupplierMergeCandidates, mergeSuppliers, setSupplierBlocked, setSupplierPreferred } from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequestsByIds } from '../lib/supplierResearchApi';
 import { fetchSupplierSiteSnapshot, requestSiteSnapshotRefresh } from '../lib/supplierSiteSnapshotsApi';
 import {
@@ -949,7 +950,7 @@ export function SupplierDetailView({
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNote, setActionNote] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'reliability' | 'snapshot' | 'block' | null>(null);
+  const [busyAction, setBusyAction] = useState<'reliability' | 'snapshot' | 'block' | 'preferred' | null>(null);
 
   // Первая карточка компании — с неё начинается переписка, если человек жмёт
   // «Написать». Карточек может быть несколько (по одной на категорию
@@ -1035,6 +1036,21 @@ export function SupplierDetailView({
       setActionError(errorMessage(err, 'Не удалось объединить компании'));
     } finally {
       setMerging(false);
+    }
+  }
+
+  async function togglePreferred() {
+    setActionError(null);
+    setActionNote(null);
+    setBusyAction('preferred');
+    try {
+      const next = !supplier.preferred;
+      onSupplierChange(await setSupplierPreferred(supplier.id, next));
+      setActionNote(next ? 'Компания отмечена как избранный поставщик.' : 'Отметка «избранный» снята.');
+    } catch (err) {
+      setActionError(errorMessage(err, 'Не удалось изменить отметку «избранный»'));
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -1279,6 +1295,12 @@ export function SupplierDetailView({
                   {riskSummary(reliability)}
                 </Badge>
               )}
+              {supplier.preferred && (
+                <Badge tone="neutral">
+                  <Star className="mr-1 inline h-3.5 w-3.5 fill-current" />
+                  Избранный
+                </Badge>
+              )}
               {supplier.blockedReason && <Badge tone="danger">в стоп-листе</Badge>}
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-muted">
@@ -1396,6 +1418,25 @@ export function SupplierDetailView({
                     }
                   >
                     Перепроверить реестр
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full justify-start border-0"
+                    disabled={busyAction !== null}
+                    icon={
+                      busyAction === 'preferred' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Star className={supplier.preferred ? 'h-4 w-4 fill-current' : 'h-4 w-4'} />
+                      )
+                    }
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void togglePreferred();
+                    }}
+                  >
+                    {supplier.preferred ? 'Снять «избранный»' : 'Сделать избранным'}
                   </Button>
                   <Button
                     type="button"

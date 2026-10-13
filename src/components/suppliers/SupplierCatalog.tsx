@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Factory, Mail, Plus, Search, Send } from 'lucide-react';
+import { ChevronDown, ChevronRight, Factory, Mail, Plus, Search, Send, Star } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button, buttonClasses } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -88,6 +88,18 @@ function OpenDetailButton({ offer, onOpenDetail }: { offer: SupplierOffer; onOpe
       Подробнее
     </Button>
   );
+}
+
+function isPreferredOffer(o: SupplierOffer, hintsById: Map<string, SupplierCatalogHintRow>): boolean {
+  return !!o.supplierId && hintsById.get(o.supplierId)?.preferred === true;
+}
+
+function preferredCompanyCount(list: SupplierOffer[], hintsById: Map<string, SupplierCatalogHintRow>): number {
+  const ids = new Set<string>();
+  for (const o of list) {
+    if (o.supplierId && isPreferredOffer(o, hintsById)) ids.add(o.supplierId);
+  }
+  return ids.size;
 }
 
 function offerGroups(o: SupplierOffer, snapshotByHost: Map<string, SupplierSiteSnapshot>): string[] {
@@ -472,6 +484,7 @@ export function SupplierCatalog({
               offer={offer}
               categoryLabel={categoryLabel}
               isFactory={isFactory(offer)}
+              preferred={isPreferredOffer(offer, hintsById)}
               tier={tier}
               mail={mailStatsForOffer(offer, mailStats)}
               onOpenDetail={onOpenDetail}
@@ -510,10 +523,17 @@ export function SupplierCatalog({
                   (n, c) => n + c.suppliers.filter((o) => engagement.tierOf(o) < 3).length,
                   0,
                 );
+                const preferred = preferredCompanyCount(
+                  h.categories.flatMap((c) => c.suppliers),
+                  hintsById,
+                );
                 return (
                   <button key={h.hub.name} type="button" onClick={() => openHub(h)} className={cn(tileClass, 'min-h-[140px]')}>
                     <div className="flex flex-col gap-1.5">
-                      <span className="text-base font-semibold tracking-tight text-ink">{h.hub.name}</span>
+                      <span className="flex flex-wrap items-center gap-2 text-base font-semibold tracking-tight text-ink">
+                        {h.hub.name}
+                        {preferred > 0 && <PreferredMark count={preferred} />}
+                      </span>
                       <span className="line-clamp-2 text-xs leading-relaxed text-ink-muted">{h.hub.description}</span>
                     </div>
                     <div className="flex flex-wrap items-end justify-between gap-2">
@@ -542,6 +562,7 @@ export function SupplierCatalog({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {currentHub.categories.map((c) => {
                   const live = c.suppliers.filter((o) => engagement.tierOf(o) < 3).length;
+                  const preferred = preferredCompanyCount(c.suppliers, hintsById);
                   return (
                     <button
                       key={c.category.name}
@@ -554,7 +575,10 @@ export function SupplierCatalog({
                       className={tileClass}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <span className="font-semibold tracking-tight text-ink">{c.category.name}</span>
+                        <span className="flex flex-wrap items-center gap-2 font-semibold tracking-tight text-ink">
+                          {c.category.name}
+                          {preferred > 0 && <PreferredMark count={preferred} />}
+                        </span>
                         <Badge tone="neutral">
                           {c.category.defaultComparisonMode === 'lot' ? 'поставка целиком' : 'по материалам'}
                         </Badge>
@@ -611,6 +635,7 @@ function SupplierRow({
   offer,
   categoryLabel,
   isFactory,
+  preferred,
   tier,
   mail,
   onOpenDetail,
@@ -620,6 +645,7 @@ function SupplierRow({
   offer: SupplierOffer;
   categoryLabel?: string;
   isFactory: boolean;
+  preferred: boolean;
   tier: CatalogEngagementTier;
   mail: CatalogMailStats;
   onOpenDetail: (o: SupplierOffer) => void;
@@ -633,6 +659,7 @@ function SupplierRow({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="truncate font-medium text-ink">{offer.name}</span>
+          {preferred && <PreferredMark />}
           {isFactory && <FactoryMark />}
           <EngagementMark tier={tier} />
           {mail.unread > 0 && (
@@ -766,6 +793,7 @@ function CategoryView({
               key={o.id}
               offer={o}
               isFactory={isFactory(o)}
+              preferred={isPreferredOffer(o, hintsById)}
               tier={engagement.tierOf(o)}
               mail={mailStatsForOffer(o, mailStats)}
               onOpenDetail={onOpenDetail}
@@ -785,6 +813,7 @@ function CategoryView({
               key={o.id}
               offer={o}
               isFactory={isFactory(o)}
+              preferred={isPreferredOffer(o, hintsById)}
               tier={3}
               mail={mailStatsForOffer(o, mailStats)}
               onOpenDetail={onOpenDetail}
@@ -824,6 +853,16 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 }
 
 type KindFilter = 'all' | 'factories' | 'others';
+
+function PreferredMark({ count }: { count?: number }) {
+  const label = count == null ? 'Избранный' : `${count} ${plural(count, 'избранный', 'избранных', 'избранных')}`;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-ink">
+      <Star className="h-3 w-3 fill-current" />
+      {label}
+    </span>
+  );
+}
 
 function FactoryMark() {
   return (

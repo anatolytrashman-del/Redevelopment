@@ -17,6 +17,7 @@ const supplier: Supplier = {
   messengers: [],
   termsNote: '',
   verified: true,
+  preferred: false,
   createdAt: '2026-09-01',
   deletedAt: null,
   blockedReason: null,
