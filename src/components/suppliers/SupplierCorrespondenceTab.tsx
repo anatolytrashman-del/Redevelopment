@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Mail, Paperclip, Send, FileText, Save, ChevronDown, ChevronUp, Reply, FileSearch, CheckCircle2, Eye, FileSpreadsheet, X, Plus, Clock, AlertTriangle, Bot, ArrowLeft } from 'lucide-react';
+import { PreferredStar } from './PreferredStar';
+import { fetchPreferredSupplierIds } from '../../lib/suppliersApi';
 import { Card } from '../ui/Card';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -708,6 +710,7 @@ export function EmailThread({
   pendingAutoReplies,
   onAutoReplyReviewed,
   composerOnly = false,
+  preferred = false,
 }: {
   offer: SupplierOffer;
   // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — null здесь
@@ -746,6 +749,8 @@ export function EmailThread({
   // отсюда нужен только ответ в выбранную тему: без реквизитов и без своей
   // ленты, вместо формы — кнопка «Ответить» на последнее письмо темы.
   composerOnly?: boolean;
+  // Компания отмечена избранной — звезда на входящих письмах этого треда.
+  preferred?: boolean;
 }) {
   // Письма именно текущего треда — основной переписки (order=null) или
   // конкретной заявки. e.orderId null и undefined тут не разводим, в базе
@@ -1542,11 +1547,18 @@ export function EmailThread({
                     ) : (
                       <AlertTriangle className="h-3 w-3" />
                     )}
-                    {e.direction === 'out'
-                      ? e.bouncedAt
-                        ? 'Вернулось'
-                        : emailSendStatusLabel[e.sendStatus]
-                      : 'Получено'}
+                    {e.direction === 'out' ? (
+                      e.bouncedAt ? (
+                        'Вернулось'
+                      ) : (
+                        emailSendStatusLabel[e.sendStatus]
+                      )
+                    ) : (
+                      <>
+                        Получено
+                        {preferred && <PreferredStar className="ml-1" />}
+                      </>
+                    )}
                     {/* Судьба письма по данным почтового сервера (шаг 9,
                         события Resend). Показываем самое позднее из
                         известного: прочитано важнее доставлено. Отсутствие
@@ -1781,6 +1793,7 @@ export function EmailThread({
                       <div className="flex items-center gap-1.5 font-semibold text-ink">
                         <FileSearch className="h-4 w-4 text-ink-muted" />
                         Похоже, это счёт от {offer.name}
+                        {preferred && <PreferredStar className="ml-1" />}
                       </div>
                       {label && <div className="text-xs text-ink-muted">{label}</div>}
                       {summary}
@@ -2517,11 +2530,13 @@ export function UnmatchedEmailCard({
   email,
   offers,
   requests,
+  preferredSupplierIds,
   onResolved,
 }: {
   email: UnmatchedIncomingEmail;
   offers: SupplierOffer[];
   requests: SupplierRequest[];
+  preferredSupplierIds: Set<string>;
   // Привязанное письмо возвращается наверх, чтобы страница добавила его в
   // переписку сразу; при «убрать» аргумента нет — добавлять нечего.
   onResolved: (attached?: SupplierOfferEmail) => void;
@@ -2582,7 +2597,10 @@ export function UnmatchedEmailCard({
       onClick={() => attach(o.id)}
       className="flex w-full flex-col items-start gap-0.5 rounded-control border border-border bg-surface px-3 py-2 text-left text-sm transition-colors hover:border-border-strong disabled:opacity-50"
     >
-      <span className="font-medium text-ink">{o.name}</span>
+      <span className="inline-flex items-center gap-1 font-medium text-ink">
+        {o.name}
+        {o.supplierId && preferredSupplierIds.has(o.supplierId) && <PreferredStar />}
+      </span>
       <span className="text-xs text-ink-faint">
         {requestTitle(o.requestId)}
         {o.email ? ` · ${o.email}` : ''}
@@ -2670,10 +2688,12 @@ function threadStatus(emails: SupplierOfferEmail[]): { status: ThreadStatus; unr
 // счетов, черновики автоответов и остальные инструменты треда.
 function MergedFeed({
   conv,
+  preferred,
   pendingAutoReplies,
   onOpenTopic,
 }: {
   conv: Conversation;
+  preferred: boolean;
   pendingAutoReplies: EmailAutoReplyLogEntry[];
   onOpenTopic: (key: string) => void;
 }) {
@@ -2712,7 +2732,14 @@ function MergedFeed({
             >
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-faint">
                 <span className={cn(out && e.sendStatus === 'failed' && 'text-danger')}>
-                  {out ? (e.sentByName === AUTO_REPLY_SENDER_NAME ? 'ИИ-закупщик' : 'Вы') : conv.name}
+                  {out ? (
+                    e.sentByName === AUTO_REPLY_SENDER_NAME ? 'ИИ-закупщик' : 'Вы'
+                  ) : (
+                    <>
+                      {conv.name}
+                      {preferred && <PreferredStar className="ml-1" />}
+                    </>
+                  )}
                   {' · '}
                   {new Date(e.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                   {out && e.sendStatus !== 'sent' && ` · ${emailSendStatusLabel[e.sendStatus].toLowerCase()}`}
@@ -2845,6 +2872,18 @@ export function SupplierCorrespondenceTab({
   // не сбрасывает открытый тред. order отсутствует в URL — открыта
   // "основная" переписка офера (null), не отдельная заявка.
   const [searchParams, setSearchParams] = useSearchParams();
+  const [preferredSupplierIds, setPreferredSupplierIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let cancelled = false;
+    fetchPreferredSupplierIds()
+      .then((ids) => {
+        if (!cancelled) setPreferredSupplierIds(ids);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const selectedOfferId = searchParams.get('offer');
   const selectedOrderId = searchParams.get('order');
 
@@ -3057,7 +3096,10 @@ export function SupplierCorrespondenceTab({
           {isSelected && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-primary" />}
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
-              <span className={cn('min-w-0 truncate text-sm text-ink', conv.unreadCount > 0 ? 'font-bold' : 'font-semibold')}>{conv.name}</span>
+              <span className={cn('inline-flex min-w-0 items-center gap-1 text-sm text-ink', conv.unreadCount > 0 ? 'font-bold' : 'font-semibold')}>
+                <span className="truncate">{conv.name}</span>
+                {conv.supplierId && preferredSupplierIds.has(conv.supplierId) && <PreferredStar />}
+              </span>
               {!conv.verified && (
                 <span className="shrink-0 rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">не верифицирован</span>
               )}
@@ -3169,6 +3211,7 @@ export function SupplierCorrespondenceTab({
                 email={selectedUnmatched}
                 offers={offers}
                 requests={requests}
+                preferredSupplierIds={preferredSupplierIds}
                 onResolved={(attached) => {
                   setSelectedUnmatchedId(null);
                   reloadUnmatched();
@@ -3192,7 +3235,10 @@ export function SupplierCorrespondenceTab({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-ink">{selectedConv.name}</span>
+                    <span className="inline-flex min-w-0 items-center gap-1.5 text-lg font-bold text-ink">
+                      <span className="truncate">{selectedConv.name}</span>
+                      {selectedConv.supplierId && preferredSupplierIds.has(selectedConv.supplierId) && <PreferredStar />}
+                    </span>
                     {selectedConv.offers[0] && <RiskBadge inn={selectedConv.offers[0].inn} reliabilityByInn={reliabilityByInn} />}
                   </span>
                   <span className="text-xs text-ink-muted">
@@ -3278,6 +3324,7 @@ export function SupplierCorrespondenceTab({
                     onQuotesChange={onQuotesChange}
                     pendingAutoReplies={pendingAutoReplies}
                     onAutoReplyReviewed={onAutoReplyReviewed}
+                    preferred={!!selectedTopic.offer.supplierId && preferredSupplierIds.has(selectedTopic.offer.supplierId)}
                   />
                 </>
               ) : (
@@ -3322,10 +3369,16 @@ export function SupplierCorrespondenceTab({
                         onQuotesChange={onQuotesChange}
                         pendingAutoReplies={pendingAutoReplies}
                         onAutoReplyReviewed={onAutoReplyReviewed}
+                        preferred={!!replyTopic.offer.supplierId && preferredSupplierIds.has(replyTopic.offer.supplierId)}
                       />
                     </div>
                   )}
-                  <MergedFeed conv={selectedConv} pendingAutoReplies={pendingAutoReplies} onOpenTopic={selectTopic} />
+                  <MergedFeed
+                    conv={selectedConv}
+                    preferred={!!selectedConv.supplierId && preferredSupplierIds.has(selectedConv.supplierId)}
+                    pendingAutoReplies={pendingAutoReplies}
+                    onOpenTopic={selectTopic}
+                  />
                 </>
               )}
             </div>

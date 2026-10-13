@@ -59,6 +59,8 @@ import { SupplierVerificationTab, pendingVerificationHostCount } from '../compon
 import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails, type EstimateMaterialOption } from '../components/suppliers/SupplierCorrespondenceTab';
+import { PreferredStar } from '../components/suppliers/PreferredStar';
+import { fetchPreferredSupplierIds } from '../lib/suppliersApi';
 import { MaterialLedgerModal } from '../components/suppliers/MaterialLedgerModal';
 import { MasterLedgerCard } from '../components/suppliers/MasterLedgerCard';
 import { BulkSendModal } from '../components/suppliers/BulkSendModal';
@@ -3860,6 +3862,24 @@ function OfferEmailModal({
   onAutoReplyReviewed: (id: string) => void;
   onClose: () => void;
 }) {
+  const [preferred, setPreferred] = useState(false);
+  useEffect(() => {
+    if (!offer.supplierId) {
+      setPreferred(false);
+      return;
+    }
+    let cancelled = false;
+    const supplierId = offer.supplierId;
+    fetchPreferredSupplierIds()
+      .then((ids) => {
+        if (!cancelled) setPreferred(ids.has(supplierId));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [offer.supplierId]);
+
   useEffect(() => {
     // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — эта
     // модалка (быстрое "Написать" из карточки предложения) всегда
@@ -3874,9 +3894,19 @@ function OfferEmailModal({
   }, [offer.id]);
 
   return (
-    <Modal open onClose={onClose} title={offer.name}>
+    <Modal
+      open
+      onClose={onClose}
+      title={
+        <span className="inline-flex min-w-0 items-center gap-1.5">
+          <span className="truncate">{offer.name}</span>
+          {preferred && <PreferredStar />}
+        </span>
+      }
+    >
       <EmailThread
         offer={offer}
+        preferred={preferred}
         order={null}
         request={request}
         requests={requests}
