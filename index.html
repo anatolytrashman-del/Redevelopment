@@ -95,7 +95,19 @@
             .then(function (r) { return r.ok ? r.json() : null; })
             .catch(function () { return null; });
         };
-        window.__bcList = get(base === '/minsk/tc' ? '/data/trade-centers.json' : '/data/business-centers.json');
+        var rest = path.slice(ownerPage ? '/bc'.length : base.length).replace(/^\/+|\/+$/g, '');
+        // Карточка здания — ровно один сегмент пути. Разделы каталога с
+        // такой же формой перечислены явно, чтобы не ходить за файлом,
+        // которого заведомо нет (лишний 404 в консоли и в аудите).
+        // ФАЙЛ-БЛИЗНЕЦ: это односегментные маршруты /minsk/bc/<x> из
+        // src/App.tsx; сверяет тест в src/lib/businessCentersApi.test.ts.
+        var sections = ['rating', 'guide', 'analytics', 'new'];
+        var isCard = Boolean(rest && rest.indexOf('/') === -1 && (ownerPage || sections.indexOf(rest) === -1));
+        // Список зданий на карточке не нужен до «соседей» ниже сгиба —
+        // 26 КБ на критическом пути с LCP-фото (десктоп 88, 2026-10-13).
+        if (!isCard) {
+          window.__bcList = get(base === '/minsk/tc' ? '/data/trade-centers.json' : '/data/business-centers.json');
+        }
         // Ставки рынка и размеры лотов: без них первый кадр React рисует
         // карточки и блоки иначе, чем пререндер-снапшот, и вёрстка прыгает.
         // ТЦ этот файл не читают (marketPosition для isTc = null, офисные
@@ -119,14 +131,7 @@
         if (path === '/minsk/tc/rating' || path.indexOf('/minsk/tc/rating/') === 0) {
           window.__tcRatings = get('/data/tc-ratings.json');
         }
-        var rest = path.slice(ownerPage ? '/bc'.length : base.length).replace(/^\/+|\/+$/g, '');
-        // Карточка здания — ровно один сегмент пути. Разделы каталога с
-        // такой же формой перечислены явно, чтобы не ходить за файлом,
-        // которого заведомо нет (лишний 404 в консоли и в аудите).
-        // ФАЙЛ-БЛИЗНЕЦ: это односегментные маршруты /minsk/bc/<x> из
-        // src/App.tsx; сверяет тест в src/lib/businessCentersApi.test.ts.
-        var sections = ['rating', 'guide', 'analytics', 'new'];
-        if (rest && rest.indexOf('/') === -1 && (ownerPage || sections.indexOf(rest) === -1)) {
+        if (isCard) {
           window.__bcDetail = { slug: rest, data: get('/data/bc/' + encodeURIComponent(rest) + '.json') };
           // Объявления, отзывы, окружение, 2ГИС, арендаторы — снапшот
           // карточки нарисован с ними, и без них к монтированию блоки на

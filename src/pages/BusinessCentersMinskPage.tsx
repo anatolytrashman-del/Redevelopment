@@ -402,18 +402,24 @@ function orderRetailFormats(values: string[]): string[] {
 }
 
 /**
- * Полки каталога ТЦ: оставляем HTML пререндер-снапшота навсегда (ссылки
- * уже работают), на idle только вешаем apple-scroll. React-дерево из ~35
- * обложек больше не собираем поверх снапшота — иначе long task 500–600 мс
- * и CLS при «оживлении» (Lighthouse 2026-10-12/13).
- * Читаем #tc-shelves ДО коммита React (снапшот ещё в #root). SPA-переход
- * без снапшота — обычный TradeCenterEditorialShelves.
+ * Сводка + полки каталога ТЦ: HTML снапшота целиком (иначе glance null →
+ * полки прыгают вверх, CLS на #tc-shelves). Scroll — на idle.
+ * HTML кладёт main.tsx в window.__tcBrowseBodyHtml до createRoot.
  */
-function TcShelvesMount({ shelves }: { shelves: ReturnType<typeof buildTcEditorialShelves> }) {
+function TcBrowseBodyMount({
+  figures,
+  shelves,
+}: {
+  figures: ReturnType<typeof buildTcBrowseFigures>;
+  shelves: ReturnType<typeof buildTcEditorialShelves>;
+}) {
   const preservedHtml = useRef<string | null | undefined>(undefined);
   if (preservedHtml.current === undefined) {
-    preservedHtml.current =
-      typeof document !== 'undefined' ? (document.getElementById('tc-shelves')?.innerHTML ?? null) : null;
+    const fromWindow =
+      typeof window !== 'undefined'
+        ? (window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml
+        : undefined;
+    preservedHtml.current = fromWindow ?? null;
   }
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -443,15 +449,18 @@ function TcShelvesMount({ shelves }: { shelves: ReturnType<typeof buildTcEditori
   if (preservedHtml.current) {
     return (
       <div
-        id="tc-shelves"
+        id="tc-browse-body"
         ref={containerRef}
         dangerouslySetInnerHTML={{ __html: preservedHtml.current }}
       />
     );
   }
   return (
-    <div id="tc-shelves">
-      <TradeCenterEditorialShelves shelves={shelves} />
+    <div id="tc-browse-body" className="contents">
+      <TradeCenterBrowseGlance figures={figures} />
+      <div id="tc-shelves">
+        <TradeCenterEditorialShelves shelves={shelves} />
+      </div>
     </div>
   );
 }
@@ -543,8 +552,18 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const data = peekBuildData<{ rows: Record<string, TcFilterSource> }>('tc-filters.json');
     return data?.rows ? buildTcFilterIndex(data.rows) : null;
   });
+  // tc-filters нужны корню/полкам и /with|/store|/format — не району/метро/
+  // карточке (104 КБ + разбор индекса в TBT, 2026-10-13).
+  const needsTcFilters =
+    isTc &&
+    !classSlug &&
+    !districtSlug &&
+    !microdistrictSlug &&
+    !metroSlug &&
+    !streetSlug &&
+    !underConstruction;
   useEffect(() => {
-    if (!isTc) return;
+    if (!needsTcFilters) return;
     let cancelled = false;
     loadBuildData<{ rows: Record<string, TcFilterSource> }>('tc-filters.json').then((data) => {
       if (!cancelled && data?.rows) setTcIndex(buildTcFilterIndex(data.rows));
@@ -552,7 +571,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     return () => {
       cancelled = true;
     };
-  }, [isTc]);
+  }, [needsTcFilters]);
   const storeHubs = useMemo(() => (isTc ? collectTcStoreHubs(tcIndex) : []), [isTc, tcIndex]);
   // Уникальные бренды + slug'и ТЦ — подсказки и быстрый store-фильтр без
   // повторного скана brands[] на каждый countWith.
@@ -1390,23 +1409,30 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const isGeneralCatalog = isCatalogRoot && centers !== null && centers.length > 0;
   // Корень ТЦ по умолчанию — полки подборок без бокового фильтра и без
   // сетки «весь каталог». Полный список — отдельная подборка (?view=list).
+  // Browse-home НЕ ждёт centers: иначе первый кадр — список/пустой шелл,
+  // второй — полки снапшота, CLS 0,39 на #tc-shelves (2026-10-13).
   const showTcListView = isTc && isCatalogRoot && searchParams.get('view') === 'list';
-  const isTcBrowseHome = isTc && isGeneralCatalog && !showTcListView;
+  const isTcBrowseHome = isTc && isCatalogRoot && !showTcListView;
 
   // Сводка и полки — только когда tc-filters уже в памяти. Иначе первый
   // кадр рисует урезанный набор, а после fetch — полный (мигание).
   // Прайм — index.html → __tcFilters → seedBuildData в primeBusinessCentersFromBuild.
   const tcBrowseReady = Boolean(isTcBrowseHome && centers && tcIndex);
+  // Если снапшот полок/сводки уже в HTML — не строим их в JS (long task ~600 мс).
+  const hasPreservedBrowse =
+    typeof window !== 'undefined' &&
+    Boolean((window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml);
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
-    () => (tcBrowseReady ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : []),
-    [tcBrowseReady, centers, tcIndex, V.basePath],
+    () =>
+      tcBrowseReady && !hasPreservedBrowse ? buildTcEditorialShelves(centers, tcIndex, V.basePath) : [],
+    [tcBrowseReady, hasPreservedBrowse, centers, tcIndex, V.basePath],
   );
   // Сводка «At a glance» — ключевые цифры каталога (как у casinolist LV).
   const tcBrowseFigures = useMemo(
-    () => (tcBrowseReady ? buildTcBrowseFigures(centers, tcIndex, V.basePath) : []),
-    [tcBrowseReady, centers, tcIndex, V.basePath],
+    () => (tcBrowseReady && !hasPreservedBrowse ? buildTcBrowseFigures(centers, tcIndex, V.basePath) : []),
+    [tcBrowseReady, hasPreservedBrowse, centers, tcIndex, V.basePath],
   );
 
   const rentMethodology = summary.rentMedian != null
@@ -1728,9 +1754,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               </div>
             </header>
 
-            <TradeCenterBrowseGlance figures={tcBrowseFigures} />
-
-            <TcShelvesMount shelves={tcEditorialShelves} />
+            <TcBrowseBodyMount figures={tcBrowseFigures} shelves={tcEditorialShelves} />
 
             {faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />}
             <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
