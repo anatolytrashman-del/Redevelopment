@@ -48,15 +48,27 @@ const COLUMNS =
 // выглядело это не как ошибка, а как «сайт ещё не разобран».
 const SNAPSHOTS_PAGE_SIZE = 1000;
 
+// Страница снимков тяжёлая (у одного домена больше тысячи разделов меню),
+// весь каталог в один таймаут 15 с не укладывается. Раньше withRetry
+// обрывал УЖЕ показанную порцию и начинал карту заново, а страница
+// поставщиков в catch стирала список совсем — «Запросить цены» сначала
+// находил сотню компаний по сайтам, потом оставлял только совпадение
+// по имени.
+const SNAPSHOTS_PAGE_TIMEOUT_MS = 60_000;
+
 // onPartial — страница за страницей: каталог уже на экране, числа на плитках
 // добираются по мере прихода снимков (владелец, 2026-10-09: не ждать всё).
+// Карта одна на весь вызов и только растёт: повтор одной страницы не
+// затирает домены, которые уже пришли с другой.
 export function fetchSupplierSiteSnapshots(
   onPartial?: (snapshots: SupplierSiteSnapshot[]) => void,
 ): Promise<SupplierSiteSnapshot[]> {
-  return withRetry(async () => {
-    const { count, error: countError } = await supabase
-      .from('supplier_site_snapshots')
-      .select('host', { count: 'exact', head: true });
+  return (async () => {
+    const { count, error: countError } = await withRetry(async () => {
+      const res = await supabase.from('supplier_site_snapshots').select('host', { count: 'exact', head: true });
+      if (res.error) throw res.error;
+      return res;
+    });
     if (countError) throw countError;
 
     const total = count ?? 0;
@@ -74,23 +86,32 @@ export function fetchSupplierSiteSnapshots(
       onPartial([...byHost.values()]);
     };
 
+    const failures: unknown[] = [];
     await Promise.all(
       pageStarts.map(async (from) => {
-        const { data, error } = await supabase
-          .from('supplier_site_snapshots')
-          .select(COLUMNS)
-          .order('host', { ascending: true })
-          .range(from, from + SNAPSHOTS_PAGE_SIZE - 1);
-        if (error) throw error;
-        for (const row of (data ?? []) as unknown as SupplierSiteSnapshotRow[]) {
-          const snap = fromRow(row);
-          byHost.set(snap.host, snap);
+        try {
+          const data = await withRetry(async () => {
+            const { data: rows, error } = await supabase
+              .from('supplier_site_snapshots')
+              .select(COLUMNS)
+              .order('host', { ascending: true })
+              .range(from, from + SNAPSHOTS_PAGE_SIZE - 1);
+            if (error) throw error;
+            return (rows ?? []) as unknown as SupplierSiteSnapshotRow[];
+          }, 1000, SNAPSHOTS_PAGE_TIMEOUT_MS);
+          for (const row of data) {
+            const snap = fromRow(row);
+            byHost.set(snap.host, snap);
+          }
+          emit();
+        } catch (err) {
+          failures.push(err);
         }
-        emit();
       }),
     );
+    if (byHost.size === 0 && failures.length > 0) throw failures[0];
     return [...byHost.values()];
-  });
+  })();
 }
 
 // Перечитать сайт заново: ставим снимок обратно в очередь, дальше его

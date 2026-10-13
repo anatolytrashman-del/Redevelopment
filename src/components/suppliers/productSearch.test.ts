@@ -95,6 +95,31 @@ describe('matchCatalogOffer', () => {
     expect(match.reason).toMatch(/Ceresit/i);
   });
 
+  it('«труба» находит раздел «Трубы», «фланец» — «Фланцы»', () => {
+    const pipes = new Map([
+      [
+        'santech.ru',
+        snap({
+          host: 'santech.ru',
+          websiteUrl: 'https://www.santech.ru/',
+          pageTitle: 'Сантехкомплект',
+          metaDescription: '',
+          sections: [
+            { title: 'Трубы стальные', url: 'https://www.santech.ru/truby' },
+            { title: 'Фланцы стальные', url: 'https://www.santech.ru/flancy' },
+            { title: 'Клапаны запорные', url: 'https://www.santech.ru/klapany' },
+          ],
+          categories: ['Трубы и фитинги', 'Запорная и трубопроводная арматура', 'Герметики, клеи, монтажная пена'],
+        }),
+      ],
+    ]);
+    const dealer = offer({ name: 'Сантехкомплект', websiteUrl: 'https://www.santech.ru/', email: 'opt@santech.ru' });
+    expect(matchCatalogOffer(dealer, pipes, normalizeSearch('труба'), undefined, undefined).match.matched).toBe(true);
+    expect(matchCatalogOffer(dealer, pipes, normalizeSearch('фланец'), undefined, undefined).match.matched).toBe(true);
+    expect(matchCatalogOffer(dealer, pipes, normalizeSearch('клапан'), undefined, undefined).match.matched).toBe(true);
+    expect(matchCatalogOffer(dealer, pipes, normalizeSearch('гермет'), undefined, undefined).match.matched).toBe(true);
+  });
+
   it('находит по разделу сайта', () => {
     const { match } = matchCatalogOffer(
       offer({ name: 'Другая фирма' }),

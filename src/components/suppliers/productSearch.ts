@@ -62,8 +62,23 @@ export function matchOfferProduct(
   return matchCatalogOffer(offer, snapshotByHost, query, undefined, undefined).match;
 }
 
+// «труба» должно находить «трубы» и «трубопровод», «фланец» — «фланцы».
+// Слово из ведомости приходит в одной форме (именительный), меню сайта —
+// в другой. Режем только русское слово целиком: ИНН, email и латиницу
+// не трогаем. Исходный запрос тоже проверяем — «фланец» не содержится
+// в «фланц», и наоборот.
+function searchVariants(query: string): string[] {
+  const variants = [query];
+  if (/^[а-я]{4,}$/.test(query) && /[аяуюыиео]$/.test(query)) variants.push(query.slice(0, -1));
+  const fleeting = query.match(/^([а-я]{3,})[ео]([бвгджзклмнпрстфхцчшщ])$/);
+  if (fleeting) variants.push(fleeting[1] + fleeting[2]);
+  return variants;
+}
+
 function includesQuery(haystack: string, query: string): boolean {
-  return haystack.length > 0 && normalizeSearch(haystack).includes(query);
+  if (haystack.length === 0 || query.length === 0) return false;
+  const text = normalizeSearch(haystack);
+  return searchVariants(query).some((variant) => variant.length >= 3 && text.includes(variant));
 }
 
 function anyIncludes(values: string[] | undefined, query: string): string | null {
