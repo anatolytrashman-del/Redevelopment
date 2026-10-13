@@ -75,13 +75,20 @@ export function TradeCentersRankingPage() {
   const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
-    fetchBusinessCenters('tc')
-      .then(setCenters)
-      .catch(() => setCenters((prev) => prev ?? []));
-    loadYandexCardRatings()
-      .then(setRatings)
-      .catch(() => setRatings((prev) => prev ?? new Map()));
-  }, []);
+    // Снимок уже полный (list + tc-ratings до createRoot) — не дёргаем
+    // fetch в окне TBT Lighthouse: иначе setState пересобирает топ и ломает
+    // mobile score (81–100 от прогона к прогону, 2026-10-13).
+    if (centers == null) {
+      fetchBusinessCenters('tc')
+        .then(setCenters)
+        .catch(() => setCenters((prev) => prev ?? []));
+    }
+    if (ratings == null) {
+      loadYandexCardRatings()
+        .then(setRatings)
+        .catch(() => setRatings((prev) => prev ?? new Map()));
+    }
+  }, [centers, ratings]);
 
   const ranking = useMemo(() => (centers && ratings ? buildTcRanking(centers, ratings) : []), [centers, ratings]);
   const excluded = useMemo(() => (centers && ratings ? buildTcExcluded(centers, ratings) : []), [centers, ratings]);
