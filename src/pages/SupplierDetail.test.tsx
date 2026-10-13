@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import type { Supplier } from '../data/suppliers';
+import type { SupplierOffer } from '../data/supplierResearch';
+import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
 import { SupplierDetailView } from './SupplierDetail';
 
 const supplier: Supplier = {
@@ -32,17 +34,21 @@ const supplier: Supplier = {
   siteProfile: null,
 };
 
-function render(company: Supplier, tab = 'overview') {
+function render(
+  company: Supplier,
+  tab = 'overview',
+  extra?: { offers?: SupplierOffer[]; emails?: SupplierOfferEmail[] },
+) {
   return renderToStaticMarkup(
     <MemoryRouter initialEntries={[`/admin/suppliers/supplier?tab=${tab}`]}>
       <SupplierDetailView
         supplier={company}
-        offers={[]}
+        offers={extra?.offers ?? []}
         requests={[]}
         snapshot={null}
         reliability={null}
         contacts={[]}
-        emails={[]}
+        emails={extra?.emails ?? []}
         quotes={[]}
         checks={[]}
         orderCount={0}
@@ -94,5 +100,45 @@ describe('SupplierDetailView', () => {
 
   it('shows an empty catalog for legacy suppliers', () => {
     expect(render(supplier, 'catalog')).toContain('Каталог с сайта ещё не собран');
+  });
+
+  it('keeps the mailbox we write to and addresses from real mail, and hides the rest of the site', () => {
+    const html = render(
+      {
+        ...supplier,
+        siteProfile: {
+          contacts: {
+            emails: [
+              { email: 'sales@example.ru', label: 'Продажи' },
+              { email: 'samara@example.ru', label: 'Самара' },
+              { email: 'boss@example.ru', label: 'Директор' },
+            ],
+          },
+        },
+      },
+      'overview',
+      {
+        emails: [
+          {
+            direction: 'in',
+            fromAddress: 'Boss <boss@example.ru>',
+            toAddress: 'zakupki@redevelopment.pro',
+          } as SupplierOfferEmail,
+        ],
+      },
+    );
+    expect(html).toContain('пишем сюда');
+    expect(html).toContain('boss@example.ru');
+    expect(html).toContain('Ещё 1 адрес с сайта');
+    expect(html).not.toContain('samara@example.ru');
+  });
+
+  it('shows the INN from an invoice when the company record does not have one yet', () => {
+    const html = render({ ...supplier, inn: '' }, 'overview', {
+      offers: [{ id: 'offer', inn: '7736192449' } as SupplierOffer],
+    });
+    expect(html).toContain('7736192449');
+    expect(html).toContain('ИНН из счёта');
+    expect(html).not.toContain('ИНН появится из первого счёта');
   });
 });

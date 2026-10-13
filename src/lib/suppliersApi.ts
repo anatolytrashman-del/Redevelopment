@@ -201,6 +201,16 @@ export function setSupplierPreferred(id: string, preferred: boolean): Promise<Su
   });
 }
 
+// ИНН со счёта живёт на карточке закупки. Карточка компании читает своё поле:
+// без этой записи обзор пишет «появится из первого счёта», хотя счёт уже есть.
+export function setSupplierInn(id: string, inn: string): Promise<Supplier> {
+  return withRetry(async () => {
+    const { data, error } = await supabase.from('suppliers').update({ inn }).eq('id', id).select().single();
+    if (error) throw error;
+    return fromRow(data as SupplierRow);
+  });
+}
+
 export function fetchPreferredSupplierIds(): Promise<Set<string>> {
   return withRetry(async () => {
     const { data, error } = await supabase.from('suppliers').select('id').is('deleted_at', null).eq('preferred', true);
