@@ -1480,7 +1480,8 @@ export function Suppliers() {
         if (!cancelled) setSiteSnapshots(all);
       })
       .catch(() => {
-        if (!cancelled) setSiteSnapshots([]);
+        // Не стираем уже пришедшие страницы: пустой список оставлял в
+        // «Запросить цены» только совпадение по имени компании.
       })
       .finally(() => {
         if (!cancelled) setSiteSnapshotsLoading(false);
