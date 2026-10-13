@@ -1,5 +1,6 @@
-import { Fragment, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { attachAppleShelfScroll } from '../lib/appleShelfScroll';
 import {
   ArrowRight,
   BadgeCheck,
@@ -398,6 +399,61 @@ function orderRetailFormats(values: string[]): string[] {
   const known = preset.filter((f) => values.includes(f));
   const custom = values.filter((f) => !preset.includes(f)).sort((a, b) => a.localeCompare(b, 'ru'));
   return [...known, ...custom];
+}
+
+/**
+ * Полки каталога ТЦ: оставляем HTML пререндер-снапшота навсегда (ссылки
+ * уже работают), на idle только вешаем apple-scroll. React-дерево из ~35
+ * обложек больше не собираем поверх снапшота — иначе long task 500–600 мс
+ * и CLS при «оживлении» (Lighthouse 2026-10-12/13).
+ * Читаем #tc-shelves ДО коммита React (снапшот ещё в #root). SPA-переход
+ * без снапшота — обычный TradeCenterEditorialShelves.
+ */
+function TcShelvesMount({ shelves }: { shelves: ReturnType<typeof buildTcEditorialShelves> }) {
+  const preservedHtml = useRef<string | null | undefined>(undefined);
+  if (preservedHtml.current === undefined) {
+    preservedHtml.current =
+      typeof document !== 'undefined' ? (document.getElementById('tc-shelves')?.innerHTML ?? null) : null;
+  }
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !preservedHtml.current) return;
+    let handles: { destroy: () => void }[] = [];
+    let idleId = 0;
+    let timeoutId = 0;
+    const attach = () => {
+      handles = [...root.querySelectorAll<HTMLElement>('.ml-lookbook-shelf-row')]
+        .filter((el) => el.children.length >= 3)
+        .map((el) => attachAppleShelfScroll(el));
+    };
+    if (typeof requestIdleCallback === 'function') {
+      idleId = requestIdleCallback(attach, { timeout: 1500 });
+    } else {
+      timeoutId = window.setTimeout(attach, 200);
+    }
+    return () => {
+      if (idleId && typeof cancelIdleCallback === 'function') cancelIdleCallback(idleId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      handles.forEach((h) => h.destroy());
+    };
+  }, []);
+
+  if (preservedHtml.current) {
+    return (
+      <div
+        id="tc-shelves"
+        ref={containerRef}
+        dangerouslySetInnerHTML={{ __html: preservedHtml.current }}
+      />
+    );
+  }
+  return (
+    <div id="tc-shelves">
+      <TradeCenterEditorialShelves shelves={shelves} />
+    </div>
+  );
 }
 
 export function BusinessCentersMinskPage({ underConstruction = false }: { underConstruction?: boolean } = {}) {
@@ -1665,11 +1721,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                           'radial-gradient(circle at 50% 18%, rgba(255,255,255,0.16), transparent 48%)',
                       }}
                     />
-                    <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full">
-                      <path d="M0 100 L100 0" stroke="#c9a227" strokeWidth="22" opacity="0.45" />
-                      <path d="M-20 90 L90 -20" stroke="rgba(247,241,228,0.45)" strokeWidth="14" />
-                      <path d="M20 120 L120 20" stroke="rgba(0,0,0,0.28)" strokeWidth="10" />
-                    </svg>
+                    <span className="ml-lookbook-art ml-lookbook-art--slash" />
                     <span className="pointer-events-none absolute left-2 top-2 z-[1] h-2 w-2 rounded-full bg-[#c9a227] ring-2 ring-white/25 sm:left-2.5 sm:top-2.5 sm:h-2.5 sm:w-2.5" />
                   </div>
                 </div>
@@ -1678,9 +1730,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
             <TradeCenterBrowseGlance figures={tcBrowseFigures} />
 
-            <div id="tc-shelves">
-              <TradeCenterEditorialShelves shelves={tcEditorialShelves} />
-            </div>
+            <TcShelvesMount shelves={tcEditorialShelves} />
 
             {faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />}
             <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>

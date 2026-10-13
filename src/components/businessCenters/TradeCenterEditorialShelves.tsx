@@ -14,245 +14,23 @@ import type {
 const DISPLAY = { fontFamily: 'Georgia, "Times New Roman", serif' } as const;
 
 /**
- * Плотные «виниловые» обложки в духе casinolist: толстые полосы и формы,
- * не тонкие линии на пустом фоне. Букв и фигуративов нет — только геометрия.
+ * Узор обложки — один span + CSS (см. .ml-lookbook-art--* в index.css).
+ * Раньше здесь был SVG на 4–8 узлов × 35 карточек: createElement на первом
+ * кадре каталога давал TBT ~1 с на десктопе (Lighthouse 2026-10-12).
  */
+function lookbookPattern(art: TcLookbookArt): string {
+  if (art.startsWith('metro')) return 'metro';
+  if (art.startsWith('brand')) return 'brand';
+  if (art.startsWith('district')) return 'district';
+  if (art === 'cinema') return 'grid';
+  if (art === 'all' || art === 'center') return 'bars';
+  if (art === 'entertainment' || art === 'budget') return 'diamond';
+  if (art === 'free-parking' || art === 'foodcourt' || art === 'kids') return 'orb';
+  return 'slash';
+}
+
 function LookbookArt({ art }: { art: TcLookbookArt }) {
-  const cream = 'rgba(247,241,228,0.55)';
-  const gold = '#c9a227';
-  const ink = 'rgba(0,0,0,0.28)';
-  switch (art) {
-    case 'shopping':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <path d="M0 100 L100 0" stroke={gold} strokeWidth="22" opacity="0.45" />
-          <path d="M-20 90 L90 -20" stroke={cream} strokeWidth="14" />
-          <path d="M20 120 L120 20" stroke={ink} strokeWidth="10" />
-          <rect x="58" y="58" width="28" height="28" fill="none" stroke={cream} strokeWidth="2.5" />
-        </svg>
-      );
-    case 'cinema':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <rect x="10" y="18" width="80" height="64" rx="4" fill="none" stroke={gold} strokeWidth="3" />
-          <rect x="22" y="30" width="56" height="40" fill={cream} opacity="0.2" />
-          <line x1="10" y1="40" x2="90" y2="40" stroke={cream} strokeWidth="2.5" />
-          <line x1="10" y1="60" x2="90" y2="60" stroke={cream} strokeWidth="2.5" />
-          <line x1="34" y1="18" x2="34" y2="82" stroke={ink} strokeWidth="3" />
-          <line x1="66" y1="18" x2="66" y2="82" stroke={ink} strokeWidth="3" />
-        </svg>
-      );
-    case 'free-parking':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <circle cx="50" cy="46" r="28" fill={gold} opacity="0.22" />
-          <circle cx="50" cy="46" r="28" fill="none" stroke={gold} strokeWidth="3.5" />
-          <circle cx="50" cy="46" r="14" fill="none" stroke={cream} strokeWidth="2.5" />
-          <path d="M18 82 H82" stroke={cream} strokeWidth="5" strokeLinecap="round" />
-          <path d="M28 74 H72" stroke={ink} strokeWidth="3" strokeLinecap="round" />
-        </svg>
-      );
-    case 'foodcourt':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <circle cx="50" cy="50" r="32" fill={gold} opacity="0.18" />
-          <circle cx="50" cy="50" r="32" fill="none" stroke={gold} strokeWidth="3.5" />
-          <circle cx="50" cy="50" r="16" fill="none" stroke={cream} strokeWidth="3" />
-          <circle cx="50" cy="50" r="5" fill={cream} opacity="0.7" />
-          <line x1="50" y1="12" x2="50" y2="28" stroke={ink} strokeWidth="3" />
-        </svg>
-      );
-    case 'kids':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <circle cx="36" cy="40" r="18" fill={gold} opacity="0.25" />
-          <circle cx="36" cy="40" r="18" fill="none" stroke={gold} strokeWidth="3" />
-          <rect x="54" y="28" width="30" height="30" rx="3" fill="none" stroke={cream} strokeWidth="3" />
-          <path d="M20 78 L50 58 L80 78" fill="none" stroke={ink} strokeWidth="4" strokeLinejoin="round" />
-        </svg>
-      );
-    case 'entertainment':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <polygon
-            points="50,12 58,38 86,38 64,56 72,84 50,66 28,84 36,56 14,38 42,38"
-            fill={gold}
-            opacity="0.28"
-          />
-          <polygon
-            points="50,12 58,38 86,38 64,56 72,84 50,66 28,84 36,56 14,38 42,38"
-            fill="none"
-            stroke={cream}
-            strokeWidth="2.5"
-          />
-        </svg>
-      );
-    case 'budget':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <polygon points="50,8 92,50 50,92 8,50" fill={gold} opacity="0.22" />
-          <polygon points="50,8 92,50 50,92 8,50" fill="none" stroke={gold} strokeWidth="3" />
-          <polygon points="50,28 72,50 50,72 28,50" fill="none" stroke={cream} strokeWidth="2.5" />
-        </svg>
-      );
-    case 'center':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <rect x="14" y="14" width="72" height="72" fill={cream} opacity="0.12" />
-          <rect x="14" y="14" width="72" height="72" fill="none" stroke={gold} strokeWidth="3.5" />
-          <line x1="14" y1="50" x2="86" y2="50" stroke={cream} strokeWidth="3" />
-          <line x1="50" y1="14" x2="50" y2="86" stroke={cream} strokeWidth="3" />
-          <circle cx="50" cy="50" r="8" fill={ink} />
-        </svg>
-      );
-    case 'all':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <rect x="12" y="20" width="76" height="12" fill={gold} opacity="0.55" />
-          <rect x="12" y="44" width="76" height="12" fill={cream} opacity="0.45" />
-          <rect x="12" y="68" width="76" height="12" fill={ink} />
-          <rect x="28" y="12" width="8" height="76" fill={cream} opacity="0.35" />
-        </svg>
-      );
-    case 'metro-near':
-    case 'metro-blue':
-    case 'metro-red':
-    case 'metro-green':
-    case 'metro-rail':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <line x1="8" y1="50" x2="92" y2="50" stroke={gold} strokeWidth="6" strokeLinecap="round" />
-          <circle cx="26" cy="50" r="9" fill={cream} opacity="0.35" />
-          <circle cx="26" cy="50" r="9" fill="none" stroke={cream} strokeWidth="2.5" />
-          <circle cx="50" cy="50" r="12" fill={gold} opacity="0.35" />
-          <circle cx="50" cy="50" r="12" fill="none" stroke={gold} strokeWidth="3" />
-          <circle cx="74" cy="50" r="9" fill={cream} opacity="0.35" />
-          <circle cx="74" cy="50" r="9" fill="none" stroke={cream} strokeWidth="2.5" />
-        </svg>
-      );
-    case 'metro-node':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <circle cx="50" cy="50" r="28" fill={gold} opacity="0.22" />
-          <circle cx="50" cy="50" r="28" fill="none" stroke={gold} strokeWidth="4" />
-          <line x1="50" y1="10" x2="50" y2="90" stroke={cream} strokeWidth="5" />
-          <line x1="10" y1="50" x2="90" y2="50" stroke={cream} strokeWidth="5" />
-          <circle cx="50" cy="50" r="8" fill={cream} />
-        </svg>
-      );
-    case 'metro-fork':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <path d="M18 78 L50 22 L82 78" fill="none" stroke={gold} strokeWidth="6" strokeLinejoin="round" />
-          <circle cx="50" cy="22" r="8" fill={cream} />
-          <circle cx="18" cy="78" r="7" fill={cream} opacity="0.7" />
-          <circle cx="82" cy="78" r="7" fill={cream} opacity="0.7" />
-          <line x1="50" y1="40" x2="50" y2="70" stroke={ink} strokeWidth="4" />
-        </svg>
-      );
-    case 'metro-ring':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <circle cx="50" cy="50" r="30" fill="none" stroke={gold} strokeWidth="5" />
-          <circle cx="50" cy="50" r="16" fill="none" stroke={cream} strokeWidth="3.5" />
-          <circle cx="50" cy="20" r="6" fill={cream} />
-          <circle cx="76" cy="65" r="6" fill={cream} opacity="0.75" />
-          <circle cx="24" cy="65" r="6" fill={cream} opacity="0.75" />
-        </svg>
-      );
-    case 'brand-gold-apple':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <circle cx="50" cy="56" r="28" fill={cream} opacity="0.18" />
-          <circle cx="50" cy="56" r="28" fill="none" stroke={cream} strokeWidth="3.5" />
-          <path d="M50 16 C50 16 66 28 60 44" fill="none" stroke={gold} strokeWidth="4" strokeLinecap="round" />
-          <path d="M0 100 L100 0" stroke={ink} strokeWidth="8" opacity="0.5" />
-        </svg>
-      );
-    case 'brand-sport':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <path d="M8 72 Q50 18 92 72" fill="none" stroke={gold} strokeWidth="8" strokeLinecap="round" />
-          <path d="M18 82 Q50 38 82 82" fill="none" stroke={cream} strokeWidth="5" strokeLinecap="round" />
-          <circle cx="50" cy="28" r="6" fill={cream} />
-        </svg>
-      );
-    case 'brand-beauty':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <ellipse cx="50" cy="54" rx="24" ry="30" fill={gold} opacity="0.2" />
-          <ellipse cx="50" cy="54" rx="24" ry="30" fill="none" stroke={gold} strokeWidth="3.5" />
-          <line x1="26" y1="54" x2="74" y2="54" stroke={cream} strokeWidth="3" />
-          <circle cx="50" cy="54" r="6" fill={cream} opacity="0.65" />
-        </svg>
-      );
-    case 'brand-fashion':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <path d="M0 100 L100 0" stroke={gold} strokeWidth="18" opacity="0.5" />
-          <path d="M100 100 L0 0" stroke={cream} strokeWidth="12" opacity="0.55" />
-          <rect x="28" y="28" width="44" height="44" fill="none" stroke={ink} strokeWidth="3" />
-        </svg>
-      );
-    case 'district-skyline':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <rect x="12" y="40" width="16" height="42" fill={gold} opacity="0.35" />
-          <rect x="34" y="22" width="18" height="60" fill={cream} opacity="0.28" />
-          <rect x="58" y="34" width="14" height="48" fill={gold} opacity="0.25" />
-          <rect x="76" y="48" width="12" height="34" fill={cream} opacity="0.22" />
-          <path d="M8 84 H92" stroke={ink} strokeWidth="4" strokeLinecap="round" />
-        </svg>
-      );
-    case 'district-blocks':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <rect x="14" y="22" width="30" height="56" fill={gold} opacity="0.28" />
-          <rect x="14" y="22" width="30" height="56" fill="none" stroke={gold} strokeWidth="2.5" />
-          <rect x="52" y="34" width="30" height="44" fill={cream} opacity="0.2" />
-          <rect x="52" y="34" width="30" height="44" fill="none" stroke={cream} strokeWidth="2.5" />
-          <path d="M10 82 H90" stroke={ink} strokeWidth="4" strokeLinecap="round" />
-        </svg>
-      );
-    case 'district-grid':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <rect x="16" y="16" width="68" height="68" fill="none" stroke={gold} strokeWidth="3.5" />
-          <line x1="16" y1="39" x2="84" y2="39" stroke={cream} strokeWidth="2.5" />
-          <line x1="16" y1="61" x2="84" y2="61" stroke={cream} strokeWidth="2.5" />
-          <line x1="39" y1="16" x2="39" y2="84" stroke={ink} strokeWidth="2.5" />
-          <line x1="61" y1="16" x2="61" y2="84" stroke={ink} strokeWidth="2.5" />
-        </svg>
-      );
-    case 'district-arc':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <path d="M14 72 Q50 18 86 72" fill="none" stroke={gold} strokeWidth="6" />
-          <path d="M24 72 Q50 34 76 72" fill="none" stroke={cream} strokeWidth="4" />
-          <rect x="42" y="58" width="16" height="24" fill={ink} opacity="0.45" />
-        </svg>
-      );
-    case 'district-steps':
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <path d="M12 78 H36 V58 H56 V38 H76 V18 H88" fill="none" stroke={gold} strokeWidth="5" strokeLinejoin="round" />
-          <rect x="16" y="62" width="16" height="16" fill={cream} opacity="0.3" />
-          <rect x="40" y="42" width="16" height="16" fill={cream} opacity="0.3" />
-          <rect x="64" y="22" width="16" height="16" fill={cream} opacity="0.3" />
-        </svg>
-      );
-    case 'district':
-    default:
-      return (
-        <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-          <rect x="14" y="22" width="30" height="56" fill={gold} opacity="0.28" />
-          <rect x="14" y="22" width="30" height="56" fill="none" stroke={gold} strokeWidth="2.5" />
-          <rect x="52" y="34" width="30" height="44" fill={cream} opacity="0.2" />
-          <rect x="52" y="34" width="30" height="44" fill="none" stroke={cream} strokeWidth="2.5" />
-          <path d="M10 82 H90" stroke={ink} strokeWidth="4" strokeLinecap="round" />
-        </svg>
-      );
-  }
+  return <span className={cn('ml-lookbook-art', `ml-lookbook-art--${lookbookPattern(art)}`)} aria-hidden />;
 }
 
 /**
@@ -472,12 +250,29 @@ function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
   useEffect(() => {
     const el = rowRef.current;
     if (!el || shelf.cards.length < 3) return;
-    const handle = attachAppleShelfScroll(el);
-    return () => handle.destroy();
+    let handle: { destroy: () => void } | null = null;
+    let idleId = 0;
+    let timeoutId = 0;
+    const attach = () => {
+      handle = attachAppleShelfScroll(el);
+    };
+    if (typeof requestIdleCallback === 'function') {
+      idleId = requestIdleCallback(attach, { timeout: 1200 });
+    } else {
+      timeoutId = window.setTimeout(attach, 200);
+    }
+    return () => {
+      if (idleId && typeof cancelIdleCallback === 'function') cancelIdleCallback(idleId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      handle?.destroy();
+    };
   }, [shelf.cards.length, shelf.id]);
 
   return (
-    <section aria-labelledby={`tc-shelf-${shelf.id}`} className="flex flex-col gap-3">
+    <section
+      aria-labelledby={`tc-shelf-${shelf.id}`}
+      className="ml-lookbook-shelf flex flex-col gap-3"
+    >
       <div className="flex items-end justify-between gap-3 px-0.5">
         <div className="min-w-0">
           <h3

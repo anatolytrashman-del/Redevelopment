@@ -243,15 +243,23 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
   const extra = w.__bcExtra ? seedBuildData(bcExtraFile(w.__bcExtra.slug), w.__bcExtra.data) : null;
   const tcFilters = w.__tcFilters ? seedBuildData('tc-filters.json', w.__tcFilters) : null;
   const tcRatings = w.__tcRatings ? seedBuildData('tc-ratings.json', w.__tcRatings) : null;
-  // Монтирование ждёт ВСЁ, что уже нарисовано в пререндер-снапшоте: React
-  // здесь не гидратирует, а строит DOM заново, и его первый кадр обязан
-  // совпасть со снапшотом. 2026-09-23 карточка ждала только файл здания —
-  // и на десктопе сразу после монтирования пропадал блок «Отдел аренды»
-  // (390 px), а оглавление съезжало: CLS 0,33 при 97 на телефоне. LCP
-  // это ожидание не задевает — фото снапшота к монтированию уже нарисовано,
-  // а все эти файлы качаются с низким приоритетом и канал ему не отнимают.
+  // Ждём только то, без чего первый кадр не совпадёт со снапшотом.
+  // Карточка: detail + extra (+ market на БЦ). Список зданий и tc-filters
+  // на карточке не блокируют createRoot — иначе TTI ~4 с (десктоп 88).
+  // Каталог/полки: list + tc-filters. Рейтинг: list + tc-ratings.
+  const blocking: Promise<unknown>[] = [];
+  if (w.__bcDetail) blocking.push(detail);
+  if (extra) blocking.push(extra);
+  if (market) blocking.push(market);
+  if (tcRatings) {
+    blocking.push(list, tcRatings);
+  } else if (tcFilters) {
+    blocking.push(list, tcFilters);
+  } else if (!w.__bcDetail) {
+    blocking.push(list);
+  }
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
-  await Promise.race([Promise.all([list, detail, market, extra, tcFilters, tcRatings]), timeout]);
+  await Promise.race([Promise.all(blocking.length > 0 ? blocking : [list]), timeout]);
 }
 
 export async function fetchBusinessCenters(kind: CatalogKind = 'bc'): Promise<BusinessCenter[]> {

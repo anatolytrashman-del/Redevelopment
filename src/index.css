@@ -206,13 +206,18 @@ body {
   }
 }
 
+/* Анимацию включаем только после первого кадра (класс на <html>),
+   иначе 35+ ml-reveal на старте каталога жгут style/layout в TBT. */
 .ml-reveal {
+  opacity: 1;
+}
+html.ml-motion-ready .ml-reveal {
   animation: 0.55s ease-out both ml-reveal-up;
 }
-.ml-reveal-delay-1 {
+html.ml-motion-ready .ml-reveal-delay-1 {
   animation-delay: 80ms;
 }
-.ml-reveal-delay-2 {
+html.ml-motion-ready .ml-reveal-delay-2 {
   animation-delay: 0.16s;
 }
 
@@ -225,6 +230,11 @@ body {
 .group:focus-within .ml-lookbook-cover {
   transform: translateY(-3px) scale(1.02);
   box-shadow: 0 16px 36px #00000030;
+}
+
+.ml-lookbook-shelf {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
 }
 
 .ml-lookbook-shelf-row {
@@ -241,10 +251,70 @@ body {
   height: 0;
 }
 
+/* CSS-узоры вместо SVG на обложках — один узел на карточку. */
+.ml-lookbook-art {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+.ml-lookbook-art--slash {
+  background:
+    linear-gradient(135deg, transparent 42%, #c9a22773 42.5%, #c9a22773 58%, transparent 58.5%),
+    linear-gradient(135deg, transparent 48%, #f7f1e48c 48.5%, #f7f1e48c 56%, transparent 56.5%);
+}
+.ml-lookbook-art--grid {
+  background:
+    linear-gradient(#c9a22766 2px, transparent 2px) 0 28% / 100% 44%,
+    linear-gradient(90deg, #c9a22766 2px, transparent 2px) 28% 0 / 44% 100%,
+    linear-gradient(#f7f1e459 1px, transparent 1px) 0 50% / 100% 20%,
+    linear-gradient(90deg, rgba(0, 0, 0, 0.28) 2px, transparent 2px) 50% 0 / 20% 100%;
+  background-repeat: no-repeat;
+}
+.ml-lookbook-art--orb {
+  background:
+    radial-gradient(circle at 50% 46%, #c9a22759 0 28%, transparent 29%),
+    radial-gradient(circle at 50% 46%, transparent 34%, #f7f1e473 35% 36%, transparent 37%);
+}
+.ml-lookbook-art--diamond {
+  background:
+    linear-gradient(135deg, transparent 46%, #c9a22766 46.5%, #c9a22766 53.5%, transparent 54%),
+    linear-gradient(45deg, transparent 46%, #f7f1e473 46.5%, #f7f1e473 53.5%, transparent 54%);
+}
+.ml-lookbook-art--bars {
+  background:
+    linear-gradient(#c9a2278c 0 0) 12% 20% / 76% 12%,
+    linear-gradient(#f7f1e473 0 0) 12% 44% / 76% 12%,
+    linear-gradient(#00000047 0 0) 12% 68% / 76% 12%;
+  background-repeat: no-repeat;
+}
+.ml-lookbook-art--metro {
+  background:
+    linear-gradient(#c9a227cc 0 0) 8% 48% / 84% 6%,
+    radial-gradient(circle at 26% 50%, #f7f1e459 0 9%, transparent 10%),
+    radial-gradient(circle at 50% 50%, #c9a22773 0 12%, transparent 13%),
+    radial-gradient(circle at 74% 50%, #f7f1e459 0 9%, transparent 10%);
+  background-repeat: no-repeat;
+}
+.ml-lookbook-art--brand {
+  background:
+    radial-gradient(circle at 50% 56%, #f7f1e42e 0 28%, transparent 29%),
+    linear-gradient(135deg, transparent 40%, #00000080 40.5%, #00000080 48%, transparent 48.5%);
+}
+.ml-lookbook-art--district {
+  background:
+    linear-gradient(#c9a22759 0 0) 12% 40% / 16% 42%,
+    linear-gradient(#f7f1e447 0 0) 34% 22% / 18% 60%,
+    linear-gradient(#c9a22740 0 0) 58% 34% / 14% 48%,
+    linear-gradient(#f7f1e438 0 0) 76% 48% / 12% 34%,
+    linear-gradient(#00000073 0 0) 8% 84% / 84% 4%;
+  background-repeat: no-repeat;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ml-reveal,
-  .ml-reveal-delay-1,
-  .ml-reveal-delay-2 {
+  html.ml-motion-ready .ml-reveal,
+  html.ml-motion-ready .ml-reveal-delay-1,
+  html.ml-motion-ready .ml-reveal-delay-2 {
     animation: none !important;
   }
   .ml-lookbook-cover {

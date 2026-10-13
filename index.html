@@ -102,10 +102,18 @@
         // ставки к ритейлу не применяются) — 120+ КБ на критическом пути
         // до createRoot зря (карточка «Замка», 2026-10-11).
         if (base !== '/minsk/tc') window.__bcMarket = get('/data/bc-market.json');
-        // Выжимка фильтров ТЦ — сводка цифр и полки брендов/сценариев на
-        // /minsk/tc. Без прайма первый кадр React рисует урезанную сводку,
-        // потом после fetch — полную (мигание «много → мало → снова всё»).
-        if (base === '/minsk/tc') window.__tcFilters = get('/data/tc-filters.json');
+        // Выжимка фильтров ТЦ — только там, где без неё мигает сводка/полки
+        // или /with|/store. На карточке/рейтинге/районе/метро 104 КБ
+        // (250 КБ JSON) до createRoot зря тянули TTI (десктоп карточки 88,
+        // замер 2026-10-12).
+        if (
+          path === '/minsk/tc' ||
+          path.indexOf('/minsk/tc/with/') === 0 ||
+          path.indexOf('/minsk/tc/store/') === 0 ||
+          path.indexOf('/minsk/tc/format/') === 0
+        ) {
+          window.__tcFilters = get('/data/tc-filters.json');
+        }
         // Рейтинг ТЦ: без прайма ratings=null → список снапшота схлопывается
         // в «Загрузка…» (CLS ~0,5, Lighthouse 2026-10-12).
         if (path === '/minsk/tc/rating' || path.indexOf('/minsk/tc/rating/') === 0) {
