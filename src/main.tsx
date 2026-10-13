@@ -95,5 +95,9 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   // чтобы СЛЕДУЮЩИЙ, отдельный крах (даже позже в той же вкладке) снова
   // получил свою "тихую" попытку, а не сразу экран с кнопкой.
   setTimeout(clearCrashReloadFlag, 5000)
+  // Lookbook ml-reveal — только после простоя, не в окне TBT первого захода.
+  const enableMotion = () => document.documentElement.classList.add('ml-motion-ready')
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(enableMotion, { timeout: 2500 })
+  else setTimeout(enableMotion, 400)
   initSentryWhenIdle()
 })
