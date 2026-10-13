@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 
@@ -49,6 +50,16 @@ describe('stripThirdPartyAnalytics', () => {
     const once = stripThirdPartyAnalytics(SAMPLE);
     const twice = stripThirdPartyAnalytics(once);
     expect(twice).toBe(once);
+  });
+
+  it('оставляет Vercel Web Analytics и va-disable на живом index.html', () => {
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const out = stripThirdPartyAnalytics(html);
+    expect(out).toContain('id="vercel-analytics-gate"');
+    expect(out).toContain("va('beforeSend'");
+    expect(out).toContain('/_vercel/insights/script.js');
+    expect(out).not.toContain('ym(111858495');
+    expect(out).not.toContain('top-fwz1.mail.ru');
   });
 
   it('strips live officelist-like Metrika block from fixture file if present', async () => {
