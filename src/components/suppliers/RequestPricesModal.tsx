@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
+import { ToggleGroup } from '../ui/ToggleGroup';
 import {
   countryFlag,
   isManagerOnlySupplier,
@@ -61,6 +62,15 @@ export function keywordForItem(name: string): string {
   return lower.match(/[a-z]{4,}/)?.[0] ?? '';
 }
 
+// Полное соответствие — компания закрывает каждую позицию ведомости.
+// Ноль позиций (ведомость ещё не выбрана) полным не считается.
+export function isFullMatch(covers: readonly number[], itemCount: number): boolean {
+  return itemCount > 0 && covers.length === itemCount;
+}
+
+const MATCH_ANY = 'Любое совпадение';
+const MATCH_FULL = 'Полное соответствие';
+
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -100,6 +110,7 @@ export function RequestPricesModal({
   emails,
   snapshotByHost,
   legalEntities,
+  catalogLoading,
   onClose,
   onCreated,
 }: {
@@ -109,6 +120,10 @@ export function RequestPricesModal({
   emails: SupplierOfferEmail[];
   snapshotByHost: Map<string, SupplierSiteSnapshot>;
   legalEntities: LegalEntity[];
+  // Карточки и снимки сайтов приходят страницами. Пока это не кончилось,
+  // в списке только совпадения по имени — две-три компании, и кажется,
+  // что больше никого нет.
+  catalogLoading: boolean;
   onClose: () => void;
   onCreated: (request: SupplierRequest, added: SupplierOffer[]) => void;
 }) {
@@ -195,15 +210,25 @@ export function RequestPricesModal({
     return { companies: list, countByItem: counts };
   }, [pool, items, keywords, snapshotByHost]);
 
-  // По умолчанию отмечены все подходящие (владелец, 2026-09-28: «по
-  // умолчанию пусть выбираются все поставщики, подходящие под условия»).
+  // «Только полное соответствие» — писать тем, у кого нашлись все позиции,
+  // а не одна из пяти (владелец, 2026-10-13).
+  const [matchMode, setMatchMode] = useState(MATCH_ANY);
+  const fullOnly = matchMode === MATCH_FULL;
+  const visibleCompanies = useMemo(
+    () => (fullOnly ? companies.filter((c) => isFullMatch(c.covers, items.length)) : companies),
+    [companies, fullOnly, items.length],
+  );
+
+  // По умолчанию отмечены все, кто виден в текущем режиме (владелец,
+  // 2026-09-28: «по умолчанию пусть выбираются все поставщики, подходящие
+  // под условия»).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   useEffect(() => {
-    setSelected(new Set(companies.map((c) => c.key)));
-  }, [companies]);
+    setSelected(new Set(visibleCompanies.map((c) => c.key)));
+  }, [visibleCompanies]);
 
   const [showAll, setShowAll] = useState(false);
-  const shown = showAll ? companies : companies.slice(0, FIRST_PAGE);
+  const shown = showAll ? visibleCompanies : visibleCompanies.slice(0, FIRST_PAGE);
 
   const [subject, setSubject] = useState(DEFAULT_MATERIALS_SUBJECT);
   const [body, setBody] = useState(defaultBulkBody);
@@ -216,7 +241,7 @@ export function RequestPricesModal({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ title: string; count: number } | null>(null);
 
-  const recipients = companies.filter((c) => selected.has(c.key));
+  const recipients = visibleCompanies.filter((c) => selected.has(c.key));
   const purchaseTitle = ledger ? `${ledger.name}, ${shortDay(new Date().toISOString())}` : '';
 
   function toggle(key: string) {
@@ -367,10 +392,14 @@ export function RequestPricesModal({
                           <span
                             className={cn(
                               'w-36 text-right text-sm font-bold tabular-nums',
-                              count === 0 ? 'text-warning' : 'text-ink',
+                              catalogLoading ? 'text-ink-muted' : count === 0 ? 'text-warning' : 'text-ink',
                             )}
                           >
-                            {count === 0 ? 'никого — поправьте слово' : `${count} ${plural(count, 'поставщик', 'поставщика', 'поставщиков')}`}
+                            {catalogLoading
+                              ? 'считаем…'
+                              : count === 0
+                                ? 'никого — поправьте слово'
+                                : `${count} ${plural(count, 'поставщик', 'поставщика', 'поставщиков')}`}
                           </span>
                         </div>
                       );
@@ -383,24 +412,44 @@ export function RequestPricesModal({
                   <span className="text-xs text-ink-muted">заказ через личного менеджера, в рассылку не берём</span>
                 </div>
 
+                <ToggleGroup
+                  options={[MATCH_ANY, MATCH_FULL]}
+                  value={matchMode}
+                  onChange={setMatchMode}
+                />
+
                 <section className={sectionClass}>
                   <div className={captionClass}>
                     <span>
-                      Кому пишем · отмечено {recipients.length} из {companies.length}
+                      {catalogLoading
+                        ? 'Кому пишем · собираем список'
+                        : `Кому пишем · отмечено ${recipients.length} из ${visibleCompanies.length}`}
                     </span>
-                    {companies.length > 0 && (
+                    {!catalogLoading && visibleCompanies.length > 0 && (
                       <button
                         type="button"
                         className="font-medium normal-case tracking-normal text-ink-muted hover:text-ink"
-                        onClick={() => setSelected(recipients.length === companies.length ? new Set() : new Set(companies.map((c) => c.key)))}
+                        onClick={() =>
+                          setSelected(recipients.length === visibleCompanies.length ? new Set() : new Set(visibleCompanies.map((c) => c.key)))
+                        }
                       >
-                        {recipients.length === companies.length ? 'снять все' : 'отметить всех'}
+                        {recipients.length === visibleCompanies.length ? 'снять все' : 'отметить всех'}
                       </button>
                     )}
                   </div>
-                  {companies.length === 0 ? (
+                  {catalogLoading ? (
+                    <p className="flex items-center gap-2 text-sm text-ink-muted">
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                      Сверяем позиции с сайтами. Пока список не собран целиком, это не все поставщики — отправка подождёт.
+                    </p>
+                  ) : companies.length === 0 ? (
                     <p className="text-sm text-ink-muted">
                       Ни у одного проверенного поставщика с email ({country}) эти позиции на сайте не нашлись. Поправьте слова для поиска.
+                    </p>
+                  ) : visibleCompanies.length === 0 ? (
+                    <p className="text-sm text-ink-muted">
+                      Полного соответствия нет: ни один поставщик не закрывает все {items.length}{' '}
+                      {plural(items.length, 'позицию', 'позиции', 'позиций')}. Выберите «{MATCH_ANY}», чтобы писать тем, у кого нашлась часть.
                     </p>
                   ) : (
                     <>
@@ -446,9 +495,9 @@ export function RequestPricesModal({
                           );
                         })}
                       </div>
-                      {companies.length > shown.length && (
+                      {visibleCompanies.length > shown.length && (
                         <button type="button" onClick={() => setShowAll(true)} className="mt-2 text-left text-xs text-ink-muted hover:text-ink">
-                          и ещё {companies.length - shown.length} · показать всех
+                          и ещё {visibleCompanies.length - shown.length} · показать всех
                         </button>
                       )}
                     </>
@@ -528,17 +577,24 @@ export function RequestPricesModal({
 
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
             <span className="mr-auto text-xs text-ink-muted">
-              {progress ?? (legalEntityId ? 'Письма уйдут в фоне, с паузами между ними' : 'Выберите, от кого пишем')}
+              {progress ??
+                (catalogLoading
+                  ? 'Сверяем позиции с сайтами поставщиков'
+                  : legalEntityId
+                    ? 'Письма уйдут в фоне, с паузами между ними'
+                    : 'Выберите, от кого пишем')}
             </span>
             <Button
               type="button"
-              icon={sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              disabled={!ledger || !legalEntityId || recipients.length === 0 || sending || !subject.trim() || !body.trim()}
+              icon={sending || catalogLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              disabled={!ledger || catalogLoading || !legalEntityId || recipients.length === 0 || sending || !subject.trim() || !body.trim()}
               onClick={() => void send()}
             >
-              {recipients.length > 0
-                ? `Отправить ${recipients.length} ${plural(recipients.length, 'поставщику', 'поставщикам', 'поставщикам')}`
-                : 'Отправить'}
+              {catalogLoading
+                ? 'Собираем список'
+                : recipients.length > 0
+                  ? `Отправить ${recipients.length} ${plural(recipients.length, 'поставщику', 'поставщикам', 'поставщикам')}`
+                  : 'Отправить'}
             </Button>
           </div>
         </div>

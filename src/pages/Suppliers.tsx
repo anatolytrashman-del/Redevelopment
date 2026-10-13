@@ -3785,6 +3785,7 @@ export function Suppliers() {
           emails={supplierEmails}
           snapshotByHost={snapshotByHost}
           legalEntities={legalEntities}
+          catalogLoading={loading || siteSnapshotsLoading}
           onClose={() => setRequestPricesOpen(false)}
           onCreated={(request, added) => {
             setRequests((prev) => [request, ...prev]);
