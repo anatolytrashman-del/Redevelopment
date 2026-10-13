@@ -79,6 +79,10 @@ export interface Supplier {
   // одной верифицированной, чтобы компания считалась проверенной (то же
   // правило, что при слиянии дублей в buildMergedOfferPayload).
   verified: boolean;
+  // Избранный поставщик: по своему профилю ему пишем в первую очередь
+  // (сантехника, отопление, трубы). Живёт на компании, поэтому отметка одна
+  // на все плитки каталога и на обе рассылки ведомости.
+  preferred: boolean;
   createdAt: string;
   // Мягкое удаление — см. шаг 1 плана и миграцию
   // 20260915-soft-delete-supplier-data.sql. null — компания активна.
@@ -129,6 +133,7 @@ export interface SupplierRow {
   messengers: SupplierMessengerContact[] | null;
   terms_note: string;
   verified: boolean;
+  preferred?: boolean | null;
   created_at: string;
   deleted_at: string | null;
   blocked_reason: string | null;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Send, Loader2, TriangleAlert, Paperclip, FileText, Plus, History } from 'lucide-react';
+import { Send, Loader2, TriangleAlert, Paperclip, FileText, Plus, History, Star } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -18,7 +18,7 @@ import { insertSupplierOffer } from '../../lib/supplierResearchApi';
 import { matchOfferProduct, normalizeSearch } from './productSearch';
 import type { LedgerAttachment } from '../../lib/materialLedgerXlsx';
 import type { LegalEntity } from '../../data/legalEntities';
-import { fetchBlockedSupplierIds } from '../../lib/suppliersApi';
+import { fetchBlockedSupplierIds, fetchPreferredSupplierIds } from '../../lib/suppliersApi';
 import type { EmailTemplate } from '../../data/emailTemplates';
 import {
   insertBulkSendJob,
@@ -73,6 +73,8 @@ const FILTER_NEW = 'Кому ещё не писали';
 const FILTER_ALL = 'Все';
 const FILTER_CONTACTED = 'Кому уже писали';
 const FILTERS = [FILTER_NEW, FILTER_ALL, FILTER_CONTACTED];
+const AUDIENCE_ALL = 'Все поставщики';
+const AUDIENCE_PREFERRED = 'Только избранные';
 
 // Что мы знаем про предыдущие контакты с конкретным поставщиком.
 // 'sent' — реально ушедшее письмо (любое исходящее, хоть массовое, хоть
@@ -292,6 +294,9 @@ export function BulkSendModal({
   // из рассылки выпадает целиком — по всем своим карточкам и категориям.
   // Блокировка живёт на компании, поэтому сверяем supplierId карточки.
   const [blockedSupplierIds, setBlockedSupplierIds] = useState<Set<string>>(new Set());
+  const [preferredSupplierIds, setPreferredSupplierIds] = useState<Set<string>>(new Set());
+  const [audience, setAudience] = useState(AUDIENCE_ALL);
+  const preferredOnly = audience === AUDIENCE_PREFERRED;
   useEffect(() => {
     let cancelled = false;
     fetchBlockedSupplierIds()
@@ -303,6 +308,11 @@ export function BulkSendModal({
       .catch(() => {
         if (!cancelled) setBlockedSupplierIds(new Set());
       });
+    fetchPreferredSupplierIds()
+      .then((ids) => {
+        if (!cancelled) setPreferredSupplierIds(ids);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -334,18 +344,26 @@ export function BulkSendModal({
 
   const candidates = useMemo(() => {
     if (!countryChosen) return [];
-    if (!productMode) return offers.filter((o) => o.requestId === selectedRequestId && matchesFilters(o));
+    if (!productMode) {
+      return offers.filter(
+        (o) =>
+          o.requestId === selectedRequestId &&
+          matchesFilters(o) &&
+          (!preferredOnly || (!!o.supplierId && preferredSupplierIds.has(o.supplierId))),
+      );
+    }
     // Одна компания — одна строка: у неё бывает по карточке в нескольких
     // категориях. Берём карточку выбранной категории, если она есть.
     const byCompany = new Map<string, SupplierOffer>();
     for (const o of offers) {
       if (!matchesFilters(o) || !matchOfferProduct(o, snapshotByHost, productNeedle).matched) continue;
+      if (preferredOnly && !(o.supplierId && preferredSupplierIds.has(o.supplierId))) continue;
       const key = o.supplierId ?? normalizeEmail(o.email);
       const prev = byCompany.get(key);
       if (!prev || (prev.requestId !== selectedRequestId && o.requestId === selectedRequestId)) byCompany.set(key, o);
     }
     return [...byCompany.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-  }, [offers, countryChosen, selectedRequestId, matchesFilters, productMode, productNeedle, snapshotByHost]);
+  }, [offers, countryChosen, selectedRequestId, matchesFilters, productMode, productNeedle, snapshotByHost, preferredOnly, preferredSupplierIds]);
 
   const requestTitleById = useMemo(() => new Map(requests.map((r) => [r.id, r.title])), [requests]);
 
@@ -553,7 +571,7 @@ export function BulkSendModal({
     }
     setSelected(new Set(visible.filter((o) => statusOf(o).kind === 'none').map((o) => o.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRequestId, selectedCountry, filter, queuedOfferIds, repeatJobId, cancelledOfferIds, productNeedle]);
+  }, [selectedRequestId, selectedCountry, filter, queuedOfferIds, repeatJobId, cancelledOfferIds, productNeedle, preferredOnly, preferredSupplierIds]);
 
   // Тема по умолчанию — общая «Закупка материалов», НЕ название категории
   // (владелец, 2026-09-12: "Я рассылал ведомость не только по Alma"). Раньше
@@ -886,6 +904,7 @@ export function BulkSendModal({
                       value={filter}
                       onChange={setFilter}
                     />
+                    <ToggleGroup options={[AUDIENCE_ALL, AUDIENCE_PREFERRED]} value={audience} onChange={setAudience} />
 
                     {unverifiedCount > 0 && (
                       <p className="-mt-1 text-xs text-ink-faint">
@@ -900,6 +919,8 @@ export function BulkSendModal({
                   <p className="text-sm text-ink-faint">
                     {repeatJob
                       ? 'У получателей этой рассылки не осталось доступных карточек с email — повторить некому.'
+                      : preferredOnly
+                        ? 'В этом списке избранных нет. Переключите на «Все поставщики», чтобы писать остальным.'
                       : filter === FILTER_NEW
                         ? 'В этой категории всем подходящим поставщикам уже писали — новых нет. Переключите на «Все», если нужно написать повторно.'
                         : 'Здесь пусто: этой категории ещё не писали ни одному поставщику.'}
@@ -954,6 +975,9 @@ export function BulkSendModal({
                         />
                         <span className="min-w-0 flex-1 truncate text-ink">
                           <span title={o.country || SUPPLIER_COUNTRIES[0]}>{countryFlag(o.country || SUPPLIER_COUNTRIES[0])}</span> {o.name}
+                          {o.supplierId && preferredSupplierIds.has(o.supplierId) && (
+                            <Star className="ml-1 inline h-3.5 w-3.5 fill-current" aria-label="Избранный" />
+                          )}
                           {productMode && o.requestId !== selectedRequestId && (
                             <span className="text-ink-faint"> · из «{requestTitleById.get(o.requestId) ?? 'другой категории'}»</span>
                           )}

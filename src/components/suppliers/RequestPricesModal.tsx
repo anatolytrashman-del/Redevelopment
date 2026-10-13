@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, FileText, Loader2, Search, Send, TriangleAlert } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Search, Send, Star, TriangleAlert } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -20,7 +20,7 @@ import type { LegalEntity } from '../../data/legalEntities';
 import type { SupplierOfferEmail } from '../../data/supplierOfferEmails';
 import { insertSupplierOffer, insertSupplierRequest } from '../../lib/supplierResearchApi';
 import { insertBulkSendJob } from '../../lib/bulkSendJobsApi';
-import { fetchBlockedSupplierIds } from '../../lib/suppliersApi';
+import { fetchBlockedSupplierIds, fetchPreferredSupplierIds } from '../../lib/suppliersApi';
 import { buildMaterialLedgerXlsx } from '../../lib/materialLedgerXlsx';
 import { DEFAULT_MATERIALS_SUBJECT } from '../../lib/emailTemplates';
 import { defaultBulkBody } from './BulkSendModal';
@@ -70,6 +70,8 @@ export function isFullMatch(covers: readonly number[], itemCount: number): boole
 
 const MATCH_ANY = 'Любое совпадение';
 const MATCH_FULL = 'Полное соответствие';
+const AUDIENCE_ALL = 'Все подходящие';
+const AUDIENCE_PREFERRED = 'Только избранные';
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -151,9 +153,13 @@ export function RequestPricesModal({
   }, [legalEntity?.country]);
 
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
+  const [preferred, setPreferred] = useState<Set<string>>(new Set());
   useEffect(() => {
     fetchBlockedSupplierIds()
       .then(setBlocked)
+      .catch(() => {});
+    fetchPreferredSupplierIds()
+      .then(setPreferred)
       .catch(() => {});
   }, []);
 
@@ -214,10 +220,13 @@ export function RequestPricesModal({
   // а не одна из пяти (владелец, 2026-10-13).
   const [matchMode, setMatchMode] = useState(MATCH_ANY);
   const fullOnly = matchMode === MATCH_FULL;
-  const visibleCompanies = useMemo(
-    () => (fullOnly ? companies.filter((c) => isFullMatch(c.covers, items.length)) : companies),
-    [companies, fullOnly, items.length],
-  );
+  const [audience, setAudience] = useState(AUDIENCE_ALL);
+  const preferredOnly = audience === AUDIENCE_PREFERRED;
+  const visibleCompanies = useMemo(() => {
+    const matched = fullOnly ? companies.filter((c) => isFullMatch(c.covers, items.length)) : companies;
+    if (!preferredOnly) return matched;
+    return matched.filter((c) => !!c.offer.supplierId && preferred.has(c.offer.supplierId));
+  }, [companies, fullOnly, items.length, preferredOnly, preferred]);
 
   // По умолчанию отмечены все, кто виден в текущем режиме (владелец,
   // 2026-09-28: «по умолчанию пусть выбираются все поставщики, подходящие
@@ -417,6 +426,11 @@ export function RequestPricesModal({
                   value={matchMode}
                   onChange={setMatchMode}
                 />
+                <ToggleGroup
+                  options={[AUDIENCE_ALL, AUDIENCE_PREFERRED]}
+                  value={audience}
+                  onChange={setAudience}
+                />
 
                 <section className={sectionClass}>
                   <div className={captionClass}>
@@ -445,6 +459,10 @@ export function RequestPricesModal({
                   ) : companies.length === 0 ? (
                     <p className="text-sm text-ink-muted">
                       Ни у одного проверенного поставщика с email ({country}) эти позиции на сайте не нашлись. Поправьте слова для поиска.
+                    </p>
+                  ) : visibleCompanies.length === 0 && preferredOnly ? (
+                    <p className="text-sm text-ink-muted">
+                      Среди тех, у кого нашлись позиции, избранных нет. Выберите «{AUDIENCE_ALL}», чтобы писать остальным.
                     </p>
                   ) : visibleCompanies.length === 0 ? (
                     <p className="text-sm text-ink-muted">
@@ -476,8 +494,11 @@ export function RequestPricesModal({
                                 onChange={() => toggle(c.key)}
                                 className="h-4 w-4 shrink-0 accent-primary"
                               />
-                              <span className="min-w-0 truncate font-semibold text-ink">
+                              <span className="flex min-w-0 items-center gap-1.5 truncate font-semibold text-ink">
                                 {countryFlag(c.offer.country || SUPPLIER_COUNTRIES[0])} {c.offer.name}
+                                {c.offer.supplierId && preferred.has(c.offer.supplierId) && (
+                                  <Star className="h-3.5 w-3.5 shrink-0 fill-current" aria-label="Избранный" />
+                                )}
                               </span>
                               <span
                                 className={cn(
