@@ -103,9 +103,15 @@
         // src/App.tsx; сверяет тест в src/lib/businessCentersApi.test.ts.
         var sections = ['rating', 'guide', 'analytics', 'new'];
         var isCard = Boolean(rest && rest.indexOf('/') === -1 && (ownerPage || sections.indexOf(rest) === -1));
+        // Корень ТЦ с полками в снапшоте: list + tc-filters не нужны до
+        // createRoot (mobile TBT ~1,7 с, 2026-10-13). ?view=list — полный
+        // каталог, там список на критическом пути.
+        var isTcBrowseHome =
+          path === '/minsk/tc' &&
+          (typeof location.search !== 'string' || location.search.indexOf('view=list') === -1);
         // Список зданий на карточке не нужен до «соседей» ниже сгиба —
         // 26 КБ на критическом пути с LCP-фото (десктоп 88, 2026-10-13).
-        if (!isCard) {
+        if (!isCard && !isTcBrowseHome) {
           window.__bcList = get(base === '/minsk/tc' ? '/data/trade-centers.json' : '/data/business-centers.json');
         }
         // Ставки рынка и размеры лотов: без них первый кадр React рисует
@@ -114,12 +120,9 @@
         // ставки к ритейлу не применяются) — 120+ КБ на критическом пути
         // до createRoot зря (карточка «Замка», 2026-10-11).
         if (base !== '/minsk/tc') window.__bcMarket = get('/data/bc-market.json');
-        // Выжимка фильтров ТЦ — только там, где без неё мигает сводка/полки
-        // или /with|/store. На карточке/рейтинге/районе/метро 104 КБ
-        // (250 КБ JSON) до createRoot зря тянули TTI (десктоп карточки 88,
-        // замер 2026-10-12).
+        // Выжимка фильтров ТЦ — только /with|/store|/format. Корень с
+        // HTML-полками без неё (104 КБ + разбор индекса в TBT).
         if (
-          path === '/minsk/tc' ||
           path.indexOf('/minsk/tc/with/') === 0 ||
           path.indexOf('/minsk/tc/store/') === 0 ||
           path.indexOf('/minsk/tc/format/') === 0
