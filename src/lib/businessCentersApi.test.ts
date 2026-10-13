@@ -142,6 +142,21 @@ describe('снимок из сборки', () => {
     expect(vi.getTimerCount()).toBe(0);
     expect(api.snapshotBusinessCenters()).toBeNull();
   });
+
+  it('корень ТЦ с HTML-полками не ждёт list/tc-filters до createRoot', async () => {
+    // Промисы «висят» — если prime их await'ит, тест зависнет на fake timers.
+    const slow = new Promise<{ generatedAt: string; rows: BusinessCenterRow[] }>(() => undefined);
+    win().__bcList = slow;
+    (win() as unknown as { __tcFilters?: Promise<unknown> }).__tcFilters = slow;
+    (win() as unknown as { location: { pathname: string; search: string } }).location = {
+      pathname: '/minsk/tc',
+      search: '',
+    };
+    const api = await loadApi();
+    await api.primeBusinessCentersFromBuild();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(api.snapshotBusinessCenters('tc')).toBeNull();
+  });
 });
 
 // Список односегментных разделов каталога в инлайн-скрипте index.html и

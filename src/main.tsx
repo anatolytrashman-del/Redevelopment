@@ -74,17 +74,27 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   // снапшота в #root нет — без этого полки/glance собирались заново
   // (CLS 0,39 / TBT ~0,5 с, 2026-10-13).
   const browseBody = container.querySelector('#tc-browse-body')
+  const wBrowse = window as unknown as {
+    __tcBrowseBodyHtml?: string
+    __tcBrowseFaqHtml?: string
+    __tcBrowseHeroCount?: string
+  }
   if (browseBody) {
-    ;(window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml = browseBody.innerHTML
+    wBrowse.__tcBrowseBodyHtml = browseBody.innerHTML
   } else {
     // Старые снапшоты без обёртки — склеиваем glance+shelves как раньше.
     const shelvesEl = container.querySelector('#tc-shelves')
     const glanceEl = shelvesEl?.previousElementSibling
     if (shelvesEl) {
-      const html = (glanceEl?.outerHTML ?? '') + shelvesEl.outerHTML
-      ;(window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml = html
+      wBrowse.__tcBrowseBodyHtml = (glanceEl?.outerHTML ?? '') + shelvesEl.outerHTML
     }
   }
+  // FAQ и «N ТЦ» в hero — вне #tc-browse-body; без снимка React на лёгком
+  // browse-home рисует пустой FAQ / «— ТЦ» до прихода centers (CLS + TBT).
+  const faqEl = container.querySelector('#faq')
+  if (faqEl) wBrowse.__tcBrowseFaqHtml = faqEl.outerHTML
+  const heroCount = container.querySelector('main header .tabular-nums')?.textContent?.trim()
+  if (heroCount) wBrowse.__tcBrowseHeroCount = heroCount.replace(/\s*ТЦ\s*$/u, '').trim()
   const root = createRoot(container)
   const tree = (
     <StrictMode>

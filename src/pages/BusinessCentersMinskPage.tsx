@@ -401,6 +401,17 @@ function orderRetailFormats(values: string[]): string[] {
   return [...known, ...custom];
 }
 
+type TcBrowsePreserve = {
+  __tcBrowseBodyHtml?: string;
+  __tcBrowseFaqHtml?: string;
+  __tcBrowseHeroCount?: string;
+};
+
+function peekTcBrowsePreserve(): TcBrowsePreserve {
+  if (typeof window === 'undefined') return {};
+  return window as unknown as TcBrowsePreserve;
+}
+
 /**
  * Сводка + полки каталога ТЦ: HTML снапшота целиком (иначе glance null →
  * полки прыгают вверх, CLS на #tc-shelves). Scroll — на idle.
@@ -415,11 +426,7 @@ function TcBrowseBodyMount({
 }) {
   const preservedHtml = useRef<string | null | undefined>(undefined);
   if (preservedHtml.current === undefined) {
-    const fromWindow =
-      typeof window !== 'undefined'
-        ? (window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml
-        : undefined;
-    preservedHtml.current = fromWindow ?? null;
+    preservedHtml.current = peekTcBrowsePreserve().__tcBrowseBodyHtml ?? null;
   }
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -481,6 +488,24 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // (/minsk/tc, 2026-09-23) — тексты, адреса и набор блоков берутся отсюда.
   const V = useCatalogKind();
   const isTc = V.kind === 'tc';
+  const [searchParams] = useSearchParams();
+  // Корень ТЦ с HTML-полками: без list/tc-filters/счётчиков на первом кадре
+  // (mobile TBT ~1,7 с, 2026-10-13). ?view=list и хабы — полный путь.
+  const browsePreserve = peekTcBrowsePreserve();
+  const hasPreservedBrowse = Boolean(browsePreserve.__tcBrowseBodyHtml);
+  const lightTcBrowseHome =
+    isTc &&
+    !underConstruction &&
+    !classSlug &&
+    !districtSlug &&
+    !microdistrictSlug &&
+    !metroSlug &&
+    !streetSlug &&
+    !formatSlug &&
+    !topicSlug &&
+    !storeSlug &&
+    searchParams.get('view') !== 'list' &&
+    hasPreservedBrowse;
   // Стартуем с данных, положенных в сборку (Ш3-b плана
   // docs/bc-catalog-seo-plan.md): их разобрал main.tsx до монтирования,
   // поэтому первый же рендер получается полным — без «Загрузка…» поверх
@@ -493,7 +518,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // бы список БЦ.
   const [loaded, setLoaded] = useState<{ kind: CatalogKind; list: BusinessCenter[] | null }>(() => ({
     kind: V.kind,
-    list: snapshotBusinessCenters(V.kind),
+    // Browse-home со снапшотом: не поднимаем уже разобранный list в первый
+    // кадр — fromRow/индексы всё равно тяжёлые, а полки уже в HTML.
+    list: lightTcBrowseHome ? null : snapshotBusinessCenters(V.kind),
   }));
   const centers = loaded.kind === V.kind ? loaded.list : snapshotBusinessCenters(V.kind);
   // Первый кадр — с уже пришедшими данными сборки, как в пререндер-снапшоте
@@ -507,7 +534,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // ось и остаётся индексируемым входом, всё остальное — query-параметры,
   // которыми можно поделиться ссылкой. Раньше клиентским был только
   // мультивыбор станций метро, и он молча терялся при любой навигации.
-  const [searchParams] = useSearchParams();
+  // searchParams уже выше — нужен для lightTcBrowseHome до загрузки списка.
   const navigate = useNavigate();
   const [visibleCount, setVisibleCount] = useState(CARDS_PAGE_SIZE);
 
@@ -548,14 +575,16 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // (кино, бренды…). Читаем peek синхронно — иначе пререндер хаба успевает
   // снять soft-404 до прихода файла.
   const [tcIndex, setTcIndex] = useState<TcFilterIndex | null>(() => {
-    if (!isTc) return null;
+    // Browse-home со снапшотом полок индекс не нужен в первом кадре.
+    if (!isTc || lightTcBrowseHome) return null;
     const data = peekBuildData<{ rows: Record<string, TcFilterSource> }>('tc-filters.json');
     return data?.rows ? buildTcFilterIndex(data.rows) : null;
   });
-  // tc-filters нужны корню/полкам и /with|/store|/format — не району/метро/
-  // карточке (104 КБ + разбор индекса в TBT, 2026-10-13).
+  // tc-filters нужны /with|/store|/format и ?view=list — не корню с HTML-полками,
+  // району/метро/карточке (104 КБ + разбор индекса в TBT, 2026-10-13).
   const needsTcFilters =
     isTc &&
+    !lightTcBrowseHome &&
     !classSlug &&
     !districtSlug &&
     !microdistrictSlug &&
@@ -572,10 +601,16 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       cancelled = true;
     };
   }, [needsTcFilters]);
-  const storeHubs = useMemo(() => (isTc ? collectTcStoreHubs(tcIndex) : []), [isTc, tcIndex]);
+  const storeHubs = useMemo(
+    () => (isTc && !lightTcBrowseHome ? collectTcStoreHubs(tcIndex) : []),
+    [isTc, lightTcBrowseHome, tcIndex],
+  );
   // Уникальные бренды + slug'и ТЦ — подсказки и быстрый store-фильтр без
   // повторного скана brands[] на каждый countWith.
-  const brandCatalog = useMemo(() => (tcIndex ? buildTcBrandCatalog(tcIndex) : null), [tcIndex]);
+  const brandCatalog = useMemo(
+    () => (!lightTcBrowseHome && tcIndex ? buildTcBrandCatalog(tcIndex) : null),
+    [lightTcBrowseHome, tcIndex],
+  );
   const storeHub = isTc && storeSlug ? storeHubs.find((h) => h.slug === storeSlug) ?? null : null;
   // Старые /with/zara… → /store/zara (волны 4–5 жили под with). Плюс любой
   // slug магазина, который ещё открывают по старому /with/*.
@@ -641,15 +676,33 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   useEffect(() => {
     const kind = V.kind;
     let cancelled = false;
-    fetchBusinessCenters(kind)
-      .then((list) => {
-        if (!cancelled) setLoaded({ kind, list });
-      })
-      // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
-      // каталог на месте готового — хуже, чем данные часовой давности.
-      .catch(() => {
-        if (!cancelled) setLoaded((prev) => (prev.kind === kind && prev.list ? prev : { kind, list: snapshotBusinessCenters(kind) ?? [] }));
-      });
+    let idleId = 0;
+    let timeoutId = 0;
+    const loadCenters = () => {
+      fetchBusinessCenters(kind)
+        .then((list) => {
+          if (!cancelled) setLoaded({ kind, list });
+        })
+        // Ошибка базы не стирает уже показанный список (снимок сборки): пустой
+        // каталог на месте готового — хуже, чем данные часовой давности.
+        .catch(() => {
+          if (!cancelled) {
+            setLoaded((prev) =>
+              prev.kind === kind && prev.list ? prev : { kind, list: snapshotBusinessCenters(kind) ?? [] },
+            );
+          }
+        });
+    };
+    // Browse-home: список после idle — полки уже в HTML, fromRow не в TBT.
+    if (lightTcBrowseHome) {
+      if (typeof requestIdleCallback === 'function') {
+        idleId = requestIdleCallback(loadCenters, { timeout: 2500 });
+      } else {
+        timeoutId = window.setTimeout(loadCenters, 400);
+      }
+    } else {
+      loadCenters();
+    }
     // Ставки и лоты — про офисы в бизнес-центрах; каталогу ТЦ их не грузим.
     if (kind !== 'tc') {
       // ANALYTICSPLAN.md §4.2 — сводка ставок на фильтровых страницах, из
@@ -665,8 +718,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return () => {
       cancelled = true;
+      if (idleId && typeof cancelIdleCallback === 'function') cancelIdleCallback(idleId);
+      if (timeoutId) window.clearTimeout(timeoutId);
     };
-  }, [V.kind]);
+  }, [V.kind, lightTcBrowseHome]);
 
   // Единственная ось — класс ИЛИ район (не комбо, не микрорайон/метро/
   // улица/стройка): market_snapshots не хранит срез по пересечению класс×
@@ -1178,26 +1233,31 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     ).length;
   }
   const classCounts = useMemo(() => {
+    if (lightTcBrowseHome) return {} as Record<string, number>;
     const m: Record<string, number> = {};
     for (const cls of availableClasses) m[cls] = countWith({ classes: [cls] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableClasses, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, availableClasses, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const formatCounts = useMemo(() => {
+    if (lightTcBrowseHome) return {} as Record<string, number>;
     const m: Record<string, number> = {};
     for (const format of availableFormats) m[format] = countWith({ formats: [format] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableFormats, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, availableFormats, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   // Формат у ТЦ — «торговый центр» плюс специализированные; чип несёт
   // несколько значений, и счётчик считается по всем сразу.
   const formatChips = useMemo(
-    () => (isTc ? tcFormatChips(availableFormats).map((c) => ({ ...c, count: countWith({ formats: c.values }) })) : undefined),
+    () =>
+      lightTcBrowseHome || !isTc
+        ? undefined
+        : tcFormatChips(availableFormats).map((c) => ({ ...c, count: countWith({ formats: c.values }) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isTc, availableFormats, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs],
+    [lightTcBrowseHome, isTc, availableFormats, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs],
   );
   const tcFeatureCounts = useMemo(() => {
-    if (!isTc || !tcIndex) return null;
+    if (lightTcBrowseHome || !isTc || !tcIndex) return null;
     const m: Record<string, number> = {};
     for (const group of TC_FEATURE_GROUPS) {
       for (const o of group.options) {
@@ -1210,42 +1270,50 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTc, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, isTc, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const underConstructionCount = useMemo(
-    () => (isTc ? countWith({ statuses: ['under_construction'] }) : 0),
+    () => (lightTcBrowseHome || !isTc ? 0 : countWith({ statuses: ['under_construction'] })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isTc, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs],
+    [lightTcBrowseHome, isTc, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs],
   );
   const statusCounts = useMemo(() => {
+    if (lightTcBrowseHome) return {} as Record<string, number>;
     const m: Record<string, number> = {};
     for (const status of availableStatuses) m[status] = countWith({ statuses: [status] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableStatuses, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, availableStatuses, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const districtCounts = useMemo(() => {
+    if (lightTcBrowseHome) return {} as Record<string, number>;
     const m: Record<string, number> = {};
     for (const d of districts) m[d] = countWith({ districts: [d] });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [districts, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, districts, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const microdistrictCounts = useMemo(() => {
+    if (lightTcBrowseHome) return {} as Record<string, number>;
     const m: Record<string, number> = {};
     for (const microdistrict of filterMicrodistricts) {
       m[microdistrict] = countWith({ microdistricts: [microdistrict] });
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMicrodistricts, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, filterMicrodistricts, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   const metroCounts = useMemo(() => {
+    if (lightTcBrowseHome) return {} as Record<number, number>;
     const m: Record<number, number> = {};
     for (const o of METRO_WITHIN_OPTIONS) m[o.value] = countWith({ metroWithin: o.value });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   // Список станций и счётчики по ним — фильтр «станция метро» с
   // множественным выбором (владелец, 2026-09-17).
-  const metroStationList = useMemo(() => catalogMetroStations(routeScoped), [routeScoped]);
+  const metroStationList = useMemo(
+    () => (lightTcBrowseHome ? [] : catalogMetroStations(routeScoped)),
+    [lightTcBrowseHome, routeScoped],
+  );
   const stationCounts = useMemo(() => {
+    if (lightTcBrowseHome) return {} as Record<string, number>;
     const m: Record<string, number> = {};
     for (const st of metroStationList) {
       m[st] = countWith({
@@ -1256,7 +1324,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metroStationList, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
+  }, [lightTcBrowseHome, metroStationList, routeScoped, filterForList, offerIndex, tcIndex, storeMatchSlugs]);
   // Сколько зданий нельзя проверить по применённому фильтру метро: у них
   // не разобрана ни одна станция. «Не знаем» ≠ «не подходит».
   const unverifiableCount = useMemo(
@@ -1418,10 +1486,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // кадр рисует урезанный набор, а после fetch — полный (мигание).
   // Прайм — index.html → __tcFilters → seedBuildData в primeBusinessCentersFromBuild.
   const tcBrowseReady = Boolean(isTcBrowseHome && centers && tcIndex);
-  // Если снапшот полок/сводки уже в HTML — не строим их в JS (long task ~600 мс).
-  const hasPreservedBrowse =
-    typeof window !== 'undefined' &&
-    Boolean((window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml);
+  // hasPreservedBrowse — выше (lightTcBrowseHome). Hero count из снапшота.
+  const preservedHeroCount = browsePreserve.__tcBrowseHeroCount ?? null;
+  const preservedFaqHtml = browsePreserve.__tcBrowseFaqHtml ?? null;
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
@@ -1440,6 +1507,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     : 'Медиана аренды для текущей выборки не рассчитана: нет доступных медиан по зданиям с объявлениями.';
 
   const faqItems = useMemo(() => {
+    // Лёгкий browse-home: FAQ из снапшота HTML, без пересчёта по centers.
+    if (lightTcBrowseHome && preservedFaqHtml) return [];
     if (centers === null) return [];
     const items: { question: string; answer: string }[] = [];
     const add = (question: string, answer: string) => items.push({ question, answer });
@@ -1529,12 +1598,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     }
     add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак подтверждён данными.');
     return items;
-  }, [centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot, isTcBrowseHome, showTcListView, tcBrowseFigures]);
+  }, [lightTcBrowseHome, preservedFaqHtml, centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot, isTcBrowseHome, showTcListView, tcBrowseFigures]);
 
   useEffect(() => {
+    // Browse-home: FAQ в HTML снапшота + JSON-LD пререндера — не затираем.
+    if (lightTcBrowseHome && preservedFaqHtml) return;
     setFaqJsonLd(pageIsIndexable ? faqItems : []);
     return () => setFaqJsonLd([]);
-  }, [faqItems, pageIsIndexable]);
+  }, [faqItems, pageIsIndexable, lightTcBrowseHome, preservedFaqHtml]);
 
   // ItemList — разметка самого перечня зданий (Ш1 плана
   // docs/bc-catalog-seo-plan.md). До 2026-09-22 её на каталоге и хабах не
@@ -1720,7 +1791,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   <div className="flex flex-col gap-1 pt-0.5 text-[12px] font-semibold text-ink/55 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
                     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="tabular-nums text-ink">
-                        {tcBrowseFigures[0]?.value ?? '—'} ТЦ
+                        {tcBrowseFigures[0]?.value ?? preservedHeroCount ?? '—'} ТЦ
                       </span>
                       <span className="text-ink/25" aria-hidden>
                         ·
@@ -1756,7 +1827,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
             <TcBrowseBodyMount figures={tcBrowseFigures} shelves={tcEditorialShelves} />
 
-            {faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />}
+            {lightTcBrowseHome && preservedFaqHtml ? (
+              <div dangerouslySetInnerHTML={{ __html: preservedFaqHtml }} />
+            ) : (
+              faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />
+            )}
             <div className={cn('flex flex-col gap-3 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
               <h2 className="text-lg font-bold text-ink">Источники</h2>
               <SourcesTrademarkNote />

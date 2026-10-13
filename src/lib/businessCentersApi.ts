@@ -243,23 +243,30 @@ export async function primeBusinessCentersFromBuild(timeoutMs = 2500): Promise<v
   const extra = w.__bcExtra ? seedBuildData(bcExtraFile(w.__bcExtra.slug), w.__bcExtra.data) : null;
   const tcFilters = w.__tcFilters ? seedBuildData('tc-filters.json', w.__tcFilters) : null;
   const tcRatings = w.__tcRatings ? seedBuildData('tc-ratings.json', w.__tcRatings) : null;
+  // Корень ТЦ с HTML полок/glance: createRoot не ждёт list/tc-filters —
+  // иначе mobile TBT ~1,7 с на разборе JSON + fromRow (2026-10-13).
+  const path = typeof window.location?.pathname === 'string' ? window.location.pathname.replace(/\/+$/, '') || '/' : '';
+  const search = typeof window.location?.search === 'string' ? window.location.search : '';
+  const isTcBrowseHome = path === '/minsk/tc' && !search.includes('view=list');
   // Ждём только то, без чего первый кадр не совпадёт со снапшотом.
   // Карточка: detail + extra (+ market на БЦ). Список зданий и tc-filters
   // на карточке не блокируют createRoot — иначе TTI ~4 с (десктоп 88).
-  // Каталог/полки: list + tc-filters. Рейтинг: list + tc-ratings.
+  // Хабы /with|/store|/format: list + tc-filters. Рейтинг: list + tc-ratings.
+  // Browse-home со снапшотом полок: ничего из каталога.
   const blocking: Promise<unknown>[] = [];
   if (w.__bcDetail) blocking.push(detail);
   if (extra) blocking.push(extra);
   if (market) blocking.push(market);
   if (tcRatings) {
     blocking.push(list, tcRatings);
-  } else if (tcFilters) {
+  } else if (tcFilters && !isTcBrowseHome) {
     blocking.push(list, tcFilters);
-  } else if (!w.__bcDetail) {
+  } else if (!w.__bcDetail && !isTcBrowseHome) {
     blocking.push(list);
   }
+  if (blocking.length === 0) return;
   const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
-  await Promise.race([Promise.all(blocking.length > 0 ? blocking : [list]), timeout]);
+  await Promise.race([Promise.all(blocking), timeout]);
 }
 
 export async function fetchBusinessCenters(kind: CatalogKind = 'bc'): Promise<BusinessCenter[]> {
