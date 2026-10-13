@@ -522,6 +522,52 @@ const INVOICE_NAME_HINT = /(сч[её]т|invoice|inv[-_ ]?\d|\bкп\b|комме
 const RECOGNIZABLE_EXT = new RegExp(`\\.(pdf|docx|xlsx|${IMAGE_EXT.join('|')})$`, 'i');
 export const MAX_CANDIDATES = 3;
 
+// Наши собственные вложения, которые поставщик часто пересылает обратно
+// вместе со счётом: карточка юрлица и адрес доставки. Имя без слова «счёт»,
+// но и счётом они не являются — если отдать им слот кандидата, настоящий
+// PDF с номером в имени до модели не доходит (письмо Сантехкомплекта
+// 2026-10-13: «22547946.pdf» оказался четвёртым и был отсеян).
+const BOILERPLATE_ATTACHMENT_NAME = /(карточка\s+организац|адрес\s+доставки|реквизит)/iu;
+
+function fileStem(fileName) {
+  return String(fileName || '').replace(/\.[^.]+$/, '').trim();
+}
+
+// Номер счёта часто есть только в теме и в первой фразе («счёт во вложении
+// 22547946»), а файл называется ровно этим номером — без слова «счёт».
+// Ствол короче 4 символов не считаем: «м» или «1» совпали бы со всем подряд.
+function mentionedInEmail(fileName, emailContext) {
+  const stem = fileStem(fileName);
+  if (stem.length < 4 || !emailContext) return false;
+  const hay = `${emailContext.subject ?? ''}\n${emailContext.body ?? ''}`;
+  const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'iu').test(hay);
+}
+
+function isKnownAttachment(fileName, emailContext) {
+  const known = emailContext?.knownFileNames;
+  if (!Array.isArray(known) || known.length === 0) return false;
+  const name = String(fileName || '').trim().toLowerCase();
+  return known.some((n) => String(n || '').trim().toLowerCase() === name);
+}
+
+// Меньше — правдоподобнее. Файл, который письмо называет по имени, идёт
+// раньше слова «счёт» в имени: у живого счёта Сантехкомплекта имени-подсказки
+// не было, зато номер стоял в теме. Наши прошлые вложения (ведомость,
+// карточка, адрес) уезжают в хвост — их поставщик прикладывает к ответу
+// целиком, и они съедали все три слота распознавания.
+function candidateRank(attachment, emailContext) {
+  const name = attachment.fileName || '';
+  let score = 0;
+  if (mentionedInEmail(name, emailContext)) score -= 20;
+  if (INVOICE_NAME_HINT.test(name)) score -= 8;
+  if (/\.pdf$/i.test(name)) score -= 4;
+  else if (/\.(docx|xlsx)$/i.test(name)) score -= 1;
+  if (BOILERPLATE_ATTACHMENT_NAME.test(name)) score += 12;
+  if (isKnownAttachment(name, emailContext)) score += 15;
+  return score;
+}
+
 // 2026-09-14: имя перестало быть самостоятельным основанием отсеять
 // картинку. Outlook переименовывает в imageNNN.png ВСЁ, что вставлено в
 // тело письма, — и логотип из подписи, и скриншот прайса, который прислал
@@ -553,9 +599,12 @@ function skipReason(a) {
 }
 
 // attachments — то, что вернул extractEmailAttachments (url/fileName/
-// pageCount/size). Возвращает отсортированный список кандидатов (не более
-// MAX_CANDIDATES) и список отсеянных с причинами.
-export function pickInvoiceCandidates(attachments) {
+// pageCount/size). emailContext — { subject, body, knownFileNames }: тема
+// и текст письма плюс имена файлов, которые мы уже отправляли в эту ветку
+// (их поставщик часто возвращает вместе со счётом). Возвращает
+// отсортированный список кандидатов (не более MAX_CANDIDATES) и список
+// отсеянных с причинами.
+export function pickInvoiceCandidates(attachments, emailContext = null) {
   const suitable = [];
   const skipped = [];
   for (const a of Array.isArray(attachments) ? attachments : []) {
@@ -564,12 +613,7 @@ export function pickInvoiceCandidates(attachments) {
     else suitable.push(a);
   }
 
-  const rank = (a) => {
-    const hinted = INVOICE_NAME_HINT.test(a.fileName) ? 0 : 1;
-    const isDocument = /\.(pdf|docx|xlsx)$/i.test(a.fileName) ? 0 : 1;
-    return hinted * 2 + isDocument;
-  };
-  const ranked = [...suitable].sort((a, b) => rank(a) - rank(b));
+  const ranked = [...suitable].sort((a, b) => candidateRank(a, emailContext) - candidateRank(b, emailContext));
   for (const a of ranked.slice(MAX_CANDIDATES)) {
     skipped.push({ fileName: a.fileName, reason: `дальше ${MAX_CANDIDATES}-го по правдоподобию — не пробовали` });
   }
@@ -617,7 +661,7 @@ function invoiceIdentity(recognized) {
 }
 
 export async function recognizeAllInvoicesFromAttachments(attachments, emailContext = null) {
-  const candidates = pickInvoiceCandidates(attachments);
+  const candidates = pickInvoiceCandidates(attachments, emailContext);
   const allRecognized = [];
   const attempts = [];
   // Кандидаты уже отсортированы так, что файл с "счёт"/"КП" в имени идёт

@@ -93,6 +93,11 @@ function isImageFile(fileName: string): boolean {
 // либо похожа на преамбулу вида "On ... wrote:"/"...писал(а):" — всё начиная
 // с неё сворачивается. Не находим — весь текст видимый, ничего не прячем.
 const QUOTE_PREAMBLE_RE = /^(On .+wrote:|.*писал\(а\):)\s*$/i;
+// Шапка пересылки Outlook: «From: …» / «От: …» плюс «Sent:» / «Кому:» следом.
+// Одна строка «Тема: счёт» цитатой не считается. Без этого разреза ответ
+// «счёт во вложении» тянет за собой всю прошлую переписку, и вложение
+// оказывается под простынёй текста (письмо Сантехкомплекта, 2026-10-13).
+const QUOTE_HEADER_RE = /^\s*(от|from|кому|to|cc|копия|отправлено|отправленные|отправил|sent|дата|date|тема|subject)\s*:\s/i;
 
 function splitQuotedReply(body: string): { visible: string; quoted: string | null } {
   const lines = body.split('\n');
@@ -108,6 +113,13 @@ function splitQuotedReply(body: string): { visible: string; quoted: string | nul
     if (QUOTE_PREAMBLE_RE.test(trimmed)) {
       splitIndex = i;
       break;
+    }
+    if (QUOTE_HEADER_RE.test(trimmed)) {
+      const near = lines.slice(i, i + 5).map((l) => l.trim());
+      if (near.filter((l) => QUOTE_HEADER_RE.test(l)).length >= 2) {
+        splitIndex = i;
+        break;
+      }
     }
   }
   if (splitIndex === -1) return { visible: body, quoted: null };
@@ -2728,7 +2740,9 @@ function MergedFeed({
                 </button>
               </div>
               {e.subject && <span className="font-semibold text-ink [overflow-wrap:anywhere]">{e.subject}</span>}
-              {visible && <p className="whitespace-pre-wrap text-ink [overflow-wrap:anywhere]">{visible}</p>}
+              {/* Вложения сразу после темы, до текста — как в открытой теме.
+                  В общей ленте они стояли под телом письма, и у пересылки
+                  со счётом файл уезжал ниже длинной цитаты. */}
               {e.files.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {e.files.map((f, i) => (
@@ -2746,6 +2760,7 @@ function MergedFeed({
                   ))}
                 </div>
               )}
+              {visible && <p className="whitespace-pre-wrap text-ink [overflow-wrap:anywhere]">{visible}</p>}
               {draftEmailIds.has(e.id) && (
                 <button
                   type="button"
@@ -3077,7 +3092,12 @@ export function SupplierCorrespondenceTab({
             </span>
           </span>
           <span className="flex shrink-0 flex-col items-end gap-1.5">
-            {last && <span className="text-xs text-ink-faint">{shortTime(last.createdAt)}</span>}
+            {last && (
+              <span className="flex items-center gap-1 text-xs text-ink-faint">
+                {last.files.length > 0 && <Paperclip className="h-3 w-3" aria-label="Есть вложение" />}
+                {shortTime(last.createdAt)}
+              </span>
+            )}
             <span className="flex items-center gap-1.5">
               {firstOffer && <RiskBadge inn={firstOffer.inn} reliabilityByInn={reliabilityByInn} />}
               {conv.unreadCount > 0 && (

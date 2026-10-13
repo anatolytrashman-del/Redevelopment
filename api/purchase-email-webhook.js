@@ -400,6 +400,37 @@ async function emailAlreadyStored(table, messageId) {
   }
 }
 
+// Имена файлов, которые уже лежат в этой переписке. Поставщик часто
+// отвечает «счёт во вложении» и прикладывает обратно нашу ведомость,
+// карточку и адрес доставки — без этого списка они занимают все слоты
+// распознавания, а новый PDF со счётом до модели не доходит.
+async function knownAttachmentNames(offerId) {
+  if (!offerId || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return [];
+  try {
+    const resp = await fetch(
+      `${process.env.SUPABASE_URL}/rest/v1/supplier_offer_emails?offer_id=eq.${encodeURIComponent(offerId)}&deleted_at=is.null&select=files`,
+      {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+      },
+    );
+    if (!resp.ok) return [];
+    const rows = await resp.json();
+    const names = [];
+    for (const row of Array.isArray(rows) ? rows : []) {
+      for (const file of Array.isArray(row?.files) ? row.files : []) {
+        if (file?.fileName) names.push(file.fileName);
+      }
+    }
+    return names;
+  } catch (err) {
+    console.error('Не удалось прочитать уже приложенные файлы переписки (распознавание пойдёт без них):', err);
+    return [];
+  }
+}
+
 async function insertEmailRow(table, payload) {
   const resp = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
@@ -823,7 +854,8 @@ export default async function handler(req, res) {
         // ценами сама по себе неотличима от куска каталога, а письмо
         // ("направляю коммерческое предложение по вашему запросу") снимает
         // этот вопрос — см. emailContextBlock в _invoiceRecognition.js.
-        const result = await recognizeAllInvoicesFromAttachments(attachments, { subject, body });
+        const knownFileNames = await knownAttachmentNames(offerId);
+        const result = await recognizeAllInvoicesFromAttachments(attachments, { subject, body, knownFileNames });
         recognizedInvoicesData = result;
         if (result.allRecognized && result.allRecognized.length > 0) {
           // ПЕРВЫЙ счёт лежит прямо в корне extraction, остальные — в
