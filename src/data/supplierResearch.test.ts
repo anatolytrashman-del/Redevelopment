@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSameSupplier, normalizeSupplierName } from './supplierResearch';
+import { isManagerOnlySupplier, isSameSupplier, normalizeSupplierName } from './supplierResearch';
 
 // Отождествление поставщиков: по нему показывается подсказка «похоже, это
 // дубль» и по нему же (через api/_invoiceRouting.js) загруженный вручную счёт
@@ -21,6 +21,21 @@ describe('normalizeSupplierName', () => {
 });
 
 const base = { name: '', email: '', websiteUrl: '', inn: null as string | null, country: '' };
+
+describe('isManagerOnlySupplier', () => {
+  it('узнаёт Петровича и Леману по названию и по сайту, чужого поставщика не трогает', () => {
+    expect(isManagerOnlySupplier({ name: 'ПЕТРОВИЧ', websiteUrl: 'https://petrovich.ru/' })).toBe(true);
+    expect(
+      isManagerOnlySupplier({
+        name: 'Общество с ограниченной ответственностью "Строительный Торговый Дом "Петрович"',
+        websiteUrl: '',
+      }),
+    ).toBe(true);
+    expect(isManagerOnlySupplier({ name: 'Лемана ПРО', websiteUrl: 'https://lemanapro.ru/catalogue/' })).toBe(true);
+    expect(isManagerOnlySupplier({ name: 'ООО "ЛЕ МОНЛИД"', websiteUrl: 'https://lemanapro.ru' })).toBe(true);
+    expect(isManagerOnlySupplier({ name: 'Сантехкомплект', websiteUrl: 'https://www.santech.ru/' })).toBe(false);
+  });
+});
 
 describe('isSameSupplier', () => {
   it('одно название с формой и без — одна компания', () => {

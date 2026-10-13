@@ -6,7 +6,13 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
-import { countryFlag, SUPPLIER_COUNTRIES, type SupplierOffer, type SupplierRequest } from '../../data/supplierResearch';
+import {
+  countryFlag,
+  isManagerOnlySupplier,
+  SUPPLIER_COUNTRIES,
+  type SupplierOffer,
+  type SupplierRequest,
+} from '../../data/supplierResearch';
 import type { SupplierSiteSnapshot } from '../../data/supplierSiteSnapshots';
 import type { MaterialLedger } from '../../data/materialLedgers';
 import type { LegalEntity } from '../../data/legalEntities';
@@ -174,6 +180,8 @@ export function RequestPricesModal({
     const counts = items.map(() => 0);
     const list: Company[] = [];
     for (const [key, { offer, lastWrittenAt }] of pool) {
+      // Петрович и Лемана — заказ через личного менеджера, не рассылка.
+      if (isManagerOnlySupplier(offer)) continue;
       const covers: number[] = [];
       items.forEach((it, i) => {
         const kw = normalizeSearch((keywords[it.id] ?? '').trim());
@@ -369,6 +377,11 @@ export function RequestPricesModal({
                     })}
                   </div>
                 </section>
+
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-xl border border-border bg-surface-muted px-3 py-2">
+                  <span className="text-sm font-semibold text-ink">Кроме — Петрович, Лемана</span>
+                  <span className="text-xs text-ink-muted">заказ через личного менеджера, в рассылку не берём</span>
+                </div>
 
                 <section className={sectionClass}>
                   <div className={captionClass}>

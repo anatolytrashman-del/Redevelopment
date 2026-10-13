@@ -697,6 +697,22 @@ export function supplierWebsiteFullUrl(url: string): string {
 
 // Домен сайта без протокола, www и пути. Пустая строка — сайта нет или
 // это не разбираемый адрес (сравнивать нечего).
+// «Запросить цены» не пишет в гипермаркеты, где заказ идёт через личного
+// менеджера (владелец, 2026-10-13: «Кроме — Петрович, Лемана»). Совпадение
+// по слову в названии или по домену: «ЛЕ МОНЛИД» — юрлицо Леманы, сайт тот же.
+const MANAGER_ONLY_SUPPLIERS: { word: string; hosts: string[] }[] = [
+  { word: 'петрович', hosts: ['petrovich.ru'] },
+  { word: 'лемана', hosts: ['lemanapro.ru'] },
+];
+
+export function isManagerOnlySupplier(offer: Pick<SupplierOffer, 'name' | 'websiteUrl'>): boolean {
+  const words = new Set(normalizeSupplierName(offer.name).split(' ').filter(Boolean));
+  const host = supplierWebsiteHost(offer.websiteUrl);
+  return MANAGER_ONLY_SUPPLIERS.some(
+    (supplier) => words.has(supplier.word) || supplier.hosts.some((domain) => host === domain || host.endsWith(`.${domain}`)),
+  );
+}
+
 export function supplierWebsiteHost(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return '';
