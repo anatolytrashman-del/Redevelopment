@@ -70,6 +70,21 @@ function waitForPrerenderedPaint(): Promise<void> {
 // Ожидание идёт ПАРАЛЛЕЛЬНО отрисовке снапшота, не после неё, и у него свой
 // таймаут внутри — на страницах без этих данных не стоит ни миллисекунды.
 Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then(() => {
+  // Сводка + полки каталога ТЦ: снимок HTML ДО createRoot. После createRoot
+  // снапшота в #root нет — без этого полки/glance собирались заново
+  // (CLS 0,39 / TBT ~0,5 с, 2026-10-13).
+  const browseBody = container.querySelector('#tc-browse-body')
+  if (browseBody) {
+    ;(window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml = browseBody.innerHTML
+  } else {
+    // Старые снапшоты без обёртки — склеиваем glance+shelves как раньше.
+    const shelvesEl = container.querySelector('#tc-shelves')
+    const glanceEl = shelvesEl?.previousElementSibling
+    if (shelvesEl) {
+      const html = (glanceEl?.outerHTML ?? '') + shelvesEl.outerHTML
+      ;(window as unknown as { __tcBrowseBodyHtml?: string }).__tcBrowseBodyHtml = html
+    }
+  }
   const root = createRoot(container)
   const tree = (
     <StrictMode>
