@@ -5,21 +5,6 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary, clearCrashReloadFlag } from './components/ErrorBoundary'
 import { primeBusinessCentersFromBuild } from './lib/businessCentersApi'
-import { initSentry } from './lib/sentry'
-
-// P1.3 аудита безопасности — мониторинг ошибок (см. src/lib/sentry.ts).
-// Запуск отложен до простоя ПОСЛЕ монтирования (2026-09-22, Ш3-d плана
-// docs/bc-catalog-seo-plan.md): сам пакет и так в отдельном чанке, но
-// вызов на верхнем уровне модуля начинал его качать сразу — 154 КиБ в
-// критическом пути страницы (видно в «дереве зависимостей» отчёта
-// PageSpeed). Ошибки до этого момента ловит ErrorBoundary, а он и так
-// перезагружает страницу один раз за сессию.
-function initSentryWhenIdle() {
-  const start = () => initSentry()
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(start, { timeout: 4000 })
-  else setTimeout(start, 2000)
-}
-
 const container = document.getElementById('root')!
 
 // PAGESPEED_PLAN.md, Э7-4 (вторая половина, первая — scripts/
@@ -173,5 +158,4 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
     if (typeof requestIdleCallback === 'function') requestIdleCallback(enableMotion, { timeout: 800 })
     else setTimeout(enableMotion, 200)
   }
-  initSentryWhenIdle()
 })
