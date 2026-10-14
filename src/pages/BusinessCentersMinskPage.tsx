@@ -419,6 +419,10 @@ function peekTcBrowsePreserve(): TcBrowsePreserve {
 // is present in the static snapshot). This stops the cover blink.
 function neutralizeReveals(el: HTMLElement | null) {
   if (!el) return;
+  // also clean the element itself (e.g. the hero <header> has ml-reveal class)
+  if (el.classList.contains('ml-reveal') || el.classList.contains('ml-reveal-delay-1') || el.classList.contains('ml-reveal-delay-2')) {
+    el.classList.remove('ml-reveal', 'ml-reveal-delay-1', 'ml-reveal-delay-2');
+  }
   el.querySelectorAll<HTMLElement>('.ml-reveal').forEach((node) => {
     node.classList.remove('ml-reveal', 'ml-reveal-delay-1', 'ml-reveal-delay-2');
   });
@@ -1519,6 +1523,16 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   const preservedHeroCount = browsePreserve.__tcBrowseHeroCount ?? null;
   const preservedFaqHtml = browsePreserve.__tcBrowseFaqHtml ?? null;
   const preservedHeroHtml = browsePreserve.__tcBrowseHeroHtml ?? null;
+
+  // Extract inner content so we can render a matching <header> tag (for exact
+  // hydration match on the element) with the snapshot's children via dangerouslySetInnerHTML.
+  // This restores the compact hero ("Каталог ТЦ Минска" + small cover on right) exactly
+  // as it was in the prerender, without React re-rendering the .ml-lookbook-cover.
+  const preservedHeroInner = (() => {
+    if (!preservedHeroHtml) return null;
+    const m = preservedHeroHtml.match(/^<header[^>]*>([\s\S]*?)<\/header>$/i);
+    return m ? m[1] : preservedHeroHtml;
+  })();
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
@@ -1793,12 +1807,19 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           <div className="space-y-5 sm:space-y-6">
             {/* Компактный hero как у casinolist LV: заголовок + мета-строка +
                 маленькая обложка справа — без огромной пустой картинки. */}
-            {lightTcBrowseHome && preservedHeroHtml ? (
-              // AUDIT-2026-10: insert the exact hero HTML from the snapshot for the light home.
-              // This guarantees pixel-perfect match..., and we neutralize reveals below to stop blink on cover.
-              <div
+            {lightTcBrowseHome && preservedHeroInner ? (
+              // AUDIT-2026-10: render the compact hero as <header> (to match snapshot child type
+              // and attributes exactly) and inject only its *inner* content from the snapshot.
+              // This restores the title "Каталог ТЦ Минска", meta line and the small .ml-lookbook-cover
+              // pixel-for-pixel. Using the same class+style as prerendered + suppress + neutralize
+              // descendants prevents both hydration mismatch and re-trigger of reveals (no blink).
+              // The previous wrong capture of top sticky <header> was injecting nav markup here
+              // and removing the hero block.
+              <header
+                className="ml-reveal relative overflow-hidden px-4 py-5 sm:px-8 sm:py-9 rounded-3xl border border-white/80 bg-white/60 backdrop-blur-xl backdrop-saturate-150 sm:border-white/60 sm:bg-white/40"
+                style={{ boxShadow: 'rgba(0, 0, 0, 0.1) 0px 8px 32px, rgba(255, 255, 255, 0.7) 0px 1px 0px inset' }}
                 ref={(el) => { if (el) neutralizeReveals(el); }}
-                dangerouslySetInnerHTML={{ __html: preservedHeroHtml }}
+                dangerouslySetInnerHTML={{ __html: preservedHeroInner }}
                 suppressHydrationWarning
               />
             ) : (

@@ -87,6 +87,21 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   }
   if (browseBody) {
     wBrowse.__tcBrowseBodyHtml = browseBody.innerHTML
+    // AUDIT-2026-10: capture the *compact hero header* that precedes #tc-browse-body
+    // in the prerendered snapshot for /minsk/tc light home.
+    // The first <header> on page is always the sticky CatalogTopNav; we must skip it,
+    // otherwise we inject the top nav markup in place of the "Каталог ТЦ Минска" + cover,
+    // which removes the hero block visually.
+    // Target: the <header class="ml-reveal ..."> right before the body wrapper inside <main>.
+    let heroHeader = browseBody.previousElementSibling as HTMLElement | null
+    if (!heroHeader || heroHeader.tagName !== 'HEADER' || !/ml-reveal/.test(heroHeader.className || '')) {
+      // fallback for slight DOM variations: the ml-reveal header inside main (not the sticky one)
+      const mainEl = container.querySelector('main')
+      heroHeader = mainEl?.querySelector('header.ml-reveal') as HTMLElement | null
+    }
+    if (heroHeader) {
+      wBrowse.__tcBrowseHeroHtml = heroHeader.outerHTML
+    }
   } else {
     // Старые снапшоты без обёртки — склеиваем glance+shelves как раньше.
     const shelvesEl = container.querySelector('#tc-shelves')
@@ -94,15 +109,6 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
     if (shelvesEl) {
       wBrowse.__tcBrowseBodyHtml = (glanceEl?.outerHTML ?? '') + shelvesEl.outerHTML
     }
-  }
-
-  // AUDIT-2026-10: capture the full hero <header> HTML for the snapshot home.
-  // We will render it with dangerouslySetInnerHTML (exact bytes from the snapshot)
-  // instead of letting React re-render the hero/cover. This eliminates
-  // both the React #418 hydration error and the visual blinking of the cover.
-  const headerEl = container.querySelector('header')
-  if (headerEl && wBrowse.__tcBrowseBodyHtml) {
-    wBrowse.__tcBrowseHeroHtml = headerEl.outerHTML
   }
 
   // Removed direct innerHTML re-set — it was causing re-paint / blinking on hero/cover.
