@@ -44,6 +44,8 @@ const EXACT_PATHS = new Set<string>([
   '/rayon-minsk-mir',
   '/business-upload',
   '/privacy',
+  '/offer', // публичная оферта
+  '/license/zuev', // индивидуальный договор (noindex, вне sitemap)
   '/zakupki', // лендинг модуля закупок (public/zakupki.html + rewrite в vercel.json)
 ]);
 

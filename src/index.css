@@ -335,3 +335,24 @@ html.ml-motion-ready .ml-reveal-delay-2 {
     transform: none;
   }
 }
+
+/* Юридические страницы (/offer, /license/zuev): HTML из docx с <strong>/<h2>/<p>. */
+.legal-doc h2 {
+  margin-top: 1.25rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: inherit;
+}
+.legal-doc h2:first-child {
+  margin-top: 0;
+}
+.legal-doc p {
+  margin: 0;
+}
+.legal-doc strong {
+  font-weight: 700;
+}
+.legal-doc a {
+  color: var(--color-primary, #e4152b);
+  text-decoration: underline;
+}

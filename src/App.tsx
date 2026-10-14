@@ -33,6 +33,8 @@ import { AnalyticsMethodologyPage } from './pages/AnalyticsMethodologyPage';
 import { BriefPublicPage } from './pages/BriefPublicPage';
 import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
+import { OfferPage } from './pages/OfferPage';
+import { LicenseZuevPage } from './pages/LicenseZuevPage';
 import { NotFound } from './pages/NotFound';
 import { CookieBanner } from './components/layout/CookieBanner';
 import { metrikaHit } from './lib/metrika';
@@ -318,6 +320,8 @@ function MalllistRoutes() {
       <Route path="/minsk/tc/:slug" element={<CatalogKindProvider kind="tc"><BusinessCenterDetailPage /></CatalogKindProvider>} />
       <Route path="/favorites/:id" element={<FavoritesPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/offer" element={<OfferPage />} />
+      <Route path="/license/zuev" element={<LicenseZuevPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -365,6 +369,8 @@ function OfficelistRoutes() {
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
       <Route path="/favorites/:id" element={<FavoritesPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/offer" element={<OfferPage />} />
+      <Route path="/license/zuev" element={<LicenseZuevPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -488,6 +494,8 @@ export default function App() {
           общий catch-all принял бы /privacy за старый слаг объекта и увёл
           бы на /minsk/privacy. */}
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/offer" element={<OfferPage />} />
+      <Route path="/license/zuev" element={<LicenseZuevPage />} />
       {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
       <Route path="/:legacySlug" element={<LegacySlugRedirect />} />

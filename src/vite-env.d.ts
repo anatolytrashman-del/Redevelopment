@@ -15,3 +15,8 @@ interface ImportMeta {
 declare const __BUILD_TIME__: string;
 /** platform | offices | malls — vite.config.ts define из VITE_PUBLIC_SITE */
 declare const __DEPLOYED_SITE_MODE__: string;
+
+declare module '*.html?raw' {
+  const content: string;
+  export default content;
+}
