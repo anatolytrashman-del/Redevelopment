@@ -95,11 +95,8 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
     }
   }
 
-  // AUDIT-2026-10: if we captured body HTML, immediately ensure the DOM element has it
-  // before React/hydration runs. This protects against any wipe during takeover.
-  if (wBrowse.__tcBrowseBodyHtml && browseBody) {
-    browseBody.innerHTML = wBrowse.__tcBrowseBodyHtml
-  }
+  // Removed direct innerHTML re-set — it was causing re-paint / blinking on hero/cover.
+  // The component's dangerouslySetInnerHTML + suppressHydrationWarning should preserve the content.
   // FAQ и «N ТЦ» в hero — вне #tc-browse-body; без снимка React на лёгком
   // browse-home рисует пустой FAQ / «— ТЦ» до прихода centers (CLS + TBT).
   const faqEl = container.querySelector('#faq')
@@ -124,8 +121,14 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   // (чтобы контролировать TBT).
   let root: ReturnType<typeof createRoot> | ReturnType<typeof hydrateRoot>
   if (wBrowse.__tcBrowseBodyHtml && container.hasChildNodes()) {
-    // Hydrate existing snapshot HTML instead of replacing it
-    root = hydrateRoot(container, tree)
+    try {
+      // Hydrate existing snapshot HTML instead of replacing it
+      root = hydrateRoot(container, tree)
+    } catch (e) {
+      // Fallback if hydration fails (mismatch or other) — use normal render
+      root = createRoot(container)
+      startTransition(() => (root as ReturnType<typeof createRoot>).render(tree))
+    }
   } else if (container.hasChildNodes()) {
     root = createRoot(container)
     startTransition(() => (root as ReturnType<typeof createRoot>).render(tree))
@@ -144,17 +147,15 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   // чтобы СЛЕДУЮЩИЙ, отдельный крах (даже позже в той же вкладке) снова
   // получил свою "тихую" попытку, а не сразу экран с кнопкой.
   setTimeout(clearCrashReloadFlag, 5000)
-  // Lookbook ml-reveal — только после простоя, не в окне TBT первого захода.
-  // AUDIT-2026-10: одна из причин "моргания картинок 3 раза" на публичных страницах:
-  // 1. Snapshot HTML (с img) отрисован пререндером.
-  // 2. startTransition root.render — React сносит snapshot и строит заново (даже если визуально похоже).
-  // 3. requestIdleCallback(enableMotion) → добавляется .ml-motion-ready → запускаются .ml-reveal анимации.
-  // Из-за этого LCP-изображения и полки могут "мигать" или перерисовываться.
-  // HeroImageSlider теперь использует OptimizedImage (Task 001) — помогает консистентности.
-  // Task 002: снижены таймауты + force в snapshot paths (TcBrowseBodyMount) для Malllist home.
-  // Для snapshot страниц (Malllist/TC home) force раньше, чтобы preserved HTML + React takeover не вызывали delay.
-  const enableMotion = () => document.documentElement.classList.add('ml-motion-ready')
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(enableMotion, { timeout: 800 }) // AUDIT-2026-10 to end: lowered further for Malllist snappy after force, TBT protected by component logic
-  else setTimeout(enableMotion, 200)
+  // Lookbook ml-reveal — только после простоя на не-snapshot страницах.
+  // На Malllist TC home (snapshot) мы intentionally не добавляем .ml-motion-ready через idle,
+  // чтобы preserved HTML не получал поздние анимации (это вызывало моргание обложки и контента).
+  // Для snapshot home контент статичный из пререндера.
+  const isTcSnapshotHome = !!wBrowse.__tcBrowseBodyHtml
+  if (!isTcSnapshotHome) {
+    const enableMotion = () => document.documentElement.classList.add('ml-motion-ready')
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(enableMotion, { timeout: 800 })
+    else setTimeout(enableMotion, 200)
+  }
   initSentryWhenIdle()
 })
