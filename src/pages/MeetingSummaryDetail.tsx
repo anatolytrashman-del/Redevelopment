@@ -12,6 +12,7 @@ import type { MeetingSummary, TaskSuggestion } from '../data/meetingSummaries';
 import type { Person } from '../data/people';
 import { fetchMeetingSummary, updateMeetingSummary } from '../lib/meetingSummariesApi';
 import {
+  applyBoxJobs,
   transcribeAudioFile,
   summarizeTranscript,
   suggestTasksFromTranscript,
@@ -94,6 +95,31 @@ export function MeetingSummaryDetail() {
     return () => window.clearInterval(timer);
   }, [transcribing]);
   const [summarizing, setSummarizing] = useState(false);
+  // Саммери в очереди ИИ-воркера на боксе (INVOICE_AI=off): раз в 20 с
+  // просим сервер перенести готовые результаты и перечитываем встречу.
+  const aiStatus = summary?.aiStatus ?? null;
+  useEffect(() => {
+    if (!id || aiStatus !== 'queued') return;
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      try {
+        await applyBoxJobs();
+        const fresh = await fetchMeetingSummary(id);
+        if (cancelled || fresh.aiStatus === 'queued') return;
+        setSummary(fresh);
+        if (fresh.aiStatus === null && fresh.content) {
+          setContent(fresh.content);
+          setTab('preview');
+        }
+      } catch {
+        // следующая попытка через 20 с
+      }
+    }, 20_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [id, aiStatus]);
   const [showTranscript, setShowTranscript] = useState(false);
 
   // Предложения задач: список хранится в самом саммери (jsonb), решение по
@@ -310,9 +336,13 @@ export function MeetingSummaryDetail() {
     setSummarizing(true);
     setTranscribeError(null);
     try {
-      const generated = await summarizeTranscript(transcript);
-      setContent(generated);
-      setTab('preview');
+      const generated = await summarizeTranscript(transcript, summary?.id);
+      if (generated.queued) {
+        setSummary((s) => (s ? { ...s, aiStatus: 'queued', aiError: null } : s));
+      } else {
+        setContent(generated.summary);
+        setTab('preview');
+      }
     } catch (err) {
       setTranscribeError(errorMessage(err, 'Не удалось сгенерировать саммери'));
     } finally {
@@ -406,11 +436,23 @@ export function MeetingSummaryDetail() {
               type="button"
               icon={summarizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               onClick={handleSummarize}
-              disabled={!transcript.trim() || summarizing || transcribing}
+              disabled={!transcript.trim() || summarizing || transcribing || aiStatus === 'queued'}
             >
               {summarizing ? 'Генерируем саммери...' : 'Сделать саммери из расшифровки'}
             </Button>
           </div>
+          {aiStatus === 'queued' && (
+            <InfoBanner>Саммери готовит ИИ на боксе — текст появится здесь сам, обычно через несколько минут.</InfoBanner>
+          )}
+          {aiStatus === 'manual' && (
+            <InfoBanner>
+              ИИ не смог сделать саммери{summary?.aiError ? ` (${summary.aiError})` : ''}. Разобрать вручную: напишите текст саммери
+              сами или попробуйте ещё раз.{' '}
+              <button type="button" className="font-medium text-primary hover:underline" onClick={() => setTab('edit')}>
+                Разобрать вручную
+              </button>
+            </InfoBanner>
+          )}
           {transcribing && progress?.estimatedSeconds != null && (
             <InfoBanner>
               Расшифровка займёт примерно {formatEstimateMinutes(progress.estimatedSeconds)}. Можно продолжать работать в

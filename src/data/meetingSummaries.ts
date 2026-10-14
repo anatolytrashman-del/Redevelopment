@@ -33,6 +33,11 @@ export interface MeetingSummary {
   taskSuggestions: TaskSuggestion[];
   shareToken: string;
   createdAt: string;
+  // Саммери с ИИ-воркера на боксе (INVOICE_AI=off, см. api/_aiBox.js):
+  // 'queued' — задание в очереди, 'manual' — бокс не справился, саммери
+  // пишется вручную; null — ничего не ждём.
+  aiStatus: 'queued' | 'manual' | null;
+  aiError: string | null;
 }
 
 // Форма строки в таблице Supabase (snake_case-колонки) — см. src/lib/meetingSummariesApi.ts
@@ -44,4 +49,6 @@ export interface MeetingSummaryRow {
   task_suggestions: TaskSuggestion[] | null;
   share_token: string;
   created_at: string;
+  ai_status?: 'queued' | 'manual' | null;
+  ai_error?: string | null;
 }

@@ -5,7 +5,12 @@
 - `kind = invoice_recognition`, payload `{ fileUrl, fileName, emailContext? }`. Результат в том же формате, что `recognizeInvoice` (`normalizeRecognized`) плюс `recognizedAt` и `recognizedBy: 'box-worker'`.
 - `kind = meeting_summary`, payload `{ transcript, prompt? }`. Результат `{ summary }`, формат промпта взят из `api/meeting-ai.js`.
 
-Ставит задания серверный код через `ai_box_enqueue` (service_role). Воркер видит только `ai_box_claim` / `ai_box_complete` / `ai_box_fail`, под ролью `ai_box_worker`.
+Ставит задания серверный код через `ai_box_enqueue` (service_role), когда `INVOICE_AI` не `on` (по умолчанию):
+
+- вебхук почты (`api/purchase-email-webhook.js`) — по заданию на каждое вложение-кандидата, в письме `extraction.status = 'queued'`;
+- страница встречи (`api/meeting-ai.js`, action `summarize` с `meetingId`) — `meeting_summaries.ai_status = 'queued'`.
+
+Результаты переносит `applyFinishedBoxJobs` (`api/_aiBox.js`): в карточку счёта тем же `applyRecognizedInvoice`, саммери — в `meeting_summaries.content`. Ошибка бокса или «не счёт» → «Разобрать вручную» (`extraction.status = 'manual'`, `meeting_summaries.ai_status = 'manual'`). Запускается в конце каждого вебхука почты и из интерфейса (action `apply-box-jobs`, опрос раз в 20–30 с, пока что-то в очереди). `INVOICE_AI=on` — прежнее серверное распознавание через ProxyAPI. Воркер видит только `ai_box_claim` / `ai_box_complete` / `ai_box_fail`, под ролью `ai_box_worker`.
 
 ## Доступ воркера
 

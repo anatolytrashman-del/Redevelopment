@@ -11,6 +11,8 @@ function fromRow(row: MeetingSummaryRow): MeetingSummary {
     taskSuggestions: row.task_suggestions ?? [],
     shareToken: row.share_token,
     createdAt: row.created_at,
+    aiStatus: row.ai_status ?? null,
+    aiError: row.ai_error ?? null,
   };
 }
 

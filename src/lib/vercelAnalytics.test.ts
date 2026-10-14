@@ -1,7 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import {
   applyVaDisableQuery,
@@ -15,17 +18,40 @@ import {
 // Vite переписывает тела функций, и Function#toString в тесте уже не равен
 // исходнику. Сверяем index.html с тем, что отдаёт node без бандлера — это
 // и есть текст, который попадает в страницу.
+//
+// --experimental-strip-types есть только в Node ≥ 22.6; на Node 20 (бокс,
+// часть CI) типы снимает компилятор TypeScript (transpileModule). Тела
+// функций берутся из vercelAnalyticsImpl.js как есть, без трансформации.
 function headScriptFromSource(): string {
-  return execFileSync(
-    process.execPath,
-    [
-      '--experimental-strip-types',
-      '--input-type=module',
-      '-e',
-      "import { vercelAnalyticsHeadScript } from './src/lib/vercelAnalytics.ts'; process.stdout.write(vercelAnalyticsHeadScript());",
-    ],
-    { encoding: 'utf8', cwd: fileURLToPath(new URL('../..', import.meta.url)) },
-  );
+  const root = fileURLToPath(new URL('../..', import.meta.url));
+  const call = "process.stdout.write(m.vercelAnalyticsHeadScript());";
+  if (process.allowedNodeEnvironmentFlags.has('--experimental-strip-types')) {
+    return execFileSync(
+      process.execPath,
+      [
+        '--experimental-strip-types',
+        '--input-type=module',
+        '-e',
+        `const m = await import('./src/lib/vercelAnalytics.ts'); ${call}`,
+      ],
+      { encoding: 'utf8', cwd: root },
+    );
+  }
+  const src = readFileSync(new URL('./vercelAnalytics.ts', import.meta.url), 'utf8');
+  const implUrl = new URL('./vercelAnalyticsImpl.js', import.meta.url).href;
+  const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText.replace("'./vercelAnalyticsImpl.js'", JSON.stringify(implUrl)).replace('"./vercelAnalyticsImpl.js"', JSON.stringify(implUrl));
+  const dir = mkdtempSync(join(tmpdir(), 'va-test-'));
+  try {
+    const file = join(dir, 'vercelAnalytics.mjs');
+    writeFileSync(file, js);
+    return execFileSync(
+      process.execPath,
+      ['--input-type=module', '-e', `const m = await import(${JSON.stringify(pathToFileURL(file).href)}); ${call}`],
+      { encoding: 'utf8', cwd: root },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function memoryStorage(initial: Record<string, string> = {}): VaStorage & { data: Record<string, string> } {

@@ -12,8 +12,10 @@
 --
 -- Входные данные кладёт серверный код (service_role) через enqueue — сюда
 -- попадают только ссылки на файлы/текст, нужный для задания. Результат
--- воркера пишется в result; применение результата к карточкам остаётся
--- в существующем коде (_invoiceApply.js), воркер в карточки не пишет.
+-- воркера пишется в result; применение результата к карточкам делает
+-- серверный код (api/_aiBox.js → _invoiceApply.js), воркер в карточки не
+-- пишет. Задания со статусом error тоже «применяются»: карточка получает
+-- пометку «Разобрать вручную».
 
 do $$
 begin
@@ -38,9 +40,17 @@ create table if not exists ai_box_jobs (
   locked_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  completed_at timestamptz
+  completed_at timestamptz,
+  -- Результат перенесён в карточку счёта / запись встречи (или помечен
+  -- «Разобрать вручную»). Ставит серверный код (api/_aiBox.js).
+  applied_at timestamptz,
+  apply_error text
 );
 
+alter table ai_box_jobs add column if not exists applied_at timestamptz;
+alter table ai_box_jobs add column if not exists apply_error text;
+
+create index if not exists ai_box_jobs_apply_idx on ai_box_jobs (updated_at) where applied_at is null and status in ('done', 'error');
 create index if not exists ai_box_jobs_pick_idx on ai_box_jobs (status, not_before) where status in ('queued', 'running');
 
 alter table ai_box_jobs enable row level security;
@@ -109,5 +119,11 @@ grant execute on function ai_box_enqueue(text, jsonb) to service_role;
 grant execute on function ai_box_claim(text, int) to ai_box_worker, service_role;
 grant execute on function ai_box_complete(uuid, text, jsonb) to ai_box_worker, service_role;
 grant execute on function ai_box_fail(uuid, text, text, boolean, int) to ai_box_worker, service_role;
+
+-- Саммери встречи с бокса: пока задание в очереди — ai_status 'queued',
+-- бокс не справился — 'manual' («Разобрать вручную»), готово — null.
+alter table meeting_summaries add column if not exists ai_status text check (ai_status in ('queued', 'manual'));
+alter table meeting_summaries add column if not exists ai_error text;
+alter table meeting_summaries add column if not exists ai_job_id uuid;
 
 notify pgrst, 'reload schema';

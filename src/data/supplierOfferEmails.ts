@@ -101,7 +101,12 @@ export interface EmailExtraction {
   // вопрос "почему обычный счёт не распознался" нельзя было закрыть
   // запросом к базе. В интерфейсе переписки такой статус ничего не рисует —
   // он только для разбора.
-  status: 'pending' | 'confirmed' | 'dismissed' | 'none';
+  // 'queued' — вложения ушли ИИ-воркеру на боксе (INVOICE_AI=off, см.
+  // api/_aiBox.js), результат ещё не пришёл; 'manual' — бокс счёта не
+  // нашёл или не справился: «Разобрать вручную» (файлы — в manualFiles).
+  status: 'pending' | 'confirmed' | 'dismissed' | 'none' | 'queued' | 'manual';
+  boxJobs?: { id: string; fileName: string; url: string }[];
+  manualFiles?: { url: string; fileName: string }[];
   // Владелец, 2026-09-12: "мне нужно автоматическое распознавание счетов и
   // запись в базу ещё до открытия письма нами вручную" — true означает, что
   // status:'confirmed' поставил не человек кнопкой, а сервер при приёме
@@ -143,7 +148,7 @@ export interface EmailExtraction {
 // неудачи, счётом его считать нельзя (иначе в переписке нарисовался бы
 // пустой "счёт без суммы").
 export function extractionInvoices(extraction: EmailExtraction | null | undefined): EmailExtractionInvoice[] {
-  if (!extraction || extraction.status === 'none' || !extraction.isInvoice) return [];
+  if (!extraction || extraction.status === 'none' || extraction.status === 'queued' || extraction.status === 'manual' || !extraction.isInvoice) return [];
   // Короткоживущая форма записи (прод 2026-09-14, 08:39–…): при двух и
   // более счетах сервер клал в applied МАССИВ снимков вместо объекта.
   // Письма, принятые в этом окне, иначе уронили бы карточку на

@@ -10,6 +10,7 @@
 
 import { proxyApiKeyProblem } from './_proxyapi.js';
 import { requireStaffAuth } from './_auth.js';
+import { applyFinishedBoxJobs, defaultDeps, enqueueMeetingSummary, serverAiEnabled } from './_aiBox.js';
 
 const MODEL = 'gpt-4o';
 
@@ -94,10 +95,32 @@ async function callProxyApi(messages, extra) {
   return resp.json();
 }
 
+// INVOICE_AI=off (по умолчанию): саммери делает ИИ-воркер на боксе.
+// Ставим задание и помечаем встречу ai_status='queued'; текст саммери
+// попадёт в meeting_summaries.content через applyFinishedBoxJobs.
+export async function queueSummary({ meetingId, transcript }, deps = defaultDeps) {
+  const jobId = await enqueueMeetingSummary({ meetingId, transcript }, deps);
+  await deps.updateMeeting(meetingId, { ai_status: 'queued', ai_error: null, ai_job_id: jobId });
+  return jobId;
+}
+
 async function handleSummarize(req, res) {
-  const { transcript } = req.body ?? {};
+  const { transcript, meetingId } = req.body ?? {};
   if (typeof transcript !== 'string' || !transcript.trim()) {
     res.status(400).json({ error: 'Пустая расшифровка' });
+    return;
+  }
+  if (!serverAiEnabled()) {
+    if (typeof meetingId !== 'string' || !meetingId) {
+      res.status(400).json({ error: 'Нет id встречи' });
+      return;
+    }
+    try {
+      const jobId = await queueSummary({ meetingId, transcript });
+      res.status(202).json({ queued: true, jobId });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Не удалось поставить саммери в очередь' });
+    }
     return;
   }
   try {
@@ -162,13 +185,25 @@ export default async function handler(req, res) {
   }
   const user = await requireStaffAuth(req, res);
   if (!user) return;
-  const keyProblem = proxyApiKeyProblem();
+  const { action } = req.body ?? {};
+  // Перенос готовых результатов бокса в карточки — без модели, ключ ProxyAPI
+  // не нужен. Зовёт страница встреч (пока саммери в очереди) и переписка.
+  if (action === 'apply-box-jobs') {
+    try {
+      const results = await applyFinishedBoxJobs({ limit: 20 });
+      res.status(200).json({ applied: results.length, results });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Не удалось применить результаты' });
+    }
+    return;
+  }
+  const needsServerAi = action === 'suggest-tasks' || (action === 'summarize' && serverAiEnabled());
+  const keyProblem = needsServerAi ? proxyApiKeyProblem() : null;
   if (keyProblem) {
     res.status(500).json({ error: keyProblem });
     return;
   }
 
-  const { action } = req.body ?? {};
   if (action === 'suggest-tasks') {
     await handleSuggestTasks(req, res);
   } else if (action === 'summarize') {

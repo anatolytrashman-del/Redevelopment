@@ -42,7 +42,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { extractEmailAttachments, fetchReceivedEmail } from './_attachments.js';
 import { isOutgoingEmailEvent, handleOutgoingEmailEvent } from './_emailEvents.js';
 import { headerValue, isPurchasingInbox, isSharedMailbox, SHARED_MAILBOX_ADDRESS, referencedMessageIds } from './_emailMatch.js';
-import { MIN_TEXT_LENGTH, recognizeAllInvoicesFromAttachments, recognizeInvoiceFromText } from './_invoiceRecognition.js';
+import { MIN_TEXT_LENGTH, pickInvoiceCandidates, recognizeAllInvoicesFromAttachments, recognizeInvoiceFromText } from './_invoiceRecognition.js';
+import { applyFinishedBoxJobs, enqueueInvoiceJobs, serverAiEnabled } from './_aiBox.js';
 import { stripQuotedReply } from './_emailText.js';
 import { applyRecognizedInvoice, quoteTitle } from './_invoiceApply.js';
 import { saveReliabilityIfNew } from './_checko.js';
@@ -795,7 +796,12 @@ export default async function handler(req, res) {
     let extraction = null;
     let recognizedInvoice = null;
     let recognizedInvoicesData = null;
-    if (offerId) {
+    // 2026-10-14: INVOICE_AI=off (по умолчанию) — сервер модель не зовёт,
+    // счета распознаёт ИИ-воркер на боксе (api/_aiBox.js). Задания ставятся
+    // ниже, после вставки письма: им нужен его id.
+    const serverAi = serverAiEnabled();
+    const boxCandidates = offerId && !serverAi ? pickInvoiceCandidates(attachments) : [];
+    if (offerId && serverAi) {
       // status:'none' — "пробовали, счёта не нашли". Раньше при неудаче в
       // письме не оставалось НИЧЕГО, и вопрос владельца "почему обычный счёт
       // не распознался" (2026-09-14) невозможно было закрыть запросом к базе:
@@ -960,6 +966,16 @@ export default async function handler(req, res) {
       }
     }
 
+    if (boxCandidates.length > 0 && row?.id) {
+      try {
+        extraction = await enqueueInvoiceJobs({ emailId: row.id, offerId, orderId, subject, body, candidates: boxCandidates });
+        await updateEmailExtraction('supplier_offer_emails', row.id, extraction);
+        row.extraction = extraction;
+      } catch (err) {
+        console.error('Не удалось поставить счёт в очередь бокса (письмо сохранено, останется ручной разбор):', err);
+      }
+    }
+
     if (offerId) {
       try {
         await autoFillOfferContact(offerId, parseFromHeader(fromAddress));
@@ -974,7 +990,9 @@ export default async function handler(req, res) {
       // отгрузим за 5 дней» без единого вложения раньше не оставалось нигде,
       // кроме глаз закупщика.
       const invoiceRecognized = (recognizedInvoicesData?.allRecognized?.length ?? 0) > 0;
-      if (!invoiceRecognized && row?.id) {
+      // При INVOICE_AI=off тело письма модели не отдаём (на боксе только
+      // вложения) — цены из текста письма закупщица вносит руками.
+      if (serverAi && !invoiceRecognized && row?.id) {
         try {
           const bodyExtraction = await recognizeFromEmailBody({
             emailId: row.id,
@@ -990,6 +1008,16 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('Не удалось разобрать тело письма (не критично):', err instanceof Error ? err.message : err);
         }
+      }
+    }
+
+    // Попутно переносим готовые результаты бокса в карточки (дёшево, без
+    // модели): так очередь разбирается и без отдельного cron.
+    if (!serverAi) {
+      try {
+        await applyFinishedBoxJobs({ limit: 10 });
+      } catch (err) {
+        console.error('Не удалось применить результаты бокса (не критично):', err instanceof Error ? err.message : err);
       }
     }
 

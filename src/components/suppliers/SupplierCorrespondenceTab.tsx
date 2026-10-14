@@ -53,6 +53,8 @@ import type { SupplierQuote } from '../../data/supplierQuotes';
 import { insertSupplierQuote, updateSupplierQuoteItems, deleteSupplierQuote } from '../../lib/supplierQuotesApi';
 import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
 import { pendingIncomingEmails } from '../../lib/pendingEmails';
+import { applyBoxJobs } from '../../lib/meetingTranscribeApi';
+import { fetchSupplierOfferEmails } from '../../lib/supplierOfferEmailsApi';
 import type { UnmatchedIncomingEmail } from '../../data/unmatchedIncomingEmails';
 import {
   attachUnmatchedIncomingEmail,
@@ -1046,6 +1048,32 @@ export function EmailThread({
     });
   }
 
+  // Счета в очереди ИИ-воркера на боксе (INVOICE_AI=off, extraction.status
+  // 'queued'): раз в 30 с просим сервер перенести готовые результаты и
+  // подтягиваем обновлённые письма.
+  const queuedBoxEmailIds = emails.filter((e) => e.extraction?.status === 'queued').map((e) => e.id).join(',');
+  useEffect(() => {
+    if (!queuedBoxEmailIds) return;
+    const ids = new Set(queuedBoxEmailIds.split(','));
+    let cancelled = false;
+    const timer = window.setInterval(async () => {
+      try {
+        await applyBoxJobs();
+        const fresh = await fetchSupplierOfferEmails(offer.id);
+        if (cancelled) return;
+        for (const e of fresh) {
+          if (ids.has(e.id) && e.extraction?.status !== 'queued') onEmailUpdated(e);
+        }
+      } catch {
+        // следующая попытка через 30 с
+      }
+    }, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [queuedBoxEmailIds, offer.id, onEmailUpdated]);
+
   function openPreview(f: PreviewFile) {
     setPreviewFile(f);
   }
@@ -1735,6 +1763,30 @@ export function EmailThread({
                     несколько (владелец: "в письме два счета... я как раз
                     сравниваю альтернативные материалы"), и у каждого своя
                     судьба: один сверен со сметой, другой откачен. */}
+                {e.extraction?.status === 'queued' && (
+                  <div className="mt-2 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+                    <Clock className="h-3.5 w-3.5" />
+                    Счёт распознаёт ИИ на боксе ({(e.extraction.boxJobs ?? []).map((j) => j.fileName).join(', ')}) — данные появятся здесь сами.
+                  </div>
+                )}
+                {e.extraction?.status === 'manual' && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning-bg px-3 py-2 text-xs text-ink">
+                    <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                    <span>
+                      Счёт не распознан автоматически{e.extraction.error ? ` (${e.extraction.error})` : ''} — разберите вложение вручную.
+                    </span>
+                    {(e.extraction.manualFiles ?? []).filter((f) => isPreviewable(f.fileName)).map((f) => (
+                      <button
+                        key={f.url}
+                        type="button"
+                        onClick={() => openPreview(f)}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        Разобрать вручную: {f.fileName}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {extractionInvoices(e.extraction).map((invoice, invoiceIdx, allInvoices) => {
                   const applied = autoApplied(e, invoice);
                   if (!applied && e.extraction?.status !== 'pending') return null;

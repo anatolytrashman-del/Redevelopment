@@ -187,15 +187,34 @@ export async function suggestTasksFromTranscript(
   }, 1000, AI_CALL_TIMEOUT_MS);
 }
 
-export async function summarizeTranscript(transcript: string): Promise<string> {
+// { summary } — сервер сделал саммери сам (INVOICE_AI=on); { queued } —
+// задание ушло ИИ-воркеру на боксе, текст появится в записи встречи позже
+// (см. applyBoxJobs и api/_aiBox.js).
+export type SummarizeResult = { summary: string; queued?: false } | { queued: true; jobId: string | null };
+
+export async function summarizeTranscript(transcript: string, meetingId?: string): Promise<SummarizeResult> {
   return withRetry(async () => {
     const resp = await authFetch('/api/meeting-ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'summarize', transcript }),
+      body: JSON.stringify({ action: 'summarize', transcript, meetingId }),
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || `Ошибка генерации саммери (${resp.status})`);
-    return data.summary ?? '';
+    if (data.queued) return { queued: true, jobId: data.jobId ?? null };
+    return { summary: data.summary ?? '' };
   }, 1000, AI_CALL_TIMEOUT_MS);
+}
+
+// Перенести готовые результаты бокса в карточки (счета и встречи).
+export async function applyBoxJobs(): Promise<void> {
+  const resp = await authFetch('/api/meeting-ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'apply-box-jobs' }),
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}));
+    throw new Error(data.error || `Ошибка применения результатов (${resp.status})`);
+  }
 }
