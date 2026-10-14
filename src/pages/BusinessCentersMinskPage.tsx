@@ -437,10 +437,9 @@ function TcBrowseBodyMount({
     let idleId = 0;
     let timeoutId = 0;
     const attach = () => {
-      // AUDIT-2026-10 Task 002: for snapshot preserved path, ensure ml-motion-ready is added as soon as scroll attaches (within lowered idle window). This helps reveals on the HTML snapshot not lag behind React version, reducing perceived 3x blink on catalog home.
-      if (typeof document !== 'undefined') {
-        document.documentElement.classList.add('ml-motion-ready');
-      }
+      // AUDIT-2026-10: do NOT add ml-motion-ready here for preserved snapshot.
+      // Adding it would trigger ml-reveal animations on already painted static content.
+      // Only attach the scroll behavior.
       handles = [...root.querySelectorAll<HTMLElement>('.ml-lookbook-shelf-row')]
         .filter((el) => el.children.length >= 3)
         .map((el) => attachAppleShelfScroll(el));
@@ -459,12 +458,11 @@ function TcBrowseBodyMount({
   }, []);
 
   if (preservedHtml.current) {
-    // AUDIT-2026-10 Task 002: snapshot path uses dangerouslySetInnerHTML to avoid CLS on glance/shelves.
-    // Force ml-motion-ready immediately here (in addition to attach) to cut the 3-phase blink on Malllist home.
-    // Lowered idles + this ensure React takeover doesn't leave reveals delayed.
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.add('ml-motion-ready');
-    }
+    // AUDIT-2026-10: for the preserved snapshot path on Malllist TC home (/minsk/tc),
+    // we must NOT add ml-motion-ready. The static HTML from prerender is already in final state.
+    // Adding the class would apply the reveal animation (from opacity:0) to already-visible elements,
+    // causing the basic "morganie"/pop on takeover. Default .ml-reveal { opacity:1 } is what we want here.
+    // Scroll attach still happens in useEffect (without forcing the global motion class).
     return (
       <div
         id="tc-browse-body"
@@ -1845,7 +1843,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <TcBrowseBodyMount figures={tcBrowseFigures} shelves={tcEditorialShelves} />
 
             {lightTcBrowseHome && preservedFaqHtml ? (
-              // AUDIT-2026-10 Task 002: preserved FAQ for Malllist home. Motion-ready forced in TcBrowseBodyMount (global class), so no blink on this block.
+              // AUDIT-2026-10: preserved FAQ on snapshot home. We no longer force ml-motion-ready on this path
+              // (see TcBrowseBodyMount) to avoid re-triggering animations on static prerendered content.
               <div dangerouslySetInnerHTML={{ __html: preservedFaqHtml }} />
             ) : (
               faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />

@@ -120,14 +120,12 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   if (container.hasChildNodes()) startTransition(() => root.render(tree))
   else root.render(tree)
 
-  // AUDIT-2026-10: the most basic blinking in Malllist TC catalog home (the one we started with)
-  // was caused by the gap between React commit and the idle ml-motion-ready.
-  // For snapshot pages with __tcBrowseBodyHtml we force the class immediately after the commit.
-  // This makes the re-inserted preserved HTML get the reveals/animations right away,
-  // eliminating the 3rd phase pop-in/blinking while still protecting TBT (the heavy work is done).
-  if (wBrowse.__tcBrowseBodyHtml) {
-    document.documentElement.classList.add('ml-motion-ready')
-  }
+  // AUDIT-2026-10: for Malllist TC catalog home snapshot path (__tcBrowseBodyHtml),
+  // we deliberately do NOT force ml-motion-ready here (or in TcBrowseBodyMount).
+  // The prerendered static HTML is the final visual state. Adding the class causes
+  // the ml-reveal animation to restart on already-visible elements (opacity jumps from 1 to the @from state),
+  // which was the source of the basic blinking we were seeing.
+  // Default .ml-reveal { opacity: 1 } keeps the snapshot look stable during React takeover.
 
   // ErrorBoundary.componentDidCatch перезагружает страницу один раз за
   // сессию вкладки при первом же непойманном крахе (см. комментарий в самом
