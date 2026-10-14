@@ -10,7 +10,7 @@
 - вебхук почты (`api/purchase-email-webhook.js`) — по заданию на каждое вложение-кандидата, в письме `extraction.status = 'queued'`;
 - страница встречи (`api/meeting-ai.js`, action `summarize` с `meetingId`) — `meeting_summaries.ai_status = 'queued'`.
 
-Результаты переносит `applyFinishedBoxJobs` (`api/_aiBox.js`): в карточку счёта тем же `applyRecognizedInvoice`, саммери — в `meeting_summaries.content`. Ошибка бокса или «не счёт» → «Разобрать вручную» (`extraction.status = 'manual'`, `meeting_summaries.ai_status = 'manual'`). Запускается в конце каждого вебхука почты и из интерфейса (action `apply-box-jobs`, опрос раз в 20–30 с, пока что-то в очереди). `INVOICE_AI=on` — прежнее серверное распознавание через ProxyAPI. Воркер видит только `ai_box_claim` / `ai_box_complete` / `ai_box_fail`, под ролью `ai_box_worker`.
+Сразу при complete/fail срабатывает триггер `ai_box_job_finished` (SQL): саммери пишется в встречу, ошибка — `ai_status='manual'`; по счёту, когда разобраны все вложения письма, в `extraction` кладётся распознавание (`pending`, `boxPrefilled: true`) или `manual`. Строку КП в карточке пишет JS: `applyFinishedBoxJobs` (`api/_aiBox.js`): в карточку счёта тем же `applyRecognizedInvoice`, саммери — в `meeting_summaries.content`. Ошибка бокса или «не счёт» → «Разобрать вручную» (`extraction.status = 'manual'`, `meeting_summaries.ai_status = 'manual'`). Запускается в конце каждого вебхука почты и из интерфейса (action `apply-box-jobs`, опрос раз в 20–30 с, пока что-то в очереди). `INVOICE_AI=on` — прежнее серверное распознавание через ProxyAPI. Воркер видит только `ai_box_claim` / `ai_box_complete` / `ai_box_fail`, под ролью `ai_box_worker`.
 
 ## Доступ воркера
 
@@ -28,7 +28,7 @@ node scripts/box-worker/worker.mjs --once   # одно задание
 
 - Не больше `BOX_WORKER_RPM` (по умолчанию 6) вызовов модели в минуту и не чаще одного раза в 3 с.
 - Задание повторяется при 429 (с паузой из Retry-After), при 403 «регион» (переподключение VPN), при 5xx и при сетевых ошибках. Пауза 1, 2, 4… мин, максимум час; не больше `max_attempts` попыток (по умолчанию 4). Её считает `ai_box_fail`.
-- Задание, которое висит в `running` дольше 15 минут, возвращается в работу.
+- Задание, которое висит в `running` дольше 15 минут, возвращается в работу (`ai_box_sweep_stale` в начале каждого `ai_box_claim`); если попытки кончились — `error`, и письмо/встреча получают «Разобрать вручную».
 - Если база недоступна, воркер опрашивает её реже, пауза растёт до 10 минут.
 
 ## Проверка без базы

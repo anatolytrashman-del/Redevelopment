@@ -146,7 +146,10 @@ async function applyEmail(emailId, deps) {
   if (!email) return { emailId, ids, error: 'Письмо не найдено' };
   // Человек уже разобрал письмо руками — не перетираем.
   const st = email.extraction?.status;
-  if (st && st !== 'queued' && st !== 'manual') return { emailId, ids, skipped: st };
+  // 'pending' с boxPrefilled — это триггер ai_box_job_finished уже
+  // перенёс распознавание в письмо, но строку КП не писал: дописываем.
+  const prefilled = st === 'pending' && email.extraction?.boxPrefilled === true;
+  if (st && st !== 'queued' && st !== 'manual' && !prefilled) return { emailId, ids, skipped: st };
   let extraction = buildExtractionFromJobs(jobs);
   const invoices = (extraction.status === 'pending' ? [extraction, ...(extraction.additionalInvoices ?? [])] : []);
   const several = invoices.length > 1;

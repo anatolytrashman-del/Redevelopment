@@ -105,6 +105,9 @@ export interface EmailExtraction {
   // api/_aiBox.js), результат ещё не пришёл; 'manual' — бокс счёта не
   // нашёл или не справился: «Разобрать вручную» (файлы — в manualFiles).
   status: 'pending' | 'confirmed' | 'dismissed' | 'none' | 'queued' | 'manual';
+  // Распознавание с бокса перенёс в письмо SQL-триггер, строку КП ещё не
+  // записал (это делает api/_aiBox.js и снимает флаг).
+  boxPrefilled?: boolean;
   boxJobs?: { id: string; fileName: string; url: string }[];
   manualFiles?: { url: string; fileName: string }[];
   // Владелец, 2026-09-12: "мне нужно автоматическое распознавание счетов и

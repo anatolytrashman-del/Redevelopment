@@ -132,6 +132,19 @@ describe('applyFinishedBoxJobs', () => {
     expect(d.markApplied).toHaveBeenCalledTimes(2);
   });
 
+  it('дописывает КП в письмо, которое триггер уже заполнил (boxPrefilled)', async () => {
+    const jobs = [job('1', 'a.pdf')];
+    const d = deps({
+      listFinished: vi.fn(async () => jobs),
+      listEmailJobs: vi.fn(async () => jobs),
+      getEmail: vi.fn(async () => ({ id: 'e1', offer_id: 'o1', subject: '', extraction: { status: 'pending', boxPrefilled: true } })),
+    });
+    await applyFinishedBoxJobs({}, d);
+    const ex = d.updateEmailExtraction.mock.calls[0][1];
+    expect(ex.status).toBe('confirmed');
+    expect(ex.boxPrefilled).toBeUndefined();
+  });
+
   it('сбой записи в карточку: письмо остаётся pending для ручного подтверждения', async () => {
     const jobs = [job('1', 'a.pdf')];
     const d = deps({
