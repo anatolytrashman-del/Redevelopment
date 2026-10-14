@@ -336,7 +336,7 @@ html.ml-motion-ready .ml-reveal-delay-2 {
   }
 }
 
-/* Юридические страницы (/offer, /license/zuev, /privacy, /consent, /requisites): HTML из docx с <strong>/<h2>/<p>. */
+/* Юридические страницы (/offer, /license/zuev, /privacy, /requisites): HTML из docx с <strong>/<h2>/<p>. */
 .legal-doc h2 {
   margin-top: 1.25rem;
   font-size: 1.125rem;
