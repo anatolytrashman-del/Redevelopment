@@ -1,12 +1,6 @@
 {
   "git": {
-    "deploymentEnabled": {
-      "**": false,
-      "main": true,
-      "claude/redevelopment-platform-prototype-oodobu": true,
-      "preview": true,
-      "cursor/**": true
-    }
+    "deploymentEnabled": false
   },
   "functions": {
     "api/transcribe.js": {
@@ -168,6 +162,23 @@
         {
           "key": "X-Robots-Tag",
           "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/bd8e9fbda15de4a22e11456b81dfdeb4.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
         }
       ]
     }
