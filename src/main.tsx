@@ -94,6 +94,12 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
       wBrowse.__tcBrowseBodyHtml = (glanceEl?.outerHTML ?? '') + shelvesEl.outerHTML
     }
   }
+
+  // AUDIT-2026-10: if we captured body HTML, immediately ensure the DOM element has it
+  // before React/hydration runs. This protects against any wipe during takeover.
+  if (wBrowse.__tcBrowseBodyHtml && browseBody) {
+    browseBody.innerHTML = wBrowse.__tcBrowseBodyHtml
+  }
   // FAQ и «N ТЦ» в hero — вне #tc-browse-body; без снимка React на лёгком
   // browse-home рисует пустой FAQ / «— ТЦ» до прихода centers (CLS + TBT).
   const faqEl = container.querySelector('#faq')

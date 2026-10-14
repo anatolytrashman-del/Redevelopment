@@ -468,6 +468,7 @@ function TcBrowseBodyMount({
         id="tc-browse-body"
         ref={containerRef}
         dangerouslySetInnerHTML={{ __html: preservedHtml.current }}
+        suppressHydrationWarning
       />
     );
   }
