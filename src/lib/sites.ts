@@ -259,7 +259,11 @@ export function robotsSitemapLine(host: string): string {
   if (CATALOG_DOMAIN_SPLIT_ENABLED && bare === MALLS.host) {
     return `Sitemap: ${MALLS.origin}/sitemap.xml`;
   }
-  return `Sitemap: ${PLATFORM.origin}/sitemap.xml`;
+  // Platform: основной sitemap + временный sitemap старых URL (seo-deploy, ~до янв 2027).
+  return [
+    `Sitemap: ${PLATFORM.origin}/sitemap.xml`,
+    `Sitemap: ${PLATFORM.origin}/sitemap-old-urls.xml`,
+  ].join('\n');
 }
 
 /**

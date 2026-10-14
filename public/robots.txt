@@ -4,3 +4,4 @@ Disallow: /pitch
 Disallow: /*/draft
 
 Sitemap: https://redevelopment.pro/sitemap.xml
+Sitemap: https://redevelopment.pro/sitemap-old-urls.xml
