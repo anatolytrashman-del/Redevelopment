@@ -19,6 +19,12 @@
     <priority>0.2</priority>
   </url>
   <url>
+    <loc>https://redevelopment.pro/offer</loc>
+    <lastmod>2026-10-14</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://redevelopment.pro/minsk/one</loc>
     <lastmod>2026-08-23</lastmod>
     <changefreq>weekly</changefreq>
@@ -1220,5 +1226,11 @@
     <loc>https://redevelopment.pro/minsk/tc/zhinovicha-7</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://redevelopment.pro/requisites</loc>
+    <lastmod>2026-10-14</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.2</priority>
   </url>
 </urlset>

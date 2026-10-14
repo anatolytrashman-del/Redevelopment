@@ -335,3 +335,44 @@ html.ml-motion-ready .ml-reveal-delay-2 {
     transform: none;
   }
 }
+
+/* Юридические страницы (/offer, /license/zuev, /privacy, /requisites): HTML из docx с <strong>/<h2>/<p>. */
+.legal-doc h2 {
+  margin-top: 1.25rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: inherit;
+}
+.legal-doc h2:first-child {
+  margin-top: 0;
+}
+.legal-doc p {
+  margin: 0;
+}
+.legal-doc strong {
+  font-weight: 700;
+}
+.legal-doc a {
+  color: var(--color-primary, #e4152b);
+  text-decoration: underline;
+}
+.legal-doc h1 {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+.legal-doc ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.legal-doc .legal-table {
+  overflow-x: auto;
+}
+.legal-doc table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.legal-doc td {
+  border: 1px solid var(--color-border, #ddd);
+  padding: 0.5rem;
+  vertical-align: top;
+}
