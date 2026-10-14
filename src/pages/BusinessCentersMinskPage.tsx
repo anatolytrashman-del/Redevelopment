@@ -465,7 +465,7 @@ function TcBrowseBodyMount({
   return (
     <div id="tc-browse-body" className="contents">
       <TradeCenterBrowseGlance figures={figures} />
-      <div id="tc-shelves">
+      <div id="tc-shelves" className="mt-3 sm:mt-4">
         <TradeCenterEditorialShelves shelves={shelves} />
       </div>
     </div>

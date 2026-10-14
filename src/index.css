@@ -238,13 +238,22 @@ html.ml-motion-ready .ml-reveal-delay-2 {
 }
 
 .ml-lookbook-shelf-row {
-  /* Без CSS scroll-snap — он даёт «андроидные» жёсткие стопы.
-     Дотягивание к карточке — в attachAppleShelfScroll (ease-out quint). */
+  /* iPhone-like горизонтальный скролл:
+     - proximity snap даёт мягкую "примагничивание" без жёстких андроидных щелчков
+     - нативная инерция iOS остаётся главной
+     - JS только мягко дотягивает после остановки жеста
+  */
+  scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   touch-action: pan-x;
   scrollbar-width: none;
-  scroll-padding-inline: 0.25rem;
+  scroll-padding-inline: 0.5rem;
+}
+
+.ml-lookbook-shelf-row > li {
+  scroll-snap-align: start;
 }
 .ml-lookbook-shelf-row::-webkit-scrollbar {
   display: none;

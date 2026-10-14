@@ -295,7 +295,7 @@ function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
       </div>
       <ul
         ref={rowRef}
-        className="ml-lookbook-shelf-row -mx-1 flex list-none gap-2.5 overflow-x-auto px-1 pb-2 sm:gap-3"
+        className="ml-lookbook-shelf-row -mx-2 flex list-none gap-2.5 overflow-x-auto px-2 pb-2 sm:gap-3 sm:-mx-3 sm:px-3"
         aria-label={`${shelf.title}: листайте вбок`}
       >
         {shelf.cards.map((card, i) => (
@@ -357,7 +357,7 @@ export function TradeCenterEditorialShelves({ shelves }: { shelves: TcEditorialS
   if (!shelves.length) return null;
   return (
     <div
-      className={cn('flex flex-col gap-8 overflow-hidden p-4 sm:gap-11 sm:p-8', glassCardClass)}
+      className={cn('flex flex-col gap-8 p-4 sm:gap-11 sm:p-8', glassCardClass)}
       style={glassCardShadow}
     >
       {shelves.map((shelf) => (
