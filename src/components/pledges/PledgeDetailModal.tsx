@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pencil, Trash2, FileText, Maximize2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 import { Button } from '../ui/Button';
 import { ImageLightbox, type LightboxState } from '../objects/ImageLightbox';
 import { PledgePhotoCarousel } from './PledgePhotoCarousel';
@@ -110,7 +111,8 @@ export function PledgeDetailModal({ pledge, onClose, onEdit, onDelete, deleting 
             >
               {certificateUrl ? (
                 <>
-                  <img src={certificateUrl} alt="Свидетельство БРТИ" className="h-full w-full cursor-zoom-in object-cover" />
+                  {/* AUDIT-2026-10 Task 001 */}
+                  <OptimizedImage src={certificateUrl} alt="Свидетельство БРТИ" className="h-full w-full cursor-zoom-in object-cover" objectFit="cover" />
                   <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-ink shadow-sm">
                     <Maximize2 className="h-3 w-3" />
                     Зум

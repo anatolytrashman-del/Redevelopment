@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cn } from '../../lib/cn';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 
 const sizeClasses = {
   sm: 'h-8 w-8 text-[11px]',
@@ -55,7 +56,7 @@ export function Avatar({ name, photoPath, resolveUrl, size = 'sm', className }: 
         className,
       )}
     >
-      {url ? <img src={url} alt={name} className="h-full w-full object-cover" /> : initials(name)}
+      {url ? <OptimizedImage src={url} alt={name} className="h-full w-full object-cover" objectFit="cover" /> : initials(name)} {/* AUDIT-2026-10 Task 001 */}
     </span>
   );
 }

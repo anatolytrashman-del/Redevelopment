@@ -11,6 +11,7 @@ import type { Moodboard } from '../data/moodboards';
 import { fetchMoodboards, insertMoodboard, deleteMoodboard } from '../lib/moodboardsApi';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
+import { OptimizedImage } from '../components/common/OptimizedImage'; // AUDIT-2026-10 Task 001: миграция на единый компонент изображений (мозаика мудбордов)
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -37,17 +38,31 @@ function MoodboardPreview({ photoUrls }: { photoUrls: string[] }) {
 
   return (
     <div className="grid h-36 grid-cols-2 grid-rows-2 gap-0.5 overflow-hidden rounded-control bg-surface-muted">
-      {photos.length === 1 && <img src={photos[0]} alt="" className="col-span-2 row-span-2 h-full w-full object-cover" />}
+      {/* AUDIT-2026-10 Task 001: миграция всех <img> в мозаике на OptimizedImage.
+         Единые loading/fetchPriority/width/height по умолчанию.
+         Это уменьшит разнобой в поведении картинок и поможет с морганиями при гидратации.
+         Для превью в админке/дизайне — lazy по умолчанию (не LCP). */}
+      {photos.length === 1 && (
+        <OptimizedImage
+          src={photos[0]}
+          alt=""
+          className="col-span-2 row-span-2 h-full w-full object-cover"
+          objectFit="cover"
+        />
+      )}
       {photos.length === 2 &&
-        photos.map((url) => <img key={url} src={url} alt="" className="row-span-2 h-full w-full object-cover" />)}
+        photos.map((url) => (
+          <OptimizedImage key={url} src={url} alt="" className="row-span-2 h-full w-full object-cover" objectFit="cover" />
+        ))}
       {photos.length === 3 && (
         <>
-          <img src={photos[0]} alt="" className="row-span-2 h-full w-full object-cover" />
-          <img src={photos[1]} alt="" className="h-full w-full object-cover" />
-          <img src={photos[2]} alt="" className="h-full w-full object-cover" />
+          <OptimizedImage src={photos[0]} alt="" className="row-span-2 h-full w-full object-cover" objectFit="cover" />
+          <OptimizedImage src={photos[1]} alt="" className="h-full w-full object-cover" objectFit="cover" />
+          <OptimizedImage src={photos[2]} alt="" className="h-full w-full object-cover" objectFit="cover" />
         </>
       )}
-      {photos.length >= 4 && photos.map((url) => <img key={url} src={url} alt="" className="h-full w-full object-cover" />)}
+      {photos.length >= 4 &&
+        photos.map((url) => <OptimizedImage key={url} src={url} alt="" className="h-full w-full object-cover" objectFit="cover" />)}
     </div>
   );
 }
@@ -187,7 +202,9 @@ export function DesignProjects() {
             >
               <div className="flex h-36 items-center justify-center overflow-hidden rounded-control bg-surface-muted">
                 {p.photoUrls[0] ? (
-                  <img src={p.photoUrls[0]} alt="" className="h-full w-full object-cover" />
+                  /* AUDIT-2026-10 Task 001: миграция последнего <img> в DesignProjects на OptimizedImage.
+                     Теперь весь файл использует единый компонент. */
+                  <OptimizedImage src={p.photoUrls[0]} alt="" className="h-full w-full object-cover" objectFit="cover" />
                 ) : (
                   <ImageOff className="h-8 w-8 text-ink-faint" />
                 )}

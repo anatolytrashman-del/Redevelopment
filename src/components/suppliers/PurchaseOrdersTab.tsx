@@ -458,6 +458,7 @@ function PurchaseOrderModal({
             <Badge tone="neutral">Отменён</Badge>
           ) : (
             <div className="-mx-1 flex max-w-full items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
+              {/* AUDIT-2026-10: -mx-1 for status steps horizontal on mobile (common pattern). Documented per systemic negative margins audit. */}
             {steps.map((label, i) => (
               // На телефоне виден только текущий шаг: четыре не помещаются в строку.
               <div key={i} className={cn('items-center gap-1.5', i === current ? 'flex' : 'hidden sm:flex')}>

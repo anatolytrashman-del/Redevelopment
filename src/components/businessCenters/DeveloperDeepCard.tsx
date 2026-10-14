@@ -13,6 +13,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { DeveloperInfo } from '../../data/businessCenters';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 import {
   PORTFOLIO_PREVIEW,
   collectDeveloperSources,
@@ -75,13 +76,17 @@ export function DeveloperDeepCard({
             <span className="min-w-0 break-words">{title}</span>
           </h2>
           {info.logoUrl && (
-            <img src={info.logoUrl} alt={logoAlt} loading="lazy" className="h-9 w-auto max-w-[10rem] object-contain" />
+            <>
+              {/* AUDIT-2026-10 Task 001 */}
+              <OptimizedImage src={info.logoUrl} alt={logoAlt} loadingStrategy="lazy" className="h-9 w-auto max-w-[10rem] object-contain" objectFit="contain" />
+            </>
           )}
         </div>
       )}
       {embedded && info.logoUrl && (
         <div className="flex justify-end">
-          <img src={info.logoUrl} alt={logoAlt} loading="lazy" className="h-9 w-auto max-w-[10rem] object-contain" />
+          {/* AUDIT-2026-10 Task 001 */}
+          <OptimizedImage src={info.logoUrl} alt={logoAlt} loadingStrategy="lazy" className="h-9 w-auto max-w-[10rem] object-contain" objectFit="contain" />
         </div>
       )}
 

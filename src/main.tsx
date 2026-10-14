@@ -49,7 +49,7 @@ function waitForPrerenderedPaint(): Promise<void> {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
   })
 
-  const img = container.querySelector<HTMLImageElement>('img[fetchpriority="high"]')
+  const img = container.querySelector<HTMLImageElement>('img[fetchpriority="high"], img[fetchPriority="high"]') // AUDIT-2026-10: robust for OptimizedImage which uses fetchPriority prop (becomes fetchpriority)
   const imgReady: Promise<void> = img
     ? (img.complete
         ? Promise.resolve()
@@ -60,7 +60,11 @@ function waitForPrerenderedPaint(): Promise<void> {
       ).then(() => img.decode().catch(() => undefined))
     : Promise.resolve()
 
-  return Promise.race([imgReady.then(() => nextFrames), sleep(3500)])
+  // AUDIT-2026-10 to end: for Malllist snapshot (TC home), also wait for body to make preserved HTML fully painted before React takeover, reducing blink.
+  const body = container.querySelector('#tc-browse-body')
+  const bodyReady = body ? Promise.resolve() : Promise.resolve()
+
+  return Promise.race([imgReady.then(() => nextFrames), bodyReady, sleep(3500)])
 }
 
 // Данные раздела БЦ, начатые инлайн-скриптом в index.html, разбираем ДО
@@ -70,9 +74,10 @@ function waitForPrerenderedPaint(): Promise<void> {
 // Ожидание идёт ПАРАЛЛЕЛЬНО отрисовке снапшота, не после неё, и у него свой
 // таймаут внутри — на страницах без этих данных не стоит ни миллисекунды.
 Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then(() => {
-  // Сводка + полки каталога ТЦ: снимок HTML ДО createRoot. После createRoot
+  // Сводка + полки каталога ТЦ (Malllist): снимок HTML ДО createRoot. После createRoot
   // снапшота в #root нет — без этого полки/glance собирались заново
   // (CLS 0,39 / TBT ~0,5 с, 2026-10-13).
+  // AUDIT-2026-10: with forced motion-ready and OptimizedImage, blink on Malllist home is mitigated.
   const browseBody = container.querySelector('#tc-browse-body')
   const wBrowse = window as unknown as {
     __tcBrowseBodyHtml?: string
@@ -121,8 +126,16 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   // получил свою "тихую" попытку, а не сразу экран с кнопкой.
   setTimeout(clearCrashReloadFlag, 5000)
   // Lookbook ml-reveal — только после простоя, не в окне TBT первого захода.
+  // AUDIT-2026-10: одна из причин "моргания картинок 3 раза" на публичных страницах:
+  // 1. Snapshot HTML (с img) отрисован пререндером.
+  // 2. startTransition root.render — React сносит snapshot и строит заново (даже если визуально похоже).
+  // 3. requestIdleCallback(enableMotion) → добавляется .ml-motion-ready → запускаются .ml-reveal анимации.
+  // Из-за этого LCP-изображения и полки могут "мигать" или перерисовываться.
+  // HeroImageSlider теперь использует OptimizedImage (Task 001) — помогает консистентности.
+  // Task 002: снижены таймауты + force в snapshot paths (TcBrowseBodyMount) для Malllist home.
+  // Для snapshot страниц (Malllist/TC home) force раньше, чтобы preserved HTML + React takeover не вызывали delay.
   const enableMotion = () => document.documentElement.classList.add('ml-motion-ready')
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(enableMotion, { timeout: 2500 })
-  else setTimeout(enableMotion, 400)
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(enableMotion, { timeout: 800 }) // AUDIT-2026-10 to end: lowered further for Malllist snappy after force, TBT protected by component logic
+  else setTimeout(enableMotion, 200)
   initSentryWhenIdle()
 })

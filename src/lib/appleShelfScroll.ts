@@ -4,7 +4,11 @@
  * Основное — нативный скролл + CSS scroll-snap (proximity).
  * Дополнительно: после остановки жеста — мягкое дотягивание к ближайшей карточке.
  * 
- * Убрано агрессивное RAF-лерп на wheel (оно и вызывало "само ездит" и зависания).
+ * AUDIT-2026-10: упрощённая версия (см. историю фикса scroll в preview).
+ * Убрано агрессивное RAF-лерп на wheel (оно и вызывало "само ездит" и зависания на iPhone).
+ * Сейчас: CSS snap + nearest + on scrollend / timeout settle.
+ * 
+ * Если будут жалобы на скролл — проверять attach в TcBrowseBodyMount и TradeCenterEditorialShelves.
  */
 
 export function prefersReducedMotion(): boolean {

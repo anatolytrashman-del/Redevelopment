@@ -64,6 +64,7 @@ import { absolutePublicUrl, catalogSiteUrl, platformOrigin } from '../lib/sites'
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
+import { OptimizedImage } from '../components/common/OptimizedImage'; // AUDIT-2026-10 Task 001: миграция логотипов на единый компонент (для консистентности и CLS защиты)
 import { MINSK_MIR_TOPIC_SLUGS, MINSK_MIR_TOPIC_LABELS, minskMirTopicUrl } from '../data/minskMirTopics';
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { fetchPublicMarketOffers } from '../lib/marketOffersApi';
@@ -1794,8 +1795,8 @@ export function DistrictGuidePage() {
                   lazy браузер запрашивал их сразу из разметки (preload-
                   сканер), и они вставали в очередь рядом с LCP-картинкой
                   и шрифтами (PAGESPEED_PLAN.md, Э7-4). */}
-              <img src={DEVELOPER_LOGO_URL} alt="Dana Holdings" width={368} height={110} loading="lazy" className="h-9 w-auto object-contain" />
-              <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" width={95} height={110} loading="lazy" className="h-9 w-auto object-contain" />
+              <OptimizedImage src={DEVELOPER_LOGO_URL} alt="Dana Holdings" width={368} height={110} loadingStrategy="lazy" className="h-9 w-auto object-contain" objectFit="contain" /> {/* AUDIT-2026-10 Task 001 */}
+              <OptimizedImage src={MINSK_MIR_LOGO_URL} alt="Минск Мир" width={95} height={110} loadingStrategy="lazy" className="h-9 w-auto object-contain" objectFit="contain" /> {/* AUDIT-2026-10 Task 001 */}
             </div>
           </div>
           <p className="text-sm text-ink-muted">

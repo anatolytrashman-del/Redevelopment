@@ -12,6 +12,7 @@ import { financingStatuses, REJECTED_FINANCING_STATUS, type FinancingOffer } fro
 import { badgeColor } from '../lib/badgeColor';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
+import { OptimizedImage } from '../components/common/OptimizedImage'; // AUDIT-2026-10 Task 001
 import {
   fetchFinancingOffers,
   insertFinancingOffer,
@@ -65,7 +66,7 @@ function BankLogo({ url, className }: { url: string; className?: string }) {
       </div>
     );
   }
-  return <img src={url} alt="" className={cn('shrink-0 rounded-control bg-surface-muted object-contain', className)} />;
+  return <OptimizedImage src={url} alt="" className={cn('shrink-0 rounded-control bg-surface-muted object-contain', className)} objectFit="contain" />; // AUDIT-2026-10 Task 001
 }
 
 // Узкая карточка вместо широкой строки таблицы — при логотипе такого

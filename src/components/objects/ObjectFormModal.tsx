@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, ImageOff, FileText, Upload, X } from 'lucide-react';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001: migrating admin object form images for systemic consistency
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
@@ -334,7 +335,8 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
           <div className="flex flex-wrap items-center gap-3">
             {form.photoUrls.map((url, i) => (
               <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-                <img src={url} alt="" className="h-full w-full object-cover" />
+                {/* AUDIT-2026-10 Task 001 */}
+                <OptimizedImage src={url} alt="" className="h-full w-full object-cover" objectFit="cover" />
                 <button
                   type="button"
                   onClick={() => removePhoto(i)}
@@ -375,7 +377,8 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
           <div className="flex flex-wrap items-center gap-3">
             {form.floorPlanUrls.map((url, i) => (
               <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-                <img src={url} alt="" className="h-full w-full object-cover" />
+                {/* AUDIT-2026-10 Task 001 */}
+                <OptimizedImage src={url} alt="" className="h-full w-full object-cover" objectFit="cover" />
                 <button
                   type="button"
                   onClick={() => removeFloorPlan(i)}
@@ -416,7 +419,8 @@ export function ObjectFormModal({ open, onClose, editing, knownStatuses, onSaved
           <div className="flex flex-wrap items-center gap-3">
             {form.renderImageUrls.map((url, i) => (
               <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-                <img src={url} alt="" className="h-full w-full object-cover" />
+                {/* AUDIT-2026-10 Task 001 */}
+                <OptimizedImage src={url} alt="" className="h-full w-full object-cover" objectFit="cover" />
                 <button
                   type="button"
                   onClick={() => removeRenderImage(i)}

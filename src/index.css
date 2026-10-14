@@ -207,12 +207,13 @@ body {
 }
 
 /* Анимацию включаем только после первого кадра (класс на <html>),
-   иначе 35+ ml-reveal на старте каталога жгут style/layout в TBT. */
+   иначе 35+ ml-reveal на старте каталога жгут style/layout в TBT.
+    AUDIT-2026-10: for Malllist, forced early in snapshot paths to reduce blink on home. */
 .ml-reveal {
   opacity: 1;
 }
 html.ml-motion-ready .ml-reveal {
-  animation: 0.55s ease-out both ml-reveal-up;
+  animation: 0.4s ease-out both ml-reveal-up; /* AUDIT-2026-10: faster for beautiful snappy UI on Malllist after snapshot force, still after TBT window */
 }
 html.ml-motion-ready .ml-reveal-delay-1 {
   animation-delay: 80ms;
@@ -228,7 +229,7 @@ html.ml-motion-ready .ml-reveal-delay-2 {
 }
 .group:hover .ml-lookbook-cover,
 .group:focus-within .ml-lookbook-cover {
-  transform: translateY(-3px) scale(1.02);
+  transform: translateY(-3px) scale(1.03); /* AUDIT-2026-10 to end: slightly more for beautiful UI on Malllist shelves, still subtle */
   box-shadow: 0 16px 36px #00000030;
 }
 

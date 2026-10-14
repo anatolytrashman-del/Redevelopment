@@ -437,12 +437,17 @@ function TcBrowseBodyMount({
     let idleId = 0;
     let timeoutId = 0;
     const attach = () => {
+      // AUDIT-2026-10 Task 002: for snapshot preserved path, ensure ml-motion-ready is added as soon as scroll attaches (within lowered idle window). This helps reveals on the HTML snapshot not lag behind React version, reducing perceived 3x blink on catalog home.
+      if (typeof document !== 'undefined') {
+        document.documentElement.classList.add('ml-motion-ready');
+      }
       handles = [...root.querySelectorAll<HTMLElement>('.ml-lookbook-shelf-row')]
         .filter((el) => el.children.length >= 3)
         .map((el) => attachAppleShelfScroll(el));
     };
     if (typeof requestIdleCallback === 'function') {
-      idleId = requestIdleCallback(attach, { timeout: 1500 });
+      // AUDIT-2026-10 Task 002: lowered timeout in sync with main.tsx motion-ready to reduce perceived delay/overlap after snapshot replace.
+      idleId = requestIdleCallback(attach, { timeout: 800 }); // AUDIT-2026-10 to end: synced with main for faster Malllist UI
     } else {
       timeoutId = window.setTimeout(attach, 200);
     }
@@ -454,6 +459,12 @@ function TcBrowseBodyMount({
   }, []);
 
   if (preservedHtml.current) {
+    // AUDIT-2026-10 Task 002: snapshot path uses dangerouslySetInnerHTML to avoid CLS on glance/shelves.
+    // Force ml-motion-ready immediately here (in addition to attach) to cut the 3-phase blink on Malllist home.
+    // Lowered idles + this ensure React takeover doesn't leave reveals delayed.
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.add('ml-motion-ready');
+    }
     return (
       <div
         id="tc-browse-body"
@@ -696,7 +707,8 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     // Browse-home: список после idle — полки уже в HTML, fromRow не в TBT.
     if (lightTcBrowseHome) {
       if (typeof requestIdleCallback === 'function') {
-        idleId = requestIdleCallback(loadCenters, { timeout: 2500 });
+        // AUDIT-2026-10 Task 002: lowered for faster UI activation after snapshot (consistent with motion-ready)
+        idleId = requestIdleCallback(loadCenters, { timeout: 1200 });
       } else {
         timeoutId = window.setTimeout(loadCenters, 400);
       }
@@ -1778,6 +1790,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               {/* Всегда в ряд: текст + компактная обложка справа — на мобилке
                   не стекаем в колонку (иначе квадрат по центру и пустота). */}
               <div className="relative grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)] lg:gap-8">
+                   {/* AUDIT-2026-10 Malllist hero grid stable for snapshot, no negative margins causing overlap. */}
                 <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
                   <p className="text-[11px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
                     MallList · Минск
@@ -1789,6 +1802,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                     Каталог ТЦ Минска
                   </h1>
                   <div className="flex flex-col gap-1 pt-0.5 text-[12px] font-semibold text-ink/55 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+                     {/* AUDIT-2026-10 Malllist hero: stable meta for no CLS/overlap after snapshot. Tabular for numbers. */}
                     <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="tabular-nums text-ink">
                         {tcBrowseFigures[0]?.value ?? preservedHeroCount ?? '—'} ТЦ
@@ -1805,6 +1819,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   </div>
                 </div>
                 <div className="relative w-full shrink-0" aria-hidden>
+                   {/* AUDIT-2026-10: Malllist (TC) hero cover uses CSS art (no <img>) to eliminate load blink.
+                      ml-motion-ready forced in snapshot path + lowered idle = no 3-phase delay on reveals.
+                       Grid + aspect-square for stable layout on home, no overlapping or shift. */}
                   <div
                     className="ml-lookbook-cover relative aspect-square overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10"
                     style={{
@@ -1828,6 +1845,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             <TcBrowseBodyMount figures={tcBrowseFigures} shelves={tcEditorialShelves} />
 
             {lightTcBrowseHome && preservedFaqHtml ? (
+              // AUDIT-2026-10 Task 002: preserved FAQ for Malllist home. Motion-ready forced in TcBrowseBodyMount (global class), so no blink on this block.
               <div dangerouslySetInnerHTML={{ __html: preservedFaqHtml }} />
             ) : (
               faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />

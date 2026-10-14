@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { OptimizedImage } from '../common/OptimizedImage';  // AUDIT-2026-10 Task 001: используем новый единый компонент для изображений
 
 const AUTOPLAY_MS = 5000;
 // PAGESPEED_PLAN.md, Э7-4 — пауза между window 'load' и ПЕРВЫМ
@@ -137,16 +138,21 @@ export function HeroImageSlider({
               }
         }
       >
-        <img
+        {/* AUDIT-2026-10 Task 001: Миграция на OptimizedImage для единообразия.
+           Это первый реальный шаг по устранению моргания изображений.
+           Сохраняем все пропсы, которые были (fetchPriority high для LCP, eager и т.д.).
+           В будущем сюда можно будет добавить blur placeholder и т.д. */}
+        <OptimizedImage
           src={images[index]}
           srcSet={srcSets?.[index]}
           sizes={srcSets?.[index] ? sizes : undefined}
           alt={alt}
           className={cn('h-full w-full', plain ? 'object-contain' : 'object-cover')}
-          loading="eager"
-          fetchPriority="high"
+          priority="high"
+          loadingStrategy="eager"
           width={imageWidth}
           height={imageHeight}
+          objectFit={plain ? 'contain' : 'cover'}
         />
 
         {images.length > 1 && (

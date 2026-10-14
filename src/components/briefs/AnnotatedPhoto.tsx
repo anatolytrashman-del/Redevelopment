@@ -5,6 +5,7 @@ import { Textarea } from '../ui/Textarea';
 import { Input } from '../ui/Input';
 import { ReferencePopup } from './ReferencePopup';
 import { cn } from '../../lib/cn';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 import { changeHasReference, changeIsEmpty, type PhotoChange, type PhotoMarker } from '../../data/briefs';
 import { uploadObjectImage } from '../../lib/objectsApi';
 
@@ -161,7 +162,8 @@ export function AnnotatedPhoto({
           editable && 'cursor-crosshair',
         )}
       >
-        <img src={url} alt="" className="pointer-events-none h-full w-full select-none object-cover" />
+        {/* AUDIT-2026-10 Task 001 */}
+        <OptimizedImage src={url} alt="" className="pointer-events-none h-full w-full select-none object-cover" objectFit="cover" />
         {markers.map((m, i) => (
           <Marker key={m.id} index={i} x={m.x} y={m.y} />
         ))}
@@ -260,7 +262,7 @@ export function AnnotatedPhoto({
                     <div className="flex items-start gap-2">
                       {change.referenceImageUrl ? (
                         <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-                          <img src={change.referenceImageUrl} alt="" className="h-full w-full object-cover" />
+                          <OptimizedImage src={change.referenceImageUrl} alt="" className="h-full w-full object-cover" objectFit="cover" /> {/* AUDIT-2026-10 Task 001 */}
                           <button
                             type="button"
                             onClick={() => onChangeReferenceImage?.(m.changeId, '')}

@@ -59,6 +59,7 @@ import {
 } from 'lucide-react';
 import { outletBrand } from '../data/mediaOutlets';
 import { cn } from '../lib/cn';
+import { OptimizedImage } from '../components/common/OptimizedImage'; // AUDIT-2026-10 Task 001
 import { renderBold } from '../lib/renderBold';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { Badge } from '../components/ui/Badge';
@@ -4192,7 +4193,7 @@ function MediaOutletMark({ url, outlet }: { url: string; outlet: string }) {
   }
   return (
     <span className="flex shrink-0 items-center sm:w-[120px]">
-      <img src={brand.logo} alt={label} loading="lazy" onError={() => setFailed(true)} className={cn('h-auto', MEDIA_LOGO_WIDTH)} />
+      <OptimizedImage src={brand.logo} alt={label} loadingStrategy="lazy" onError={() => setFailed(true)} className={cn('h-auto', MEDIA_LOGO_WIDTH)} /> {/* AUDIT-2026-10 Task 001 */}
     </span>
   );
 }

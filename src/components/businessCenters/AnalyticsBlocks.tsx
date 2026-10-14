@@ -470,6 +470,7 @@ export function DistrictScatterBlock({
     >
       <p className="text-xs text-ink-faint sm:hidden">Диаграмму можно прокрутить вбок — или посмотреть тот же порядок списком под ней.</p>
       <div className="-mx-2 overflow-x-auto sm:mx-0">
+        {/* AUDIT-2026-10: -mx-2 for horizontal scroll bleed on mobile analytics (similar to shelves). Documented, not a bug. */}
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="h-auto w-full min-w-[34rem]"
