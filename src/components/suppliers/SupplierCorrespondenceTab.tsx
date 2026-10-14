@@ -28,7 +28,11 @@ import type {
 } from '../../data/supplierOfferEmails';
 import { isFirstOutgoingToOffer, extractionInvoices } from '../../data/supplierOfferEmails';
 import { emailSendStatusLabel } from '../../data/emailSendStatus';
-import { sendSupplierOfferEmail, setSupplierOfferEmailExtractionStatus } from '../../lib/supplierOfferEmailsApi';
+import {
+  sendSupplierOfferEmail,
+  setSupplierOfferEmailExtractionStatus,
+  fetchSupplierOfferEmailBodies,
+} from '../../lib/supplierOfferEmailsApi';
 import type { LegalEntity } from '../../data/legalEntities';
 import { resolveRequestLegalEntity, fetchDocumentFileAsAttachment, fileToAttachment } from '../../lib/legalEntityAttachment';
 import type { EmailTemplate } from '../../data/emailTemplates';
@@ -51,7 +55,6 @@ import type { EmailAutoReplyLogEntry } from '../../data/emailAutoReply';
 import { pendingIncomingEmails } from '../../lib/pendingEmails';
 import type { UnmatchedIncomingEmail } from '../../data/unmatchedIncomingEmails';
 import {
-  fetchUnmatchedIncomingEmails,
   attachUnmatchedIncomingEmail,
   dismissUnmatchedIncomingEmail,
 } from '../../lib/unmatchedIncomingEmailsApi';
@@ -711,6 +714,8 @@ export function EmailThread({
   onAutoReplyReviewed,
   composerOnly = false,
   preferred = false,
+  bodyLoadFailedOfferIds,
+  bodyReadyOfferIds,
 }: {
   offer: SupplierOffer;
   // Владелец, 2026-09-03: "1 заявка на поставку — одна ветка" — null здесь
@@ -751,6 +756,10 @@ export function EmailThread({
   composerOnly?: boolean;
   // Компания отмечена избранной — звезда на входящих письмах этого треда.
   preferred?: boolean;
+  // offer id, для которых догрузка тела упала — иначе пустой body выглядит
+  // как «письмо без текста», хотя текст просто не приехал.
+  bodyLoadFailedOfferIds?: ReadonlySet<string>;
+  bodyReadyOfferIds?: ReadonlySet<string>;
 }) {
   // Письма именно текущего треда — основной переписки (order=null) или
   // конкретной заявки. e.orderId null и undefined тут не разводим, в базе
@@ -1509,6 +1518,8 @@ export function EmailThread({
                 читает emails[emails.length-1] как последнее). */}
             {[...threadEmails].reverse().map((e, i) => {
               const { visible, quoted } = splitQuotedReply(e.body);
+              const bodyFailed = !e.body && !!bodyLoadFailedOfferIds?.has(e.offerId);
+              const bodyPending = !e.body && !bodyFailed && !bodyReadyOfferIds?.has(e.offerId);
               const isQuoteExpanded = expandedQuoteIds.has(e.id);
               // Владелец, 2026-09-03: "кнопка Ответить нужна только на
               // последнем письме" — после reverse() индекс 0 и есть самое
@@ -1830,7 +1841,9 @@ export function EmailThread({
                     </div>
                   );
                 })}
-                <div className="whitespace-pre-wrap text-ink">{visible}</div>
+                <div className="whitespace-pre-wrap text-ink">
+                  {bodyFailed ? 'Текст письма не загрузился' : bodyPending ? 'Загружаем текст...' : visible}
+                </div>
                 {quoted && (
                   <div className="mt-1">
                     <button
@@ -2691,11 +2704,15 @@ function MergedFeed({
   preferred,
   pendingAutoReplies,
   onOpenTopic,
+  bodyLoadFailedOfferIds,
+  bodyReadyOfferIds,
 }: {
   conv: Conversation;
   preferred: boolean;
   pendingAutoReplies: EmailAutoReplyLogEntry[];
   onOpenTopic: (key: string) => void;
+  bodyLoadFailedOfferIds?: ReadonlySet<string>;
+  bodyReadyOfferIds?: ReadonlySet<string>;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const titleByKey = useMemo(() => new Map(conv.topics.map((t) => [t.key, t.title])), [conv.topics]);
@@ -2755,7 +2772,13 @@ function MergedFeed({
                 </button>
               </div>
               {e.subject && <span className="font-semibold text-ink [overflow-wrap:anywhere]">{e.subject}</span>}
-              {visible && <p className="whitespace-pre-wrap text-ink [overflow-wrap:anywhere]">{visible}</p>}
+              {visible ? (
+                <p className="whitespace-pre-wrap text-ink [overflow-wrap:anywhere]">{visible}</p>
+              ) : bodyLoadFailedOfferIds?.has(e.offerId) ? (
+                <p className="text-ink-faint">Текст письма не загрузился</p>
+              ) : bodyReadyOfferIds?.has(e.offerId) ? null : (
+                <p className="text-ink-faint">Загружаем текст...</p>
+              )}
               {e.files.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {e.files.map((f, i) => (
@@ -2832,6 +2855,10 @@ export function SupplierCorrespondenceTab({
   onQuotesChange,
   pendingAutoReplies,
   onAutoReplyReviewed,
+  unmatched,
+  unmatchedError = null,
+  onUnmatchedReload,
+  onEmailsHydrated,
 }: {
   requests: SupplierRequest[];
   offers: SupplierOffer[];
@@ -2864,6 +2891,10 @@ export function SupplierCorrespondenceTab({
   // (Suppliers.tsx), тут только проброс в открытый тред.
   pendingAutoReplies: EmailAutoReplyLogEntry[];
   onAutoReplyReviewed: (id: string) => void;
+  unmatched: UnmatchedIncomingEmail[];
+  unmatchedError?: string | null;
+  onUnmatchedReload: () => void;
+  onEmailsHydrated: (bodies: { id: string; body: string; extraction: EmailExtraction | null }[]) => void;
 }) {
   // Владелец, 2026-09-04: "сидишь на странице конкретной переписки,
   // обновляешь — и всё слетело... кастомный урл даже на переписки с
@@ -2884,6 +2915,17 @@ export function SupplierCorrespondenceTab({
       cancelled = true;
     };
   }, []);
+
+  // Гидрация тел по offerId — только когда выбираем переписку, и только
+  // те offer'ы, которые ещё не дёргали (ref, чтобы не на каждый рендер).
+  // Ошибку не показываем кричаще: тред просто без текста, или маленький
+  // маркер ниже.
+  const hydratedRef = useRef<Set<string>>(new Set());
+  const [bodyLoadFailedFor, setBodyLoadFailedFor] = useState<Set<string>>(new Set());
+  const [bodyReadyFor, setBodyReadyFor] = useState<Set<string>>(new Set());
+  const onEmailsHydratedRef = useRef(onEmailsHydrated);
+  onEmailsHydratedRef.current = onEmailsHydrated;
+
   const selectedOfferId = searchParams.get('offer');
   const selectedOrderId = searchParams.get('order');
 
@@ -2892,24 +2934,7 @@ export function SupplierCorrespondenceTab({
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
-  // Неразобранные входящие (шаг 9): письма на закупочный ящик, которые
-  // вебхук не смог привязать ни к одной карточке. Живут в своей таблице и
-  // грузятся отдельно — к offers/emails страницы они не относятся, пока их
-  // не привязали. Список короткий (единицы штук), поллинга не нужно:
-  // обновляется при открытии вкладки и после каждого разбора.
-  const [unmatched, setUnmatched] = useState<UnmatchedIncomingEmail[]>([]);
   const [selectedUnmatchedId, setSelectedUnmatchedId] = useState<string | null>(null);
-
-  const reloadUnmatched = () => {
-    fetchUnmatchedIncomingEmails()
-      .then(setUnmatched)
-      .catch(() => {
-        // Очередь ручного разбора — вспомогательный список: если он не
-        // загрузился, переписка всё равно должна работать.
-      });
-  };
-
-  useEffect(reloadUnmatched, []);
 
   function handleTemplateSaved(saved: EmailTemplate) {
     onTemplatesChange(templates.some((t) => t.id === saved.id) ? templates.map((t) => (t.id === saved.id ? saved : t)) : [...templates, saved]);
@@ -2935,6 +2960,45 @@ export function SupplierCorrespondenceTab({
   const selectedTopicKey = searchParams.get('topic') ?? (legacyOffer ? topicKey(legacyOffer.id, selectedOrderId) : null);
 
   const selectedConv = conversations.find((c) => c.key === selectedConvKey) ?? null;
+
+  // Тела писем докачиваем только для открытой переписки. Зависимость — ключ,
+  // не сам объект: гидрация меняет emails и пересобирает conversations, и
+  // иначе эффект отменял бы запрос и тут же запускал его снова.
+  useEffect(() => {
+    if (!selectedConv) return;
+    const offerIds = selectedConv.offers.map((o) => o.id);
+    const toFetch = offerIds.filter((id) => !hydratedRef.current.has(id));
+    if (toFetch.length === 0) return;
+    toFetch.forEach((id) => hydratedRef.current.add(id));
+    let cancelled = false;
+    fetchSupplierOfferEmailBodies(toFetch)
+      .then((bodies) => {
+        if (cancelled) {
+          toFetch.forEach((id) => hydratedRef.current.delete(id));
+          return;
+        }
+        if (bodies.length > 0) onEmailsHydratedRef.current(bodies);
+        setBodyReadyFor((prev) => {
+          const next = new Set(prev);
+          toFetch.forEach((id) => next.add(id));
+          return next;
+        });
+      })
+      .catch(() => {
+        toFetch.forEach((id) => hydratedRef.current.delete(id));
+        if (cancelled) return;
+        setBodyLoadFailedFor((prev) => {
+          const next = new Set(prev);
+          toFetch.forEach((id) => next.add(id));
+          return next;
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // selectedConv читается из замыкания того рендера, где сменился ключ.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConv?.key]);
   const selectedTopic = selectedConv?.topics.find((t) => t.key === selectedTopicKey) ?? null;
   const [replyTopicKey, setReplyTopicKey] = useState<string | null>(null);
   const replyTopic =
@@ -3162,24 +3226,30 @@ export function SupplierCorrespondenceTab({
 
           <div className="flex flex-col roomy:min-h-0 roomy:flex-1 roomy:overflow-y-auto">
             {isUnmatchedView ? (
-              unmatched.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => setSelectedUnmatchedId(u.id)}
-                  className={cn(
-                    'flex flex-col items-start gap-0.5 border-t border-border px-4 py-3 text-left text-sm transition-colors',
-                    selectedUnmatchedId === u.id ? 'bg-surface' : 'hover:bg-surface/60',
-                  )}
-                >
-                  <span className="flex w-full items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate font-medium text-ink">{u.subject || 'Без темы'}</span>
-                    {u.isTest && <Badge tone="warning">Тест</Badge>}
-                  </span>
-                  <span className="w-full truncate text-xs text-ink-faint">{u.fromAddress}</span>
-                  <span className="text-xs text-ink-faint">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</span>
-                </button>
-              ))
+              unmatched.length === 0 ? (
+                <p className={cn('p-4 text-sm', unmatchedError ? 'text-danger' : 'text-ink-faint')}>
+                  {unmatchedError ?? 'Неразобранных писем нет.'}
+                </p>
+              ) : (
+                unmatched.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => setSelectedUnmatchedId(u.id)}
+                    className={cn(
+                      'flex flex-col items-start gap-0.5 border-t border-border px-4 py-3 text-left text-sm transition-colors',
+                      selectedUnmatchedId === u.id ? 'bg-surface' : 'hover:bg-surface/60',
+                    )}
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate font-medium text-ink">{u.subject || 'Без темы'}</span>
+                      {u.isTest && <Badge tone="warning">Тест</Badge>}
+                    </span>
+                    <span className="w-full truncate text-xs text-ink-faint">{u.fromAddress}</span>
+                    <span className="text-xs text-ink-faint">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</span>
+                  </button>
+                ))
+              )
             ) : listItems.length > 0 ? (
               listItems
             ) : (
@@ -3214,7 +3284,7 @@ export function SupplierCorrespondenceTab({
                 preferredSupplierIds={preferredSupplierIds}
                 onResolved={(attached) => {
                   setSelectedUnmatchedId(null);
-                  reloadUnmatched();
+                  onUnmatchedReload();
                   // Письмо переехало в переписку поставщика — страница должна
                   // его увидеть, иначе оно появится только после F5.
                   if (attached) onEmailSent(attached);
@@ -3325,6 +3395,8 @@ export function SupplierCorrespondenceTab({
                     pendingAutoReplies={pendingAutoReplies}
                     onAutoReplyReviewed={onAutoReplyReviewed}
                     preferred={!!selectedTopic.offer.supplierId && preferredSupplierIds.has(selectedTopic.offer.supplierId)}
+                    bodyLoadFailedOfferIds={bodyLoadFailedFor}
+                    bodyReadyOfferIds={bodyReadyFor}
                   />
                 </>
               ) : (
@@ -3370,6 +3442,8 @@ export function SupplierCorrespondenceTab({
                         pendingAutoReplies={pendingAutoReplies}
                         onAutoReplyReviewed={onAutoReplyReviewed}
                         preferred={!!replyTopic.offer.supplierId && preferredSupplierIds.has(replyTopic.offer.supplierId)}
+                        bodyLoadFailedOfferIds={bodyLoadFailedFor}
+                        bodyReadyOfferIds={bodyReadyFor}
                       />
                     </div>
                   )}
@@ -3378,6 +3452,8 @@ export function SupplierCorrespondenceTab({
                     preferred={!!selectedConv.supplierId && preferredSupplierIds.has(selectedConv.supplierId)}
                     pendingAutoReplies={pendingAutoReplies}
                     onOpenTopic={selectTopic}
+                    bodyLoadFailedOfferIds={bodyLoadFailedFor}
+                    bodyReadyOfferIds={bodyReadyFor}
                   />
                 </>
               )}

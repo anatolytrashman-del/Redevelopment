@@ -56,8 +56,13 @@ import { AiAgentStatusPill } from '../components/contractors/AiAgentStatusPill';
 import type { SupplierSiteSnapshot } from '../data/supplierSiteSnapshots';
 import { fetchSupplierSiteSnapshots } from '../lib/supplierSiteSnapshotsApi';
 import { SupplierVerificationTab, pendingVerificationHostCount } from '../components/suppliers/SupplierVerificationTab';
-import type { SupplierOfferEmail } from '../data/supplierOfferEmails';
-import { fetchAllSupplierOfferEmails, markSupplierOfferEmailsRead } from '../lib/supplierOfferEmailsApi';
+import type { SupplierOfferEmail, EmailExtraction } from '../data/supplierOfferEmails';
+import {
+  fetchAllSupplierOfferEmails,
+  markSupplierOfferEmailsRead,
+  mergeInboxEmails,
+  applyEmailBodies,
+} from '../lib/supplierOfferEmailsApi';
 import { EmailThread, SupplierCorrespondenceTab, countUnreadSupplierEmails, type EstimateMaterialOption } from '../components/suppliers/SupplierCorrespondenceTab';
 import { PreferredStar } from '../components/suppliers/PreferredStar';
 import { fetchPreferredSupplierIds } from '../lib/suppliersApi';
@@ -1338,6 +1343,7 @@ export function Suppliers() {
   // EMAIL_CORRESPONDENCE_PLAN.md, этап 2), обновляется локально при
   // отправке/прочтении, без повторного fetch на каждое действие.
   const [supplierEmails, setSupplierEmails] = useState<SupplierOfferEmail[]>([]);
+  const [emailsLoadError, setEmailsLoadError] = useState<string | null>(null);
   // Шаблоны писем поставщикам (EMAIL_CORRESPONDENCE_PLAN.md, этап 3) — тот
   // же принцип "один источник правды на странице", что и у supplierEmails.
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
@@ -1370,6 +1376,7 @@ export function Suppliers() {
   // Письма вкладка «Письма» грузит сама ещё раз — тут отдельная копия ради
   // счётчика на обзоре, без связки с фильтром переписки.
   const [overviewUnmatched, setOverviewUnmatched] = useState<UnmatchedIncomingEmail[]>([]);
+  const [unmatchedError, setUnmatchedError] = useState<string | null>(null);
   const [overviewDeliveries, setOverviewDeliveries] = useState<PurchaseDelivery[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   // Загрузка КП «в 1 клик» (владелец, 2026-09-16). Диалог тоже на уровне
@@ -1450,6 +1457,21 @@ export function Suppliers() {
     }
   }
 
+  function onUnmatchedReload() {
+    fetchUnmatchedIncomingEmails()
+      .then((u) => {
+        setOverviewUnmatched(u);
+        setUnmatchedError(null);
+      })
+      .catch((err) => {
+        setUnmatchedError(errorMessage(err, 'Не удалось загрузить неразобранные письма'));
+      });
+  }
+
+  const onEmailsHydrated = (bodies: { id: string; body: string; extraction: EmailExtraction | null }[]) => {
+    setSupplierEmails((prev) => applyEmailBodies(prev, bodies));
+  };
+
   useEffect(() => {
     let cancelled = false;
     // Каталог открываем, как только есть первая порция карточек + запросы:
@@ -1491,7 +1513,16 @@ export function Suppliers() {
     fetchEstimates().then(setEstimates).catch(() => setEstimates([]));
     fetchObjects().then(setObjects).catch(() => setObjects([]));
     fetchLegalEntities().then(setLegalEntities).catch(() => setLegalEntities([]));
-    fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => setSupplierEmails([]));
+    fetchAllSupplierOfferEmails()
+      .then((fresh) => {
+        if (!cancelled) {
+          setSupplierEmails((prev) => mergeInboxEmails(prev, fresh));
+          setEmailsLoadError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setEmailsLoadError(errorMessage(err, 'Не удалось загрузить письма'));
+      });
     fetchEmailTemplates().then(setEmailTemplates).catch(() => setEmailTemplates([]));
     Promise.all([fetchEmailAutoReplyRules(), fetchEmailAutoReplySettings()])
       .then(([rules, settings]) => {
@@ -1507,7 +1538,7 @@ export function Suppliers() {
     fetchMaterialLedgers().then(setMaterialLedgers).catch(() => setMaterialLedgers([]));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => setSupplierOrders([]));
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => setSupplierQuotes([]));
-    fetchUnmatchedIncomingEmails().then(setOverviewUnmatched).catch(() => setOverviewUnmatched([]));
+    onUnmatchedReload();
     fetchAllPurchaseDeliveries().then(setOverviewDeliveries).catch(() => setOverviewDeliveries([]));
     fetchPurchaseOrders().then(setPurchaseOrders).catch(() => setPurchaseOrders([]));
     fetchTodayRate().then(setRate).catch(() => setRate(undefined));
@@ -1533,9 +1564,9 @@ export function Suppliers() {
   // опрашивает раз в 60с ради уведомлений в колокольчик, но НЕ обновляет
   // supplierEmails на этой странице — новый ответ был виден только после
   // ручного F5. Отдельный лёгкий поллинг здесь (раз в 20с, пока страница
-  // открыта) держит саму ленту переписки свежей без перезагрузки. Полная
-  // замена (не merge) — supplierEmails и так приходит целиком с сервера,
-  // объединять нечего; единственный побочный эффект — оптимистичная отметка
+  // открыта) держит саму ленту переписки свежей без перезагрузки. Список
+  // приходит без тел — mergeInboxEmails не затирает уже догруженный body.
+  // Побочный эффект — оптимистичная отметка
   // "прочитано" (см. handleMarkSupplierEmailsRead) может на секунду
   // откатиться, если опрос попал между локальной отметкой и ответом
   // сервера, и тут же поправится следующим тиком — не критично.
@@ -1560,8 +1591,11 @@ export function Suppliers() {
         .then((changed) => {
           if (changed.has('supplier_offer_emails')) {
             fetchAllSupplierOfferEmails()
-              .then(setSupplierEmails)
-              .catch(() => {});
+              .then((fresh) => {
+                setSupplierEmails((prev) => mergeInboxEmails(prev, fresh));
+                setEmailsLoadError(null);
+              })
+              .catch((err) => setEmailsLoadError(errorMessage(err, 'Не удалось загрузить письма')));
           }
           if (changed.has('supplier_enrichment_jobs')) {
             fetchSupplierEnrichmentJobs()
@@ -2009,7 +2043,9 @@ export function Suppliers() {
     setMergePlans(null);
     // Переписка/КП/заявки сменили offer_id в базе — перечитываем, иначе
     // лента и сравнение цен будут показывать их под удалённой карточкой.
-    fetchAllSupplierOfferEmails().then(setSupplierEmails).catch(() => {});
+    fetchAllSupplierOfferEmails()
+      .then((fresh) => setSupplierEmails((prev) => mergeInboxEmails(prev, fresh)))
+      .catch((err) => setEmailsLoadError(errorMessage(err, 'Не удалось загрузить письма')));
     fetchSupplierOrders().then(setSupplierOrders).catch(() => {});
     fetchSupplierQuotes().then(setSupplierQuotes).catch(() => {});
   }
@@ -3047,7 +3083,13 @@ export function Suppliers() {
         // Владелец, 2026-09-11: это поведение теперь под вариантом roomy
         // (см. src/index.css) — на невысоком окне (ноутбук закупщицы) вкладка
         // больше не пытается уложиться в высоту экрана, а скроллится страницей.
-        <div className="mt-6 flex flex-col roomy:min-h-0 roomy:flex-1">
+        <>
+          {(emailsLoadError || unmatchedError || loadError) && (
+            <Card className="mb-4 py-2 text-center text-sm text-danger">
+              {[emailsLoadError, unmatchedError, loadError].filter(Boolean).join(' · ')}
+            </Card>
+          )}
+          <div className="mt-6 flex flex-col roomy:min-h-0 roomy:flex-1">
           <SupplierCorrespondenceTab
             requests={requests}
             offers={offers}
@@ -3071,8 +3113,13 @@ export function Suppliers() {
             onEmailUpdated={handleSupplierEmailUpdated}
             pendingAutoReplies={pendingAutoReplies}
             onAutoReplyReviewed={handleAutoReplyReviewed}
+            unmatched={overviewUnmatched}
+            unmatchedError={unmatchedError}
+            onUnmatchedReload={onUnmatchedReload}
+            onEmailsHydrated={onEmailsHydrated}
           />
         </div>
+        </>
       )}
 
       <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title={editingRequest ? 'Редактировать запрос' : 'Новый запрос'}>
