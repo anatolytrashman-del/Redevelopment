@@ -1,5 +1,5 @@
 import { StrictMode, startTransition } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, hydrateRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
@@ -100,7 +100,6 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   if (faqEl) wBrowse.__tcBrowseFaqHtml = faqEl.outerHTML
   const heroCount = container.querySelector('main header .tabular-nums')?.textContent?.trim()
   if (heroCount) wBrowse.__tcBrowseHeroCount = heroCount.replace(/\s*ТЦ\s*$/u, '').trim()
-  const root = createRoot(container)
   const tree = (
     <StrictMode>
       <ErrorBoundary>
@@ -110,22 +109,28 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
       </ErrorBoundary>
     </StrictMode>
   )
-  // Поверх снапшота — рендер-переход, а не обычный: React строит дерево
-  // кусками по ~5 мс, уступая поток между ними, и только готовый результат
-  // одним коммитом подменяет снапшот (до коммита на экране остаётся он).
-  // Обычный root.render — одна задача на всё дерево: 175–275 мс на
-  // каталоге и карточке БЦ при 3× замедлении процессора, главный вклад
-  // нашего кода в TBT отчёта PageSpeed (десктоп каталога — 410 мс,
-  // 2026-09-23). Пустому шеллу (админка) ждать нечего — там как раньше.
-  if (container.hasChildNodes()) startTransition(() => root.render(tree))
-  else root.render(tree)
 
-  // AUDIT-2026-10: for Malllist TC catalog home snapshot path (__tcBrowseBodyHtml),
-  // we deliberately do NOT force ml-motion-ready here (or in TcBrowseBodyMount).
-  // The prerendered static HTML is the final visual state. Adding the class causes
-  // the ml-reveal animation to restart on already-visible elements (opacity jumps from 1 to the @from state),
-  // which was the source of the basic blinking we were seeing.
-  // Default .ml-reveal { opacity: 1 } keeps the snapshot look stable during React takeover.
+  // AUDIT-2026-10: для snapshot страниц Malllist TC home используем hydrateRoot,
+  // а не createRoot + render. Это позволяет React "присоединиться" к существующему
+  // DOM снапшота, а не сносить и пересобирать заново. Именно замена DOM при
+  // createRoot была источником базового моргания каталога, даже если HTML совпадает.
+  // На остальных страницах и для non-snapshot — оставляем createRoot + startTransition
+  // (чтобы контролировать TBT).
+  let root: ReturnType<typeof createRoot> | ReturnType<typeof hydrateRoot>
+  if (wBrowse.__tcBrowseBodyHtml && container.hasChildNodes()) {
+    // Hydrate existing snapshot HTML instead of replacing it
+    root = hydrateRoot(container, tree)
+  } else if (container.hasChildNodes()) {
+    root = createRoot(container)
+    startTransition(() => (root as ReturnType<typeof createRoot>).render(tree))
+  } else {
+    root = createRoot(container)
+    ;(root as ReturnType<typeof createRoot>).render(tree)
+  }
+
+  // AUDIT-2026-10: hydrateRoot for snapshot home to avoid destructive replace.
+  // The previous createRoot + render was replacing the DOM even on identical HTML,
+  // causing the basic catalog blink. Hydration attaches to existing prerendered DOM.
 
   // ErrorBoundary.componentDidCatch перезагружает страницу один раз за
   // сессию вкладки при первом же непойманном крахе (см. комментарий в самом
