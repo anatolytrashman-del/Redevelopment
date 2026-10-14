@@ -46,6 +46,8 @@ const EXACT_PATHS = new Set<string>([
   '/privacy',
   '/offer', // публичная оферта
   '/license/zuev', // индивидуальный договор (noindex, вне sitemap)
+  '/consent', // согласие на обработку ПД
+  '/requisites', // реквизиты
   '/zakupki', // лендинг модуля закупок (public/zakupki.html + rewrite в vercel.json)
 ]);
 

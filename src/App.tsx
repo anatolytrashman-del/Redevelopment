@@ -35,6 +35,8 @@ import { MeetingSummaryPublicPage } from './pages/MeetingSummaryPublicPage';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { OfferPage } from './pages/OfferPage';
 import { LicenseZuevPage } from './pages/LicenseZuevPage';
+import { ConsentPage } from './pages/ConsentPage';
+import { RequisitesPage } from './pages/RequisitesPage';
 import { NotFound } from './pages/NotFound';
 import { CookieBanner } from './components/layout/CookieBanner';
 import { metrikaHit } from './lib/metrika';
@@ -322,6 +324,8 @@ function MalllistRoutes() {
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/offer" element={<OfferPage />} />
       <Route path="/license/zuev" element={<LicenseZuevPage />} />
+      <Route path="/consent" element={<ConsentPage />} />
+      <Route path="/requisites" element={<RequisitesPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -371,6 +375,8 @@ function OfficelistRoutes() {
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/offer" element={<OfferPage />} />
       <Route path="/license/zuev" element={<LicenseZuevPage />} />
+      <Route path="/consent" element={<ConsentPage />} />
+      <Route path="/requisites" element={<RequisitesPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -496,6 +502,8 @@ export default function App() {
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/offer" element={<OfferPage />} />
       <Route path="/license/zuev" element={<LicenseZuevPage />} />
+      <Route path="/consent" element={<ConsentPage />} />
+      <Route path="/requisites" element={<RequisitesPage />} />
       {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
       <Route path="/:legacySlug" element={<LegacySlugRedirect />} />
