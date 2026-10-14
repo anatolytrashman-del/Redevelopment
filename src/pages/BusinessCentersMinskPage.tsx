@@ -1822,7 +1822,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       ml-motion-ready forced in snapshot path + lowered idle = no 3-phase delay on reveals.
                        Grid + aspect-square for stable layout on home, no overlapping or shift. */}
                   <div
-                    className="ml-lookbook-cover relative aspect-square overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10"
+                    className="ml-lookbook-cover relative aspect-square overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10" suppressHydrationWarning
                     style={{
                       background: 'linear-gradient(160deg, #1a1c22 0%, #3a1520 48%, #c45c2a 100%)',
                     }}
