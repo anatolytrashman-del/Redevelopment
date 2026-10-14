@@ -119,6 +119,16 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   // 2026-09-23). Пустому шеллу (админка) ждать нечего — там как раньше.
   if (container.hasChildNodes()) startTransition(() => root.render(tree))
   else root.render(tree)
+
+  // AUDIT-2026-10: the most basic blinking in Malllist TC catalog home (the one we started with)
+  // was caused by the gap between React commit and the idle ml-motion-ready.
+  // For snapshot pages with __tcBrowseBodyHtml we force the class immediately after the commit.
+  // This makes the re-inserted preserved HTML get the reveals/animations right away,
+  // eliminating the 3rd phase pop-in/blinking while still protecting TBT (the heavy work is done).
+  if (wBrowse.__tcBrowseBodyHtml) {
+    document.documentElement.classList.add('ml-motion-ready')
+  }
+
   // ErrorBoundary.componentDidCatch перезагружает страницу один раз за
   // сессию вкладки при первом же непойманном крахе (см. комментарий в самом
   // компоненте) — снимаем этот флаг спустя несколько секунд успешной работы,

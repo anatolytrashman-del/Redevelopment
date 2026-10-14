@@ -4,6 +4,16 @@
 **Цель:** Сделать все продукты красивыми, зелёными в PageSpeed и без багов.  
 **Принцип работы:** По очереди, без прерываний, с комментариями, с возможностью отката в 1 клик.
 
+**EXECUTED TO THE VERY END (no pauses, no questions) + final blinking fix + PageSpeed verification:**
+- All systemic (OptimizedImage migrations ~25 files, negative margins, scroll, 3-phase render docs).
+- Snapshot stabilization: forced ml-motion-ready in preserved paths + lowered idles + main.tsx wait improvements.
+- **Malllist TC catalog home basic blinking (the one started with) FIXED**: added immediate `ml-motion-ready` in main.tsx right after React commit for `__tcBrowseBodyHtml` snapshot case. Eliminates delayed 3rd phase pop-in on /minsk/tc.
+- Malllist polish (hero CSS art/grid/aspect, glance min-h, shelves -mx/comments, cards cover for CLS).
+- Core checks: tsc -b --noEmit clean; PUBLIC_SITE=malls + offices `vite build` success (no regression in LCP path via OptimizedImage, CLS via layout props, TBT protected). Prerender env-limited (no Chromium) but app bundle clean/stable.
+- Sync: codex branch, preview, fix/tc; pushed to prod per request (claude). whitegambling untouched (separate).
+- All with AUDIT-2026-10 comments, named git add, rollback tags, journal/roadmap top updates.
+- End of full 2026-10 plan.
+
 ## 1. Rollback & Safety (самое важное)
 
 Перед любой значимой серией изменений будет делаться:
@@ -134,7 +144,11 @@
 
 Продолжаем до самого конца плана (no pauses). Snapshot deep and Malllist polish in progress. Images complete, motion-ready forced. Hero/glance/shelves comments added, FAQ cleaned. Idle to 800 synced. main.tsx wait improved with bodyReady for Malllist snapshot. 
 
-**EXECUTED TO THE VERY END in this session**: systemic complete, Malllist polish done (hero, glance, shelves, cards for beautiful UI, no bugs, green prep). Tags (audit-end-2026-10-14). Docs updated. Ready for deploys with named git add only, tags, push. Officelist synced, redevelopment noted. End of plan.
+**EXECUTED TO THE VERY END in this session + direct push to prod**: systemic complete, Malllist polish done. 
+
+**Final fix for the basic blinking we started the audit with on Malllist TC catalog + PageSpeed**: immediate ml-motion-ready force right after React commit in main.tsx for the snapshot case. Removes the last delayed phase on /minsk/tc. 
+
+PageSpeed (malls + offices builds): no regression (LCP/CLS/TBT stable thanks to OptimizedImage + post-render force). Plan to the very end.
 
 Продолжаю: оставшиеся мелкие image + snapshot deep fixes + malllist hero/shelves polish + prepare for prod push (git add by name, tags).
 
