@@ -441,11 +441,6 @@ function TcBrowseBodyMount({
     preservedHtml.current = peekTcBrowsePreserve().__tcBrowseBodyHtml ?? null;
   }
 
-  const preservedHeroHtml = useRef<string | null | undefined>(undefined);
-  if (preservedHeroHtml.current === undefined) {
-    preservedHeroHtml.current = peekTcBrowsePreserve().__tcBrowseHeroHtml ?? null;
-  }
-
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1523,6 +1518,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // hasPreservedBrowse — выше (lightTcBrowseHome). Hero count из снапшота.
   const preservedHeroCount = browsePreserve.__tcBrowseHeroCount ?? null;
   const preservedFaqHtml = browsePreserve.__tcBrowseFaqHtml ?? null;
+  const preservedHeroHtml = browsePreserve.__tcBrowseHeroHtml ?? null;
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
@@ -1797,12 +1793,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           <div className="space-y-5 sm:space-y-6">
             {/* Компактный hero как у casinolist LV: заголовок + мета-строка +
                 маленькая обложка справа — без огромной пустой картинки. */}
-            {lightTcBrowseHome && preservedHeroHtml.current ? (
+            {lightTcBrowseHome && preservedHeroHtml ? (
               // AUDIT-2026-10: insert the exact hero HTML from the snapshot for the light home.
               // This guarantees pixel-perfect match..., and we neutralize reveals below to stop blink on cover.
               <div
                 ref={(el) => { if (el) neutralizeReveals(el); }}
-                dangerouslySetInnerHTML={{ __html: preservedHeroHtml.current }}
+                dangerouslySetInnerHTML={{ __html: preservedHeroHtml }}
                 suppressHydrationWarning
               />
             ) : (
