@@ -1,12 +1,6 @@
 {
   "git": {
-    "deploymentEnabled": {
-      "**": false,
-      "main": true,
-      "claude/redevelopment-platform-prototype-oodobu": true,
-      "preview": true,
-      "cursor/**": true
-    }
+    "deploymentEnabled": false
   },
   "functions": {
     "api/transcribe.js": {

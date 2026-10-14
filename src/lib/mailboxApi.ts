@@ -34,17 +34,62 @@ function fromRow(row: MailboxEmailRow): MailboxEmail {
 // поднимать число.
 const MAILBOX_PAGE_SIZE = 500;
 
+// Без body (тяжёлое) — докачиваем только при открытии треда, как у supplier.
+const MAILBOX_LIST_COLUMNS =
+  'id, direction, from_address, to_address, subject, files, resend_message_id, read_at, delivered_at, opened_at, bounced_at, complained_at, sent_by_profile_id, sent_by_name, send_status, send_error, created_at';
+
 export function fetchMailboxEmails(): Promise<MailboxEmail[]> {
   return withRetry(async () => {
     const { data, error } = await supabase
       .from('mailbox_emails')
-      .select('*')
+      .select(MAILBOX_LIST_COLUMNS)
       .order('created_at', { ascending: false })
       .limit(MAILBOX_PAGE_SIZE);
     if (error) throw error;
     // Внутри лент удобнее хронологический порядок — разворачиваем один раз
     // здесь, чтобы страница не пересортировывала на каждый рендер.
-    return (data as MailboxEmailRow[]).map(fromRow).reverse();
+    return (data as MailboxEmailRow[]).map((row) => fromRow({ ...row, body: '' })).reverse();
+  });
+}
+
+// Тела писем докачиваем чанками только для выбранного треда (ids).
+// withRetry — один на весь цикл.
+export function fetchMailboxEmailBodies(ids: string[]): Promise<{ id: string; body: string }[]> {
+  if (ids.length === 0) return Promise.resolve([]);
+  return withRetry(async () => {
+    const result: { id: string; body: string }[] = [];
+    const chunkSize = 80;
+    const pageSize = 1000;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      let from = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from('mailbox_emails')
+          .select('id, body')
+          .in('id', chunk)
+          .order('id', { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const rows = (data as Array<{ id: string; body: string | null }>) ?? [];
+        for (const r of rows) {
+          result.push({ id: r.id, body: r.body ?? '' });
+        }
+        if (rows.length < pageSize) break;
+        from += pageSize;
+      }
+    }
+    return result;
+  });
+}
+
+// Влить тела в уже загруженный список (по id), остальные поля не трогаем.
+export function applyMailboxBodies(prev: MailboxEmail[], bodies: { id: string; body: string }[]): MailboxEmail[] {
+  const byId = new Map(bodies.map((b) => [b.id, b] as const));
+  return prev.map((p) => {
+    const b = byId.get(p.id);
+    if (!b) return p;
+    return { ...p, body: b.body };
   });
 }
 

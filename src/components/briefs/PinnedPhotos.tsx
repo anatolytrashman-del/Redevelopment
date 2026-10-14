@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { changeHasReference, type PhotoChange, type PhotoMarker } from '../../data/briefs';
 import { ReferencePopup } from './ReferencePopup';
 import { cn } from '../../lib/cn';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 
 function Marker({ index, x, y }: { index: number; x: number; y: number }) {
   return (
@@ -41,7 +42,8 @@ function PhotoBox({
   return (
     <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden rounded-control bg-surface-muted sm:w-3/5">
       <button type="button" onClick={() => onOpenPhoto?.(photo.url, photo.markers)} className="block h-full w-full">
-        <img src={photo.url} alt="" className="h-full w-full object-cover" />
+        {/* AUDIT-2026-10 Task 001 */}
+        <OptimizedImage src={photo.url} alt="" className="h-full w-full object-cover" objectFit="cover" />
       </button>
       {photo.markers.map((m, i) => (
         <Marker key={m.id} index={i} x={m.x} y={m.y} />

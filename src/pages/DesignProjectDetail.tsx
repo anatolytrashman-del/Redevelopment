@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import type { DesignProject } from '../data/designProjects';
 import { fetchDesignProject, updateDesignProject, uploadDesignProjectPhoto } from '../lib/designProjectsApi';
+import { OptimizedImage } from '../components/common/OptimizedImage'; // AUDIT-2026-10 Task 001
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
@@ -149,7 +150,7 @@ export function DesignProjectDetail() {
             <div className="flex flex-wrap items-center gap-3">
               {project.photoUrls.map((url, i) => (
                 <div key={url} className="relative h-24 w-24 shrink-0 overflow-hidden rounded-control bg-surface-muted">
-                  <img src={url} alt="" className="h-full w-full object-cover" />
+                  <OptimizedImage src={url} alt="" className="h-full w-full object-cover" objectFit="cover" /> {/* AUDIT-2026-10 Task 001 */}
                   <button
                     type="button"
                     onClick={() => removePhoto(i)}

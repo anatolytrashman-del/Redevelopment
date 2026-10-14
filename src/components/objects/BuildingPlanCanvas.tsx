@@ -12,6 +12,7 @@ import {
   type ZonePoint,
 } from '../../data/buildingPlans';
 import { cn } from '../../lib/cn';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
@@ -304,7 +305,8 @@ export function BuildingPlanCanvas({
             : undefined
         }
       >
-        <img src={displayedPlan.imageUrl} alt={displayedPlan.name} className="w-full" draggable={false} loading="lazy" />
+        {/* AUDIT-2026-10 Task 001: migrated plan image. Note: this component already has displayed* state to prevent blink on data change (see initial audit). */}
+        <OptimizedImage src={displayedPlan.imageUrl} alt={displayedPlan.name} className="w-full" objectFit="contain" loadingStrategy="lazy" />
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
           {zones
             .filter((zone) => zone.buildingPlanId === displayedPlan.id)

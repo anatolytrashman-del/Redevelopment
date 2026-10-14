@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 
 export interface PhotoThumbItem {
   url: string;
@@ -26,7 +27,7 @@ export function PhotoThumbGrid({ items, onOpen, onRemove, captions }: PhotoThumb
         <div key={url} className="flex flex-col gap-1">
           <div className="group relative aspect-[4/3] overflow-hidden rounded-control bg-surface-muted">
             <button type="button" onClick={() => onOpen(url)} className="block h-full w-full">
-              <img src={url} alt="" className="h-full w-full object-cover" />
+              <OptimizedImage src={url} alt="" className="h-full w-full object-cover" objectFit="cover" /> {/* AUDIT-2026-10 Task 001 */}
             </button>
             {!!pinCount && (
               <span className="pointer-events-none absolute bottom-1 right-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-white">

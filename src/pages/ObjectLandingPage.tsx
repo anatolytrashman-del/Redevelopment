@@ -25,6 +25,7 @@ import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { PublicPlanAndUnits, PUBLIC_BOOKING_ENABLED } from '../components/objects/PublicPlanAndUnits';
 import { BookingTermsCard } from '../components/objects/BookingTermsCard';
 import { FaqCard, FAQ_ITEMS } from '../components/objects/FaqCard';
+import { OptimizedImage } from '../components/common/OptimizedImage'; // AUDIT-2026-10 Task 001: migrate logo to unified image component
 import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { zonePrice, WORKSTATION_PRICE, PRICE_PER_METER, RENT_WORKSTATION_PRICE } from '../data/buildingPlans';
 import type { BuildingPlan, BuildingPlanZone, DealMode } from '../data/buildingPlans';
@@ -325,7 +326,7 @@ export function ObjectLandingPage() {
             alt={`Офисы и кабинеты рядом с Минск Миром — ${object.name || object.address}`}
           />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 shadow-card backdrop-blur">
-            <img src={MINSK_MIR_LOGO_URL} alt="Минск Мир" width={95} height={110} className="h-4 w-auto" />
+            <OptimizedImage src={MINSK_MIR_LOGO_URL} alt="Минск Мир" width={95} height={110} className="h-4 w-auto" objectFit="contain" /> {/* AUDIT-2026-10 Task 001 */}
             <span className="text-xs font-semibold text-ink">Рядом с Минск Миром</span>
           </div>
         </div>

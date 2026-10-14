@@ -51,17 +51,96 @@ export function fetchSupplierOfferEmails(offerId: string): Promise<SupplierOffer
 
 // Вся переписка по всем предложениям разом — вкладка "Переписка"
 // (Suppliers.tsx) и фоновый вотчер новых ответов (supplierEmailWatcher.ts).
-// Объём маленький (десятки-сотни строк на весь Ресерч), один запрос без
-// пагинации.
+// Пагинация .range(1000) + order desc+id desc (устойчивая, чтобы не терять
+// хвост), без body/extraction (см. SUPPLIER_DETAIL_EMAIL_COLUMNS). После
+// сборки всех страниц — reverse в хронологический (старые → новые), контракт
+// с buildConversations не меняется.
 export function fetchAllSupplierOfferEmails(): Promise<SupplierOfferEmail[]> {
   return withRetry(async () => {
-    const { data, error } = await supabase
-      .from('supplier_offer_emails')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return (data as SupplierOfferEmailRow[]).map(supplierOfferEmailFromRow);
+    const allRows: SupplierOfferEmailRow[] = [];
+    const pageSize = 1000;
+    let from = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from('supplier_offer_emails')
+        .select(SUPPLIER_DETAIL_EMAIL_COLUMNS)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      const rows = (data as SupplierOfferEmailRow[]) ?? [];
+      allRows.push(...rows);
+      if (rows.length < pageSize) break;
+      from += pageSize;
+    }
+    const mapped = allRows.map((row) =>
+      supplierOfferEmailFromRow({ ...row, body: '', extraction: null }),
+    );
+    // Постгреста order desc — свежие сверху; разворачиваем, чтобы старые → новые
+    // как раньше (и как ждёт buildConversations + threadEmails).
+    mapped.reverse();
+    return mapped;
+  });
+}
+
+// Тела писем (body + extraction) докачиваем только при открытии треда —
+// отдельно, чанками по offer_id. Пустой ids → []. withRetry один раз на
+// всю операцию (не на чанк).
+export function fetchSupplierOfferEmailBodies(
+  offerIds: string[],
+): Promise<{ id: string; body: string; extraction: EmailExtraction | null }[]> {
+  if (offerIds.length === 0) return Promise.resolve([]);
+  return withRetry(async () => {
+    const result: { id: string; body: string; extraction: EmailExtraction | null }[] = [];
+    const chunkSize = 80;
+    const pageSize = 1000;
+    for (let i = 0; i < offerIds.length; i += chunkSize) {
+      const chunk = offerIds.slice(i, i + chunkSize);
+      let from = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from('supplier_offer_emails')
+          .select('id, body, extraction')
+          .in('offer_id', chunk)
+          .is('deleted_at', null)
+          .order('id', { ascending: true })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        const rows = (data as Array<{ id: string; body: string | null; extraction: EmailExtraction | null }>) ?? [];
+        for (const r of rows) {
+          result.push({ id: r.id, body: r.body ?? '', extraction: r.extraction ?? null });
+        }
+        if (rows.length < pageSize) break;
+        from += pageSize;
+      }
+    }
+    return result;
+  });
+}
+
+// Чистые утилиты (без supabase) — для merge свежих списков без потери
+// уже загруженных тел и для вливания тел по id.
+export function mergeInboxEmails(prev: SupplierOfferEmail[], fresh: SupplierOfferEmail[]): SupplierOfferEmail[] {
+  const prevById = new Map(prev.map((e) => [e.id, e] as const));
+  return fresh.map((f) => {
+    const p = prevById.get(f.id);
+    // fresh body пустой — оставляем prev.body (если был); extraction: fresh ?? prev
+    const body = f.body || (p?.body ?? '');
+    const extraction = f.extraction ?? (p?.extraction ?? null);
+    return { ...f, body, extraction };
+  });
+}
+
+export function applyEmailBodies(
+  prev: SupplierOfferEmail[],
+  bodies: { id: string; body: string; extraction: EmailExtraction | null }[],
+): SupplierOfferEmail[] {
+  const byId = new Map(bodies.map((b) => [b.id, b] as const));
+  return prev.map((p) => {
+    const b = byId.get(p.id);
+    if (!b) return p;
+    return { ...p, body: b.body, extraction: b.extraction ?? p.extraction };
   });
 }
 

@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { PhotoChange } from '../../data/briefs';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 
 // Мини-карточка референса на конкретную модель/товар — открывается по
 // ссылке "Референс" у правки, а не показывается сразу картинкой (та
@@ -36,7 +37,10 @@ export function ReferencePopup({ change, onClose }: { change: PhotoChange; onClo
         </button>
         <span className="max-w-[85%] break-words text-sm font-bold text-ink">{change.comment || 'Референс'}</span>
         {change.referenceImageUrl && (
-          <img src={change.referenceImageUrl} alt="" className="aspect-[4/3] w-full rounded-control object-cover" />
+          <>
+            {/* AUDIT-2026-10 Task 001 */}
+            <OptimizedImage src={change.referenceImageUrl} alt="" className="aspect-[4/3] w-full rounded-control object-cover" objectFit="cover" />
+          </>
         )}
         {change.referenceDescription && (
           <p className="whitespace-pre-wrap text-sm text-ink-muted">{change.referenceDescription}</p>

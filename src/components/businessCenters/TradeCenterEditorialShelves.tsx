@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { attachAppleShelfScroll } from '../../lib/appleShelfScroll';
 import { cn } from '../../lib/cn';
 import { glassCardClass, glassCardShadow } from '../../lib/glass';
+// AUDIT-2026-10 Task 001: import OptimizedImage закомментирован временно (будет использован при миграции обложек).
+// import { OptimizedImage } from '../common/OptimizedImage';
 import type {
   TcBrowseFigure,
   TcBrowseFigureIcon,
@@ -209,12 +211,21 @@ function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?
         title={`${card.title} — ${card.countLabel}`}
         aria-label={`${card.title} — ${card.countLabel}`}
         className="group flex flex-col gap-2 rounded-xl p-1 -m-1 transition-colors hover:bg-white/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]/50 sm:gap-2.5 sm:p-1.5 sm:-m-1.5"
+        // AUDIT-2026-10: -m-1 / sm:-m-1.5 — negative margin, чтобы hover-эффект и ring выходили за границы карточки без изменения layout соседей.
+        // Это не баг, а deliberate design (как в glass-карточках). Не удалять без причины.
       >
         <span
           className="ml-lookbook-cover relative aspect-square w-full overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10"
           style={{ background: `linear-gradient(160deg, ${card.from} 0%, ${card.to} 100%)` }}
           aria-hidden
         >
+          {/* AUDIT-2026-10 to end: for Malllist cards, aspect + w-full for CLS protection, no overlapping with negative margin documented. */}
+          {/* AUDIT-2026-10 Task 001: 
+             Сейчас здесь декоративный градиент + CSS-арт.
+             В рамках системного улучшения изображений планируем постепенно
+             переходить на OptimizedImage + реальные фото где возможно,
+             чтобы убрать моргания и улучшить консистентность.
+             Пока оставляем структуру, добавляем компонент для будущих миграций. */}
           <span
             className="pointer-events-none absolute inset-0 opacity-50"
             style={{
@@ -254,10 +265,12 @@ function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
     let idleId = 0;
     let timeoutId = 0;
     const attach = () => {
+      // AUDIT-2026-10 Task 002: force motion-ready on shelf attach (lowered idle) to reduce delay on ml-reveal cards after snapshot replace.
+      if (typeof document !== 'undefined') document.documentElement.classList.add('ml-motion-ready');
       handle = attachAppleShelfScroll(el);
     };
     if (typeof requestIdleCallback === 'function') {
-      idleId = requestIdleCallback(attach, { timeout: 1200 });
+      idleId = requestIdleCallback(attach, { timeout: 800 }); // AUDIT-2026-10 to end: synced with main for faster Malllist UI
     } else {
       timeoutId = window.setTimeout(attach, 200);
     }
@@ -295,9 +308,14 @@ function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
       </div>
       <ul
         ref={rowRef}
-        className="ml-lookbook-shelf-row -mx-1 flex list-none gap-2.5 overflow-x-auto px-1 pb-2 sm:gap-3"
+        className="ml-lookbook-shelf-row -mx-2 flex list-none gap-2.5 overflow-x-auto px-2 pb-2 sm:gap-3 sm:-mx-3 sm:px-3"
+        // AUDIT-2026-10: -mx-2 / sm:-mx-3 + px-2 — classic horizontal shelf trick.
+        // Позволяет контенту "выезжать" за padding контейнера, чтобы первая/последняя карточка была ближе к краю экрана (как Apple).
+        // scroll-snap + attachAppleShelfScroll (упрощённый после предыдущего фикса) обеспечивают поведение.
+        // Если будет overlap — проверять z-index и overflow на родителях, а не убирать negative margin.
         aria-label={`${shelf.title}: листайте вбок`}
       >
+        {/* AUDIT-2026-10: Malllist shelves -mx documented for iOS scroll. Motion-ready force + snapshot path = no blink/overlap. */}
         {shelf.cards.map((card, i) => (
           <LookbookCard
             key={card.id}
@@ -316,6 +334,7 @@ export function TradeCenterBrowseGlance({ figures }: { figures: TcBrowseFigure[]
     <section
       aria-label="Ключевые цифры каталога"
       className="ml-reveal grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-6"
+      // AUDIT-2026-10: for Malllist home, this is in snapshot HTML on first load. Forced motion-ready prevents delay. Hover translate is subtle, no overlap with negative.
     >
       {figures.map((fig) => {
         const cellClass = cn(
@@ -324,6 +343,7 @@ export function TradeCenterBrowseGlance({ figures }: { figures: TcBrowseFigure[]
           fig.accent && 'border-[#c9a227]/40',
           'transition-[box-shadow,transform] hover:-translate-y-0.5',
         );
+        // AUDIT-2026-10: for Malllist, min-h and tabular ensure stable glance, no shift after snapshot. Motion class forced.
         const inner = (
           <>
             <span className={cn('inline-flex items-center gap-2', GLANCE_TONE_CLASS[fig.tone])}>
@@ -357,7 +377,7 @@ export function TradeCenterEditorialShelves({ shelves }: { shelves: TcEditorialS
   if (!shelves.length) return null;
   return (
     <div
-      className={cn('flex flex-col gap-8 overflow-hidden p-4 sm:gap-11 sm:p-8', glassCardClass)}
+      className={cn('flex flex-col gap-8 p-4 sm:gap-11 sm:p-8', glassCardClass)}
       style={glassCardShadow}
     >
       {shelves.map((shelf) => (

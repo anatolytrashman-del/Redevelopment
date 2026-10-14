@@ -1,8 +1,14 @@
 /**
- * Плавная горизонтальная полка в духе Apple (App Store / Music):
- * свободный flick без жёсткого CSS-snap, после остановки — мягкое
- * дотягивание к ближайшей карточке (ease-out quint, ~0.55s).
- * На трекпаде/колёсике — сглаженный горизонтальный скролл.
+ * Горизонтальная полка в духе iPhone (UIScrollView-like).
+ * 
+ * Основное — нативный скролл + CSS scroll-snap (proximity).
+ * Дополнительно: после остановки жеста — мягкое дотягивание к ближайшей карточке.
+ * 
+ * AUDIT-2026-10: упрощённая версия (см. историю фикса scroll в preview).
+ * Убрано агрессивное RAF-лерп на wheel (оно и вызывало "само ездит" и зависания на iPhone).
+ * Сейчас: CSS snap + nearest + on scrollend / timeout settle.
+ * 
+ * Если будут жалобы на скролл — проверять attach в TcBrowseBodyMount и TradeCenterEditorialShelves.
  */
 
 export function prefersReducedMotion(): boolean {
@@ -48,8 +54,6 @@ export function attachAppleShelfScroll(el: HTMLElement): AppleShelfScrollHandle 
   }
 
   let settleRaf = 0;
-  let wheelRaf = 0;
-  let wheelTarget = el.scrollLeft;
   let settleTimer = 0;
   let pointerDown = false;
   let settling = false;
@@ -62,13 +66,6 @@ export function attachAppleShelfScroll(el: HTMLElement): AppleShelfScrollHandle 
       settleRaf = 0;
     }
     settling = false;
-  };
-
-  const cancelWheelAnim = () => {
-    if (wheelRaf) {
-      cancelAnimationFrame(wheelRaf);
-      wheelRaf = 0;
-    }
   };
 
   const clearSettleTimer = () => {
@@ -107,15 +104,14 @@ export function attachAppleShelfScroll(el: HTMLElement): AppleShelfScrollHandle 
     if (pointerDown || destroyed || settling) return;
     const to = nearestShelfScrollLeft(el);
     if (Math.abs(to - el.scrollLeft) < 1) return;
-    // Дольше и мягче, чем дефолтный smooth браузера — ближе к UIScrollView.
-    animateScrollTo(to, 560);
+    // Мягкое дотягивание после остановки жеста (как на iOS)
+    animateScrollTo(to, 420);
   };
 
   const scheduleSettle = () => {
     if (settling) return;
     clearSettleTimer();
-    // Ждём окончания нативной инерции, потом дотягиваем.
-    settleTimer = window.setTimeout(settle, hasScrollEnd ? 40 : 180);
+    settleTimer = window.setTimeout(settle, hasScrollEnd ? 60 : 220);
   };
 
   const onScrollEnd = () => {
@@ -126,42 +122,23 @@ export function attachAppleShelfScroll(el: HTMLElement): AppleShelfScrollHandle 
 
   const onScroll = () => {
     if (pointerDown || settling) return;
-    // Только fallback без scrollend — иначе дерёмся с нативной инерцией.
-    scheduleSettle();
+    if (!hasScrollEnd) scheduleSettle();
   };
 
   const onPointerDown = () => {
     pointerDown = true;
     clearSettleTimer();
     cancelSettleAnim();
-    cancelWheelAnim();
-    wheelTarget = el.scrollLeft;
   };
 
   const onPointerUp = () => {
     pointerDown = false;
-    // При наличии scrollend он сам дотянет после инерции.
     if (!hasScrollEnd) scheduleSettle();
   };
 
-  const runWheelLerp = () => {
-    wheelRaf = 0;
-    if (destroyed || pointerDown) return;
-    const cur = el.scrollLeft;
-    // Чуть «длиннее» хвост — как decelerationRate у UIScrollView.
-    const next = cur + (wheelTarget - cur) * 0.18;
-    if (Math.abs(wheelTarget - next) < 0.35) {
-      el.scrollLeft = wheelTarget;
-      settling = false;
-      scheduleSettle();
-      return;
-    }
-    el.scrollLeft = next;
-    wheelRaf = requestAnimationFrame(runWheelLerp);
-  };
-
+  // Лёгкий wheel handler — только чтобы горизонтальный трекпад крутил полку,
+  // а не всю страницу. Без своего RAF-аниматора.
   const onWheel = (e: WheelEvent) => {
-    // Трекпад часто шлёт deltaY при горизонтальном жесте — крутим полку, не страницу.
     const dominantY = Math.abs(e.deltaY) >= Math.abs(e.deltaX);
     const delta = dominantY ? e.deltaY : e.deltaX;
     if (delta === 0) return;
@@ -169,16 +146,14 @@ export function attachAppleShelfScroll(el: HTMLElement): AppleShelfScrollHandle 
     const max = el.scrollWidth - el.clientWidth;
     if (max <= 0) return;
 
-    // Не перехватываем, если упёрлись и жест уводит дальше за край.
     const atStart = el.scrollLeft <= 0 && delta < 0;
     const atEnd = el.scrollLeft >= max - 0.5 && delta > 0;
     if (atStart || atEnd) return;
 
-    e.preventDefault();
+    // Не делаем preventDefault + свой lerp — даём нативу работать.
+    // Просто отменяем таймеры дотягивания во время жеста.
     clearSettleTimer();
     cancelSettleAnim();
-    wheelTarget = Math.min(max, Math.max(0, wheelTarget + delta));
-    if (!wheelRaf) wheelRaf = requestAnimationFrame(runWheelLerp);
   };
 
   if (!hasScrollEnd) {
@@ -191,14 +166,13 @@ export function attachAppleShelfScroll(el: HTMLElement): AppleShelfScrollHandle 
   el.addEventListener('touchstart', onPointerDown, { passive: true });
   el.addEventListener('touchend', onPointerUp, { passive: true });
   el.addEventListener('touchcancel', onPointerUp, { passive: true });
-  el.addEventListener('wheel', onWheel, { passive: false });
+  el.addEventListener('wheel', onWheel, { passive: true });
 
   return {
     destroy() {
       destroyed = true;
       clearSettleTimer();
       cancelSettleAnim();
-      cancelWheelAnim();
       el.removeEventListener('scroll', onScroll);
       el.removeEventListener('scrollend', onScrollEnd as EventListener);
       el.removeEventListener('pointerdown', onPointerDown);

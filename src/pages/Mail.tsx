@@ -29,7 +29,13 @@ import { ToggleGroup } from '../components/ui/ToggleGroup';
 import { TelegramCapturesTab } from '../components/mail/TelegramCapturesTab';
 import { cn } from '../lib/cn';
 import { fileToAttachment } from '../lib/legalEntityAttachment';
-import { fetchMailboxEmails, markMailboxEmailsRead, sendMailboxEmail } from '../lib/mailboxApi';
+import {
+  fetchMailboxEmails,
+  markMailboxEmailsRead,
+  sendMailboxEmail,
+  fetchMailboxEmailBodies,
+  applyMailboxBodies,
+} from '../lib/mailboxApi';
 import { notifyMailboxRead } from '../lib/mailboxSeen';
 import {
   deleteMailboxContact,
@@ -251,6 +257,38 @@ export function Mail() {
       .catch(() => {
         // Тихо: письма уже показаны прочитанными, следующая загрузка вернёт
         // их как есть — не повод показывать ошибку поверх переписки.
+      });
+  }, [selectedAddress, emails]);
+
+  // Докачиваем body только для выбранного треда (лениво, как у переписки
+  // закупок). Ref — чтобы не дёргать повторно. Пока не пришли — в ленте
+  // "Загружаем текст..." вместо пустого.
+  const hydratedMailRef = useRef<Set<string>>(new Set());
+  const [mailHydratedIds, setMailHydratedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!selectedAddress) return;
+    const thread = emails.filter((e) => mailboxCounterparty(e) === selectedAddress);
+    const idsToFetch = thread.filter((e) => !e.body).map((e) => e.id);
+    const toFetch = idsToFetch.filter((id) => !hydratedMailRef.current.has(id));
+    if (toFetch.length === 0) return;
+    toFetch.forEach((id) => hydratedMailRef.current.add(id));
+    fetchMailboxEmailBodies(toFetch)
+      .then((bodies) => {
+        setEmails((prev) => applyMailboxBodies(prev, bodies));
+        setMailHydratedIds((prev) => {
+          const next = new Set(prev);
+          bodies.forEach((b) => next.add(b.id));
+          return next;
+        });
+      })
+      .catch(() => {
+        // Ошибка тел не критична, список уже загружен; просто не будет текста.
+        // Отмечаем как "пробовали", чтобы не висело "Загружаем" вечно.
+        setMailHydratedIds((prev) => {
+          const next = new Set(prev);
+          idsToFetch.forEach((id) => next.add(id));
+          return next;
+        });
       });
   }, [selectedAddress, emails]);
 
@@ -590,6 +628,7 @@ export function Mail() {
                 thread={selected}
                 contacts={contacts}
                 templates={templates}
+                hydratedIds={mailHydratedIds}
                 onSent={handleSent}
                 onAddContact={() =>
                   openContactAdd({ email: selected.address, personName: selected.name })
@@ -964,12 +1003,14 @@ function ThreadPanel({
   templates,
   onSent,
   onAddContact,
+  hydratedIds,
 }: {
   thread: MailThread;
   contacts: MailboxContact[];
   templates: MailboxTemplate[];
   onSent: (email: MailboxEmail) => void;
   onAddContact: () => void;
+  hydratedIds: ReadonlySet<string>;
 }) {
   const contact = contacts.find((c) => c.email && parseEmailAddress(c.email) === thread.address) ?? null;
   const known = contact !== null;
@@ -1004,14 +1045,14 @@ function ThreadPanel({
       <div className="flex flex-col gap-2 border-t border-border pt-4">
         <div className="text-sm font-semibold text-ink">Переписка</div>
         {[...thread.emails].reverse().map((e) => (
-          <EmailBubble key={e.id} email={e} />
+          <EmailBubble key={e.id} email={e} bodyReady={hydratedIds.has(e.id)} />
         ))}
       </div>
     </Card>
   );
 }
 
-function EmailBubble({ email }: { email: MailboxEmail }) {
+function EmailBubble({ email, bodyReady }: { email: MailboxEmail; bodyReady: boolean }) {
   return (
     <div
       className={cn(
@@ -1098,7 +1139,9 @@ function EmailBubble({ email }: { email: MailboxEmail }) {
           ))}
         </div>
       )}
-      <div className="whitespace-pre-wrap text-ink">{email.body}</div>
+      <div className="whitespace-pre-wrap text-ink">
+        {email.body || (bodyReady ? 'Письмо без текста.' : 'Загружаем текст...')}
+      </div>
     </div>
   );
 }

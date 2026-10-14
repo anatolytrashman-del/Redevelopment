@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { AnnotatedPhoto } from './AnnotatedPhoto';
 import type { PhotoChange, PhotoMarker } from '../../data/briefs';
 import { cn } from '../../lib/cn';
+import { OptimizedImage } from '../common/OptimizedImage'; // AUDIT-2026-10 Task 001
 
 interface PhotoLightboxProps {
   // null — закрыт. Открывается кликом по миниатюре в PhotoThumbGrid/галерее.
@@ -91,7 +92,10 @@ export function PhotoLightbox({
             large
           />
         ) : (
-          <img src={url} alt="" className="max-h-[80vh] w-full rounded-control object-contain" />
+          <>
+            {/* AUDIT-2026-10 Task 001 */}
+            <OptimizedImage src={url} alt="" className="max-h-[80vh] w-full rounded-control object-contain" objectFit="contain" />
+          </>
         )}
       </div>
     </div>,

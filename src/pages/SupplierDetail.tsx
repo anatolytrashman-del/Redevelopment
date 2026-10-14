@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   Factory,
+  FileText,
   MoreHorizontal,
   Loader2,
   Mail,
@@ -51,8 +52,8 @@ import {
   supplierWebsiteFullUrl,
   type SupplierMessengerContact,
 } from '../data/supplierResearch';
-import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary, shouldFlag } from '../data/supplierReliability';
-import { fetchSupplier, fetchSupplierMergeCandidates, mergeSuppliers, setSupplierBlocked, setSupplierPreferred } from '../lib/suppliersApi';
+import { RISK_LEVEL_LABEL, isReliabilityStale, riskSummary } from '../data/supplierReliability';
+import { fetchSupplier, fetchSupplierMergeCandidates, mergeSuppliers, setSupplierBlocked, setSupplierInn, setSupplierPreferred } from '../lib/suppliersApi';
 import { fetchSupplierOffersByCompany, fetchSupplierRequestsByIds } from '../lib/supplierResearchApi';
 import { fetchSupplierSiteSnapshot, requestSiteSnapshotRefresh } from '../lib/supplierSiteSnapshotsApi';
 import {
@@ -646,42 +647,94 @@ function ProfileChips({
   );
 }
 
-// Виды товара блоками по плиткам каталога — метки категорий тонкие,
-// чтобы глаз цеплялся за раздел, а не за кричащий заголовок.
-function GroupedProductKinds({ kinds }: { kinds: string[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const groups = useMemo(() => groupProductKindsByCatalog(kinds), [kinds]);
-  if (!kinds.length) return null;
+function normalizeMail(value: string | null | undefined): string {
+  const raw = (value ?? '').trim().toLowerCase();
+  const angled = raw.match(/<([^<>\s]+@[^<>\s]+)>/);
+  if (angled) return angled[1];
+  const bare = raw.match(/[^\s,;<>]+@[^\s,;<>]+/);
+  return bare?.[0] ?? '';
+}
 
-  const flatFallback = groups.length === 1 && groups[0].category === 'Прочее';
-  if (flatFallback) {
-    return <ProfileChips title="Виды товара" values={kinds} limit={16} />;
+// ИНН юрлица — 10 цифр, ИП — 12. Берём с карточки закупки, куда его
+// записывает разбор счёта, если на компании поля ещё нет.
+export function invoiceInn(offers: readonly { inn?: string | null }[]): string {
+  for (const offer of offers) {
+    const inn = (offer.inn ?? '').trim();
+    if (/^\d{10}(\d{2})?$/.test(inn)) return inn;
   }
+  return '';
+}
 
+// Адреса, с которыми уже была почта: входящие — from, исходящие — to.
+export function correspondenceMails(emails: readonly { direction: string; fromAddress: string; toAddress: string }[]): Set<string> {
+  const live = new Set<string>();
+  for (const email of emails) {
+    const raw = email.direction === 'in' ? email.fromAddress : email.toAddress;
+    for (const part of raw.split(/[,;]/)) {
+      const mail = normalizeMail(part);
+      if (mail.includes('@')) live.add(mail);
+    }
+  }
+  return live;
+}
+
+const DISPLAY = { fontFamily: 'Georgia, "Times New Roman", serif' } as const;
+
+// «Что продаёт» — не простыня чипов, а сводка: категория, сколько видов, три примера.
+function SellSummary({
+  title,
+  profile,
+}: {
+  title: string;
+  profile: SupplierSiteProfile;
+}) {
+  const groups = useMemo(() => groupProductKindsByCatalog(profile.product_kinds ?? []), [profile.product_kinds]);
+  const [expanded, setExpanded] = useState(false);
+  const brands = profile.own_brands ?? [];
+  const resold = profile.resold_brands ?? [];
   const visible = expanded ? groups : groups.slice(0, 4);
-  const hiddenKinds = groups.slice(4).reduce((n, g) => n + g.kinds.length, 0);
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">Виды товара</h3>
-      {visible.map((group) => (
-        <div key={group.category} className="space-y-1.5">
-          <p className="text-[11px] leading-none text-ink-faint/80">{group.category}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {group.kinds.map((value) => (
-              <span key={value} className="rounded-lg bg-surface-muted px-2.5 py-1 text-sm text-ink">
-                {value}
-              </span>
-            ))}
-          </div>
+    <section className={cn('space-y-4 p-5 sm:p-6', glassCardClass)} style={glassCardShadow}>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <h2 className="text-xl font-bold tracking-tight text-ink" style={DISPLAY}>
+          {title}
+        </h2>
+        {groups.length > 0 && (
+          <p className="text-xs font-semibold text-ink-muted">
+            {groups.length} {groups.length === 1 ? 'направление' : groups.length < 5 ? 'направления' : 'направлений'}
+          </p>
+        )}
+      </div>
+      {groups.length > 0 && !(groups.length === 1 && groups[0].category === 'Прочее') ? (
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {visible.map((group) => (
+            <div key={group.category} className="rounded-2xl bg-surface-muted/80 px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 text-sm font-bold leading-snug text-ink">{group.category}</p>
+                <span className="text-2xl font-bold tabular-nums leading-none text-ink" style={DISPLAY}>
+                  {group.kinds.length}
+                </span>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+                {group.kinds.slice(0, 3).join(' · ')}
+                {group.kinds.length > 3 ? ` · ещё ${group.kinds.length - 3}` : ''}
+              </p>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : (
+        <ProfileChips title="Виды товара" values={profile.product_kinds ?? []} limit={12} />
+      )}
       {!expanded && groups.length > 4 && (
         <button type="button" className="text-sm font-semibold text-ink-muted" onClick={() => setExpanded(true)}>
-          ещё {groups.length - 4} {groups.length - 4 === 1 ? 'категория' : 'категории'} · {hiddenKinds} видов
+          ещё {groups.length - 4} {groups.length - 4 === 1 ? 'направление' : 'направления'}
         </button>
       )}
-    </div>
+      {brands.length > 0 && <ProfileChips title="Свои марки" values={brands} limit={8} products={profile.products ?? []} />}
+      {resold.length > 0 && <ProfileChips title="Чужие марки" values={resold} limit={8} />}
+      {profile.about && <p className="line-clamp-4 text-sm leading-relaxed text-ink-muted">{profile.about}</p>}
+    </section>
   );
 }
 
@@ -735,7 +788,7 @@ export function SupplierDetail() {
         setLoading(false);
 
         const host = company.websiteHost ?? '';
-        const inn = (company.inn ?? '').trim();
+        const inn = (company.inn ?? '').trim() || invoiceInn(companyOffers);
         const offerIds = companyOffers.map((o) => o.id);
         const requestIds = companyOffers.map((o) => o.requestId);
         const [siteSnapshot, reliabilityRow, companyEmails, companyQuotes, history, companyOrderCount, relatedRequests] =
@@ -756,6 +809,22 @@ export function SupplierDetail() {
         setChecks(history);
         setOrderCount(companyOrderCount);
         setRequests(relatedRequests);
+        // Счёт уже записал ИНН на карточку закупки. Переносим на компанию и
+        // запускаем проверку реестра, если её ещё не было.
+        if (inn && !(company.inn ?? '').trim()) {
+          setSupplierInn(company.id, inn)
+            .then((next) => {
+              if (!cancelled) setSupplier(next);
+            })
+            .catch(() => {});
+        }
+        if (inn && !reliabilityRow) {
+          checkSupplierReliability(inn)
+            .then((row) => {
+              if (!cancelled) setReliability(row);
+            })
+            .catch(() => {});
+        }
       } catch (err) {
         if (!cancelled) setLoadError(errorMessage(err, 'Не удалось загрузить поставщика'));
       } finally {
@@ -814,6 +883,7 @@ export function SupplierDetail() {
       checks={checks}
       orderCount={orderCount}
       detailsLoading={detailsLoading}
+      onReliabilityChange={setReliability}
     />
   );
 }
@@ -837,6 +907,7 @@ export function SupplierDetailView({
   checks,
   orderCount,
   detailsLoading = false,
+  onReliabilityChange,
 }: {
   supplier: Supplier;
   // Стоп-лист и перепроверка меняют саму компанию, поэтому представление
@@ -856,6 +927,7 @@ export function SupplierDetailView({
   checks: SupplierReliabilityCheck[];
   orderCount: number | null;
   detailsLoading?: boolean;
+  onReliabilityChange?: (next: SupplierReliability) => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab: SupplierDetailTab = SLUG_TO_TAB[searchParams.get('tab') ?? ''] ?? 'Обзор';
@@ -958,14 +1030,16 @@ export function SupplierDetailView({
   // по ней и переписка обычно самая живая.
   const primaryOffer = offers.length > 0 ? offers[offers.length - 1] : null;
 
+  const knownInn = (supplier.inn ?? '').trim() || invoiceInn(offers);
+
   async function recheckReliability() {
-    const inn = (supplier.inn ?? '').trim();
-    if (!inn) return;
+    if (!knownInn) return;
     setBusyAction('reliability');
     setActionError(null);
     setActionNote(null);
     try {
-      const result = await checkSupplierReliability(inn);
+      const result = await checkSupplierReliability(knownInn);
+      onReliabilityChange?.(result);
       setActionNote(
         result.error
           ? `Проверка не удалась: ${result.error}`
@@ -1202,13 +1276,14 @@ export function SupplierDetailView({
     ...(profile?.legal_entities ?? []).flatMap((e) =>
       [e.name, e.inn ? `ИНН ${e.inn}` : '', e.ogrn ? `ОГРН ${e.ogrn}` : ''].filter(Boolean),
     ),
-    !(profile?.legal_entities ?? []).some((e) => e.inn) && supplier.inn ? `ИНН ${supplier.inn}` : '',
+    !(profile?.legal_entities ?? []).some((e) => e.inn) && knownInn ? `ИНН ${knownInn}` : '',
     supplier.email.trim() || '',
     supplier.phone.trim() ? formatPhoneDisplay(supplier.phone) : '',
     supplier.websiteUrl.trim() ? supplierWebsiteFullUrl(supplier.websiteUrl) : '',
   ]
     .filter(Boolean)
     .join('\n');
+  const [showSiteEmails, setShowSiteEmails] = useState(false);
   const companyContacts: { key: string; value: string; label?: string | null; preferred?: boolean; phone?: boolean }[] =
     [];
   const seenContacts = new Set<string>();
@@ -1221,14 +1296,29 @@ export function SupplierDetailView({
     seenContacts.add(key);
     companyContacts.push({ key, value: value.trim(), label, phone, preferred });
   };
+  const liveMails = correspondenceMails(emails);
+  for (const person of contacts) {
+    if (person.lastReplyAt) liveMails.add(normalizeMail(person.email));
+  }
+  const primaryMail = normalizeMail(supplier.email);
+  const siteEmails = profile?.contacts?.emails ?? [];
   addContact(
     supplier.email,
-    profile?.contacts?.emails?.find((e) => e.email?.trim().toLowerCase() === supplier.email.trim().toLowerCase())
-      ?.label,
+    siteEmails.find((e) => normalizeMail(e.email) === primaryMail)?.label,
     false,
     true,
   );
-  for (const email of profile?.contacts?.emails ?? []) addContact(email.email, email.label);
+  for (const email of siteEmails) {
+    const mail = normalizeMail(email.email);
+    if (mail && mail !== primaryMail && liveMails.has(mail)) addContact(email.email, email.label);
+  }
+  for (const mail of liveMails) {
+    if (mail !== primaryMail) addContact(mail, 'из переписки');
+  }
+  const hiddenSiteEmails = siteEmails.filter((email) => {
+    const mail = normalizeMail(email.email);
+    return mail && mail !== primaryMail && !liveMails.has(mail);
+  });
   for (const phone of profile?.contacts?.phones ?? []) addContact(phone.number, phone.label, true);
   addContact(supplier.phone, null, true);
   const companyMessengers: DisplayMessenger[] = [...supplier.messengers];
@@ -1261,7 +1351,6 @@ export function SupplierDetailView({
     };
   }, [menuOpen]);
 
-  const hasRisk = shouldFlag(reliability);
   const locationLabel = [profile?.addresses?.[0]?.city || supplier.city, supplier.country]
     .filter(Boolean)
     .join(', ');
@@ -1279,7 +1368,9 @@ export function SupplierDetailView({
         <div className="relative flex flex-wrap items-start justify-between gap-4 p-5 sm:p-6">
           <div className="min-w-0 flex-1 basis-72">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="break-words text-2xl font-bold tracking-tight text-ink">{supplier.name}</h1>
+              <h1 className="break-words text-3xl font-bold tracking-tight text-ink" style={DISPLAY}>
+                {supplier.name}
+              </h1>
               {supplier.supplierKind && (
                 <Badge tone={supplier.supplierKind === 'manufacturer' ? 'success' : 'neutral'}>
                   <Factory className="mr-1 inline h-4 w-4" />
@@ -1289,10 +1380,12 @@ export function SupplierDetailView({
               <Badge tone={supplier.verified ? 'success' : 'neutral'}>
                 {supplier.verified ? 'Проверена человеком' : 'Не верифицирована'}
               </Badge>
-              {hasRisk && reliability && (
-                <Badge tone={reliability.riskLevel === 'danger' ? 'danger' : 'warning'}>
-                  <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
-                  {riskSummary(reliability)}
+              {reliability && !reliability.error && (
+                <Badge tone={reliability.riskLevel === 'danger' ? 'danger' : reliability.riskLevel === 'warn' || !reliability.found ? 'warning' : 'success'}>
+                  <ShieldCheck className="mr-1 inline h-3.5 w-3.5" />
+                  <span className="max-w-[16rem] truncate">
+                    {reliability.found && reliability.risks.length === 0 ? 'Рисков по ИНН нет' : riskSummary(reliability)}
+                  </span>
                 </Badge>
               )}
               {supplier.preferred && (
@@ -1399,7 +1492,7 @@ export function SupplierDetailView({
                     type="button"
                     variant="secondary"
                     className="w-full justify-start border-0"
-                    disabled={busyAction !== null || !(supplier.inn ?? '').trim()}
+                    disabled={busyAction !== null || !knownInn}
                     icon={
                       busyAction === 'reliability' ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1412,9 +1505,11 @@ export function SupplierDetailView({
                       void recheckReliability();
                     }}
                     title={
-                      (supplier.inn ?? '').trim()
+                      knownInn
                         ? undefined
-                        : 'ИНН появится из первого счёта — до этого проверять нечего'
+                        : quotes.length > 0
+                          ? 'В полученном счёте ИНН не распознан'
+                          : 'ИНН появится из первого счёта — до этого проверять нечего'
                     }
                   >
                     Перепроверить реестр
@@ -1495,49 +1590,62 @@ export function SupplierDetailView({
             </div>
           </div>
         </div>
-        <div className="relative grid grid-cols-2 border-t border-white/70 sm:grid-cols-4">
-          {(
-            [
-              {
-                value: emails.length,
-                label: lastEmailAt ? `писем · ${formatDate(lastEmailAt)}` : 'писем',
-                onClick: () => setTab('Переписка'),
-              },
-              {
-                value: quotes.length,
-                label: lastQuoteAt ? `КП · ${formatDate(lastQuoteAt)}` : 'КП',
-                onClick: () => setTab('КП и цены'),
-              },
-              {
-                value: orderCount ?? '—',
-                label: orderCount === 1 ? 'заказ' : 'заказов',
-                onClick: () => setTab('Заказы'),
-              },
-              {
-                value: `${profilePercent}%`,
-                label: missing.length > 0 ? `профиль · нет: ${missing.slice(0, 2).join(', ')}` : 'профиль',
-                onClick: () => setTab('Обзор'),
-              },
-            ] as const
-          ).map((cell, index) => (
-            <button
-              key={cell.label}
-              type="button"
-              onClick={cell.onClick}
-              className={cn(
-                'min-w-0 px-5 py-4 text-left transition hover:bg-white/50 sm:px-6',
-                index % 2 === 0 && 'border-r border-white/70',
-                index < 2 && 'border-b border-white/70 sm:border-b-0',
-                index === 1 && 'sm:border-r',
-              )}
-            >
-              <p className="text-xl font-bold tabular-nums text-ink">{cell.value}</p>
-              <p className="truncate text-xs text-ink-muted" title={cell.label}>
-                {cell.label}
-              </p>
-            </button>
-          ))}
-        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {(
+          [
+            {
+              icon: Mail,
+              tone: 'text-ink',
+              value: emails.length,
+              label: lastEmailAt ? `писем · ${formatDate(lastEmailAt)}` : 'писем',
+              onClick: () => setTab('Переписка'),
+            },
+            {
+              icon: FileText,
+              tone: 'text-felt',
+              value: quotes.length,
+              label: lastQuoteAt ? `КП · ${formatDate(lastQuoteAt)}` : 'КП',
+              onClick: () => setTab('КП и цены'),
+            },
+            {
+              icon: Send,
+              tone: 'text-ink',
+              value: orderCount ?? '—',
+              label: orderCount === 1 ? 'заказ' : 'заказов',
+              onClick: () => setTab('Заказы'),
+            },
+            {
+              icon: ShieldCheck,
+              tone: reliability?.riskLevel === 'danger' ? 'text-danger' : reliability?.riskLevel === 'warn' ? 'text-warning' : 'text-felt',
+              value: !knownInn ? '—' : !reliability ? '…' : reliability.error ? '!' : !reliability.found ? 'нет' : reliability.risks.length,
+              label: !knownInn ? 'ИНН из счёта' : reliability?.error ? 'проверка не прошла' : 'рисков по ИНН',
+              onClick: () => setTab('Проверка'),
+            },
+          ] as const
+        ).map((cell) => (
+          <button
+            key={cell.label}
+            type="button"
+            onClick={cell.onClick}
+            className={cn(
+              'flex min-h-[5.25rem] flex-col items-center justify-center gap-1 px-3 py-3 text-center transition hover:-translate-y-0.5',
+              glassCardClass,
+            )}
+            style={glassCardShadow}
+          >
+            <span className={cn('inline-flex items-center gap-2', cell.tone)}>
+              <cell.icon className="h-5 w-5 shrink-0" />
+              <span className="text-2xl font-bold tabular-nums tracking-tight" style={DISPLAY}>
+                {cell.value}
+              </span>
+            </span>
+            <span className="max-w-full truncate text-[11px] font-bold text-ink-muted" title={cell.label}>
+              {cell.label}
+            </span>
+          </button>
+        ))}
       </div>
 
       {supplier.blockedReason && (
@@ -1618,24 +1726,14 @@ export function SupplierDetailView({
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0 space-y-4">
             {profile ? (
-              <Card className="space-y-4">
-                <h2 className="text-base font-semibold text-ink">
-                  {supplier.supplierKind === 'manufacturer' || supplier.supplierKind === 'brand_owner'
+              <SellSummary
+                title={
+                  supplier.supplierKind === 'manufacturer' || supplier.supplierKind === 'brand_owner'
                     ? 'Что производит сам'
-                    : 'Что продаёт'}
-                </h2>
-                <ProfileChips
-                  title="Свои марки"
-                  values={profile.own_brands ?? []}
-                  limit={14}
-                  products={profile.products ?? []}
-                />
-                <GroupedProductKinds kinds={profile.product_kinds ?? []} />
-                {(supplier.supplierKind === 'dealer' || supplier.supplierKind === 'retail') && (
-                  <ProfileChips title="Чужие марки" values={profile.resold_brands ?? []} />
-                )}
-                {profile.about && <p className="text-sm text-ink-muted">{profile.about}</p>}
-              </Card>
+                    : 'Что продаёт'
+                }
+                profile={profile}
+              />
             ) : (
               <Card className="space-y-3">
                 <h2 className="text-sm font-semibold text-ink">Что поставляет</h2>
@@ -1800,6 +1898,23 @@ export function SupplierDetailView({
                   preferred={contact.preferred}
                 />
               ))}
+              {hiddenSiteEmails.length > 0 && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-ink-muted hover:text-ink"
+                    onClick={() => setShowSiteEmails((open) => !open)}
+                  >
+                    {showSiteEmails
+                      ? 'Скрыть адреса с сайта'
+                      : `Ещё ${hiddenSiteEmails.length} ${hiddenSiteEmails.length === 1 ? 'адрес' : hiddenSiteEmails.length < 5 ? 'адреса' : 'адресов'} с сайта`}
+                  </button>
+                  {showSiteEmails &&
+                    hiddenSiteEmails.map((email) => (
+                      <CopyLine key={email.email ?? email.label ?? 'site'} value={(email.email ?? '').trim()} label={email.label ?? 'с сайта, переписки нет'} />
+                    ))}
+                </div>
+              )}
               {companyMessengers.length > 0 && <MessengerChips messengers={companyMessengers} />}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-ink">
@@ -1925,6 +2040,7 @@ export function SupplierDetailView({
                 <p className="text-sm text-ink-muted">{supplier.city}</p>
               )}
             </Card>
+            {(termsNotes.length > 0 || SITE_TERM_LABELS.some(([key]) => profile?.terms?.[key])) && (
             <Card className="space-y-3">
               <h2 className="text-base font-semibold text-ink">Условия</h2>
               <dl className="space-y-3">
@@ -1953,6 +2069,7 @@ export function SupplierDetailView({
                 </p>
               )}
             </Card>
+            )}
             <Card className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-ink">Реквизиты</h2>
@@ -1982,20 +2099,26 @@ export function SupplierDetailView({
                 </div>
               ))}
               {!(profile?.legal_entities ?? []).length &&
-                (supplier.inn ? (
-                  <CopyLine value={supplier.inn} label="ИНН" />
+                (knownInn ? (
+                  <CopyLine value={knownInn} label={(supplier.inn ?? '').trim() ? 'ИНН' : 'ИНН из счёта'} />
+                ) : quotes.length > 0 ? (
+                  <p className="text-sm text-ink-faint">В полученном счёте ИНН не распознан</p>
                 ) : (
                   <p className="text-sm text-ink-faint">ИНН появится из первого счёта</p>
                 ))}
             </Card>
             <Card className="space-y-3">
               <h2 className="text-sm font-semibold text-ink">Благонадёжность</h2>
-              {!(supplier.inn ?? '').trim() ? (
+              {!knownInn ? (
                 <p className="text-sm text-ink-faint">
-                  Проверим автоматически, когда поставщик пришлёт счёт — ИНН берётся из него.
+                  {quotes.length > 0
+                    ? 'В полученном счёте ИНН не распознан — проверять нечего.'
+                    : 'Проверим автоматически, когда поставщик пришлёт счёт — ИНН берётся из него.'}
                 </p>
               ) : !reliability ? (
-                <p className="text-sm text-ink-faint">Ещё не проверяли.</p>
+                <p className="text-sm text-ink-faint">
+                  {detailsLoading ? 'Проверяем по реестру…' : 'Результата проверки ещё нет — запустите её из меню действий.'}
+                </p>
               ) : reliability.error ? (
                 <p className="text-sm text-warning">Не удалось проверить: {reliability.error}</p>
               ) : !reliability.found ? (
@@ -2024,34 +2147,16 @@ export function SupplierDetailView({
                 </div>
               )}
             </Card>
-            <Card className="space-y-3">
-              <h2 className="text-sm font-semibold text-ink">Насколько свежие данные</h2>
-              <Row label="Контакты">
-                {formatDate(contactsFreshness)}
-                {isStale(contactsFreshness) && <span className="ml-2 text-xs text-warning">устарело</span>}
-              </Row>
-              <Row label="Чтение сайта">
-                {formatDate(snapshot?.fetchedAt ?? null)}
-                {isStale(snapshot?.fetchedAt ?? null) && <span className="ml-2 text-xs text-warning">устарело</span>}
-              </Row>
-              <Row label="Проверка по реестру">
-                {formatDate(reliability?.checkedAt ?? null)}
-                {/* Порог «устарело» у реестра свой — 30 дней в
-                  isReliabilityStale: реестры обновляются не чаще раза в
-                  сутки, а суточный лимит запросов к Checko не резиновый. */}
-                {reliability && isReliabilityStale(reliability) && (
-                  <span className="ml-2 text-xs text-warning">устарело, стоит перепроверить</span>
-                )}
-              </Row>
-              <div className="border-t border-border pt-3">
-                <Row label="Заполненность профиля">
-                  <span className="tabular-nums">{profilePercent}%</span>
-                  {missing.length > 0 && (
-                    <span className="ml-2 text-xs text-ink-faint">не хватает: {missing.join(', ')}</span>
-                  )}
-                </Row>
-              </div>
-            </Card>
+            <p className="px-1 text-[11px] leading-relaxed text-ink-faint">
+              Контакты {formatDate(contactsFreshness)}
+              {isStale(contactsFreshness) ? ' · устарели' : ''}
+              {' · '}сайт {formatDate(snapshot?.fetchedAt ?? null)}
+              {snapshot && isStale(snapshot.fetchedAt) ? ' · устарел' : ''}
+              {reliability ? ` · реестр ${formatDate(reliability.checkedAt)}` : ''}
+              {reliability && isReliabilityStale(reliability) ? ' · пора перепроверить' : ''}
+              {' · '}профиль {profilePercent}%
+              {missing.length > 0 ? ` · нет: ${missing.slice(0, 2).join(', ')}` : ''}
+            </p>
           </aside>
         </div>
       )}
@@ -2281,12 +2386,16 @@ export function SupplierDetailView({
         <div className="space-y-4">
           <Card className="space-y-3">
             <h2 className="text-sm font-semibold text-ink">Последняя проверка</h2>
-            {!(supplier.inn ?? '').trim() ? (
+            {!knownInn ? (
               <p className="text-sm text-ink-faint">
-                ИНН неизвестен — проверять нечего. Он подставится из первого же счёта поставщика.
+                {quotes.length > 0
+                  ? 'В полученном счёте ИНН не распознан — проверять нечего.'
+                  : 'ИНН неизвестен — проверять нечего. Он подставится из первого же счёта поставщика.'}
               </p>
             ) : !reliability ? (
-              <p className="text-sm text-ink-faint">Ещё не проверяли. Проверку запускают из карточки в закупках.</p>
+              <p className="text-sm text-ink-faint">
+                {detailsLoading ? 'Проверяем по реестру…' : 'Результата проверки ещё нет — запустите её из меню действий.'}
+              </p>
             ) : (
               <>
                 <Row label="ИНН">{reliability.inn}</Row>
