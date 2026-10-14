@@ -405,11 +405,23 @@ type TcBrowsePreserve = {
   __tcBrowseBodyHtml?: string;
   __tcBrowseFaqHtml?: string;
   __tcBrowseHeroCount?: string;
+  __tcBrowseHeroHtml?: string;
 };
 
 function peekTcBrowsePreserve(): TcBrowsePreserve {
   if (typeof window === 'undefined') return {};
   return window as unknown as TcBrowsePreserve;
+}
+
+// AUDIT-2026-10: helper to neutralize reveal animations when inserting
+// preserved snapshot HTML. Removing .ml-reveal prevents the animation
+// from re-running on the newly inserted nodes (even if html.ml-motion-ready
+// is present in the static snapshot). This stops the cover blink.
+function neutralizeReveals(el: HTMLElement | null) {
+  if (!el) return;
+  el.querySelectorAll<HTMLElement>('.ml-reveal').forEach((node) => {
+    node.classList.remove('ml-reveal', 'ml-reveal-delay-1', 'ml-reveal-delay-2');
+  });
 }
 
 /**
@@ -428,6 +440,12 @@ function TcBrowseBodyMount({
   if (preservedHtml.current === undefined) {
     preservedHtml.current = peekTcBrowsePreserve().__tcBrowseBodyHtml ?? null;
   }
+
+  const preservedHeroHtml = useRef<string | null | undefined>(undefined);
+  if (preservedHeroHtml.current === undefined) {
+    preservedHeroHtml.current = peekTcBrowsePreserve().__tcBrowseHeroHtml ?? null;
+  }
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -462,11 +480,16 @@ function TcBrowseBodyMount({
     // we must NOT add ml-motion-ready. The static HTML from prerender is already in final state.
     // Adding the class would apply the reveal animation (from opacity:0) to already-visible elements,
     // causing the basic "morganie"/pop on takeover. Default .ml-reveal { opacity:1 } is what we want here.
-    // Scroll attach still happens in useEffect (without forcing the global motion class).
+    // We also neutralize .ml-reveal classes on the inserted nodes so that even if the class
+    // is present on <html> from the snapshot, the animation does not re-run on insert.
+    // Scroll attach still happens in useEffect.
     return (
       <div
         id="tc-browse-body"
-        ref={containerRef}
+        ref={(el) => {
+          containerRef.current = el;
+          if (el) neutralizeReveals(el);
+        }}
         dangerouslySetInnerHTML={{ __html: preservedHtml.current }}
         suppressHydrationWarning
       />
@@ -1774,72 +1797,80 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           <div className="space-y-5 sm:space-y-6">
             {/* Компактный hero как у casinolist LV: заголовок + мета-строка +
                 маленькая обложка справа — без огромной пустой картинки. */}
-            <header
-              className={cn('ml-reveal relative overflow-hidden px-4 py-5 sm:px-8 sm:py-9', glassCardClass)}
-              style={glassCardShadow}
-            >
-              <span
-                className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-90"
-                style={{
-                  background:
-                    'radial-gradient(ellipse at 78% 20%, rgba(201,162,39,0.14), transparent 38%), linear-gradient(155deg,#ffffff 0%,#f7f5f0 55%,#f0efed 100%)',
-                }}
-                aria-hidden
+            {lightTcBrowseHome && preservedHeroHtml.current ? (
+              // AUDIT-2026-10: insert the exact hero HTML from the snapshot for the light home.
+              // This guarantees pixel-perfect match..., and we neutralize reveals below to stop blink on cover.
+              <div
+                ref={(el) => { if (el) neutralizeReveals(el); }}
+                dangerouslySetInnerHTML={{ __html: preservedHeroHtml.current }}
+                suppressHydrationWarning
               />
-              {/* Всегда в ряд: текст + компактная обложка справа — на мобилке
-                  не стекаем в колонку (иначе квадрат по центру и пустота). */}
-              <div className="relative grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)] lg:gap-8">
-                   {/* AUDIT-2026-10 Malllist hero grid stable for snapshot, no negative margins causing overlap. */}
-                <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
-                  <p className="text-[11px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
-                    MallList · Минск
-                  </p>
-                  <h1
-                    className="text-[1.65rem] font-bold leading-[1.08] tracking-tight text-ink sm:text-5xl"
-                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                  >
-                    Каталог ТЦ Минска
-                  </h1>
-                  <div className="flex flex-col gap-1 pt-0.5 text-[12px] font-semibold text-ink/55 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
-                     {/* AUDIT-2026-10 Malllist hero: stable meta for no CLS/overlap after snapshot. Tabular for numbers. */}
-                    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="tabular-nums text-ink">
-                        {tcBrowseFigures[0]?.value ?? preservedHeroCount ?? '—'} ТЦ
+            ) : (
+              <header
+                className={cn('ml-reveal relative overflow-hidden px-4 py-5 sm:px-8 sm:py-9', glassCardClass)}
+                style={glassCardShadow}
+              >
+                <span
+                  className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-90"
+                  style={{
+                    background:
+                      'radial-gradient(ellipse at 78% 20%, rgba(201,162,39,0.14), transparent 38%), linear-gradient(155deg,#ffffff 0%,#f7f5f0 55%,#f0efed 100%)',
+                  }}
+                  aria-hidden
+                />
+                {/* Всегда в ряд: текст + компактная обложка справа — на мобилке
+                    не стекаем в колонку (иначе квадрат по центру и пустота). */}
+                <div className="relative grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(10rem,12rem)] lg:gap-8">
+                     {/* AUDIT-2026-10 Malllist hero grid stable for snapshot, no negative margins causing overlap. */}
+                  <div className="flex min-w-0 flex-col gap-2 sm:gap-3">
+                    <p className="text-[11px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
+                      MallList · Минск
+                    </p>
+                    <h1
+                      className="text-[1.65rem] font-bold leading-[1.08] tracking-tight text-ink sm:text-5xl"
+                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                    >
+                      Каталог ТЦ Минска
+                    </h1>
+                    <div className="flex flex-col gap-1 pt-0.5 text-[12px] font-semibold text-ink/55 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+                       {/* AUDIT-2026-10 Malllist hero: stable meta for no CLS/overlap after snapshot. Tabular for numbers. */}
+                      <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="tabular-nums text-ink">
+                          {tcBrowseFigures[0]?.value ?? preservedHeroCount ?? '—'} ТЦ
+                        </span>
+                        <span className="text-ink/25" aria-hidden>
+                          ·
+                        </span>
+                        <span>подборки по интересам, бренду, району и метро</span>
                       </span>
-                      <span className="text-ink/25" aria-hidden>
-                        ·
+                      <span className="inline-flex items-center gap-1 text-[#0f6b3d] sm:before:mx-0.5 sm:before:text-ink/25 sm:before:content-['·']">
+                        <BadgeCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {UPDATED_BADGE_LABEL}
                       </span>
-                      <span>подборки по интересам, бренду, району и метро</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[#0f6b3d] sm:before:mx-0.5 sm:before:text-ink/25 sm:before:content-['·']">
-                      <BadgeCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {UPDATED_BADGE_LABEL}
-                    </span>
+                    </div>
                   </div>
-                </div>
-                <div className="relative w-full shrink-0" aria-hidden>
-                   {/* AUDIT-2026-10: Malllist (TC) hero cover uses CSS art (no <img>) to eliminate load blink.
-                      ml-motion-ready forced in snapshot path + lowered idle = no 3-phase delay on reveals.
-                       Grid + aspect-square for stable layout on home, no overlapping or shift. */}
-                  <div
-                    className="ml-lookbook-cover relative aspect-square overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10" suppressHydrationWarning
-                    style={{
-                      background: 'linear-gradient(160deg, #1a1c22 0%, #3a1520 48%, #c45c2a 100%)',
-                    }}
-                  >
-                    <span
-                      className="pointer-events-none absolute inset-0 opacity-50"
+                  <div className="relative w-full shrink-0" aria-hidden>
+                     {/* AUDIT-2026-10: Malllist (TC) hero cover uses CSS art (no <img>) to eliminate load blink. */}
+                    <div
+                      className="ml-lookbook-cover relative aspect-square overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-black/10" suppressHydrationWarning
                       style={{
-                        background:
-                          'radial-gradient(circle at 50% 18%, rgba(255,255,255,0.16), transparent 48%)',
+                        background: 'linear-gradient(160deg, #1a1c22 0%, #3a1520 48%, #c45c2a 100%)',
                       }}
-                    />
-                    <span className="ml-lookbook-art ml-lookbook-art--slash" />
-                    <span className="pointer-events-none absolute left-2 top-2 z-[1] h-2 w-2 rounded-full bg-[#c9a227] ring-2 ring-white/25 sm:left-2.5 sm:top-2.5 sm:h-2.5 sm:w-2.5" />
+                    >
+                      <span
+                        className="pointer-events-none absolute inset-0 opacity-50"
+                        style={{
+                          background:
+                            'radial-gradient(circle at 50% 18%, rgba(255,255,255,0.16), transparent 48%)',
+                        }}
+                      />
+                      <span className="ml-lookbook-art ml-lookbook-art--slash" />
+                      <span className="pointer-events-none absolute left-2 top-2 z-[1] h-2 w-2 rounded-full bg-[#c9a227] ring-2 ring-white/25 sm:left-2.5 sm:top-2.5 sm:h-2.5 sm:w-2.5" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </header>
+              </header>
+            )}
 
             <TcBrowseBodyMount figures={tcBrowseFigures} shelves={tcEditorialShelves} />
 

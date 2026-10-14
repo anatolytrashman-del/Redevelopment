@@ -83,6 +83,7 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
     __tcBrowseBodyHtml?: string
     __tcBrowseFaqHtml?: string
     __tcBrowseHeroCount?: string
+    __tcBrowseHeroHtml?: string
   }
   if (browseBody) {
     wBrowse.__tcBrowseBodyHtml = browseBody.innerHTML
@@ -93,6 +94,15 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
     if (shelvesEl) {
       wBrowse.__tcBrowseBodyHtml = (glanceEl?.outerHTML ?? '') + shelvesEl.outerHTML
     }
+  }
+
+  // AUDIT-2026-10: capture the full hero <header> HTML for the snapshot home.
+  // We will render it with dangerouslySetInnerHTML (exact bytes from the snapshot)
+  // instead of letting React re-render the hero/cover. This eliminates
+  // both the React #418 hydration error and the visual blinking of the cover.
+  const headerEl = container.querySelector('header')
+  if (headerEl && wBrowse.__tcBrowseBodyHtml) {
+    wBrowse.__tcBrowseHeroHtml = headerEl.outerHTML
   }
 
   // Removed direct innerHTML re-set — it was causing re-paint / blinking on hero/cover.
