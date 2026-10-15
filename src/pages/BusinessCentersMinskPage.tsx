@@ -129,6 +129,13 @@ import { loadBuildData, peekBuildData } from '../lib/buildData';
 // glassCard/шапка с логотипом, тот же hero с HeroImageSlider), владелец
 // прямо попросил "структуру первого блока и бокового меню" оттуда же.
 //
+// Главная officelist.pro / malllist.pro (каталог на «/») — self-canonical на корень.
+function isCatalogDomainRoot(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname.replace(/^www\./, '').toLowerCase();
+  return window.location.pathname === '/' && (host === 'officelist.pro' || host === 'malllist.pro');
+}
+
 // TITLE/DESCRIPTION — meta-теги (title/og/canonical), не то же самое, что
 // видимые PAGE_H1/INTRO_TEXT ниже (тот же принцип разведения, что и в
 // DistrictGuidePage.tsx — см. комментарий там от 2026-08-24 про путаницу
@@ -1111,7 +1118,9 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             ? `https://redevelopment.pro${districtHubUrl(districtFilter, V.basePath) ?? ''}`
             : microdistrictFilter
               ? `https://redevelopment.pro${microdistrictHubUrl(microdistrictFilter, V.basePath) ?? ''}`
-              : V.siteUrl;
+              : isCatalogDomainRoot()
+                ? `${V.siteUrl.replace(/^(https?:\/\/[^/]+).*$/, '$1')}/`
+                : V.siteUrl;
 
     setGenericPageMeta({ title: hubTitle, description: hubDescription, url: hubUrl, image: OG_IMAGE, ogType: 'article' });
 
