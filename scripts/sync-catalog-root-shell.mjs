@@ -3,7 +3,7 @@
 // (без вёрстки) на секунду до React — выглядит как ошибка.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEPLOYED_SITE_MODE } from './domainSplit.mjs';
+import { DEPLOYED_SITE_MODE, MALLS_ORIGIN, OFFICES_ORIGIN } from './domainSplit.mjs';
 
 if (DEPLOYED_SITE_MODE !== 'offices' && DEPLOYED_SITE_MODE !== 'malls') {
   process.exit(0);
@@ -25,5 +25,11 @@ if (!existsSync(indexPath)) {
 
 // Полный снапшот хаба (уже с брендом/canonical/yandex из prerender rewrite).
 // 404.html не трогаем — там запасной шелл без каталога.
-writeFileSync(indexPath, readFileSync(hubPath));
+// Главная — self-canonical на корень домена (а не на /minsk/bc|tc).
+const origin = DEPLOYED_SITE_MODE === 'offices' ? OFFICES_ORIGIN : MALLS_ORIGIN;
+const rootUrl = `${origin}/`;
+const html = readFileSync(hubPath, 'utf8')
+  .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${rootUrl}$2`)
+  .replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${rootUrl}$2`);
+writeFileSync(indexPath, html);
 console.log(`[sync-catalog-root-shell] dist/index.html ← dist/${hubRel}/index.html`);
