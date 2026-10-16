@@ -86,6 +86,18 @@ html = html
     `<div id="root"><div style="min-height:100svh;box-sizing:border-box;margin:0;padding:1.5rem 1.25rem;font-family:Montserrat,system-ui,sans-serif;background:#f3f3f3;color:#1a1a1a"><p style="margin:0 0 0.5rem;font-size:1.25rem;font-weight:800;letter-spacing:-0.02em">Mall<span style="color:#e4152b">List</span></p><h1 style="margin:0 0 0.5rem;font-size:1.05rem;font-weight:600;line-height:1.35">${escapeHtml(TITLE)}</h1><p style="margin:0;max-width:36rem;font-size:0.9rem;line-height:1.45;color:#5c5c5c">${escapeHtml(DESCRIPTION)}</p></div></div>`,
   );
 
+// Доп. meta yandex-verification (второй аккаунт Вебмастера) — только для malls.
+const YANDEX_EXTRA = (domainSplit.verifications?.malls?.yandexExtra || []).filter(Boolean);
+for (const code of YANDEX_EXTRA) {
+  if (!html.includes(`content="${code}"`)) {
+    html = html.replace(
+      '</head>',
+      `<meta name="yandex-verification" content="${escapeAttr(code)}" />\n</head>`,
+    );
+  }
+}
+
+
 html = stripThirdPartyAnalytics(html);
 
 writeFileSync(indexPath, html);

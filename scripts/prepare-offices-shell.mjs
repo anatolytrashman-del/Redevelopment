@@ -54,6 +54,17 @@ if (YANDEX_VERIFICATION) {
   html = html.replace(/\s*<meta name="yandex-verification" content="[^"]*"\s*\/?>/i, '');
 }
 
+// Доп. meta yandex-verification (второй аккаунт Вебмастера) — только для offices.
+const YANDEX_EXTRA = (domainSplit.verifications?.offices?.yandexExtra || []).filter(Boolean);
+for (const code of YANDEX_EXTRA) {
+  if (!html.includes(`content="${code}"`)) {
+    html = html.replace(
+      '</head>',
+      `<meta name="yandex-verification" content="${escapeAttr(code)}" />\n</head>`,
+    );
+  }
+}
+
 html = html
   .replace(/(<meta property="og:site_name" content=")[^"]*(")/, '$1OfficeList$2')
   .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escapeAttr(TITLE)}$2`)
