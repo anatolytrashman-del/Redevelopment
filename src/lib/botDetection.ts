@@ -17,7 +17,7 @@
 // без этой проверки попадали бы и в presence, и в визиты Метрики). Не
 // претендует на 100% точность — убирает основной шум.
 export const BOT_UA_PATTERN =
-  /bot|spider|crawl|slurp|headless|puppeteer|playwright|selenium|phantomjs|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|ccbot|perplexitybot|bytespider|petalbot|mj12bot|dotbot|ahrefsbot|semrushbot|facebookexternalhit|telegrambot|discordbot|whatsapp/i;
+  /bot|spider|crawl|slurp|headless|puppeteer|playwright|selenium|phantomjs|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|ccbot|perplexitybot|bytespider|petalbot|mj12bot|dotbot|ahrefsbot|semrushbot|facebookexternalhit|telegrambot|discordbot|whatsapp|lighthouse|pagespeed|gtmetrix/i;
 
 export function isLikelyBot(): boolean {
   // globalThis, а не window: в браузере это один и тот же объект (index.html

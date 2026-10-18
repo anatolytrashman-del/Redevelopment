@@ -1,5 +1,5 @@
 import type { MetrikaDailyStat } from '../data/metrikaStats';
-import type { PageViewDaily } from '../data/pageViews';
+import type { PageViewDaily, SiteVisitorsDaily } from '../data/pageViews';
 
 export type SiteMetricsPeriod = 'today' | 'yesterday' | 7 | 30 | 90;
 
@@ -31,7 +31,13 @@ export function selectMetricsPeriod<T extends { date: string }>(
 
 // Объединяем ДАТЫ обоих источников: день без строки Метрики тоже виден.
 // Максимум, а не сумма: собственный счётчик уже включает согласившихся на cookie.
-export function mergeSiteDailyStats(metrika: MetrikaDailyStat[], own: PageViewDaily[]): MetrikaDailyStat[] {
+// visitors — уникальные люди (site_visitors_daily, с 2026-10-18). В дни, где
+// их ещё нет, «Посетители» = заходы, как раньше.
+export function mergeSiteDailyStats(
+  metrika: MetrikaDailyStat[],
+  own: PageViewDaily[],
+  visitors: SiteVisitorsDaily[] = [],
+): MetrikaDailyStat[] {
   const rows = new Map(metrika.map((row) => [row.date, { ...row }]));
   const totals = new Map<string, { views: number; entries: number }>();
   for (const row of own) {
@@ -49,6 +55,17 @@ export function mergeSiteDailyStats(metrika: MetrikaDailyStat[], own: PageViewDa
     // Без идентификаторов это заходы на сайт, не уникальные люди.
     row.users = Math.max(row.users, total.entries);
     row.pageviews = Math.max(row.pageviews, total.views);
+    rows.set(date, row);
+  }
+  const people = new Map<string, number>();
+  for (const row of visitors) people.set(row.day, (people.get(row.day) ?? 0) + row.visitors);
+  for (const [date, count] of people) {
+    const row = rows.get(date) ?? {
+      date, visits: 0, users: 0, pageviews: 0,
+      bounceRate: null, pageDepth: null, avgDurationSeconds: null,
+    };
+    const metrikaUsers = metrika.find((m) => m.date === date)?.users ?? 0;
+    row.users = Math.max(metrikaUsers, count);
     rows.set(date, row);
   }
   return [...rows.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -154,4 +171,18 @@ export function chartDateEvery(plotWidth: number, dayCount: number): number {
 export function chartShowsValues(plotWidth: number, dayCount: number): boolean {
   if (dayCount <= 0 || plotWidth <= 0) return false;
   return plotWidth / dayCount >= 18;
+}
+
+// Люди по странам за период, по убыванию. '' — страна не определилась.
+export function visitorsByCountry(
+  rows: SiteVisitorsDaily[], start: string, end: string,
+): { country: string; visitors: number }[] {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    if (row.day < start || row.day > end) continue;
+    totals.set(row.country, (totals.get(row.country) ?? 0) + row.visitors);
+  }
+  return [...totals.entries()]
+    .map(([country, visitors]) => ({ country, visitors }))
+    .sort((a, b) => b.visitors - a.visitors || a.country.localeCompare(b.country));
 }

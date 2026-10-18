@@ -39,3 +39,21 @@ export interface SearchVisitDailyRow {
   site: string;
   visits: number;
 }
+
+// Уникальные люди за день (2026-10-18) — таблица `site_visitors_daily`,
+// миграция supabase/migrations/20261018-site-visitors-daily.sql. Отпечаток
+// дня считает база (соль живёт сутки), в таблице только счётчики.
+// country — ISO-код по IP; '' — страна не определилась.
+export interface SiteVisitorsDaily {
+  day: string;
+  site: PageViewSiteId;
+  country: string;
+  visitors: number;
+}
+
+export interface SiteVisitorsDailyRow {
+  day: string;
+  site: string;
+  country: string;
+  visitors: number;
+}
