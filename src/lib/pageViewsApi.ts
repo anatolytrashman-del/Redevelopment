@@ -6,6 +6,8 @@ import type {
   PageViewSiteId,
   SearchVisitDaily,
   SearchVisitDailyRow,
+  SiteVisitorsDaily,
+  SiteVisitorsDailyRow,
 } from '../data/pageViews';
 
 const PAGE_SIZE = 1000;
@@ -75,6 +77,31 @@ export function fetchSearchVisitsDaily(
         source: row.source,
         site: asSite(row.site),
         visits: row.visits,
+      }));
+      rows.push(...page);
+      if (page.length < PAGE_SIZE) return rows;
+    }
+  });
+}
+
+export function fetchSiteVisitorsDaily(sinceDate: string): Promise<SiteVisitorsDaily[]> {
+  return withRetry(async () => {
+    const rows: SiteVisitorsDaily[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('site_visitors_daily')
+        .select('*')
+        .gte('day', sinceDate)
+        .order('day', { ascending: true })
+        .order('site', { ascending: true })
+        .order('country', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const page = (data as SiteVisitorsDailyRow[]).map((row) => ({
+        day: row.day,
+        site: asSite(row.site),
+        country: row.country ?? '',
+        visitors: row.visitors,
       }));
       rows.push(...page);
       if (page.length < PAGE_SIZE) return rows;

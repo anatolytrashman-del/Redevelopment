@@ -240,7 +240,7 @@
       window.__isLikelyBot = (function () {
         try {
           if (navigator.webdriver) { return true; }
-          return /bot|spider|crawl|slurp|headless|puppeteer|playwright|selenium|phantomjs|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|ccbot|perplexitybot|bytespider|petalbot|mj12bot|dotbot|ahrefsbot|semrushbot|facebookexternalhit|telegrambot|discordbot|whatsapp/i.test(navigator.userAgent);
+          return /bot|spider|crawl|slurp|headless|puppeteer|playwright|selenium|phantomjs|gptbot|chatgpt-user|oai-searchbot|claudebot|anthropic-ai|ccbot|perplexitybot|bytespider|petalbot|mj12bot|dotbot|ahrefsbot|semrushbot|facebookexternalhit|telegrambot|discordbot|whatsapp|lighthouse|pagespeed|gtmetrix/i.test(navigator.userAgent);
         } catch (e) { return false; }
       })();
     </script>

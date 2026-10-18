@@ -39,11 +39,11 @@ import { authFetch } from '../lib/authFetch';
 import { AI_REFERRER_LABELS, isAiReferrerSource } from '../lib/aiReferrer';
 import { fetchSiteBacklinks } from '../lib/siteBacklinksApi';
 import type { SiteBacklink } from '../data/siteBacklinks';
-import { fetchPageViewsDaily, fetchSearchVisitsDaily } from '../lib/pageViewsApi';
-import type { PageViewDaily, PageViewSiteId, SearchVisitDaily } from '../data/pageViews';
+import { fetchPageViewsDaily, fetchSearchVisitsDaily, fetchSiteVisitorsDaily } from '../lib/pageViewsApi';
+import type { PageViewDaily, PageViewSiteId, SearchVisitDaily, SiteVisitorsDaily } from '../data/pageViews';
 import { SearchVisibilityChart } from '../components/siteMetrics/SearchVisibilityChart';
 import {
-  combineSearchDaily, mergeSiteDailyStats, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate,
+  combineSearchDaily, mergeSiteDailyStats, visitorsByCountry, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate,
   siteMetricsToday, yandexLagNote,
   type SiteMetricsPeriod,
 } from '../lib/siteMetrics';
@@ -761,6 +761,7 @@ export function SiteMetrics() {
   const [backlinks, setBacklinks] = useState<SiteBacklink[] | null>(null);
   const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [searchVisitRows, setSearchVisitRows] = useState<SearchVisitDaily[]>([]);
+  const [visitorRows, setVisitorRows] = useState<SiteVisitorsDaily[]>([]);
   const [metricsSite, setMetricsSite] = useState<PageViewSiteId>('platform');
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
@@ -797,6 +798,7 @@ export function SiteMetrics() {
         backlinkRows,
         ownPageViews,
         searchVisits,
+        siteVisitors,
       ] = await Promise.all([
           fetchMetrikaDailyStats(),
           fetchMetrikaTrafficSources(),
@@ -817,6 +819,8 @@ export function SiteMetrics() {
           fetchSiteBacklinks().catch(() => []),
           fetchPageViewsDaily(pageViewsSince),
           fetchSearchVisitsDaily(pageViewsSince).catch(() => []),
+          // Уникальные люди считаются с 2026-10-18; до миграции таблицы нет.
+          fetchSiteVisitorsDaily(pageViewsSince).catch(() => []),
         ]);
       setDailyStats(daily);
       setTrafficSources(traffic);
@@ -833,6 +837,7 @@ export function SiteMetrics() {
       setBacklinks(backlinkRows);
       setPageViewRows(ownPageViews);
       setSearchVisitRows(searchVisits);
+      setVisitorRows(siteVisitors);
       setLastCheckedAt(new Date());
       setError('');
     } catch {
@@ -873,6 +878,10 @@ export function SiteMetrics() {
     () => searchVisitRows.filter((row) => row.site === metricsSite),
     [searchVisitRows, metricsSite],
   );
+  const siteVisitors = useMemo(
+    () => visitorRows.filter((row) => row.site === metricsSite),
+    [visitorRows, metricsSite],
+  );
   const siteWebmasterStats = useMemo(
     () => (webmasterStats ?? []).filter((row) => row.site === metricsSite),
     [webmasterStats, metricsSite],
@@ -898,8 +907,8 @@ export function SiteMetrics() {
     [backlinks, metricsSite],
   );
   const combinedDaily = useMemo(
-    () => mergeSiteDailyStats(isPlatformSite ? (dailyStats ?? []) : [], sitePageViews),
-    [isPlatformSite, dailyStats, sitePageViews],
+    () => mergeSiteDailyStats(isPlatformSite ? (dailyStats ?? []) : [], sitePageViews, siteVisitors),
+    [isPlatformSite, dailyStats, sitePageViews, siteVisitors],
   );
   const currentPeriod = useMemo(() => selectMetricsPeriod(combinedDaily, period, today), [combinedDaily, period, today]);
   const previousPeriod = useMemo(() => selectMetricsPeriod(combinedDaily, period, today, true), [combinedDaily, period, today]);
@@ -915,6 +924,12 @@ export function SiteMetrics() {
   const periodDatesLabel = start === end
     ? `за ${formatDateShort(start)}`
     : `${formatDateShort(start)} — ${formatDateShort(end)}`;
+
+  const periodCountries = useMemo(
+    () => visitorsByCountry(siteVisitors, start, end),
+    [siteVisitors, start, end],
+  );
+  const firstVisitorDay = siteVisitors[0]?.day ?? null;
 
   const ownTopPages = useMemo(() => {
     const totals = new Map<string, number>();
@@ -1645,8 +1660,53 @@ export function SiteMetrics() {
               )}
             </Card>
           </div>
+
+          <Card className="flex flex-col gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Откуда люди</h3>
+              <p className="text-xs text-ink-muted">
+                Уникальные посетители по стране за выбранный период ({periodDatesLabel}). Без cookie: человек
+                узнаётся только в пределах суток.
+                {firstVisitorDay
+                  ? ` Считаем с ${formatDateShort(firstVisitorDay)}; раньше «Посетители» — это заходы.`
+                  : ' Подсчёт людей ещё не начался — пока «Посетители» равны заходам.'}
+              </p>
+            </div>
+            <div className="flex flex-col divide-y divide-border">
+              {periodCountries.map((c) => (
+                <div key={c.country || '—'} className="relative flex items-center justify-between gap-3 py-2 text-sm">
+                  <div
+                    className="absolute inset-y-0 left-0 -z-10 rounded bg-primary/10"
+                    style={{ width: `${(c.visitors / Math.max(1, periodCountries[0]?.visitors ?? 1)) * 100}%` }}
+                  />
+                  <span className="truncate text-ink">{countryLabel(c.country)}</span>
+                  <span className="shrink-0 font-medium text-ink">{c.visitors.toLocaleString('ru-RU')}</span>
+                </div>
+              ))}
+              {periodCountries.length === 0 && (
+                <p className="text-sm text-ink-muted">За этот период людей ещё не посчитано.</p>
+              )}
+            </div>
+          </Card>
         </div>
       )}
     </>
   );
+}
+
+const REGION_NAMES = (() => {
+  try {
+    return new Intl.DisplayNames(['ru'], { type: 'region' });
+  } catch {
+    return null;
+  }
+})();
+
+function countryLabel(code: string): string {
+  if (!code) return 'Не определена';
+  try {
+    return REGION_NAMES?.of(code) ?? code;
+  } catch {
+    return code;
+  }
 }

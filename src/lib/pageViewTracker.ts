@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { isLikelyBot } from './botDetection';
 import { aiSourceFromHostname } from './aiReferrer';
 import { siteIdFromHostname, type PublicSiteId } from './sites';
+import { vercelAnalyticsBeforeSend } from './vercelAnalytics';
 
 // Собственный счётчик посещаемости без cookie (владелец, 2026-09-28) — см.
 // supabase/migrations/20260928-page-views-daily.sql и src/data/pageViews.ts.
@@ -26,6 +27,11 @@ import { siteIdFromHostname, type PublicSiteId } from './sites';
 // Дальнейшие переходы внутри той же загрузки (React Router, без перезагрузки
 // страницы) — entries=false, это продолжение того же визита.
 let hasTrackedEntryThisLoad = false;
+
+// Уникальные люди (track_site_visitor, миграция 20261018-site-visitors-daily.sql)
+// — один вызов на загрузку документа: отпечаток дня считает база, на
+// устройстве ничего не хранится. SPA-переходы того же человека его не меняют.
+let hasTrackedVisitorThisLoad = false;
 
 // Дедуп одного и того же пути подряд — только модульная переменная, без
 // стораджа (см. правило "никаких cookie"). Нужен из-за React StrictMode:
@@ -86,6 +92,8 @@ export function trackPageView(pathname: string): void {
   if (!site) return; // превью/localhost не засоряют прод-статистику
   if (pathname.startsWith('/admin')) return; // считаем только публичную часть
   if (isLikelyBot()) return;
+  // Свои визиты (?va-disable=1) не считаем ни в Vercel, ни здесь — флаг один.
+  if (vercelAnalyticsBeforeSend(true) === null) return;
   try {
     if (new URLSearchParams(window.location.search).get('prerender') === '1') return;
   } catch {
@@ -95,6 +103,13 @@ export function trackPageView(pathname: string): void {
   if (pathname === lastTrackedPath && site === lastTrackedSite) return;
   lastTrackedPath = pathname;
   lastTrackedSite = site;
+
+  if (!hasTrackedVisitorThisLoad) {
+    hasTrackedVisitorThisLoad = true;
+    void supabase
+      .rpc('track_site_visitor', { p_site: site })
+      .then(() => undefined, () => undefined);
+  }
 
   const isEntry = !hasTrackedEntryThisLoad && referrerIsExternal();
   hasTrackedEntryThisLoad = true;

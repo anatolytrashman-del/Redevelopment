@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MetrikaDailyStat } from '../data/metrikaStats';
 import {
-  chartAxisTicks, chartDateEvery, chartShowsValues, combineSearchDaily, mergeSiteDailyStats,
+  chartAxisTicks, chartDateEvery, chartShowsValues, combineSearchDaily, mergeSiteDailyStats, visitorsByCountry,
   metricsPeriodBounds, selectMetricsPeriod, siteMetricsToday, yandexLagNote,
 } from './siteMetrics';
 
@@ -95,5 +95,43 @@ describe('site metrics regression: own visits exist before Metrika reports today
     expect(siteMetricsToday(new Date('2026-10-02T20:59:59Z'))).toBe('2026-10-02');
     expect(siteMetricsToday(new Date('2026-10-02T21:00:00Z'))).toBe('2026-10-03');
     expect(metricsPeriodBounds('yesterday', '2027-01-01')).toEqual({ start: '2026-12-31', end: '2026-12-31' });
+  });
+});
+
+describe('unique visitors (site_visitors_daily)', () => {
+  const own = [
+    { day: '2026-10-17', path: '/', site: 'malls' as const, entries: 9, views: 12 },
+    { day: '2026-10-18', path: '/', site: 'malls' as const, entries: 5, views: 10 },
+  ];
+
+  it('uses unique people where counted and falls back to entries before that', () => {
+    const merged = mergeSiteDailyStats([], own, [
+      { day: '2026-10-18', site: 'malls', country: 'BY', visitors: 3 },
+      { day: '2026-10-18', site: 'malls', country: 'RU', visitors: 1 },
+    ]);
+    expect(merged.map((d) => [d.date, d.visits, d.users, d.pageviews])).toEqual([
+      ['2026-10-17', 9, 9, 12],
+      ['2026-10-18', 5, 4, 10],
+    ]);
+  });
+
+  it('keeps Metrika users when they are higher', () => {
+    const merged = mergeSiteDailyStats([{ ...yesterday, date: '2026-10-18', users: 7 }], own, [
+      { day: '2026-10-18', site: 'platform', country: '', visitors: 4 },
+    ]);
+    expect(merged.find((d) => d.date === '2026-10-18')?.users).toBe(7);
+  });
+
+  it('sums countries inside the period only', () => {
+    expect(visitorsByCountry([
+      { day: '2026-10-16', site: 'malls', country: 'BY', visitors: 10 },
+      { day: '2026-10-17', site: 'malls', country: 'BY', visitors: 2 },
+      { day: '2026-10-18', site: 'malls', country: 'RU', visitors: 3 },
+      { day: '2026-10-18', site: 'malls', country: '', visitors: 1 },
+    ], '2026-10-17', '2026-10-18')).toEqual([
+      { country: 'RU', visitors: 3 },
+      { country: 'BY', visitors: 2 },
+      { country: '', visitors: 1 },
+    ]);
   });
 });
