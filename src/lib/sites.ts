@@ -254,10 +254,10 @@ export function crossDomainRedirect(host: string, pathname: string): string | nu
 export function robotsSitemapLine(host: string): string {
   const bare = host.replace(/^www\./, '').toLowerCase();
   if (CATALOG_DOMAIN_SPLIT_ENABLED && bare === OFFICES.host) {
-    return `Sitemap: ${OFFICES.origin}/sitemap.xml`;
+    return `Sitemap: ${OFFICES.origin}/sitemap-index.xml`;
   }
   if (CATALOG_DOMAIN_SPLIT_ENABLED && bare === MALLS.host) {
-    return `Sitemap: ${MALLS.origin}/sitemap.xml`;
+    return `Sitemap: ${MALLS.origin}/sitemap-index.xml`;
   }
   // Platform: основной sitemap + временный sitemap старых URL (seo-deploy, ~до янв 2027).
   return [

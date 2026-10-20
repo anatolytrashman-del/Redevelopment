@@ -24,7 +24,12 @@ function applyRedirect(path) {
   for (const r of redirects) {
     const m = path.match(compile(r.source));
     if (!m) continue;
-    return r.destination.replace(/:(\w+)\*?/g, (_s, name) => m.groups?.[name] ?? '').replace(/\/$/, '');
+    // С 2026-10-15 старые /minsk/bcminsk ведут сразу на officelist.pro (тот же
+    // путь, абсолютный URL) — сравниваем путь, домен проверяет отдельный тест ниже.
+    return r.destination
+      .replace(/:(\w+)\*?/g, (_s, name) => m.groups?.[name] ?? '')
+      .replace(/^https:\/\/officelist\.pro(?=\/)/, '')
+      .replace(/\/$/, '');
   }
   return null;
 }
@@ -63,6 +68,11 @@ describe('переезд каталога БЦ на /minsk/bc', () => {
       // Цель редиректа — конечная: второго прыжка нет.
       expect(applyRedirect(expected), expected).toBeNull();
     }
+  });
+
+  it('старые /minsk/bcminsk уходят прямо на officelist.pro', () => {
+    const r = redirects.find((x) => x.source === '/minsk/bcminsk{/}?');
+    expect(r?.destination).toBe('https://officelist.pro/minsk/bc');
   });
 
   it('слитая карточка ведёт на итоговую одним прыжком', () => {
