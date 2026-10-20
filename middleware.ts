@@ -184,6 +184,7 @@ Disallow: /*/draft
 
 const CATALOG_ROBOTS = `User-agent: *
 Disallow: /admin
+Disallow: /api/
 Disallow: /pitch
 Disallow: /*/draft
 
@@ -202,6 +203,7 @@ function isMallsSitePath(pathname: string): boolean {
   if (
     normalized === '/robots.txt' ||
     normalized === '/sitemap.xml' ||
+    normalized === '/sitemap-index.xml' ||
     normalized === '/favicon.ico' ||
     normalized === '/favicon.svg' ||
     normalized === '/favicon.png' ||
@@ -229,6 +231,7 @@ function isOfficesSitePath(pathname: string): boolean {
   if (
     normalized === '/robots.txt' ||
     normalized === '/sitemap.xml' ||
+    normalized === '/sitemap-index.xml' ||
     normalized === '/favicon.ico' ||
     normalized === '/favicon.svg' ||
     normalized === '/favicon.png' ||
@@ -281,7 +284,7 @@ export default function middleware(request: Request) {
       return Response.redirect(new URL('/minsk/tc', url), 307);
     }
     if (pathname === '/robots.txt') {
-      return new Response(`${CATALOG_ROBOTS}Sitemap: https://malllist.pro/sitemap.xml\n`, {
+      return new Response(`${CATALOG_ROBOTS}Sitemap: https://malllist.pro/sitemap-index.xml\n`, {
         status: 200,
         headers: {
           'content-type': 'text/plain; charset=utf-8',
@@ -308,7 +311,7 @@ export default function middleware(request: Request) {
       return Response.redirect(new URL('/minsk/bc', url), 307);
     }
     if (pathname === '/robots.txt') {
-      return new Response(`${CATALOG_ROBOTS}Sitemap: https://officelist.pro/sitemap.xml\n`, {
+      return new Response(`${CATALOG_ROBOTS}Sitemap: https://officelist.pro/sitemap-index.xml\n`, {
         status: 200,
         headers: {
           'content-type': 'text/plain; charset=utf-8',
