@@ -1640,6 +1640,10 @@
       "destination": "/api/exchange-rate"
     },
     {
+      "source": "/api/sb/:path*",
+      "destination": "https://iohcdylttyuhwovztrbk.supabase.co/:path*"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
