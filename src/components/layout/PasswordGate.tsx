@@ -8,6 +8,14 @@ import { supabase } from '../../lib/supabase';
 import { setAccessProfilesCache, setCurrentUserId } from '../../lib/accessProfile';
 import { fetchAccessProfiles } from '../../lib/accessProfilesApi';
 import { LOGIN_ACCOUNTS, type LoginAccount } from '../../data/loginAccounts';
+import {
+  RATE_LIMIT_WAIT_MS,
+  classifyLoginError,
+  loginErrorMessage,
+  refineWithAccountCheck,
+  type AccountCheck,
+  type LoginErrorInfo,
+} from '../../lib/loginErrors';
 
 // Настоящая авторизация через Supabase Auth (P0.1 аудита безопасности,
 // 2026-08-28) — раньше здесь была клиентская заглушка, сверяющая пароль
@@ -24,6 +32,54 @@ import { LOGIN_ACCOUNTS, type LoginAccount } from '../../data/loginAccounts';
 // его не читает и туда ничего не приходит.
 const LEGACY_LOCALSTORAGE_KEYS = ['redevelopment-unlocked', 'redevelopment-access-profile-id'];
 
+// signInWithPassword без ответа (DPI режет соединение, а не рвёт его) иначе
+// висит на «Входим...» бесконечно — обрываем и показываем «нет связи».
+const SIGN_IN_TIMEOUT_MS = 20000;
+const ACCOUNT_CHECK_TIMEOUT_MS = 6000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Object.assign(new Error('timeout'), { name: 'AbortError' })), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+// Supabase на неверный пароль и на несуществующий/неподтверждённый/без доступа
+// аккаунт отвечает одинаково — уточняем у своего api/login-check.js (через наш
+// домен). Не ответил — оставляем «Неверный пароль», как было.
+async function checkAccount(email: string): Promise<AccountCheck | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ACCOUNT_CHECK_TIMEOUT_MS);
+    const resp = await fetch('/api/login-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
+    if (!resp.ok) return null;
+    const json = (await resp.json()) as Partial<AccountCheck>;
+    if (typeof json.exists !== 'boolean') return null;
+    return {
+      exists: json.exists,
+      confirmed: Boolean(json.confirmed),
+      banned: Boolean(json.banned),
+      hasAccess: Boolean(json.hasAccess),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function PasswordGate({ children }: { children: ReactNode }) {
   const [checkingSession, setCheckingSession] = useState(true);
   const [profilesLoading, setProfilesLoading] = useState(false);
@@ -34,12 +90,21 @@ export function PasswordGate({ children }: { children: ReactNode }) {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // До какого момента не дёргать Supabase после 429 (лимит попыток входа).
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
   async function loadProfilesAndUnlock(userId: string) {
     setProfilesLoading(true);
     setProfilesError(null);
     try {
       const profiles = await fetchAccessProfiles();
+      if (!profiles.some((p) => p.userId === userId)) {
+        // Вход прошёл, но строки access_profiles у аккаунта нет — пускать
+        // в пустую панель без единого раздела бессмысленно.
+        await supabase.auth.signOut();
+        setLoginError(loginErrorMessage({ kind: 'no_access', code: 'no_profile' }));
+        return;
+      }
       setAccessProfilesCache(profiles);
       setCurrentUserId(userId);
       setAuthed(true);
@@ -89,15 +154,33 @@ export function PasswordGate({ children }: { children: ReactNode }) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (submitting || !account) return;
+    if (lockedUntil && lockedUntil > Date.now()) {
+      setLoginError(loginErrorMessage({ kind: 'rate_limited' }, lockedUntil - Date.now()));
+      return;
+    }
     setSubmitting(true);
     setLoginError(null);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: account.email, password });
-    if (error || !data.user) {
-      setLoginError('Неверный пароль');
+    let info: LoginErrorInfo | null = null;
+    let userId: string | null = null;
+    try {
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email: account.email, password }),
+        SIGN_IN_TIMEOUT_MS,
+      );
+      if (error || !data.user) info = classifyLoginError(error ?? { code: 'no_user_returned' });
+      else userId = data.user.id;
+    } catch (err) {
+      info = classifyLoginError(err);
+    }
+    if (info) {
+      if (info.kind === 'wrong_password') info = refineWithAccountCheck(info, await checkAccount(account.email));
+      if (info.kind === 'rate_limited') setLockedUntil(Date.now() + RATE_LIMIT_WAIT_MS);
+      if (info.kind !== 'wrong_password') console.warn('[login]', info.kind, info.code);
+      setLoginError(loginErrorMessage(info));
       setSubmitting(false);
       return;
     }
-    await loadProfilesAndUnlock(data.user.id);
+    if (userId) await loadProfilesAndUnlock(userId);
     setSubmitting(false);
   }
 
