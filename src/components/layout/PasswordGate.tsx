@@ -53,6 +53,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+// Мы на экране входа — значит, рабочей сессии нет. Остатки старой
+// (протухший refresh-токен от прошлых версий/вкладок) в localStorage только
+// мешают: supabase-js пытается их обновить под той же блокировкой, что и
+// вход. Чистим перед входом — это ровно то, что сделал бы выход.
+function clearStaleLocalSession() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && /^sb-[a-z0-9]+-auth-token(-code-verifier)?$/.test(key)) localStorage.removeItem(key);
+    }
+  } catch {
+    /* приватный режим — нечего чистить */
+  }
+}
+
 // Supabase на неверный пароль и на несуществующий/неподтверждённый/без доступа
 // аккаунт отвечает одинаково — уточняем у своего api/login-check.js (через наш
 // домен). Не ответил — оставляем «Неверный пароль», как было.
@@ -160,6 +175,7 @@ export function PasswordGate({ children }: { children: ReactNode }) {
     }
     setSubmitting(true);
     setLoginError(null);
+    clearStaleLocalSession();
     let info: LoginErrorInfo | null = null;
     let userId: string | null = null;
     try {
@@ -236,8 +252,23 @@ export function PasswordGate({ children }: { children: ReactNode }) {
               <ArrowLeft className="h-4 w-4" />
               {account.displayName}
             </button>
+            {/* Скрытый логин для менеджера паролей (2026-10-21): без него браузер
+                хранит ОДИН пароль на весь redevelopment.pro и подставляет его
+                любому выбранному сотруднику — старый или чужой пароль молча
+                уходит в Supabase и даёт «Неверный пароль», хотя на другом
+                адресе (превью) тот же человек входит, вводя пароль руками. */}
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              value={account.email}
+              readOnly
+              hidden
+            />
             <Input
               type="password"
+              name="password"
+              autoComplete="current-password"
               label="Пароль"
               value={password}
               onChange={(e) => {
