@@ -1649,7 +1649,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         `На страницах подборок и полного списка фильтры оставляют ${V.many} с выбранными характеристиками: формат, район, микрорайон, станция метро. Список обновляется вместе с фильтрами.`,
       );
     }
-    add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак подтверждён данными.');
+    add('Что означает «параметр не известен»?', 'В источниках нет данных об этом параметре. Это не означает, что характеристики или услуги нет. Фильтр по признаку показывает только здания, у которых этот признак есть в данных (указан в источнике).');
     return items;
   }, [lightTcBrowseHome, preservedFaqHtml, centers, scopeLabel, marketStats, districtTotals, officeSnapshots, metroFilter, orderedCenters, underConstructionNames, summary.rentMedian, rentMethodology, showRatesBlock, rateRent, rateSale, V, isTc, isCatalogRoot, isTcBrowseHome, showTcListView, tcBrowseFigures]);
 
