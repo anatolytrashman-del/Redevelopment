@@ -16,6 +16,7 @@ import {
   type AccountCheck,
   type LoginErrorInfo,
 } from '../../lib/loginErrors';
+import { ThemeToggle } from '../common/ThemeToggle';
 
 // Настоящая авторизация через Supabase Auth (P0.1 аудита безопасности,
 // 2026-08-28) — раньше здесь была клиентская заглушка, сверяющая пароль
@@ -223,9 +224,12 @@ export function PasswordGate({ children }: { children: ReactNode }) {
     <div className="flex min-h-svh items-center justify-center bg-bg px-4">
       <div className={cn('flex w-full max-w-xs flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
         <div className="flex flex-col items-center gap-1 text-center">
-          <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-lg font-extrabold tracking-wide text-ink dark:text-white">
+              <span className="font-black">RED</span>EVELOPMENT
+            </span>
+            <ThemeToggle />
+          </div>
           <span className="text-xs text-ink-faint">Внутренняя панель — доступ только для сотрудников</span>
         </div>
 

@@ -81,7 +81,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex min-h-svh items-center justify-center bg-bg px-4">
           <div className="flex flex-col items-center gap-2 text-center">
             <span className="text-lg font-extrabold tracking-wide text-ink">
-              <span className="font-black text-primary">RED</span>EVELOPMENT
+              <span className="font-black">RED</span>EVELOPMENT
             </span>
             <p className="text-sm text-ink-muted">Загрузка…</p>
           </div>
@@ -93,7 +93,7 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="flex min-h-svh items-center justify-center bg-bg px-4">
         <div className="flex flex-col items-center gap-3 text-center">
           <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
+            <span className="font-black">RED</span>EVELOPMENT
           </span>
           <p className="max-w-xs text-sm text-ink-muted">
             Не получилось загрузить страницу. Проверьте подключение к интернету и попробуйте ещё раз.

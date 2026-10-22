@@ -10,6 +10,7 @@ import { useSupplierWebSearchJobWatcher } from '../../lib/supplierWebSearchJobWa
 import { useSupplierEnrichmentJobWatcher } from '../../lib/supplierEnrichmentJobWatcher';
 import { ADMIN_PAGES } from '../../data/pages';
 import { useMenuCaptureReceiver } from '../../lib/menuCaptureReceiver';
+import { ThemeToggle } from '../common/ThemeToggle';
 
 // index.html — общий статический файл на все роуты (публичный SPA-фолбэк),
 // его <title> заточен под OG-превью продающей страницы (см. index.html).
@@ -122,9 +123,10 @@ export function AppLayout() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-base font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
+          <span className="text-base font-extrabold tracking-wide text-ink dark:text-white">
+            <span className="font-black">RED</span>EVELOPMENT
           </span>
+          <ThemeToggle />
         </div>
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
           <div className="mx-auto flex h-full min-h-0 max-w-[1400px] min-w-0 flex-col gap-6">

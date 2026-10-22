@@ -31,11 +31,11 @@ export function SiteBrandLogo({
       </>
     ) : (
       <>
-        <span className="font-black text-primary">RED</span>EVELOPMENT
+        <span className="font-black">RED</span>EVELOPMENT
       </>
     );
 
-  const classes = cn('text-lg font-extrabold tracking-wide text-ink', className);
+  const classes = cn('text-lg font-extrabold tracking-wide text-ink', mode !== 'malls' && mode !== 'offices' && 'dark:text-white', className);
   if (as === 'span') {
     return <span className={classes}>{mark}</span>;
   }

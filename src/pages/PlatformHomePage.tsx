@@ -4,6 +4,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow, glassPillClass, glassPillShadow } from '../lib/glass';
 import { setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { SiteBrandLogo } from '../components/layout/SiteBrandLogo';
+import { ThemeToggle } from '../components/common/ThemeToggle';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { SITES } from '../lib/sites';
 
@@ -97,7 +98,10 @@ export function PlatformHomePage() {
 
       <header className="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-8">
-          <SiteBrandLogo to="/" />
+          <div className="flex items-center gap-3">
+            <SiteBrandLogo to="/" />
+            <ThemeToggle />
+          </div>
           <a
             href={FOUNDER_TELEGRAM_URL}
             target="_blank"

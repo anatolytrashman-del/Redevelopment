@@ -3,6 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Тёмная тема платформы (2026-10-22): класс .dark на <html> ставится ДО
+         первой отрисовки — без вспышки светлой темы. Выбор пользователя в
+         localStorage (rd-theme), иначе — системная тема. Каталоги
+         officelist/malllist всегда светлые. -->
+    <script>
+      (function () {
+        try {
+          if (/malllist|officelist/.test(location.hostname)) return;
+          var t = localStorage.getItem('rd-theme');
+          var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <!-- Данные раздела БЦ — старт загрузки ДО бандла (Ш3-b плана
          docs/bc-catalog-seo-plan.md). React здесь не гидратирует, а сносит
          пререндер-снапшот и строит DOM заново (см. main.tsx): без данных

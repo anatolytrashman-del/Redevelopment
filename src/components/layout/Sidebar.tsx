@@ -14,6 +14,7 @@ import { onWorkContractorsRead } from '../../lib/workContractorsSeen';
 import { SIDEBAR_LAYOUT, findPage, type SidebarNavigationKey } from '../../data/pages';
 import { getCurrentProfile, isPageAllowed, isSuperAdminAllowed, signOutAndClearCache } from '../../lib/accessProfile';
 import { useOnlineVisitorsCount } from '../../lib/onlinePresence';
+import { ThemeToggle } from '../common/ThemeToggle';
 
 const backlogPage = findPage('backlog');
 
@@ -275,9 +276,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="flex flex-col gap-8">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-lg font-extrabold tracking-wide text-ink">
-                <span className="font-black text-primary">RED</span>EVELOPMENT
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-extrabold tracking-wide text-ink dark:text-white">
+                  <span className="font-black">RED</span>EVELOPMENT
+                </span>
+                <ThemeToggle />
+              </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-xs font-medium text-ink-faint">{profile.displayName}</span>
                 {metricsAllowed && onlineVisitors !== null && (

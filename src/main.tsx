@@ -5,7 +5,9 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary, clearCrashReloadFlag } from './components/ErrorBoundary'
 import { primeBusinessCentersFromBuild } from './lib/businessCentersApi'
+import { enforceThemeSupport } from './lib/theme'
 const container = document.getElementById('root')!
+enforceThemeSupport()
 
 // PAGESPEED_PLAN.md, Э7-4 (вторая половина, первая — scripts/
 // defer-entry-script.mjs). Публичные страницы приходят пререндер-снапшотом:

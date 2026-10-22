@@ -67,7 +67,7 @@ export function BriefPublicPage() {
         <div className="mx-auto flex max-w-4xl flex-col gap-5">
           <div>
             <span className="text-lg font-extrabold tracking-wide text-ink">
-              <span className="font-black text-primary">RED</span>EVELOPMENT
+              <span className="font-black">RED</span>EVELOPMENT
             </span>
           </div>
 

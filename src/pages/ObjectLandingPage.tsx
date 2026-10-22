@@ -233,7 +233,7 @@ export function ObjectLandingPage() {
       <div className="flex min-h-svh items-center justify-center bg-bg px-4">
         <div className="flex flex-col items-center gap-2 text-center">
           <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
+            <span className="font-black">RED</span>EVELOPMENT
           </span>
           <p className="text-sm text-ink-muted">Страница не найдена.</p>
         </div>
@@ -252,7 +252,7 @@ export function ObjectLandingPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div>
               <span className="text-lg font-extrabold tracking-wide text-ink">
-                <span className="font-black text-primary">RED</span>EVELOPMENT
+                <span className="font-black">RED</span>EVELOPMENT
               </span>
             </div>
             {/* Верхнее меню "Покупка"/"Аренда" — рядом с логотипом, не под ним
