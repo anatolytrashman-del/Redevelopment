@@ -29,7 +29,7 @@ function RedevelopmentProductCredit() {
         className="inline-block font-extrabold tracking-wide text-ink hover:opacity-90"
         rel="noopener noreferrer"
       >
-        <span className="font-black">RED</span>EVELOPMENT
+        <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
       </a>
     </p>
   );

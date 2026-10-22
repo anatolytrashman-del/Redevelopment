@@ -31,7 +31,7 @@ export function SiteBrandLogo({
       </>
     ) : (
       <>
-        <span className="font-black">RED</span>EVELOPMENT
+        <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
       </>
     );
 

@@ -278,7 +278,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex items-center gap-3">
                 <span className="text-lg font-extrabold tracking-wide text-ink dark:text-white">
-                  <span className="font-black">RED</span>EVELOPMENT
+                  <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
                 </span>
                 <ThemeToggle />
               </div>

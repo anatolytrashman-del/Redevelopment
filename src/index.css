@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './styles/design-v2.css';
 @plugin '@tailwindcss/typography';
 
 /* Владелец, 2026-09-11: "оно по сути зажато размерами экрана, а не скроллится
@@ -14,8 +15,8 @@
    Использовать вместо lg: для классов управления высотой (min-h-0/flex-1/
    overflow-y-auto), а не для обычных "широкоэкранных" правил — для ширины
    по-прежнему lg:. */
-/* Тёмная тема платформы (2026-10-22): класс .dark на <html>. */
-@custom-variant dark (&:where(.dark, .dark *));
+/* Тёмная тема версии 2 дизайна (src/styles/design-v2.css). */
+@custom-variant dark (&:where([data-design='v2'].dark, [data-design='v2'].dark *));
 
 @custom-variant roomy (@media (min-width: 64rem) and (min-height: 48rem));
 
@@ -159,69 +160,6 @@
 
 :root {
   color-scheme: light;
-}
-
-/* Тёмная тема платформы (Анатолий, 2026-10-22) — палитра и приём как у
-   дашборда Gambling List: те же токены, другие значения. Светлая тема не
-   меняется: всё ниже действует только при html.dark (ставит инлайн-скрипт
-   в index.html до отрисовки). */
-html.dark {
-  color-scheme: dark;
-  --color-bg: #121417;
-  --color-surface: #1b1e23;
-  --color-surface-muted: #22262c;
-
-  --color-primary: #e4152b;
-  --color-primary-hover: #f0384c;
-  --color-primary-soft: #4b2b2d;
-  --color-icon: #ff6b78;
-  --color-icon-bg: #4b2b2d;
-
-  --color-ink: #e6e8eb;
-  --color-ink-muted: #9aa1ab;
-  --color-ink-faint: #7c838d;
-
-  --color-felt: #3a9a5a;
-
-  --color-border: #2a2f36;
-  --color-border-strong: #333943;
-
-  --color-info-bg: #1e2a3d;
-  --color-info-text: #8fb4ec;
-  --color-success: #4cc27e;
-  --color-success-bg: #1f3d2b;
-  --color-danger: #ff6b78;
-  --color-danger-bg: #4b2b2d;
-  --color-warning: #e0b35a;
-  --color-warning-bg: #3d3a27;
-
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 1px rgba(0, 0, 0, 0.4);
-}
-
-/* «Жидкое стекло» (lib/glass.ts) и белые подложки написаны прямо белым —
-   в тёмной теме это тёмные карточки, а не белые пятна. */
-html.dark .bg-white {
-  background-color: var(--color-surface);
-}
-html.dark [class*='bg-white/'] {
-  background-color: rgb(27 30 35 / 0.72);
-}
-html.dark [class*='border-white'] {
-  border-color: rgb(255 255 255 / 0.07);
-}
-html.dark [style*='rgba(255,255,255,0.7)'],
-html.dark [style*='rgba(255,255,255,0.6)'],
-html.dark [style*='rgba(255, 255, 255, 0.7)'],
-html.dark [style*='rgba(255, 255, 255, 0.6)'] {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
-}
-html.dark input,
-html.dark select,
-html.dark textarea {
-  color-scheme: dark;
-}
-html.dark ::placeholder {
-  color: var(--color-ink-faint);
 }
 
 * {
@@ -441,42 +379,4 @@ html.ml-motion-ready .ml-reveal-delay-2 {
   border: 1px solid var(--color-border, #ddd);
   padding: 0.5rem;
   vertical-align: top;
-}
-
-/* Тёмная тема: «чернильные» плашки с белым текстом (bg-ink text-white) в
-   тёмной теме становятся светлыми — текст на них делаем тёмным; затемнение
-   под модалками (fixed inset-0 bg-ink/NN) оставляем тёмным. */
-html.dark .bg-ink.text-white {
-  color: var(--color-bg);
-}
-html.dark .fixed.inset-0[class*='bg-ink/'] {
-  background-color: rgb(0 0 0 / 0.6);
-}
-
-/* Тёмная тема: пастельные бейджи (lib/badgeColor.ts) — те же оттенки, тёмные. */
-html.dark {
-  --badge-0-bg: #1e2a3d;
-  --badge-0-text: #8fb4ec;
-  --badge-1-bg: #2c2340;
-  --badge-1-text: #c3a6ef;
-  --badge-2-bg: #1f3d2b;
-  --badge-2-text: #6fd59a;
-  --badge-3-bg: #3d2e1f;
-  --badge-3-text: #f0b07a;
-  --badge-4-bg: #3d2030;
-  --badge-4-text: #f08cb8;
-  --badge-5-bg: #18352f;
-  --badge-5-text: #6fd3c8;
-}
-
-/* Тёмная тема: подложка модалок (ui/Modal: absolute inset-0 bg-ink/40) — тёмная. */
-html.dark .absolute.inset-0[class*='bg-ink/'] {
-  background-color: rgb(0 0 0 / 0.6);
-}
-
-/* Тёмная тема: «стеклянные» поля с белым фоном прямо в style
-   (например фильтры AvailableUnitsTable). */
-html.dark [style*='background-color: rgba(255, 255, 255'] {
-  background-color: var(--color-surface-muted) !important;
-  border-color: var(--color-border) !important;
 }

@@ -124,7 +124,7 @@ export function AppLayout() {
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-base font-extrabold tracking-wide text-ink dark:text-white">
-            <span className="font-black">RED</span>EVELOPMENT
+            <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
           </span>
           <ThemeToggle />
         </div>

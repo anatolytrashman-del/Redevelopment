@@ -1685,7 +1685,7 @@ export function DistrictGuidePage() {
             заходов — если «Ключевые цифры» уедет за экран, это ожидаемо
             и хорошо. */}
         <Link to="/minsk" className="text-base font-extrabold tracking-wide text-ink sm:hidden">
-          <span className="font-black">RED</span>EVELOPMENT
+          <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
         </Link>
         {/* Единая liquid-glass подложка под заголовком/подзаголовком и фото —
             раньше текст стоял прямо на фоне страницы, а фото было в своей

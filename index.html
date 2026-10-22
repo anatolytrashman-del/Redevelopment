@@ -3,17 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Тёмная тема платформы (2026-10-22): класс .dark на <html> ставится ДО
-         первой отрисовки — без вспышки светлой темы. Выбор пользователя в
-         localStorage (rd-theme), иначе — системная тема. Каталоги
-         officelist/malllist всегда светлые. -->
+    <!-- Ветка design-v2 (2026-10-22): «Версия 1» — текущий вид платформы как
+         есть, «Версия 2» — новый дизайн (тёмная тема, монохромный логотип).
+         Версия (rd-design) и тема (rd-theme) — в localStorage; атрибут
+         data-design и класс .dark ставятся ДО первой отрисовки, без вспышки.
+         Каталоги officelist/malllist не затрагиваются. -->
     <script>
       (function () {
         try {
           if (/malllist|officelist/.test(location.hostname)) return;
+          var d = document.documentElement;
+          var v = localStorage.getItem('rd-design') === 'v2' ? 'v2' : 'v1';
+          d.setAttribute('data-design', v);
+          if (v !== 'v2') return;
           var t = localStorage.getItem('rd-theme');
           var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (dark) document.documentElement.classList.add('dark');
+          if (dark) d.classList.add('dark');
         } catch (e) {}
       })();
     </script>
@@ -485,5 +490,35 @@
 
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Переключатель «Версия 1 / Версия 2» — только в ветке design-v2.
+      (function () {
+        if (/malllist|officelist/.test(location.hostname)) return;
+        function mount() {
+          var old = document.getElementById('rd-ver');
+          if (old) old.remove();
+          var cur = document.documentElement.getAttribute('data-design') === 'v2' ? 'v2' : 'v1';
+          var box = document.createElement('div');
+          box.id = 'rd-ver';
+          box.setAttribute('role', 'group');
+          box.setAttribute('aria-label', 'Версия дизайна');
+          [['v1', 'Версия 1'], ['v2', 'Версия 2']].forEach(function (o) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = o[1];
+            b.setAttribute('aria-pressed', String(o[0] === cur));
+            b.onclick = function () {
+              if (o[0] === cur) return;
+              try { localStorage.setItem('rd-design', o[0]); } catch (e) {}
+              location.reload();
+            };
+            box.appendChild(b);
+          });
+          document.body.appendChild(box);
+        }
+        if (document.body) mount();
+        else document.addEventListener('DOMContentLoaded', mount);
+      })();
+    </script>
   </body>
 </html>

@@ -39,7 +39,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-label={dark ? 'Включить светлую тему' : 'Включить тёмную тему'}
       title={dark ? 'Светлая тема' : 'Тёмная тема'}
       className={cn(
-        'inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border bg-surface p-0 text-ink transition-colors hover:border-border-strong',
+        'rd-v2-only inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border bg-surface p-0 text-ink transition-colors hover:border-border-strong',
         className,
       )}
     >

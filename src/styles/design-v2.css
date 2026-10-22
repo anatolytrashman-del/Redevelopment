@@ -1,0 +1,152 @@
+/* Версия 2 дизайна платформы (ветка design-v2, Анатолий 2026-10-22).
+   Всё здесь действует только при html[data-design='v2'] — версия 1 (текущий
+   живой вид) этим файлом не затрагивается. Атрибут и класс .dark ставит
+   инлайн-скрипт в index.html до первой отрисовки. Тёмная палитра — как у
+   дашборда Gambling List. */
+
+/* Логотип v2: «RED» не красный — того же цвета, что и «EVELOPMENT»
+   (чёрный в светлой теме, белый в тёмной). */
+html[data-design='v2'] .rd-logo-accent {
+  color: inherit;
+}
+
+/* Кнопка темы (луна/солнце) есть только в v2. */
+.rd-v2-only {
+  display: none !important;
+}
+html[data-design='v2'] .rd-v2-only {
+  display: inline-flex !important;
+}
+
+/* Тёмная тема платформы (Анатолий, 2026-10-22) — палитра и приём как у
+   дашборда Gambling List: те же токены, другие значения. Светлая тема не
+   меняется: всё ниже действует только при html[data-design='v2'].dark (ставит инлайн-скрипт
+   в index.html до отрисовки). */
+html[data-design='v2'].dark {
+  color-scheme: dark;
+  --color-bg: #121417;
+  --color-surface: #1b1e23;
+  --color-surface-muted: #22262c;
+
+  --color-primary: #e4152b;
+  --color-primary-hover: #f0384c;
+  --color-primary-soft: #4b2b2d;
+  --color-icon: #ff6b78;
+  --color-icon-bg: #4b2b2d;
+
+  --color-ink: #e6e8eb;
+  --color-ink-muted: #9aa1ab;
+  --color-ink-faint: #7c838d;
+
+  --color-felt: #3a9a5a;
+
+  --color-border: #2a2f36;
+  --color-border-strong: #333943;
+
+  --color-info-bg: #1e2a3d;
+  --color-info-text: #8fb4ec;
+  --color-success: #4cc27e;
+  --color-success-bg: #1f3d2b;
+  --color-danger: #ff6b78;
+  --color-danger-bg: #4b2b2d;
+  --color-warning: #e0b35a;
+  --color-warning-bg: #3d3a27;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+/* «Жидкое стекло» (lib/glass.ts) и белые подложки написаны прямо белым —
+   в тёмной теме это тёмные карточки, а не белые пятна. */
+html[data-design='v2'].dark .bg-white {
+  background-color: var(--color-surface);
+}
+html[data-design='v2'].dark [class*='bg-white/'] {
+  background-color: rgb(27 30 35 / 0.72);
+}
+html[data-design='v2'].dark [class*='border-white'] {
+  border-color: rgb(255 255 255 / 0.07);
+}
+html[data-design='v2'].dark [style*='rgba(255,255,255,0.7)'],
+html[data-design='v2'].dark [style*='rgba(255,255,255,0.6)'],
+html[data-design='v2'].dark [style*='rgba(255, 255, 255, 0.7)'],
+html[data-design='v2'].dark [style*='rgba(255, 255, 255, 0.6)'] {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+html[data-design='v2'].dark input,
+html[data-design='v2'].dark select,
+html[data-design='v2'].dark textarea {
+  color-scheme: dark;
+}
+html[data-design='v2'].dark ::placeholder {
+  color: var(--color-ink-faint);
+}
+
+
+/* Тёмная тема: «чернильные» плашки с белым текстом (bg-ink text-white) в
+   тёмной теме становятся светлыми — текст на них делаем тёмным; затемнение
+   под модалками (fixed inset-0 bg-ink/NN) оставляем тёмным. */
+html[data-design='v2'].dark .bg-ink.text-white {
+  color: var(--color-bg);
+}
+html[data-design='v2'].dark .fixed.inset-0[class*='bg-ink/'] {
+  background-color: rgb(0 0 0 / 0.6);
+}
+
+/* Тёмная тема: пастельные бейджи (lib/badgeColor.ts) — те же оттенки, тёмные. */
+html[data-design='v2'].dark {
+  --badge-0-bg: #1e2a3d;
+  --badge-0-text: #8fb4ec;
+  --badge-1-bg: #2c2340;
+  --badge-1-text: #c3a6ef;
+  --badge-2-bg: #1f3d2b;
+  --badge-2-text: #6fd59a;
+  --badge-3-bg: #3d2e1f;
+  --badge-3-text: #f0b07a;
+  --badge-4-bg: #3d2030;
+  --badge-4-text: #f08cb8;
+  --badge-5-bg: #18352f;
+  --badge-5-text: #6fd3c8;
+}
+
+/* Тёмная тема: подложка модалок (ui/Modal: absolute inset-0 bg-ink/40) — тёмная. */
+html[data-design='v2'].dark .absolute.inset-0[class*='bg-ink/'] {
+  background-color: rgb(0 0 0 / 0.6);
+}
+
+/* Тёмная тема: «стеклянные» поля с белым фоном прямо в style
+   (например фильтры AvailableUnitsTable). */
+html[data-design='v2'].dark [style*='background-color: rgba(255, 255, 255'] {
+  background-color: var(--color-surface-muted) !important;
+  border-color: var(--color-border) !important;
+}
+
+/* Переключатель «Версия 1 / Версия 2» (ветка design-v2, создаётся скриптом в
+   index.html вне #root). Общий для обеих версий, поэтому без [data-design]. */
+#rd-ver {
+  position: fixed;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483000;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(20, 21, 26, 0.82);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  font: 600 11px/1 'Montserrat', system-ui, sans-serif;
+  backdrop-filter: blur(8px);
+}
+#rd-ver button {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font: inherit;
+}
+#rd-ver button[aria-pressed='true'] {
+  background: #ffffff;
+  color: #14151a;
+}

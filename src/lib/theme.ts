@@ -6,8 +6,10 @@ import { deployedSiteMode } from './sites';
 export const THEME_STORAGE_KEY = 'rd-theme';
 export type Theme = 'light' | 'dark';
 
+/** Тёмная тема есть только в «Версии 2» дизайна (ветка design-v2). */
 export function themeSupported(): boolean {
-  return deployedSiteMode() === 'platform';
+  if (deployedSiteMode() !== 'platform' || typeof document === 'undefined') return false;
+  return document.documentElement.getAttribute('data-design') === 'v2';
 }
 
 export function currentTheme(): Theme {

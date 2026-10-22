@@ -53,7 +53,7 @@ export function MeetingSummaryPublicPage() {
       <div className="mx-auto flex max-w-3xl flex-col gap-5">
         <div>
           <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black">RED</span>EVELOPMENT
+            <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
           </span>
         </div>
 

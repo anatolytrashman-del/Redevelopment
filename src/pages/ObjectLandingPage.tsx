@@ -234,7 +234,7 @@ export function ObjectLandingPage() {
       <div className="flex min-h-svh items-center justify-center bg-bg px-4">
         <div className="flex flex-col items-center gap-2 text-center">
           <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black">RED</span>EVELOPMENT
+            <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
           </span>
           <p className="text-sm text-ink-muted">Страница не найдена.</p>
         </div>
@@ -253,7 +253,7 @@ export function ObjectLandingPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-3">
               <span className="text-lg font-extrabold tracking-wide text-ink dark:text-white">
-                <span className="font-black">RED</span>EVELOPMENT
+                <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
               </span>
               <ThemeToggle />
             </div>

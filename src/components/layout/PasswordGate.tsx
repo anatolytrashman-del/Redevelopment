@@ -226,7 +226,7 @@ export function PasswordGate({ children }: { children: ReactNode }) {
         <div className="flex flex-col items-center gap-1 text-center">
           <div className="flex items-center gap-3">
             <span className="text-lg font-extrabold tracking-wide text-ink dark:text-white">
-              <span className="font-black">RED</span>EVELOPMENT
+              <span className="font-black text-primary rd-logo-accent">RED</span>EVELOPMENT
             </span>
             <ThemeToggle />
           </div>
