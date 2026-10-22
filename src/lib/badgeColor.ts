@@ -10,10 +10,15 @@ const palette: { bg: string; text: string }[] = [
   { bg: '#DFF5F3', text: '#157A73' }, // бирюзовый
 ];
 
+// Тёмная тема (2026-10-22): значения обёрнуты в var(--badge-N-*, светлый
+// цвет). Переменные заданы только для html.dark (index.css), поэтому в
+// светлой теме остаётся прежний цвет один в один.
 export function badgeColor(value: string): { bg: string; text: string } {
   let hash = 0;
   for (let i = 0; i < value.length; i++) {
     hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
   }
-  return palette[hash % palette.length];
+  const i = hash % palette.length;
+  const c = palette[i];
+  return { bg: `var(--badge-${i}-bg, ${c.bg})`, text: `var(--badge-${i}-text, ${c.text})` };
 }

@@ -452,3 +452,31 @@ html.dark .bg-ink.text-white {
 html.dark .fixed.inset-0[class*='bg-ink/'] {
   background-color: rgb(0 0 0 / 0.6);
 }
+
+/* Тёмная тема: пастельные бейджи (lib/badgeColor.ts) — те же оттенки, тёмные. */
+html.dark {
+  --badge-0-bg: #1e2a3d;
+  --badge-0-text: #8fb4ec;
+  --badge-1-bg: #2c2340;
+  --badge-1-text: #c3a6ef;
+  --badge-2-bg: #1f3d2b;
+  --badge-2-text: #6fd59a;
+  --badge-3-bg: #3d2e1f;
+  --badge-3-text: #f0b07a;
+  --badge-4-bg: #3d2030;
+  --badge-4-text: #f08cb8;
+  --badge-5-bg: #18352f;
+  --badge-5-text: #6fd3c8;
+}
+
+/* Тёмная тема: подложка модалок (ui/Modal: absolute inset-0 bg-ink/40) — тёмная. */
+html.dark .absolute.inset-0[class*='bg-ink/'] {
+  background-color: rgb(0 0 0 / 0.6);
+}
+
+/* Тёмная тема: «стеклянные» поля с белым фоном прямо в style
+   (например фильтры AvailableUnitsTable). */
+html.dark [style*='background-color: rgba(255, 255, 255'] {
+  background-color: var(--color-surface-muted) !important;
+  border-color: var(--color-border) !important;
+}
