@@ -34,6 +34,7 @@ import { fetchObjectByLandingSlug } from '../lib/objectsApi';
 import { fetchBuildingPlans, fetchZonesForPlan } from '../lib/buildingPlansApi';
 import { setObjectPageMeta, setNoIndex, clearNoIndex, setFaqJsonLd } from '../lib/pageMeta';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
+import { ThemeToggle } from '../components/common/ThemeToggle';
 
 function formatMoney(value: number) {
   return `$${Math.round(value).toLocaleString('ru-RU')}`;
@@ -250,10 +251,11 @@ export function ObjectLandingPage() {
       <header className="border-b border-border py-5">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 sm:px-8">
           <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <span className="text-lg font-extrabold tracking-wide text-ink">
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-extrabold tracking-wide text-ink dark:text-white">
                 <span className="font-black">RED</span>EVELOPMENT
               </span>
+              <ThemeToggle />
             </div>
             {/* Верхнее меню "Покупка"/"Аренда" — рядом с логотипом, не под ним
                 (владелец, 2026-09-13). Та же страница и та же вёрстка,
