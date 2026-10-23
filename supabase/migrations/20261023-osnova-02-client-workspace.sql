@@ -274,18 +274,26 @@ $$;
 revoke all on function public.osnova_client_member_list(uuid) from public, anon, authenticated;
 grant execute on function public.osnova_client_member_list(uuid) to authenticated;
 
+-- Indexes on client_id / created_by_client_id (idempotent; required for audit-isolation)
+create index if not exists client_requests_client_id_idx on public.client_requests (client_id);
+create index if not exists client_request_events_client_id_idx on public.client_request_events (client_id);
+create index if not exists client_added_suppliers_created_by_client_id_idx on public.client_added_suppliers (created_by_client_id);
+create index if not exists client_supplier_notes_client_id_idx on public.client_supplier_notes (client_id);
+create index if not exists client_supplier_prices_client_id_idx on public.client_supplier_prices (client_id);
+
 -- Storage bucket 'client-files' private
 insert into storage.buckets (id, name, public)
 values ('client-files', 'client-files', false)
 on conflict (id) do nothing;
 
 -- Storage policies with prefix osnova_client_files_ , only for bucket client-files, path clients/<client_id>/
+-- NB: compare as text (no ::uuid cast) so evaluation on objects of OTHER buckets can never raise a cast error.
 drop policy if exists "osnova_client_files_select" on storage.objects;
 create policy "osnova_client_files_select" on storage.objects
   for select using (
     bucket_id = 'client-files'
     and (storage.foldername(name))[1] = 'clients'
-    and ((storage.foldername(name))[2])::uuid in (select public.osnova_my_client_ids())
+    and (storage.foldername(name))[2] in (select id::text from public.osnova_my_client_ids() as id)
   );
 
 drop policy if exists "osnova_client_files_insert" on storage.objects;
@@ -293,7 +301,7 @@ create policy "osnova_client_files_insert" on storage.objects
   for insert with check (
     bucket_id = 'client-files'
     and (storage.foldername(name))[1] = 'clients'
-    and ((storage.foldername(name))[2])::uuid in (select public.osnova_my_client_ids())
+    and (storage.foldername(name))[2] in (select id::text from public.osnova_my_client_ids() as id)
   );
 
 drop policy if exists "osnova_client_files_owner_all" on storage.objects;

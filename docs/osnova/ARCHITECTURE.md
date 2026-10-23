@@ -54,3 +54,7 @@
 
 ## 5. Проверки
 `npm run lint`, `npx tsc -b`, `npm test`, `npm run build:app`. Новые unit-тесты (vitest) для tenant-детекции, лимитов, роутера api/osnova (с моками). Миграции — прогон на локальном Postgres со стабами `auth.uid()`.
+
+## Блок 3 — статус
+Реализовано: RLS + политики + client_id + индексы на новых client_* таблицах (01/02); client.files.* (upload_url/sign/list) в api/_osnovaFiles.js + osnova.js + UI attach/list/open в request card ClientAdminApp; storage policies client-files; osnova_is_legacy_allowed(); audit-isolation.mjs (вкл. проверка индексов); two-client-test.sql; vitest path validation; 03-legacy-guard.sql (не применена).
+Pending отдельного одобрения: применение 03-legacy-guard.sql (меняет RLS на legacy), включение RLS + client_id NOT NULL на purchase_*/mailbox_* и др. legacy, перенос существующих storage файлов, переключение legacy api/* на user JWT (вместо service_role).

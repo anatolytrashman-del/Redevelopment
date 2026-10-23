@@ -13,6 +13,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "audit:rls": "node scripts/audit-rls.mjs",
+    "audit:osnova": "node scripts/osnova/audit-isolation.mjs",
     "ui-audit": "node scripts/ui-audit.mjs",
     "test": "vitest run"
   },

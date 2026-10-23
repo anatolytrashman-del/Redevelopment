@@ -25,6 +25,8 @@ export default function ClientAdminApp() {
   const [showCreateReq, setShowCreateReq] = useState(false);
   const [newReq, setNewReq] = useState({ title: '', description: '', status: 'new' });
   const [reqBusy, setReqBusy] = useState(false);
+  const [reqFiles, setReqFiles] = useState<any>({});
+  const [fileUploading, setFileUploading] = useState(false);
 
   // suppliers
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -102,7 +104,10 @@ export default function ClientAdminApp() {
   async function loadRequests(status?: string) {
     try {
       const r = await osnovaApi.requestsList(status);
-      setRequests(r.requests || []);
+      const reqs = r.requests || [];
+      setRequests(reqs);
+      // minimal: preload files for first few
+      reqs.slice(0, 3).forEach((rr: any) => { void loadFiles(rr.id); });
     } catch {}
   }
 
@@ -123,6 +128,35 @@ export default function ClientAdminApp() {
       await osnovaApi.requestsUpdateStatus(req.id, st);
       await loadRequests(reqFilter || undefined);
     } catch {} finally { setReqBusy(false); }
+  }
+
+  async function loadFiles(rid: string) {
+    try {
+      const l = await osnovaApi.filesList(rid);
+      setReqFiles((p: any) => ({ ...p, [rid]: l.files || [] }));
+    } catch {}
+  }
+
+  async function attachFile(r: any, file: File) {
+    if (!file) return;
+    setFileUploading(true);
+    try {
+      const up = await osnovaApi.filesUploadUrl({ request_id: r.id, filename: file.name });
+      const putRes = await fetch(up.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error('upload failed');
+      await loadFiles(r.id);
+    } catch { /* silent for minimal */ } finally { setFileUploading(false); }
+  }
+
+  async function openFileSigned(path: string) {
+    try {
+      const s = await osnovaApi.filesSign({ path });
+      if (s.signedUrl) window.open(s.signedUrl, '_blank');
+    } catch {}
   }
 
   async function loadSuppliers(search?: string) {
@@ -261,18 +295,38 @@ export default function ClientAdminApp() {
                       <div className="font-medium">#{r.number} {r.title}</div>
                       <div className="text-xs text-ink-muted">{r.description || ''}</div>
                       <div className="text-[10px] mt-1">до {r.due_date || '—'} • {r.status}</div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Select
-                        options={statusOptions}
-                        value={r.status}
-                        onChange={(st) => changeReqStatus(r, st)}
-                        pill
-                      />
-                      <div className="text-[10px] text-ink-faint">{r.priority || ''}</div>
-                    </div>
-                  </div>
-                </Card>
+                   </div>
+                     <div className="flex flex-col items-end gap-1">
+                       <Select
+                         options={statusOptions}
+                         value={r.status}
+                         onChange={(st) => changeReqStatus(r, st)}
+                         pill
+                       />
+                       <div className="text-[10px] text-ink-faint">{r.priority || ''}</div>
+                     </div>
+                   </div>
+                   <div className="mt-2 border-t pt-1 text-[10px] text-ink-muted">
+                     Файлы:{' '}
+                     {(reqFiles[r.id] || []).map((f: any, i: number) => (
+                       <a key={i} href="#" onClick={(e) => { e.preventDefault(); openFileSigned(f.path); }} className="underline mr-1 text-primary">{f.name}</a>
+                     ))}
+                     {!(reqFiles[r.id] || []).length && <span className="text-ink-faint">—</span>}
+                     <label className="ml-2 cursor-pointer text-primary">
+                       +
+                       <input
+                         type="file"
+                         className="hidden"
+                         disabled={fileUploading}
+                         onChange={(e) => {
+                           const fl = e.target.files?.[0];
+                           if (fl) attachFile(r, fl);
+                           e.target.value = '';
+                         }}
+                       />
+                     </label>
+                   </div>
+                 </Card>
               ))}
             </div>
 

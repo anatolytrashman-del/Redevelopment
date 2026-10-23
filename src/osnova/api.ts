@@ -83,6 +83,15 @@ export const osnovaApi = {
   async supplierPricesAdd(data: any, clientSlug?: string) {
     return call('client.supplier_prices.add', { method: 'POST', body: JSON.stringify(data) }, clientSlug);
   },
+  async filesUploadUrl(data: any, clientSlug?: string) {
+    return call('client.files.upload_url', { method: 'POST', body: JSON.stringify(data) }, clientSlug);
+  },
+  async filesSign(data: any, clientSlug?: string) {
+    return call('client.files.sign', { method: 'POST', body: JSON.stringify(data) }, clientSlug);
+  },
+  async filesList(requestId: string, clientSlug?: string) {
+    return call('client.files.list', { method: 'GET' }, clientSlug, requestId ? { request_id: requestId } : undefined);
+  },
 
   // platform (owner only)
   async platformClients() {

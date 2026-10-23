@@ -9,6 +9,7 @@ import { passwordLogin, getProviders } from './_osnovaProviders.js';
 import { logSecurity } from './_osnovaLog.js';
 import { dbGet, dbPatch, dbPost, rest, rpc } from './_osnovaDb.js';
 import { validateRequestInput, validateSupplierAdd, validateNoteAdd, validatePriceAdd, writeRequestEvent, parseSupplierRef, getClientIdForHostOrQuery } from './_osnovaClient.js';
+import { getSignedUploadUrl, getSignedDownloadUrl, listRequestFiles } from './_osnovaFiles.js';
 import {
   requirePlatformOwner, listClients, createClient, updateClientStatus,
   listUsers, createUserGoTrue, updateUser, resetUserPassword,
@@ -420,6 +421,41 @@ export default async function handler(req, res) {
         if (!ins.ok) return send(res, 400, { error: 'add_failed' });
         await logSecurity('client_supplier_price_added', { client_id: clientId, ref: req.body.supplier_ref }, { ip, userId: user.id, clientId });
         return send(res, 200, { price: ins.data?.[0] });
+      }
+
+      if (route === 'client.files.upload_url' && req.method === 'POST') {
+        const { request_id, filename } = req.body || {};
+        if (!request_id || !filename) return send(res, 400, { error: 'request_id_filename_required' });
+        try {
+          const signed = await getSignedUploadUrl(clientId, String(request_id), filename, token);
+          await logSecurity('client_file_upload_url', { request: request_id, path: signed.path, client_id: clientId }, { ip, userId: user.id, clientId });
+          return send(res, 200, { uploadUrl: signed.uploadUrl, path: signed.path });
+        } catch (e) {
+          const st = e.status || 403;
+          return send(res, st, { error: 'forbidden' });
+        }
+      }
+
+      if (route === 'client.files.sign' && req.method === 'POST') {
+        const { path } = req.body || {};
+        if (!path) return send(res, 400, { error: 'path_required' });
+        try {
+          const s = await getSignedDownloadUrl(clientId, path, token);
+          return send(res, 200, s);
+        } catch (e) {
+          return send(res, 403, { error: 'forbidden' });
+        }
+      }
+
+      if (route === 'client.files.list' && req.method === 'GET') {
+        const rid = u.searchParams.get('request_id');
+        if (!rid) return send(res, 400, { error: 'request_id_required' });
+        try {
+          const l = await listRequestFiles(clientId, rid, token);
+          return send(res, 200, l);
+        } catch (e) {
+          return send(res, 200, { files: [] });
+        }
       }
 
       return send(res, 404, { error: 'unknown_client_route' });
