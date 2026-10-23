@@ -1,37 +1,50 @@
-// Определение клиентского хоста «Основа» (блок 1 auth).
-// CLIENT_HOSTS — прод-хосты клиента (punycode + кириллица + latin alias).
+// Определение режима клиентской админки «Матрешка» в браузере (блок 1 auth).
+// Хосты — из общего src/lib/matreshkaHosts.js (единственное место с доменными строками).
 // isClientAdminHost() учитывает:
-// - прямой матч по хосту клиента
+// - прямой матч по хосту клиента;
 // - превью-override ТОЛЬКО при __VERCEL_ENV__ === 'preview' на *.vercel.app:
-//   ?tenant=osnova в URL → ставим sessionStorage + cookie (для middleware)
-//   или наличие флага osnova_preview в storage/cookie.
+//   ?tenant=matreshka в URL → ставим sessionStorage + cookie (для middleware)
+//   или наличие флага matreshka_preview в storage/cookie.
 // На проде override не работает (даже с ?tenant).
+// isPlatformRootLogin() — «/» на хосте платформы (redevelopment.pro / www): там показывается
+// тот же вход в админку «Матрешка». На превью — симуляция ?simulate_host=redevelopment.pro.
 
 import { deployedSiteMode } from './sites';
+import {
+  MATRESHKA_CLIENT_SLUG,
+  MATRESHKA_HOSTS,
+  MATRESHKA_PREVIEW_FLAG,
+  MATRESHKA_TENANT_PARAM,
+  SIMULATE_HOST_PARAM,
+  isPlatformLoginHost,
+  isPreviewVercelHost,
+  isRootPath,
+  matreshkaSlugForHost,
+} from './matreshkaHosts.js';
 
-export const CLIENT_HOSTS: Record<string, string> = {
-  'xn--80ad6adbq.redevelopment.pro': 'matreshka',
-  'основа.redevelopment.pro': 'matreshka',
-  'osnova.redevelopment.pro': 'matreshka',
-};
-
-const PREVIEW_FLAG = 'osnova_preview';
+export const CLIENT_HOSTS: Record<string, string> = Object.fromEntries(
+  MATRESHKA_HOSTS.map((h) => [h, MATRESHKA_CLIENT_SLUG]),
+);
 
 function getHostname(): string {
   if (typeof window === 'undefined') return '';
   return window.location.hostname.toLowerCase();
 }
 
-function hasPreviewOverrideParam(): boolean {
-  if (typeof window === 'undefined') return false;
-  return new URLSearchParams(window.location.search).get('tenant') === 'osnova';
+function getSearchParam(name: string): string | null {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+function getVercelEnv(): string {
+  return typeof __VERCEL_ENV__ === 'string' ? __VERCEL_ENV__ : '';
 }
 
 function hasPreviewFlag(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    if (sessionStorage.getItem(PREVIEW_FLAG) === '1') return true;
-    if (document.cookie.includes(`${PREVIEW_FLAG}=1`)) return true;
+    if (sessionStorage.getItem(MATRESHKA_PREVIEW_FLAG) === '1') return true;
+    if (document.cookie.includes(`${MATRESHKA_PREVIEW_FLAG}=1`)) return true;
   } catch {
     /* ignore */
   }
@@ -41,17 +54,16 @@ function hasPreviewFlag(): boolean {
 function setPreviewFlag() {
   if (typeof window === 'undefined') return;
   try {
-    sessionStorage.setItem(PREVIEW_FLAG, '1');
+    sessionStorage.setItem(MATRESHKA_PREVIEW_FLAG, '1');
     // cookie для middleware (edge) — path=/ , 1 час
-    document.cookie = `${PREVIEW_FLAG}=1; path=/; max-age=3600; samesite=lax`;
+    document.cookie = `${MATRESHKA_PREVIEW_FLAG}=1; path=/; max-age=3600; samesite=lax`;
   } catch {
     /* private mode */
   }
 }
 
 export function getClientSlugForHost(hostname: string): string | null {
-  const h = (hostname || '').toLowerCase().replace(/^www\./, '');
-  return CLIENT_HOSTS[h] ?? null;
+  return matreshkaSlugForHost(hostname);
 }
 
 export function isClientAdminHost(): boolean {
@@ -62,20 +74,28 @@ export function isClientAdminHost(): boolean {
   if (getClientSlugForHost(host)) return true;
 
   // Превью-override только на preview-деплоях и только *.vercel.app
-  const vercelEnv = typeof __VERCEL_ENV__ === 'string' ? __VERCEL_ENV__ : '';
-  if (vercelEnv !== 'preview') return false;
-  if (!host.endsWith('.vercel.app')) return false;
+  if (!isPreviewVercelHost(host, getVercelEnv())) return false;
 
-  if (hasPreviewOverrideParam()) {
+  if (getSearchParam('tenant') === MATRESHKA_TENANT_PARAM) {
     setPreviewFlag();
     return true;
   }
   return hasPreviewFlag();
 }
 
-export function getCurrentClientSlug(): string | null {
-  if (!isClientAdminHost()) return null;
-  // Для клиентского хоста всегда 'matreshka' (пока один клиент)
+/** «/» на хосте платформы → экран входа в админку «Матрешка» (вместо главной; главная — на /katalog). */
+export function isPlatformRootLogin(): boolean {
+  if (deployedSiteMode() !== 'platform') return false;
+  if (typeof window === 'undefined') return false;
+  if (!isRootPath(window.location.pathname)) return false;
   const host = getHostname();
-  return getClientSlugForHost(host) || 'matreshka';
+  if (isPlatformLoginHost(host)) return true;
+  if (!isPreviewVercelHost(host, getVercelEnv())) return false;
+  return isPlatformLoginHost(getSearchParam(SIMULATE_HOST_PARAM) || '');
+}
+
+export function getCurrentClientSlug(): string | null {
+  if (!isClientAdminHost() && !isPlatformRootLogin()) return null;
+  // Пока один клиент — 'matreshka'
+  return getClientSlugForHost(getHostname()) || MATRESHKA_CLIENT_SLUG;
 }

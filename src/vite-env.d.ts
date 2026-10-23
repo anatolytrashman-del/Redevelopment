@@ -3,8 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
-  readonly VITE_OSNOVA_SUPABASE_URL?: string;
-  readonly VITE_OSNOVA_SUPABASE_ANON_KEY?: string;
+  readonly VITE_MATRESHKA_SUPABASE_URL?: string;
+  readonly VITE_MATRESHKA_SUPABASE_ANON_KEY?: string;
   /** platform | offices | malls — какой сайт отдаёт этот деплой */
   readonly VITE_PUBLIC_SITE?: string;
 }

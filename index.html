@@ -454,9 +454,6 @@
          storage не должны ронять страницу. -->
     <script type="text/javascript">
       window.__startAnalytics = function () {
-        // «Основа» (клиентская админка): без Метрики и VK-пикселя на её хостах.
-        var h = String(window.location.hostname || '').toLowerCase();
-        if (h === 'xn--80ad6adbq.redevelopment.pro' || h === 'основа.redevelopment.pro' || h === 'osnova.redevelopment.pro') { return; }
         if (window.__startMetrika) { window.__startMetrika(); }
         if (window.__startTmr) { window.__startTmr(); }
       };

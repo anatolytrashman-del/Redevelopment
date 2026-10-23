@@ -5,6 +5,15 @@ import {
   CATALOG_DOMAIN_SPLIT_ENABLED,
   normalizeSiteMode,
 } from './src/lib/sites';
+import {
+  MATRESHKA_PREVIEW_FLAG,
+  MATRESHKA_TENANT_PARAM,
+  SIMULATE_HOST_PARAM,
+  isPlatformLoginHost,
+  isPreviewVercelHost,
+  isRootPath,
+  matreshkaSlugForHost,
+} from './src/lib/matreshkaHosts.js';
 
 
 // Vercel Routing Middleware — реальный HTTP 404 для несуществующих страниц.
@@ -49,6 +58,7 @@ const EXACT_PATHS = new Set<string>([
   '/license/zuev', // индивидуальный договор (noindex, вне sitemap)
   '/requisites', // реквизиты
   '/zakupki', // лендинг модуля закупок (public/zakupki.html + rewrite в vercel.json)
+  '/katalog', // прежняя главная платформы (PlatformHomePage); «/» на redevelopment.pro — вход «Матрешка»
 ]);
 
 // Префиксы реальных разделов (без хвостового "/" — сравниваем через
@@ -66,7 +76,7 @@ const KNOWN_PREFIXES = [
   '/api', // serverless-функции
   '/_vercel', // Vercel Web Analytics: скрипт и отправка визитов (/_vercel/insights/*)
   '/.well-known', // верификация доменов и т.п. — сейчас не используется, но не должно 404-иться, если появится
-  '/platform', // клиентская/платформенная админка «Основа» (osnova.html shell)
+  '/platform', // админка платформы Redevelopment (SPA-шелл matreshka.html, общий с клиентской админкой)
 ];
 
 function normalizePathname(pathname: string): string {
@@ -109,21 +119,34 @@ function isKnownPath(pathname: string): boolean {
   return hasKnownStaticExtension(normalized);
 }
 
-function isOsnovaClientHost(request: Request): boolean {
-  const host = (request.headers.get('host') || request.headers.get('x-forwarded-host') || '').toLowerCase().replace(/^www\./, '');
-  const CLIENT_HOSTS: Record<string, true> = {
-    'xn--80ad6adbq.redevelopment.pro': true,
-    'основа.redevelopment.pro': true,
-    'osnova.redevelopment.pro': true,
-  };
-  if (CLIENT_HOSTS[host]) return true;
+function edgeVercelEnv(): string {
   const g = (globalThis as any).process?.env || {};
-  if (g.VERCEL_ENV !== 'preview') return false;
-  if (!host.endsWith('.vercel.app')) return false;
+  return typeof g.VERCEL_ENV === 'string' ? g.VERCEL_ENV : '';
+}
+
+function requestHost(request: Request): string {
+  return request.headers.get('host') || request.headers.get('x-forwarded-host') || '';
+}
+
+// Хосты клиента — из общего src/lib/matreshkaHosts.js.
+function isMatreshkaClientHost(request: Request): boolean {
+  const host = requestHost(request);
+  if (matreshkaSlugForHost(host)) return true;
+  if (!isPreviewVercelHost(host, edgeVercelEnv())) return false;
   const cookie = request.headers.get('cookie') || '';
   const url = new URL(request.url);
-  if (cookie.includes('osnova_preview=1') || url.searchParams.get('tenant') === 'osnova') return true;
+  if (cookie.includes(`${MATRESHKA_PREVIEW_FLAG}=1`) || url.searchParams.get('tenant') === MATRESHKA_TENANT_PARAM) return true;
   return false;
+}
+
+// «/» на хосте платформы (redevelopment.pro / www) → вход в админку «Матрешка».
+// Превью: симуляция ?simulate_host=redevelopment.pro (только VERCEL_ENV=preview на *.vercel.app).
+function isPlatformRootLoginRequest(request: Request, url: URL, normalized: string): boolean {
+  if (!isRootPath(normalized)) return false;
+  const host = requestHost(request);
+  if (isPlatformLoginHost(host)) return true;
+  if (!isPreviewVercelHost(host, edgeVercelEnv())) return false;
+  return isPlatformLoginHost(url.searchParams.get(SIMULATE_HOST_PARAM) || '');
 }
 
 // Обычный HTML/CSS, не JSX — edge middleware выполняется до сборки React,
@@ -275,10 +298,10 @@ export default function middleware(request: Request) {
   const siteMode = edgeSiteMode();
   const normalized = normalizePathname(pathname);
 
-  // Ранняя ветка для клиентских хостов «Основа» (блок 1 auth, до siteMode-логики и KNOWN).
-  // /api/* + статика → next(); /robots.txt → Disallow; остальное → rewrite на osnova.html + noindex.
-  // Превью-override (cookie/ ?tenant) активен только при VERCEL_ENV=preview (см. _osnovaTenant).
-  if (isOsnovaClientHost(request)) {
+  // Ранняя ветка для клиентских хостов «Матрешка» (блок 1 auth, до siteMode-логики и KNOWN).
+  // /api/* + статика → next(); /robots.txt → Disallow; остальное → rewrite на matreshka.html + noindex.
+  // Превью-override (cookie/ ?tenant) активен только при VERCEL_ENV=preview (см. _matreshkaTenant).
+  if (isMatreshkaClientHost(request)) {
     if (pathname === '/robots.txt') {
       return new Response('User-agent: *\nDisallow: /\n', {
         status: 200,
@@ -293,7 +316,7 @@ export default function middleware(request: Request) {
     if (isApiOrStatic) {
       return next();
     }
-    return rewrite(new URL('/osnova.html', url), {
+    return rewrite(new URL('/matreshka.html', url), {
       headers: { 'X-Robots-Tag': 'noindex, nofollow' },
     });
   }
@@ -311,6 +334,19 @@ export default function middleware(request: Request) {
   // (владелец, 2026-10-11: «снова старая ссылка» на git-preview).
   const isPlatformRoot =
     siteMode === 'platform' && (normalized === '/' || normalized === '');
+  // 2026-10-23: на redevelopment.pro (и www) «/» — только вход в админку «Матрешка»
+  // (шелл matreshka-login.html: тот же SPA, счётчики сохранены, noindex).
+  // Прежняя главная — /katalog. Остальные хосты и пути не меняются.
+  if (isPlatformRoot && isPlatformRootLoginRequest(request, url, normalized)) {
+    return rewrite(new URL('/matreshka-login.html', url), {
+      headers: {
+        'X-Robots-Tag': 'noindex, nofollow',
+        'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
+        'CDN-Cache-Control': 'no-store',
+        'Vercel-CDN-Cache-Control': 'no-store',
+      },
+    });
+  }
   if (isPlatformRoot) {
     return next({
       headers: {

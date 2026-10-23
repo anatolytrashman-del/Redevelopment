@@ -1625,19 +1625,19 @@
   "rewrites": [
     {
       "source": "/platform",
-      "destination": "/osnova.html"
+      "destination": "/matreshka.html"
     },
     {
       "source": "/platform/(.*)",
-      "destination": "/osnova.html"
+      "destination": "/matreshka.html"
     },
     {
       "source": "/api/auth/bitrix/:path*",
-      "destination": "/api/osnova?route=auth.bitrix.:path*"
+      "destination": "/api/matreshka?route=auth.bitrix.:path*"
     },
     {
       "source": "/api/auth/:path*",
-      "destination": "/api/osnova?route=auth.:path*"
+      "destination": "/api/matreshka?route=auth.:path*"
     },
     {
       "source": "/zakupki",
