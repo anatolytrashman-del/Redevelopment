@@ -6,8 +6,6 @@
 //   ?tenant=matreshka в URL → ставим sessionStorage + cookie (для middleware)
 //   или наличие флага matreshka_preview в storage/cookie.
 // На проде override не работает (даже с ?tenant).
-// isPlatformRootLogin() — «/» на хосте платформы (redevelopment.pro / www): там показывается
-// тот же вход в админку «Матрешка». На превью — симуляция ?simulate_host=redevelopment.pro.
 
 import { deployedSiteMode } from './sites';
 import {
@@ -15,10 +13,7 @@ import {
   MATRESHKA_HOSTS,
   MATRESHKA_PREVIEW_FLAG,
   MATRESHKA_TENANT_PARAM,
-  SIMULATE_HOST_PARAM,
-  isPlatformLoginHost,
   isPreviewVercelHost,
-  isRootPath,
   matreshkaSlugForHost,
 } from './matreshkaHosts.js';
 
@@ -83,19 +78,8 @@ export function isClientAdminHost(): boolean {
   return hasPreviewFlag();
 }
 
-/** «/» на хосте платформы → экран входа в админку «Матрешка» (вместо главной; главная — на /katalog). */
-export function isPlatformRootLogin(): boolean {
-  if (deployedSiteMode() !== 'platform') return false;
-  if (typeof window === 'undefined') return false;
-  if (!isRootPath(window.location.pathname)) return false;
-  const host = getHostname();
-  if (isPlatformLoginHost(host)) return true;
-  if (!isPreviewVercelHost(host, getVercelEnv())) return false;
-  return isPlatformLoginHost(getSearchParam(SIMULATE_HOST_PARAM) || '');
-}
-
 export function getCurrentClientSlug(): string | null {
-  if (!isClientAdminHost() && !isPlatformRootLogin()) return null;
+  if (!isClientAdminHost()) return null;
   // Пока один клиент — 'matreshka'
   return getClientSlugForHost(getHostname()) || MATRESHKA_CLIENT_SLUG;
 }

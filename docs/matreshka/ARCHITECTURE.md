@@ -11,14 +11,14 @@
   все существующие api/*.js) должна работать **ровно как раньше**. Ничего не удалять и не переименовывать.
   Существующие файлы правим только минимально и аддитивно (новая ветка `if`, новый маршрут).
 - Всё новое поведение включается **только** на хостах клиента (список — `src/lib/matreshkaHosts.js`,
-  единственное место с доменными строками), на «/» хоста платформы (redevelopment.pro / www — вход в админку
-  «Матрешка», см. §1а) и на новых путях `/platform/*`, `/katalog`, `/api/matreshka`, `/api/auth/*`.
+  единственное место с доменными строками; основной — `matreshka.redevelopment.pro`) и на новых путях
+  `/platform/*`, `/api/matreshka`, `/api/auth/*`. На redevelopment.pro «/» — прежняя главная платформы (см. §1а).
 - Превью-override: на `*.vercel.app` **и только при `VERCEL_ENV === 'preview'`** параметр `?tenant=matreshka`
   включает режим клиента (cookie `matreshka_preview=1` / sessionStorage). На проде не действует.
 - Секретов в коде нет. `SUPABASE_SERVICE_ROLE_KEY` — только `process.env` на сервере.
 
 ## 1. Определение клиента по хосту
-- `src/lib/matreshkaHosts.js` (+ `.d.ts`): `MATRESHKA_HOSTS`, `PLATFORM_LOGIN_HOSTS`, флаги/заголовки; импортируют middleware, браузер и API.
+- `src/lib/matreshkaHosts.js` (+ `.d.ts`): `MATRESHKA_HOSTS`, флаги превью; импортируют middleware, браузер и API.
 - `src/lib/tenant.ts`: `CLIENT_HOSTS` (из `MATRESHKA_HOSTS`),
   `getClientSlugForHost(hostname)`, `isClientAdminHost()` (учитывает превью-override, флаг сборки `__VERCEL_ENV__` из vite define).
 - Сервер: `api/_matreshkaTenant.js` — то же по заголовку `host`/`x-forwarded-host` (+ превью-override по cookie, только VERCEL_ENV=preview).
@@ -27,15 +27,11 @@
   Для обычных хостов добавить `/platform` в KNOWN_PREFIXES (и rewrite `/platform`, `/platform/*` → `/platform-admin.html` в vercel.json, в начале rewrites; заголовок «Redevelopment — платформа»).
 - `scripts/generate-matreshka-shell.mjs` (в конце `build:app`): `dist/matreshka.html` из `dist/404.html`/`dist/index.html` с `<title>Матрешка — вход</title>`, `noindex`, без og-рекламы.
 
-## 1а. Вход на «/» redevelopment.pro (2026-10-23)
-- На `redevelopment.pro` и `www.redevelopment.pro` путь `/` отдаёт только экран входа в админку «Матрешка»
-  (middleware → `rewrite('/matreshka-login.html')`, `noindex`, `no-store`); после входа — админка «Матрешка».
-- `dist/matreshka-login.html` генерирует тот же `generate-matreshka-shell.mjs`; счётчики Метрики/VK в нём сохранены.
-- Прежняя главная платформы (`PlatformHomePage`) — на `/katalog`. Остальные пути и хосты (officelist, malllist) без изменений.
-- Браузер: `isPlatformRootLogin()` (tenant.ts) → `RootGate` в App.tsx рендерит `ClientAdminApp`; `api.ts` шлёт заголовок
-  `x-matreshka-root-login: 1`; сервер (`_matreshkaTenant.js`) принимает его только с хостов платформы (и превью *.vercel.app).
-  Без заголовка (например, `/platform`) — платформенный режим, как раньше.
-- Превью: симуляция `/?simulate_host=redevelopment.pro` (только VERCEL_ENV=preview на *.vercel.app).
+## 1а. Вход на «/» redevelopment.pro — отменён (2026-10-23)
+- Был кратко реализован в ветке (вход «Матрешка» на «/», главная на `/katalog`) и отменён до прода по решению владельца.
+- `redevelopment.pro` и `www` на «/» отдают прежнюю главную платформы (`PlatformHomePage`), `/katalog` нет.
+- Вход «Матрешка» — только на хостах клиента: `matreshka.redevelopment.pro` (основной), `osnova.redevelopment.pro`,
+  `xn--80ad6adbq.redevelopment.pro`.
 
 ## 2. Фронтенд
 - `src/App.tsx`: самая первая проверка в `App()` — `if (isClientAdminHost()) return <ClientAdminApp/>` (lazy). Плюс маршрут `/platform/*` → `<PlatformAdminApp/>` (lazy) в платформенных Routes. Больше App.tsx не трогать.

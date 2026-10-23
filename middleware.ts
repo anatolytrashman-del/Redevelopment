@@ -8,10 +8,7 @@ import {
 import {
   MATRESHKA_PREVIEW_FLAG,
   MATRESHKA_TENANT_PARAM,
-  SIMULATE_HOST_PARAM,
-  isPlatformLoginHost,
   isPreviewVercelHost,
-  isRootPath,
   matreshkaSlugForHost,
 } from './src/lib/matreshkaHosts.js';
 
@@ -58,7 +55,6 @@ const EXACT_PATHS = new Set<string>([
   '/license/zuev', // индивидуальный договор (noindex, вне sitemap)
   '/requisites', // реквизиты
   '/zakupki', // лендинг модуля закупок (public/zakupki.html + rewrite в vercel.json)
-  '/katalog', // прежняя главная платформы (PlatformHomePage); «/» на redevelopment.pro — вход «Матрешка»
 ]);
 
 // Префиксы реальных разделов (без хвостового "/" — сравниваем через
@@ -137,16 +133,6 @@ function isMatreshkaClientHost(request: Request): boolean {
   const url = new URL(request.url);
   if (cookie.includes(`${MATRESHKA_PREVIEW_FLAG}=1`) || url.searchParams.get('tenant') === MATRESHKA_TENANT_PARAM) return true;
   return false;
-}
-
-// «/» на хосте платформы (redevelopment.pro / www) → вход в админку «Матрешка».
-// Превью: симуляция ?simulate_host=redevelopment.pro (только VERCEL_ENV=preview на *.vercel.app).
-function isPlatformRootLoginRequest(request: Request, url: URL, normalized: string): boolean {
-  if (!isRootPath(normalized)) return false;
-  const host = requestHost(request);
-  if (isPlatformLoginHost(host)) return true;
-  if (!isPreviewVercelHost(host, edgeVercelEnv())) return false;
-  return isPlatformLoginHost(url.searchParams.get(SIMULATE_HOST_PARAM) || '');
 }
 
 // Обычный HTML/CSS, не JSX — edge middleware выполняется до сборки React,
@@ -334,19 +320,6 @@ export default function middleware(request: Request) {
   // (владелец, 2026-10-11: «снова старая ссылка» на git-preview).
   const isPlatformRoot =
     siteMode === 'platform' && (normalized === '/' || normalized === '');
-  // 2026-10-23: на redevelopment.pro (и www) «/» — только вход в админку «Матрешка»
-  // (шелл matreshka-login.html: тот же SPA, счётчики сохранены, noindex).
-  // Прежняя главная — /katalog. Остальные хосты и пути не меняются.
-  if (isPlatformRoot && isPlatformRootLoginRequest(request, url, normalized)) {
-    return rewrite(new URL('/matreshka-login.html', url), {
-      headers: {
-        'X-Robots-Tag': 'noindex, nofollow',
-        'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
-        'CDN-Cache-Control': 'no-store',
-        'Vercel-CDN-Cache-Control': 'no-store',
-      },
-    });
-  }
   if (isPlatformRoot) {
     return next({
       headers: {

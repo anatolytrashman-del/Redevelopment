@@ -18,18 +18,14 @@ describe('_matreshkaTenant (server)', () => {
     }
   });
 
-  it('вход на «/» redevelopment.pro: заголовок root-login → клиент matreshka', () => {
-    for (const h of ['redevelopment.pro', 'www.redevelopment.pro']) {
-      const r = getClientFromRequest(makeReq(h, '', '/api/matreshka?route=auth.login', { 'x-matreshka-root-login': '1' }));
-      expect(r.slug).toBe('matreshka');
-      expect(r.isRootLogin).toBe(true);
-    }
+  it('matreshka.redevelopment.pro — основной хост клиента', () => {
+    expect(getClientFromRequest(makeReq('matreshka.redevelopment.pro')).slug).toBe('matreshka');
   });
 
-  it('заголовок root-login не действует на чужих хостах и на проде vercel.app', () => {
+  it('хосты платформы и сайтов — не клиент (вход на «/» платформы отменён)', () => {
     const prev = process.env.VERCEL_ENV;
     process.env.VERCEL_ENV = 'production';
-    for (const h of ['officelist.pro', 'malllist.pro', 'evil.example', 'foo.vercel.app']) {
+    for (const h of ['redevelopment.pro', 'www.redevelopment.pro', 'officelist.pro', 'malllist.pro', 'foo.vercel.app']) {
       const r = getClientFromRequest(makeReq(h, '', '/', { 'x-matreshka-root-login': '1' }));
       expect(r.slug).toBeNull();
     }

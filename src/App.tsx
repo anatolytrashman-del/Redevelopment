@@ -45,7 +45,7 @@ import { trackPageView } from './lib/pageViewTracker';
 import { FavoritesProvider } from './lib/favoritesContext';
 import { CatalogKindProvider } from './lib/catalogKind';
 import { deployedSiteMode } from './lib/sites';
-import { isClientAdminHost, isPlatformRootLogin } from './lib/tenant';
+import { isClientAdminHost } from './lib/tenant';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -143,13 +143,6 @@ const EstimatePublicPage = lazy(() =>
 );
 
 const ClientAdminApp = lazy(() => import('./matreshka/ClientAdminApp').then((m) => ({ default: m.default })));
-// «/» на redevelopment.pro (и www): вход в админку «Матрешка»; прежняя главная — на /katalog.
-function RootGate() {
-  if (isPlatformRootLogin()) {
-    return <Suspense fallback={<AdminChunkFallback />}><ClientAdminApp /></Suspense>;
-  }
-  return <PlatformHomePage />;
-}
 const PlatformAdminApp = lazy(() => import('./matreshka/PlatformAdminApp').then((m) => ({ default: m.default })));
 
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
@@ -430,10 +423,7 @@ export default function App() {
           city-scoped хабом. Импортированы статически (не lazy) — это ровно
           те страницы, ради которых существует бандл-сплиттинг выше: им нельзя
           добавлять лишний сетевой перелёт на догрузку чанка. */}
-      {/* 2026-10-23: на redevelopment.pro «/» — вход в админку «Матрешка» (RootGate),
-          прежняя главная платформы доступна на /katalog. */}
-      <Route path="/" element={<RootGate />} />
-      <Route path="/katalog" element={<PlatformHomePage />} />
+      <Route path="/" element={<PlatformHomePage />} />
       <Route path="/minsk" element={<MinskHub />} />
       {/* Аналитика рынка (ANALYTICSPLAN.md) — бенчмарк-страницы с постоянным
           URL, месяц меняется в тексте, не в адресе. Регистрируются раньше

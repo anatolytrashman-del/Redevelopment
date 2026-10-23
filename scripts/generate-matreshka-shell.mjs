@@ -1,8 +1,7 @@
 // Генерация шеллов SPA для админки (блок 1):
 // - dist/matreshka.html — клиентские хосты «Матрешка», БЕЗ счётчиков;
-// - dist/platform-admin.html — /platform/* (админка платформы Redevelopment), БЕЗ счётчиков;
-// - dist/matreshka-login.html — «/» на redevelopment.pro (вход в админку «Матрешка»),
-//   счётчики Метрики/VK СОХРАНЕНЫ (как на остальных страницах redevelopment.pro). Берём готовый dist/404.html (или index.html как фолбэк)
+// - dist/platform-admin.html — /platform/* (админка платформы Redevelopment), БЕЗ счётчиков.
+// Берём готовый dist/404.html (или index.html как фолбэк)
 // после vite build и всех prepare-скриптов, в конце build:app.
 // Делаем: <title>Матрешка — вход</title>, meta noindex, убираем og-рекламу (чтобы
 // мессенджеры не показывали продающую картинку), canonical на redevelopment.pro
@@ -43,11 +42,6 @@ html = html
 if (!html.includes('noindex')) {
   html = html.replace(/<head[^>]*>/i, (m) => `${m}\n${NOINDEX}`);
 }
-
-// Шелл входа на «/» redevelopment.pro: тот же HTML, но счётчики не трогаем.
-const loginOutPath = join(DIST_DIR, 'matreshka-login.html');
-writeFileSync(loginOutPath, html, 'utf8');
-console.log('[generate-matreshka-shell] wrote dist/matreshka-login.html (счётчики сохранены)');
 
 // Удаляем ТОЛЬКО inline-скрипты (без src) с конкретным содержимым (не трогаем main bundle)
 html = html.replace(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi, (m, content) => {

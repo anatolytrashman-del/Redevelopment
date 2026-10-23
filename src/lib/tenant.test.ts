@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getClientSlugForHost, isClientAdminHost, isPlatformRootLogin, CLIENT_HOSTS } from './tenant';
+import { getClientSlugForHost, isClientAdminHost, CLIENT_HOSTS } from './tenant';
 import { MATRESHKA_HOSTS } from './matreshkaHosts.js';
 
 // Мокаем define, который подставляет vite
@@ -7,7 +7,7 @@ declare const __VERCEL_ENV__: string;
 
 describe('tenant / client hosts', () => {
   it('CLIENT_HOSTS содержит все алиасы матрёшки', () => {
-    expect(MATRESHKA_HOSTS.length).toBe(3);
+    expect(MATRESHKA_HOSTS.length).toBe(4);
     for (const h of MATRESHKA_HOSTS) expect(CLIENT_HOSTS[h]).toBe('matreshka');
   });
 
@@ -44,32 +44,15 @@ describe('tenant / client hosts', () => {
     expect(isClientAdminHost()).toBe(false);
   });
 
-  it('«/» на redevelopment.pro и www — вход «Матрешка»; другие пути — нет', () => {
+  it('redevelopment.pro и www — не клиентская админка (главная платформы на «/»)', () => {
     (globalThis as any).__VERCEL_ENV__ = 'production';
     for (const hostname of ['redevelopment.pro', 'www.redevelopment.pro']) {
       vi.stubGlobal('window', { location: { hostname, search: '', pathname: '/' } });
-      expect(isPlatformRootLogin()).toBe(true);
       expect(isClientAdminHost()).toBe(false);
-      vi.stubGlobal('window', { location: { hostname, search: '', pathname: '/katalog' } });
-      expect(isPlatformRootLogin()).toBe(false);
-      vi.stubGlobal('window', { location: { hostname, search: '', pathname: '/minsk' } });
-      expect(isPlatformRootLogin()).toBe(false);
     }
   });
 
-  it('вход на «/» не включается на officelist/malllist и на проде через simulate_host', () => {
-    (globalThis as any).__VERCEL_ENV__ = 'production';
-    for (const hostname of ['officelist.pro', 'malllist.pro', 'foo.vercel.app']) {
-      vi.stubGlobal('window', { location: { hostname, search: '?simulate_host=redevelopment.pro', pathname: '/' } });
-      expect(isPlatformRootLogin()).toBe(false);
-    }
-  });
-
-  it('превью: simulate_host=redevelopment.pro на *.vercel.app', () => {
-    (globalThis as any).__VERCEL_ENV__ = 'preview';
-    vi.stubGlobal('window', { location: { hostname: 'foo.vercel.app', search: '?simulate_host=redevelopment.pro', pathname: '/' } });
-    expect(isPlatformRootLogin()).toBe(true);
-    vi.stubGlobal('window', { location: { hostname: 'foo.vercel.app', search: '', pathname: '/' } });
-    expect(isPlatformRootLogin()).toBe(false);
+  it('matreshka.redevelopment.pro — клиент matreshka', () => {
+    expect(getClientSlugForHost('matreshka.redevelopment.pro')).toBe('matreshka');
   });
 });

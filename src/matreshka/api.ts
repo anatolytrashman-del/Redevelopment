@@ -2,8 +2,6 @@
 // Токен — из supabase.auth.getSession (после setSession).
 
 import { matreshkaSupabase } from './supabaseClient';
-import { isPlatformRootLogin } from '../lib/tenant';
-import { MATRESHKA_ROOT_LOGIN_HEADER } from '../lib/matreshkaHosts.js';
 
 const BASE = '/api/matreshka';
 
@@ -15,8 +13,6 @@ async function call(route: string, init?: RequestInit, clientSlug?: string, extr
     ...(init?.headers as any),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  // Вход на «/» платформы: просим API работать в контексте клиента «Матрешка».
-  if (isPlatformRootLogin()) headers[MATRESHKA_ROOT_LOGIN_HEADER] = '1';
   let url = `${BASE}?route=${encodeURIComponent(route)}`;
   if (clientSlug) url += `&client=${encodeURIComponent(clientSlug)}`;
   if (extraQuery) {
