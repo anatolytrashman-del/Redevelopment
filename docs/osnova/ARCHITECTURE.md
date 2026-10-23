@@ -58,3 +58,7 @@
 ## Блок 3 — статус
 Реализовано: RLS + политики + client_id + индексы на новых client_* таблицах (01/02); client.files.* (upload_url/sign/list) в api/_osnovaFiles.js + osnova.js + UI attach/list/open в request card ClientAdminApp; storage policies client-files; osnova_is_legacy_allowed(); audit-isolation.mjs (вкл. проверка индексов); two-client-test.sql; vitest path validation; 03-legacy-guard.sql (не применена).
 Pending отдельного одобрения: применение 03-legacy-guard.sql (меняет RLS на legacy), включение RLS + client_id NOT NULL на purchase_*/mailbox_* и др. legacy, перенос существующих storage файлов, переключение legacy api/* на user JWT (вместо service_role).
+
+## Блок 4 — статус
+Реализовано (scaffolding): 04-import-scaffold.sql (import_batches, import_batch_id cols+idx, positions dict+cols, client_approval_rules RLS, approval fields on requests, clients inn/settings); api/osnova.js + _osnovaApprovals.js (client.approval_rules.*, requests.approve/reject/mark_bitrix_approved, create logic for approval_status, matchApprover helper + tests, platform.clients.update for settings/inn); src/osnova/positions.ts + ClientAdminApp (supply_kind, approval badge/buttons, bitrix mark form, history, settings matrix for admin, position sections config); import tooling (lib.mjs CSV+batch, *-csv.mjs, rollback, fixtures, README ru, plan-wave-3-1 +05 flagged); audit updated for 04/05; all under allowed runs only.
+Pending: реальные волны импорта/применение, sales/documents tabs, owner-filtering data, Bitrix auto, prod apply 05.

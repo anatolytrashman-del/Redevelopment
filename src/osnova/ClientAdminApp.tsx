@@ -9,8 +9,9 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
+import { getVisibleSections } from './positions';
 
-type Tab = 'requests' | 'suppliers' | 'staff' | 'profile';
+type Tab = 'requests' | 'suppliers' | 'staff' | 'settings' | 'profile';
 
 export default function ClientAdminApp() {
   const [authed, setAuthed] = useState(false);
@@ -23,7 +24,7 @@ export default function ClientAdminApp() {
   const [requests, setRequests] = useState<any[]>([]);
   const [reqFilter, setReqFilter] = useState('');
   const [showCreateReq, setShowCreateReq] = useState(false);
-  const [newReq, setNewReq] = useState({ title: '', description: '', status: 'new' });
+  const [newReq, setNewReq] = useState({ title: '', description: '', status: 'new', supply_kind: '' });
   const [reqBusy, setReqBusy] = useState(false);
   const [reqFiles, setReqFiles] = useState<any>({});
   const [fileUploading, setFileUploading] = useState(false);
@@ -43,6 +44,13 @@ export default function ClientAdminApp() {
   // staff
   const [staff, setStaff] = useState<any[]>([]);
 
+  // approvals / block4
+  const [approvalRules, setApprovalRules] = useState<any[]>([]);
+  const [reqEvents, setReqEvents] = useState<any>({});
+  const [bitrixForm, setBitrixForm] = useState<{id: string; ref: string; note: string} | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [newRule, setNewRule] = useState({ supply_kind: '', approver_user_id: '', approver_position_id: '', priority: 100 });
+
   useEffect(() => {
     osnovaSupabase.auth.getSession().then(({ data }) => {
       if (data.session) {
@@ -57,6 +65,16 @@ export default function ClientAdminApp() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (authed && me) {
+      const v = getVisibleSections(me?.profile?.position || me?.contexts?.current?.position || '');
+      if (tab !== 'settings' && tab !== 'profile' && !v.includes(tab as any)) {
+        const first = (v[0] || 'requests') as Tab;
+        if (first !== tab) setTab(first);
+      }
+    }
+  }, [authed, me, tab]);
+
   async function loadMe() {
     setLoading(true);
     try {
@@ -68,6 +86,7 @@ export default function ClientAdminApp() {
       void loadRequests();
       void loadSuppliers();
       void loadStaff();
+      if (data.role === 'client_admin' || data.is_owner_view) void loadApprovalRules();
     } catch (e: any) {
       const status = e?.status ?? 0;
       const code = e?.code || String(e?.message || '');
@@ -106,8 +125,9 @@ export default function ClientAdminApp() {
       const r = await osnovaApi.requestsList(status);
       const reqs = r.requests || [];
       setRequests(reqs);
-      // minimal: preload files for first few
+      // preload files for first few, events (history) for all
       reqs.slice(0, 3).forEach((rr: any) => { void loadFiles(rr.id); });
+      reqs.forEach((rr: any) => { void loadEvents(rr.id); });
     } catch {}
   }
 
@@ -117,7 +137,7 @@ export default function ClientAdminApp() {
     try {
       await osnovaApi.requestsCreate(newReq);
       setShowCreateReq(false);
-      setNewReq({ title: '', description: '', status: 'new' });
+      setNewReq({ title: '', description: '', status: 'new', supply_kind: '' });
       await loadRequests(reqFilter || undefined);
     } catch (e: any) { alert(e.message || 'Ошибка'); } finally { setReqBusy(false); }
   }
@@ -128,6 +148,33 @@ export default function ClientAdminApp() {
       await osnovaApi.requestsUpdateStatus(req.id, st);
       await loadRequests(reqFilter || undefined);
     } catch {} finally { setReqBusy(false); }
+  }
+
+  async function doApprove(r: any) {
+    setReqBusy(true);
+    try {
+      await osnovaApi.requestsApprove(r.id);
+      await loadRequests(reqFilter || undefined);
+      await loadEvents(r.id);
+    } catch (e: any) { alert(e.message || 'Нет прав'); } finally { setReqBusy(false); }
+  }
+  async function doReject(r: any) {
+    setReqBusy(true);
+    try {
+      await osnovaApi.requestsReject(r.id);
+      await loadRequests(reqFilter || undefined);
+      await loadEvents(r.id);
+    } catch (e: any) { alert(e.message || 'Нет прав'); } finally { setReqBusy(false); }
+  }
+  async function doMarkBitrix(rid: string, ref: string, note: string) {
+    if (!rid || (!ref.trim() && !note.trim())) return;
+    setReqBusy(true);
+    try {
+      await osnovaApi.requestsMarkBitrix(rid, ref.trim() || undefined, note.trim() || undefined);
+      setBitrixForm(null);
+      await loadRequests(reqFilter || undefined);
+      await loadEvents(rid);
+    } catch (e: any) { alert(e.message || 'Ошибка'); } finally { setReqBusy(false); }
   }
 
   async function loadFiles(rid: string) {
@@ -219,6 +266,20 @@ export default function ClientAdminApp() {
     } catch {}
   }
 
+  async function loadApprovalRules() {
+    try {
+      const r = await osnovaApi.approvalRulesList();
+      setApprovalRules(r.rules || []);
+    } catch {}
+  }
+
+  async function loadEvents(rid: string) {
+    try {
+      const e = await osnovaApi.requestsEventsList(rid);
+      setReqEvents((p: any) => ({ ...p, [rid]: e.events || [] }));
+    } catch {}
+  }
+
   const role = me?.role || 'client_staff';
   const isAdmin = role === 'client_admin';
 
@@ -242,6 +303,7 @@ export default function ClientAdminApp() {
 
   const displayName = [me?.profile?.last_name, me?.profile?.first_name].filter(Boolean).join(' ') || 'Пользователь';
   const pos = me?.profile?.position || me?.contexts?.current?.position || '';
+  const visibleSections = getVisibleSections(pos);
 
   const statusOptions = ['new','in_progress','waiting','done','cancelled'];
 
@@ -260,8 +322,13 @@ export default function ClientAdminApp() {
             { k: 'requests', l: 'Заявки' },
             { k: 'suppliers', l: 'Поставщики' },
             { k: 'staff', l: 'Сотрудники' },
+            ...(isAdmin ? [{ k: 'settings', l: 'Настройки' }] : []),
             { k: 'profile', l: 'Профиль' },
-          ].map((t) => (
+          ].filter((t) => {
+            if (t.k === 'profile') return true;
+            if (t.k === 'settings') return isAdmin;
+            return visibleSections.includes(t.k as any);
+          }).map((t) => (
             <button
               key={t.k}
               onClick={() => setTab(t.k as Tab)}
@@ -288,46 +355,67 @@ export default function ClientAdminApp() {
 
             <div className="space-y-2">
               {requests.length === 0 && <div className="text-ink-muted">Нет заявок</div>}
-              {requests.map((r) => (
-                <Card key={r.id} className="p-3">
-                  <div className="flex justify-between gap-2">
-                    <div>
-                      <div className="font-medium">#{r.number} {r.title}</div>
-                      <div className="text-xs text-ink-muted">{r.description || ''}</div>
-                      <div className="text-[10px] mt-1">до {r.due_date || '—'} • {r.status}</div>
-                   </div>
-                     <div className="flex flex-col items-end gap-1">
-                       <Select
-                         options={statusOptions}
-                         value={r.status}
-                         onChange={(st) => changeReqStatus(r, st)}
-                         pill
-                       />
-                       <div className="text-[10px] text-ink-faint">{r.priority || ''}</div>
-                     </div>
-                   </div>
-                   <div className="mt-2 border-t pt-1 text-[10px] text-ink-muted">
-                     Файлы:{' '}
-                     {(reqFiles[r.id] || []).map((f: any, i: number) => (
-                       <a key={i} href="#" onClick={(e) => { e.preventDefault(); openFileSigned(f.path); }} className="underline mr-1 text-primary">{f.name}</a>
-                     ))}
-                     {!(reqFiles[r.id] || []).length && <span className="text-ink-faint">—</span>}
-                     <label className="ml-2 cursor-pointer text-primary">
-                       +
-                       <input
-                         type="file"
-                         className="hidden"
-                         disabled={fileUploading}
-                         onChange={(e) => {
-                           const fl = e.target.files?.[0];
-                           if (fl) attachFile(r, fl);
-                           e.target.value = '';
-                         }}
-                       />
-                     </label>
-                   </div>
-                 </Card>
-              ))}
+               {requests.map((r) => (
+                 <Card key={r.id} className="p-3">
+                   <div className="flex justify-between gap-2">
+                     <div>
+                       <div className="font-medium">#{r.number} {r.title}</div>
+                       <div className="text-xs text-ink-muted">{r.description || ''}</div>
+                       <div className="text-[10px] mt-1">до {r.due_date || '—'} • {r.status}</div>
+                       <div className="mt-1 text-[10px] flex items-center gap-2">
+                         <span>Вид: {r.supply_kind || '—'}</span>
+                         <Badge tone={
+                           r.approval_status === 'approved' ? 'success' :
+                           r.approval_status === 'pending' ? 'warning' :
+                           r.approval_status === 'rejected' ? 'danger' : 'neutral'
+                         }>{r.approval_status || 'not_required'}</Badge>
+                       </div>
+                    </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Select
+                          options={statusOptions}
+                          value={r.status}
+                          onChange={(st) => changeReqStatus(r, st)}
+                          pill
+                        />
+                        <div className="text-[10px] text-ink-faint">{r.priority || ''}</div>
+                      </div>
+                    </div>
+                    {r.approval_status === 'pending' && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <Button onClick={() => doApprove(r)} disabled={reqBusy} className="text-xs px-2 py-0.5">Согласовать</Button>
+                        <Button onClick={() => doReject(r)} disabled={reqBusy} variant="secondary" className="text-xs px-2 py-0.5">Отклонить</Button>
+                        <Button onClick={() => setBitrixForm({ id: r.id, ref: '', note: '' })} disabled={reqBusy} variant="ghost" className="text-xs px-2 py-0.5">Отметить: согласовано в Битрикс24</Button>
+                      </div>
+                    )}
+                    <div className="mt-2 border-t pt-1 text-[10px] text-ink-muted">
+                      Файлы:{' '}
+                      {(reqFiles[r.id] || []).map((f: any, i: number) => (
+                        <a key={i} href="#" onClick={(e) => { e.preventDefault(); openFileSigned(f.path); }} className="underline mr-1 text-primary">{f.name}</a>
+                      ))}
+                      {!(reqFiles[r.id] || []).length && <span className="text-ink-faint">—</span>}
+                      <label className="ml-2 cursor-pointer text-primary">
+                        +
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={fileUploading}
+                          onChange={(e) => {
+                            const fl = e.target.files?.[0];
+                            if (fl) attachFile(r, fl);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-1 text-[9px] text-ink-faint">
+                      История: {(reqEvents[r.id] || []).length ? '' : '—'}
+                      {(reqEvents[r.id] || []).map((ev: any, ii: number) => (
+                        <span key={ii} className="mr-2">{ev.created_at ? ev.created_at.slice(5,16).replace('T',' ') : ''} {ev.kind}{ev.payload?.method ? `(${ev.payload.method})` : ''}{ev.payload?.rejected ? '!' : ''}</span>
+                      ))}
+                    </div>
+                  </Card>
+               ))}
             </div>
 
             <Modal open={showCreateReq} onClose={() => setShowCreateReq(false)} title="Новая заявка">
@@ -338,6 +426,7 @@ export default function ClientAdminApp() {
                   <div className="text-sm text-ink-muted mb-1">Статус</div>
                   <Select options={statusOptions} value={newReq.status} onChange={(v) => setNewReq({ ...newReq, status: v })} />
                 </div>
+                <Input label="Вид поставки (для согласования)" value={newReq.supply_kind} onChange={(e) => setNewReq({ ...newReq, supply_kind: e.target.value })} placeholder="Фасад / Кровля / ..." />
                 <Button onClick={createRequest} disabled={reqBusy || !newReq.title.trim()}>Создать</Button>
               </div>
             </Modal>
@@ -432,9 +521,75 @@ export default function ClientAdminApp() {
           </div>
         )}
 
+        {tab === 'settings' && isAdmin && (
+          <div className="space-y-3">
+            <Card className="p-3">
+              <div className="font-medium mb-1">Настройки</div>
+              <div className="text-xs text-ink-muted">
+                approval_required: только platform owner (platform.clients.update). Здесь read-only заметка. При true + правило по supply_kind — заявки создаются со статусом pending.
+              </div>
+            </Card>
+
+            <Card className="p-3">
+              <div className="font-medium text-xs mb-1">Матрица согласований (supply_kind → user/position)</div>
+              {approvalRules.length === 0 && <div className="text-xs text-ink-muted">Правил нет</div>}
+              {approvalRules.map((rule: any, i: number) => (
+                <div key={i} className="flex flex-wrap items-center gap-1 text-[10px] border p-1 mb-1 rounded">
+                  <span className="font-mono">{rule.supply_kind}</span>
+                  <span>→</span>
+                  {rule.approver_user_id && <span>user:{String(rule.approver_user_id).slice(0,8)}</span>}
+                  {rule.approver_position_id && <span>pos:{String(rule.approver_position_id).slice(0,8)}</span>}
+                  <span className="text-ink-faint">p:{rule.priority}</span>
+                  <Button variant="ghost" className="text-xs px-1 py-0" onClick={async () => {
+                    if (!confirm('Удалить правило?')) return;
+                    try {
+                      await osnovaApi.approvalRulesDelete(rule.id);
+                      await loadApprovalRules();
+                    } catch (e: any) { alert(e.message || 'err'); }
+                  }}>×</Button>
+                </div>
+              ))}
+
+              <div className="mt-2 space-y-1 text-xs">
+                <Input placeholder="supply_kind (напр. Фасад)" value={newRule.supply_kind} onChange={(e) => setNewRule({ ...newRule, supply_kind: e.target.value })} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  <Input placeholder="approver_user_id (uuid)" value={newRule.approver_user_id} onChange={(e) => setNewRule({ ...newRule, approver_user_id: e.target.value })} className="text-[10px]" />
+                  <Input placeholder="approver_position_id (uuid)" value={newRule.approver_position_id} onChange={(e) => setNewRule({ ...newRule, approver_position_id: e.target.value })} className="text-[10px]" />
+                </div>
+                <div className="flex gap-1 items-center">
+                  <Input placeholder="prio" type="number" value={newRule.priority} onChange={(e) => setNewRule({ ...newRule, priority: Number(e.target.value) || 100 })} className="w-16" />
+                  <Button onClick={async () => {
+                    const sk = newRule.supply_kind.trim();
+                    const au = newRule.approver_user_id.trim();
+                    const ap = newRule.approver_position_id.trim();
+                    if (!sk || (!au && !ap)) { alert('supply_kind и approver обязательны'); return; }
+                    setSettingsBusy(true);
+                    try {
+                      await osnovaApi.approvalRulesUpsert({ supply_kind: sk, approver_user_id: au || null, approver_position_id: ap || null, priority: newRule.priority });
+                      setNewRule({ supply_kind: '', approver_user_id: '', approver_position_id: '', priority: 100 });
+                      await loadApprovalRules();
+                    } catch (e: any) { alert(e.message || 'upsert err'); } finally { setSettingsBusy(false); }
+                  }} disabled={settingsBusy} className="text-xs">Добавить правило</Button>
+                </div>
+              </div>
+              <div className="text-[10px] text-ink-faint mt-1">UUID позиций — из таблицы positions. Для client_admin правила применяются при create если approval_required.</div>
+            </Card>
+          </div>
+        )}
+
         {tab === 'profile' && (
           <ProfilePage me={me} onLogout={() => logout('local')} onLogoutAll={() => logout('global')} onChanged={() => loadMe()} />
         )}
+
+        <Modal open={!!bitrixForm} onClose={() => setBitrixForm(null)} title="Отметить: согласовано в Битрикс24">
+          <div className="space-y-2 text-xs">
+            <Input label="Ref / ссылка в Битрикс" value={bitrixForm?.ref || ''} onChange={(e) => setBitrixForm(b => b ? { ...b, ref: e.target.value } : null)} />
+            <Input label="Примечание" value={bitrixForm?.note || ''} onChange={(e) => setBitrixForm(b => b ? { ...b, note: e.target.value } : null)} />
+            <Button disabled={reqBusy || !bitrixForm || (!bitrixForm.ref.trim() && !bitrixForm.note.trim())} onClick={() => {
+              if (bitrixForm) doMarkBitrix(bitrixForm.id, bitrixForm.ref, bitrixForm.note);
+            }}>Отметить согласованным в Битрикс24</Button>
+          </div>
+        </Modal>
       </main>
     </div>
   );

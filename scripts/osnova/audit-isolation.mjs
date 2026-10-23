@@ -27,10 +27,16 @@ for (const f of FILES) {
 }
 
 let failed = false;
+let warned = false;
 
 function fail(msg) {
   console.error('FAIL:', msg);
   failed = true;
+}
+
+function warn(msg) {
+  console.warn('WARN (allowed for legacy-touching 05):', msg);
+  warned = true;
 }
 
 function inRollbackSection(sql, idx) {
@@ -104,6 +110,11 @@ for (const n of needed) {
 }
 
 // 4. No disable rls, no destructive outside rollback
+// strip -- comment lines first so that rollback examples with `drop column` etc do not false-fail
+const strippedSql = allSql
+  .split('\n')
+  .filter(l => !l.trim().startsWith('--'))
+  .join('\n');
 const badPatterns = [
   { re: /disable\s+row\s+level\s+security/i, msg: 'disable row level security found' },
   { re: /drop\s+table\s+public\./i, msg: 'drop table outside rollback' },
@@ -113,11 +124,11 @@ const badPatterns = [
 ];
 for (const bp of badPatterns) {
   let idx = -1;
-  while ((idx = allSql.indexOf(bp.re.source.split('\\s')[0], idx + 1)) !== -1) {  // rough
+  while ((idx = strippedSql.indexOf(bp.re.source.split('\\s')[0], idx + 1)) !== -1) {  // rough
     if (!inRollbackSection(allSql, idx)) {
-      // check if the match really occurs not in comment rollback
-      const snippet = allSql.slice(Math.max(0,idx-50), idx+100);
-      if (!/--.*(откат|rollback|Откат)/i.test(snippet) && bp.re.test(snippet)) {
+      // check on stripped so comments are gone
+      const snippet = strippedSql.slice(Math.max(0,idx-50), idx+100);
+      if (bp.re.test(snippet)) {
         fail(bp.msg + ' : ' + snippet.slice(0,80));
         break;
       }
@@ -126,6 +137,7 @@ for (const bp of badPatterns) {
 }
 
 // 5. No create/alter policy on legacy tables outside the 03-legacy-guard file
+// 05 is special: allowed to touch columns on legacy (but not policies), if header flags it.
 const LEGACY_TABLES = ['suppliers','purchase_orders','purchase_order_events','mailbox_emails','access_profiles','leads','objects','business_centers','supply_categories','work_contractors','outgoing_email_jobs','unmatched_incoming_emails'];
 const legacyPolicyRe = new RegExp(`(create|alter|drop) policy[^;]* on public\\.(?:${LEGACY_TABLES.join('|')})`, 'gi');
 const f03 = FILES.find(f => f.includes('03-legacy-guard'));
@@ -147,9 +159,38 @@ for (const [f, txt] of Object.entries(perFile)) {
   }
 }
 
+// 6. 05-legacy-client-id is allowed to touch legacy columns (add only), must be flagged in header
+const f05 = FILES.find(f => f.includes('05-legacy-client-id'));
+if (f05) {
+  const txt05 = perFile[f05] || '';
+  if (!/TOUCHES EXISTING TABLES — NEEDS SEPARATE APPROVAL, DO NOT APPLY/i.test(txt05)) {
+    fail('05 file missing CAPS flag header');
+  }
+  // allow alter table add column on legacy only in 05, and warn
+  const legacyAlterCol = /alter table public\.(?:purchase|mailbox|outgoing)[^\n;]*add column if not exists/i;
+  if (legacyAlterCol.test(txt05)) {
+    warn('05 touches legacy tables with column adds (expected, DO NOT APPLY without approval)');
+  }
+  // no policy changes allowed even in 05
+  legacyPolicyRe.lastIndex = 0;
+  if (legacyPolicyRe.test(txt05)) {
+    fail('05 must not change policies on legacy');
+  }
+}
+
+// Ensure 04 does not touch legacy at all
+const f04 = FILES.find(f => f.includes('04-import-scaffold'));
+if (f04) {
+  const txt04 = perFile[f04] || '';
+  const touchesLegacy = /on public\.(suppliers|purchase_|mailbox_|access_profiles|leads|objects)/i.test(txt04);
+  if (touchesLegacy) {
+    fail('04 must touch ONLY osnova tables (01/02), no legacy');
+  }
+}
+
 if (failed) {
   console.error('osnova isolation audit FAILED');
   process.exit(1);
 } else {
-  console.log('osnova isolation audit OK (', FILES.length, 'migrations )');
+  console.log('osnova isolation audit OK (', FILES.length, 'migrations )' + (warned ? ' with warnings' : ''));
 }

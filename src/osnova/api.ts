@@ -93,6 +93,29 @@ export const osnovaApi = {
     return call('client.files.list', { method: 'GET' }, clientSlug, requestId ? { request_id: requestId } : undefined);
   },
 
+  // approvals + requests (block 4)
+  async approvalRulesList(clientSlug?: string) {
+    return call('client.approval_rules.list', { method: 'GET' }, clientSlug);
+  },
+  async approvalRulesUpsert(rule: any, clientSlug?: string) {
+    return call('client.approval_rules.upsert', { method: 'POST', body: JSON.stringify({ rule }) }, clientSlug);
+  },
+  async approvalRulesDelete(id: string, clientSlug?: string) {
+    return call('client.approval_rules.delete', { method: 'POST', body: JSON.stringify({ id }) }, clientSlug);
+  },
+  async requestsApprove(id: string, clientSlug?: string) {
+    return call('client.requests.approve', { method: 'POST', body: JSON.stringify({ id }) }, clientSlug);
+  },
+  async requestsReject(id: string, clientSlug?: string) {
+    return call('client.requests.reject', { method: 'POST', body: JSON.stringify({ id }) }, clientSlug);
+  },
+  async requestsMarkBitrix(id: string, ref?: string, note?: string, clientSlug?: string) {
+    return call('client.requests.mark_bitrix_approved', { method: 'POST', body: JSON.stringify({ id, ref, note }) }, clientSlug);
+  },
+  async requestsEventsList(requestId: string, clientSlug?: string) {
+    return call('client.requests.events.list', { method: 'GET' }, clientSlug, { request_id: requestId });
+  },
+
   // platform (owner only)
   async platformClients() {
     return call('platform.clients.list', { method: 'GET' });

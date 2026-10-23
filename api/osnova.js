@@ -15,6 +15,18 @@ import {
   listUsers, createUserGoTrue, updateUser, resetUserPassword,
   listSecurityLog, listSupplierModeration, moderateSupplier
 } from './_osnovaPlatform.js';
+import {
+  matchApprover,
+  computeInitialApprovalStatus,
+  canApproveRequest,
+  approveRequest,
+  rejectRequest,
+  markBitrixApproved,
+  listRequestEvents,
+  listApprovalRules,
+  upsertApprovalRule,
+  deleteApprovalRule
+} from './_osnovaApprovals.js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iohcdylttyuhwovztrbk.supabase.co';
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
@@ -313,6 +325,11 @@ export default async function handler(req, res) {
       if (route === 'client.requests.create' && req.method === 'POST') {
         const v = validateRequestInput(req.body || {});
         if (!v.ok) return send(res, 400, { error: v.errors.join(',') });
+        const supplyKind = (req.body.supply_kind || '').trim() || null;
+        let approvalStatus = 'not_required';
+        try {
+          approvalStatus = await computeInitialApprovalStatus(clientId, supplyKind, token);
+        } catch {}
         const payload = {
           client_id: clientId,
           title: v.title,
@@ -322,12 +339,14 @@ export default async function handler(req, res) {
           due_date: req.body.due_date || null,
           created_by: user.id,
           assignee_id: req.body.assignee_id || null,
+          supply_kind: supplyKind,
+          approval_status: approvalStatus,
         };
         const ins = await dbPost(rest('client_requests'), payload, token);
         if (!ins.ok) return send(res, 400, { error: 'create_failed' });
         const rid = ins.data?.[0]?.id;
-        await writeRequestEvent(rid, clientId, user.id, 'created', { title: v.title }, token);
-        await logSecurity('client_request_created', { request: rid, client_id: clientId }, { ip, userId: user.id, clientId });
+        await writeRequestEvent(rid, clientId, user.id, 'created', { title: v.title, supply_kind: supplyKind, approval_status: approvalStatus }, token);
+        await logSecurity('client_request_created', { request: rid, client_id: clientId, supply_kind: supplyKind }, { ip, userId: user.id, clientId });
         return send(res, 200, { request: ins.data?.[0] });
       }
 
@@ -458,6 +477,98 @@ export default async function handler(req, res) {
         }
       }
 
+      if (route === 'client.requests.events.list' && req.method === 'GET') {
+        const rid = u.searchParams.get('request_id');
+        if (!rid) return send(res, 400, { error: 'request_id_required' });
+        const evs = await listRequestEvents(rid, clientId, token);
+        return send(res, 200, { events: evs });
+      }
+
+      if (route === 'client.requests.approve' && req.method === 'POST') {
+        const { id } = req.body || {};
+        if (!id) return send(res, 400, { error: 'id_required' });
+        // load request to get supply_kind
+        const rq = await dbGet(rest(`client_requests?id=eq.${id}&client_id=eq.${clientId}&select=*&limit=1`), token);
+        const reqRow = rq.ok && rq.data && rq.data[0] ? rq.data[0] : null;
+        if (!reqRow) return send(res, 404, { error: 'not_found' });
+        const perm = await canApproveRequest(clientId, reqRow, user.id, token);
+        if (!perm.ok) return send(res, 403, { error: 'not_approver' });
+        try {
+          const resA = await approveRequest(id, clientId, user.id, token);
+          await logSecurity('client_request_approved', { request: id, method: 'platform', client_id: clientId }, { ip, userId: user.id, clientId });
+          return send(res, 200, resA);
+        } catch (e) { return send(res, 403, { error: 'approve_failed' }); }
+      }
+
+      if (route === 'client.requests.reject' && req.method === 'POST') {
+        const { id } = req.body || {};
+        if (!id) return send(res, 400, { error: 'id_required' });
+        const rq = await dbGet(rest(`client_requests?id=eq.${id}&client_id=eq.${clientId}&select=*&limit=1`), token);
+        const reqRow = rq.ok && rq.data && rq.data[0] ? rq.data[0] : null;
+        if (!reqRow) return send(res, 404, { error: 'not_found' });
+        const perm = await canApproveRequest(clientId, reqRow, user.id, token);
+        if (!perm.ok) return send(res, 403, { error: 'not_approver' });
+        try {
+          const resR = await rejectRequest(id, clientId, user.id, token);
+          await logSecurity('client_request_rejected', { request: id, client_id: clientId }, { ip, userId: user.id, clientId });
+          return send(res, 200, resR);
+        } catch (e) { return send(res, 403, { error: 'reject_failed' }); }
+      }
+
+      if (route === 'client.requests.mark_bitrix_approved' && req.method === 'POST') {
+        const { id, ref, note } = req.body || {};
+        if (!id) return send(res, 400, { error: 'id_required' });
+        // any member
+        try {
+          const resM = await markBitrixApproved(id, clientId, user.id, ref || null, note || null, token);
+          await logSecurity('client_request_bitrix_marked', { request: id, client_id: clientId }, { ip, userId: user.id, clientId });
+          return send(res, 200, resM);
+        } catch (e) {
+          const msg = e.message || 'mark_failed';
+          return send(res, msg === 'ref_or_note_required' ? 400 : 403, { error: msg });
+        }
+      }
+
+      if (route === 'client.approval_rules.list' && req.method === 'GET') {
+        const r = await listApprovalRules(clientId, token);
+        return send(res, 200, r);
+      }
+
+      if (route === 'client.approval_rules.upsert' && req.method === 'POST') {
+        const { rule } = req.body || {};
+        // caller must be admin or owner (but since client route, check via role)
+        const roleHere = callerRole || 'client_staff';
+        if (roleHere !== 'client_admin' && !contexts?.platform_owner) {
+          // for switcher owner ok
+          if (!acc.isSwitcherView && !contexts?.platform_owner) return send(res, 403, { error: 'client_admin_required' });
+        }
+        try {
+          const u = await upsertApprovalRule(clientId, rule, user.id, token);
+          await logSecurity('approval_rule_upsert', { client_id: clientId, supply_kind: rule?.supply_kind }, { ip, userId: user.id, clientId });
+          return send(res, 200, u);
+        } catch (e) { return send(res, 400, { error: e.message || 'upsert_failed' }); }
+      }
+
+      if (route === 'client.approval_rules.delete' && req.method === 'POST') {
+        const { id: ruleId } = req.body || {};
+        if (!ruleId) return send(res, 400, { error: 'id_required' });
+        const roleHere = callerRole || 'client_staff';
+        if (roleHere !== 'client_admin' && !contexts?.platform_owner) {
+          if (!acc.isSwitcherView && !contexts?.platform_owner) return send(res, 403, { error: 'client_admin_required' });
+        }
+        try {
+          // perform delete with user token
+          const delUrl = `${rest('client_approval_rules').path}?id=eq.${ruleId}&client_id=eq.${clientId}`;
+          const delRes = await fetch(delUrl, {
+            method: 'DELETE',
+            headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
+          });
+          if (!delRes.ok) throw new Error('delete_failed');
+          await logSecurity('approval_rule_delete', { client_id: clientId, rule: ruleId }, { ip, userId: user.id, clientId });
+          return send(res, 200, { ok: true });
+        } catch (e) { return send(res, 400, { error: e.message || 'delete_failed' }); }
+      }
+
       return send(res, 404, { error: 'unknown_client_route' });
     }
 
@@ -480,10 +591,26 @@ export default async function handler(req, res) {
         } catch (e) { return send(res, 400, { error: e.message || 'bad' }); }
       }
       if (route === 'platform.clients.update' && req.method === 'POST') {
-        const { client_id, status } = req.body || {};
-        if (!client_id || !status) return send(res, 400, { error: 'client_id_status_required' });
+        const { client_id, status, inn, settings, legal_entity_ref } = req.body || {};
+        if (!client_id) return send(res, 400, { error: 'client_id_required' });
         try {
-          await updateClientStatus(client_id, status, user.id, ip, token);
+          const patch = {};
+          if (status) {
+            if (!['active','suspended','disabled'].includes(status)) throw new Error('bad_status');
+            patch.status = status;
+          }
+          if (inn !== undefined) patch.inn = inn || null;
+          if (legal_entity_ref !== undefined) patch.legal_entity_ref = legal_entity_ref || null;
+          if (settings && typeof settings === 'object') {
+            patch.settings = { ...(settings || {}) };
+            // approval_required read from it
+          }
+          if (Object.keys(patch).length > 0) {
+            await dbPatch(rest(`clients?id=eq.${client_id}`), patch, null, true);
+          }
+          if (status) {
+            await updateClientStatus(client_id, status, user.id, ip, token); // keep log etc for status
+          }
           return send(res, 200, { ok: true });
         } catch (e) { return send(res, 400, { error: e.message }); }
       }
