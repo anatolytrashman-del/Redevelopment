@@ -2,12 +2,15 @@
 // Вызовы от имени пользователя (anon + его JWT) — RLS работает.
 // service_role — только для login/логов/платформы (после проверки platform_owner).
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iohcdylttyuhwovztrbk.supabase.co';
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+import { osnovaEnv } from './_osnovaEnv.js';
+
+function getEnv() {
+  return osnovaEnv();
+}
 
 function baseHeaders({ token, useService = false }) {
-  const key = useService ? SERVICE_ROLE_KEY : ANON_KEY;
+  const { anonKey, serviceKey } = getEnv();
+  const key = useService ? serviceKey : anonKey;
   const auth = token ? `Bearer ${token}` : `Bearer ${key}`;
   return {
     apikey: key,
@@ -19,10 +22,16 @@ function baseHeaders({ token, useService = false }) {
 
 export async function dbRequest(path, opts = {}) {
   const { method = 'GET', token, useService = false, body, headers: extra = {} } = opts;
-  const url = path.startsWith('http') ? path : `${SUPABASE_URL}${path}`;
-  const res = await fetch(url, {
+  const { url: base } = getEnv();
+  const fullPath = path.startsWith('http') ? path : `${base}${path}`;
+  const h = baseHeaders({ token, useService });
+  if (typeof path === 'string' && path.startsWith('/rest/v1/')) {
+    h['Accept-Profile'] = 'osnova';
+    h['Content-Profile'] = 'osnova';
+  }
+  const res = await fetch(fullPath, {
     method,
-    headers: { ...baseHeaders({ token, useService }), ...extra },
+    headers: { ...h, ...extra },
     body: body != null ? JSON.stringify(body) : undefined,
   });
   return res;

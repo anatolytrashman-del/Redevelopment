@@ -343,6 +343,8 @@ function ClientViewAsStaff({ clientSlug, onBack }: { clientSlug: string; onBack:
   const [notes, setNotes] = useState<any[]>([]);
   const [prices, setPrices] = useState<any[]>([]);
   const [supSearch, setSupSearch] = useState('');
+  const [_supTotal, setSupTotal] = useState(0);
+  const [legacyAvailable, setLegacyAvailable] = useState(true);
   const [newNote, setNewNote] = useState('');
   const [newPrice, setNewPrice] = useState({ item: '', price: '', note: '' });
   const [addSupForm, setAddSupForm] = useState({ name: '', inn: '', city: '' });
@@ -359,7 +361,7 @@ function ClientViewAsStaff({ clientSlug, onBack }: { clientSlug: string; onBack:
     try { const r = await osnovaApi.requestsList(st, clientSlug); setRequests(r.requests || []); } catch {}
   }
   async function loadSup(s?: string) {
-    try { const r = await osnovaApi.suppliersList(s, clientSlug); setSuppliers(r.suppliers || []); } catch {}
+    try { const r = await osnovaApi.suppliersList(s, clientSlug); setSuppliers(r.suppliers || []); setSupTotal(r.total || 0); setLegacyAvailable(r.legacy_available !== false); } catch {}
   }
   async function loadSt() {
     try { const r = await osnovaApi.clientMembers(clientSlug); setStaff(r.members || []); } catch {}
@@ -438,17 +440,21 @@ function ClientViewAsStaff({ clientSlug, onBack }: { clientSlug: string; onBack:
             <Button onClick={() => loadSup(supSearch)} className="text-xs">Найти</Button>
             <Button variant="secondary" onClick={() => setShowAdd(true)} className="text-xs">+Добавить</Button>
           </div>
-          {suppliers.map(s => <div key={s.ref} onClick={() => openCard(s)} className="cursor-pointer"><Card className="p-1 mb-1">{s.name} <Badge>{s.source}</Badge></Card></div>)}
-          {selectedSup && (
-            <Card className="mt-2 p-2">
-              <div>{selectedSup.name}</div>
-              <div className="mt-2 text-xs">Пометки: {notes.map((n, i) => <div key={i}>{n.body}</div>)}</div>
-              <Input value={newNote} onChange={e => setNewNote(e.target.value)} /><Button onClick={addN} disabled={busy}>add note</Button>
-              <div className="mt-2 text-xs">Цены: {prices.map((p, i) => <div key={i}>{p.item} {p.price}</div>)}</div>
-              <Input value={newPrice.item} onChange={e => setNewPrice({ ...newPrice, item: e.target.value })} placeholder="item" />
-              <Button onClick={addP} disabled={busy}>add price</Button>
-            </Card>
-          )}
+           {!legacyAvailable && <div className="text-xs text-amber-600">Каталог платформы временно недоступен</div>}
+           {suppliers.map(s => <div key={s.ref} onClick={() => openCard(s)} className="cursor-pointer"><Card className="p-1 mb-1">{s.name || 'Поставщик из каталога'} <Badge>{s.source === 'catalog' ? 'каталог' : 'добавлен'}</Badge>
+             <div className="text-[10px] text-ink-faint">{[s.inn, s.city].filter(Boolean).join(' ')} {s.notes?.length ? `•${s.notes.length}` : ''}</div>
+           </Card></div>)}
+           {selectedSup && (
+             <Card className="mt-2 p-2">
+               <div>{selectedSup.name || 'Поставщик из каталога'}</div>
+               <div className="text-xs text-ink-muted">{selectedSup.inn} {selectedSup.city} {selectedSup.phone} {selectedSup.email}</div>
+               <div className="mt-2 text-xs">Пометки: {notes.map((n, i) => <div key={i}>{n.body}</div>)}</div>
+               <Input value={newNote} onChange={e => setNewNote(e.target.value)} /><Button onClick={addN} disabled={busy}>add note</Button>
+               <div className="mt-2 text-xs">Цены: {prices.map((p, i) => <div key={i}>{p.item} {p.price} {p.currency}</div>)}</div>
+               <Input value={newPrice.item} onChange={e => setNewPrice({ ...newPrice, item: e.target.value })} placeholder="item" />
+               <Button onClick={addP} disabled={busy}>add price</Button>
+             </Card>
+           )}
           <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Добавить">
             <Input value={addSupForm.name} onChange={e => setAddSupForm({ ...addSupForm, name: e.target.value })} />
             <Button onClick={addS} disabled={busy}>Отправить</Button>

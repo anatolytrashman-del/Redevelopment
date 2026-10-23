@@ -3,15 +3,14 @@
 
 import { dbGet, dbPost, rest, rpc } from './_osnovaDb.js';
 import { getClientFromRequest } from './_osnovaTenant.js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iohcdylttyuhwovztrbk.supabase.co';
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+import { osnovaEnv } from './_osnovaEnv.js';
 
 export async function verifyJwt(token) {
   if (!token) return null;
   try {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
+    const { url, anonKey } = osnovaEnv();
+    const res = await fetch(`${url}/auth/v1/user`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
     return await res.json();

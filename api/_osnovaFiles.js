@@ -3,8 +3,11 @@
 // Server-side enforces path starts with clients/<clientId>/ ; rejects traversal etc -> 403.
 // No changes to legacy api files.
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iohcdylttyuhwovztrbk.supabase.co';
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+import { osnovaEnv } from './_osnovaEnv.js';
+
+function getOsnova() {
+  return osnovaEnv();
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -43,11 +46,12 @@ export async function getSignedUploadUrl(clientId, requestId, filename, token) {
     err.status = 403;
     throw err;
   }
-  const url = `${SUPABASE_URL}/storage/v1/object/upload/sign/client-files/${encodePath(path)}`;
+  const { url: base, anonKey } = getOsnova();
+  const url = `${base}/storage/v1/object/upload/sign/client-files/${encodePath(path)}`;
   const resp = await fetch(url, {
     method: 'POST',
     headers: {
-      apikey: ANON_KEY,
+      apikey: anonKey,
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
@@ -62,7 +66,7 @@ export async function getSignedUploadUrl(clientId, requestId, filename, token) {
   const data = await resp.json().catch(() => ({}));
   let signedUrl = data.signedUrl || data.url || '';
   if (signedUrl && !signedUrl.startsWith('http')) {
-    signedUrl = `${SUPABASE_URL}${signedUrl.startsWith('/') ? '' : '/'}${signedUrl}`;
+    signedUrl = `${base}${signedUrl.startsWith('/') ? '' : '/'}${signedUrl}`;
   }
   return { uploadUrl: signedUrl || null, path, token: data.token || null };
 }
@@ -73,11 +77,12 @@ export async function getSignedDownloadUrl(clientId, objectPath, token) {
     err.status = 403;
     throw err;
   }
-  const url = `${SUPABASE_URL}/storage/v1/object/sign/client-files/${encodePath(objectPath)}`;
+  const { url: base, anonKey } = getOsnova();
+  const url = `${base}/storage/v1/object/sign/client-files/${encodePath(objectPath)}`;
   const resp = await fetch(url, {
     method: 'POST',
     headers: {
-      apikey: ANON_KEY,
+      apikey: anonKey,
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
@@ -91,19 +96,20 @@ export async function getSignedDownloadUrl(clientId, objectPath, token) {
   const data = await resp.json().catch(() => ({}));
   let signedUrl = data.signedUrl || data.url || '';
   if (signedUrl && !signedUrl.startsWith('http')) {
-    signedUrl = `${SUPABASE_URL}${signedUrl.startsWith('/') ? '' : '/'}${signedUrl}`;
+    signedUrl = `${base}${signedUrl.startsWith('/') ? '' : '/'}${signedUrl}`;
   }
   return { signedUrl: signedUrl || null };
 }
 
 export async function listRequestFiles(clientId, requestId, token) {
   if (!UUID_RE.test(String(requestId))) return { files: [] };
+  const { url: base, anonKey } = getOsnova();
   const prefix = `clients/${clientId}/requests/${requestId}/`;
-  const url = `${SUPABASE_URL}/storage/v1/object/list/client-files`;
+  const url = `${base}/storage/v1/object/list/client-files`;
   const resp = await fetch(url, {
     method: 'POST',
     headers: {
-      apikey: ANON_KEY,
+      apikey: anonKey,
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },

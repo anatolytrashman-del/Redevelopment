@@ -6,6 +6,7 @@
 // (но на клиентских хостах middleware/верцель отдаст нужное).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 
 const DIST_DIR = 'dist';
 const base404 = join(DIST_DIR, '404.html');
@@ -45,6 +46,14 @@ html = html.replace(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi, (m, co
   if (/mc\.yandex|metrika|vk\.com\/rtrg|VK\.Retargeting/i.test(content)) return '';
   return m;
 });
+
+// Метрика (__startMetrika) и VK-пиксель (__startTmr, top-fwz1.mail.ru) + их noscript-пиксели —
+// на хостах «Основы» счётчиков нет (osnova.html отдаётся только им и /platform/*).
+html = stripThirdPartyAnalytics(html);
+html = html.replace(/\s*<noscript>(?:(?!<\/noscript>)[\s\S])*?(?:mc\.yandex\.ru|top-fwz1\.mail\.ru)[\s\S]*?<\/noscript>/gi, '');
+if (/mc\.yandex\.ru\/(?:metrika|watch)|top-fwz1\.mail\.ru|ym\(111858495/.test(html)) {
+  throw new Error('[generate-osnova-shell] в osnova.html остались счётчики Метрики/VK');
+}
 
 writeFileSync(outPath, html, 'utf8');
 console.log('[generate-osnova-shell] wrote dist/osnova.html');

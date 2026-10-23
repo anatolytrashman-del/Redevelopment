@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { osnovaApi } from './api';
-import { osnovaSupabase } from './supabaseClient';
+import { osnovaSupabase, osnovaConfigMissing } from './supabaseClient';
 
 interface Props {
   onAuthed: () => void;
@@ -65,8 +65,11 @@ export function LoginScreen({ onAuthed, clientName }: Props) {
           />
 
           {error && <div className="text-sm text-danger">{error}</div>}
+          {osnovaConfigMissing && osnovaConfigMissing.length > 0 && (
+            <div className="text-sm text-danger">Конфиг Основа не настроен: {osnovaConfigMissing.join(', ')}</div>
+          )}
 
-          <Button type="submit" disabled={loading || !email || !password} className="w-full">
+          <Button type="submit" disabled={loading || !email || !password || (osnovaConfigMissing && osnovaConfigMissing.length > 0)} className="w-full">
             {loading ? 'Входим…' : 'Войти'}
           </Button>
         </form>

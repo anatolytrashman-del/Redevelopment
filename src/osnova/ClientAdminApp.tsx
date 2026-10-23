@@ -32,6 +32,10 @@ export default function ClientAdminApp() {
   // suppliers
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [supSearch, setSupSearch] = useState('');
+  const [supOffset, setSupOffset] = useState(0);
+  const supLimit = 50;
+  const [supTotal, setSupTotal] = useState(0);
+  const [legacyAvailable, setLegacyAvailable] = useState(true);
   const [selectedSup, setSelectedSup] = useState<any>(null);
   const [notes, setNotes] = useState<any[]>([]);
   const [prices, setPrices] = useState<any[]>([]);
@@ -206,10 +210,13 @@ export default function ClientAdminApp() {
     } catch {}
   }
 
-  async function loadSuppliers(search?: string) {
+  async function loadSuppliers(search?: string, newOffset?: number) {
+    const off = typeof newOffset === 'number' ? newOffset : supOffset;
     try {
-      const r = await osnovaApi.suppliersList(search);
+      const r = await osnovaApi.suppliersList({ search: search || undefined, limit: supLimit, offset: off });
       setSuppliers(r.suppliers || []);
+      setSupTotal(r.total || 0);
+      setLegacyAvailable(r.legacy_available !== false);
     } catch {}
   }
 
@@ -220,7 +227,8 @@ export default function ClientAdminApp() {
       await osnovaApi.suppliersAdd(addSupForm);
       setShowAddSup(false);
       setAddSupForm({ name: '', inn: '', city: '', note: '' });
-      await loadSuppliers(supSearch || undefined);
+      setSupOffset(0);
+      await loadSuppliers(supSearch || undefined, 0);
     } catch (e: any) { alert(e.message || 'Ошибка'); } finally { setSupBusy(false); }
   }
 
@@ -436,33 +444,52 @@ export default function ClientAdminApp() {
         {tab === 'suppliers' && (
           <div className="space-y-3">
             <div className="flex gap-2">
-              <Input placeholder="Поиск поставщика" value={supSearch} onChange={(e) => setSupSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') loadSuppliers(supSearch); }} className="flex-1" />
-              <Button onClick={() => loadSuppliers(supSearch)} className="px-3">Найти</Button>
+              <Input placeholder="Поиск поставщика" value={supSearch} onChange={(e) => setSupSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setSupOffset(0); loadSuppliers(supSearch, 0); } }} className="flex-1" />
+              <Button onClick={() => { setSupOffset(0); loadSuppliers(supSearch, 0); }} className="px-3">Найти</Button>
               <Button variant="secondary" onClick={() => setShowAddSup(true)} className="px-3">+ Добавить</Button>
             </div>
+            {!legacyAvailable && <div className="text-xs text-amber-600">Каталог платформы временно недоступен</div>}
 
             <div className="space-y-1">
               {suppliers.map((s) => (
                 <button key={s.ref} onClick={() => openSupplierCard(s)} className="w-full text-left">
                   <Card className="p-2 flex justify-between items-center">
                     <div>
-                      <div>{s.name}</div>
-                      <div className="text-xs text-ink-muted">{s.inn || ''} {s.city || ''}</div>
+                      <div>{s.name || 'Поставщик из каталога'}</div>
+                      <div className="text-xs text-ink-muted">
+                        {[s.inn, s.city, s.phone, s.email, s.website_url].filter(Boolean).join(' · ')}
+                      </div>
+                      <div className="text-[10px] text-ink-faint">
+                        {s.notes && s.notes.length ? `пометок: ${s.notes.length} · ${String(s.notes[0]?.body || '').slice(0, 50)}` : ''}
+                        {s.prices && s.prices.length ? `  цены: ${s.prices[0]?.item || ''} ${s.prices[0]?.price || ''} ${s.prices[0]?.currency || ''}` : ''}
+                      </div>
                     </div>
-                    <Badge>{s.source}</Badge>
+                    <Badge>{s.source === 'catalog' ? 'каталог' : 'добавлен'}</Badge>
                   </Card>
                 </button>
               ))}
               {suppliers.length === 0 && <div className="text-ink-muted">Нет поставщиков</div>}
             </div>
+            <div className="flex gap-2 text-xs">
+              <span>Всего: {supTotal}</span>
+              <Button variant="ghost" disabled={supOffset === 0} onClick={() => { const no = Math.max(0, supOffset - supLimit); setSupOffset(no); loadSuppliers(supSearch || undefined, no); }}>←</Button>
+              <Button variant="ghost" disabled={supOffset + supLimit >= supTotal} onClick={() => { const no = supOffset + supLimit; setSupOffset(no); loadSuppliers(supSearch || undefined, no); }}>→</Button>
+            </div>
 
             {selectedSup && (
               <Card className="p-3 border-primary/40">
                 <div className="flex justify-between">
-                  <div className="font-medium">{selectedSup.name}</div>
+                  <div className="font-medium">{selectedSup.name || 'Поставщик из каталога'}</div>
                   <Button variant="ghost" onClick={() => setSelectedSup(null)}>×</Button>
                 </div>
-                <div className="text-xs text-ink-muted mb-2">{selectedSup.ref}</div>
+                <div className="text-xs text-ink-muted mb-2">
+                  {selectedSup.ref}
+                  {selectedSup.inn ? ' · ' + selectedSup.inn : ''}
+                  {selectedSup.city ? ' · ' + selectedSup.city : ''}
+                  {selectedSup.phone ? ' · ' + selectedSup.phone : ''}
+                  {selectedSup.email ? ' · ' + selectedSup.email : ''}
+                  {selectedSup.website_url ? ' · ' + selectedSup.website_url : ''}
+                </div>
 
                 <div className="mt-2">
                   <div className="font-medium text-xs mb-1">Пометки клиента</div>

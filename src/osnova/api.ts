@@ -65,8 +65,16 @@ export const osnovaApi = {
   async requestsUpdateStatus(id: string, status: string, clientSlug?: string) {
     return call('client.requests.update_status', { method: 'POST', body: JSON.stringify({ id, status }) }, clientSlug);
   },
-  async suppliersList(search?: string, clientSlug?: string) {
-    return call('client.suppliers.list', { method: 'GET' }, clientSlug, search ? { search } : undefined);
+  async suppliersList(searchOrOpts?: string | { search?: string; limit?: number; offset?: number }, clientSlug?: string) {
+    const q: Record<string, string> = {};
+    if (typeof searchOrOpts === 'string') {
+      if (searchOrOpts) q.search = searchOrOpts;
+    } else if (searchOrOpts && typeof searchOrOpts === 'object') {
+      if (searchOrOpts.search) q.search = searchOrOpts.search;
+      if (searchOrOpts.limit != null) q.limit = String(searchOrOpts.limit);
+      if (searchOrOpts.offset != null) q.offset = String(searchOrOpts.offset);
+    }
+    return call('client.suppliers.list', { method: 'GET' }, clientSlug, Object.keys(q).length ? q : undefined);
   },
   async suppliersAdd(data: any, clientSlug?: string) {
     return call('client.suppliers.add', { method: 'POST', body: JSON.stringify(data) }, clientSlug);

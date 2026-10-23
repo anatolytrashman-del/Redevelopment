@@ -5,10 +5,11 @@
 import { dbGet, dbPost, dbPatch, rest } from './_osnovaDb.js';
 import { logSecurity } from './_osnovaLog.js';
 import { randomBytes } from 'node:crypto';
+import { osnovaEnv } from './_osnovaEnv.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iohcdylttyuhwovztrbk.supabase.co';
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+function getOsnova() {
+  return osnovaEnv();
+}
 
 export async function requirePlatformOwner(ctx) {
   if (!ctx || !ctx.ok || !ctx.contexts?.platform_owner) {
@@ -62,12 +63,13 @@ export async function createUserGoTrue({ email, temp_password, first_name, last_
   const normRole = role === 'client_admin' ? 'client_admin' : 'client_staff';
   if (!['client_admin', 'client_staff'].includes(role)) throw new Error('bad_role');
   // use GoTrue admin /auth/v1/admin/users , email_confirm true
+  const { url: base, serviceKey } = getOsnova();
   const password = temp_password || randomBytes(12).toString('base64url');
-  const adminCreate = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+  const adminCreate = await fetch(`${base}/auth/v1/admin/users`, {
     method: 'POST',
     headers: {
-      apikey: SERVICE_ROLE_KEY || ANON_KEY,
-      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -104,25 +106,26 @@ export async function createUserGoTrue({ email, temp_password, first_name, last_
 }
 
 export async function updateUser(userId, { status, role, position_id, client_id }, actorId, ip) {
+  const { url: base, serviceKey } = getOsnova();
   if (status) {
     await dbPatch(rest(`user_profiles?id=eq.${userId}`), { status }, null, true);
     if (status === 'disabled') {
       // ban via admin
-      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      await fetch(`${base}/auth/v1/admin/users/${userId}`, {
         method: 'PUT',
-        headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ban_duration: '876000h' }), // long ban ~100y
       }).catch(() => {});
       // also global logout? GoTrue admin has /logout but use update
-      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      await fetch(`${base}/auth/v1/admin/users/${userId}`, {
         method: 'PUT',
-        headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ban_duration: '876000h' }),
       }).catch(() => {});
     } else {
-      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+      await fetch(`${base}/auth/v1/admin/users/${userId}`, {
         method: 'PUT',
-        headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ban_duration: null }),
       }).catch(() => {});
     }
@@ -139,10 +142,11 @@ export async function updateUser(userId, { status, role, position_id, client_id 
 }
 
 export async function resetUserPassword(userId, newPass, actorId, ip, clientId) {
+  const { url: base, serviceKey } = getOsnova();
   const pass = newPass || randomBytes(12).toString('base64url');
-  const r = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+  const r = await fetch(`${base}/auth/v1/admin/users/${userId}`, {
     method: 'PUT',
-    headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: pass }),
   });
   if (!r.ok) throw new Error('reset_failed');

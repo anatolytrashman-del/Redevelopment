@@ -3,7 +3,6 @@
 // DB-вызовы в client.* — с USER JWT (RLS), не service_role.
 
 import { dbGet, dbPost, rest } from './_osnovaDb.js';
-import { getClientFromRequest } from './_osnovaTenant.js';
 
 export function parseSupplierRef(ref) {
   if (!ref || typeof ref !== 'string') return null;

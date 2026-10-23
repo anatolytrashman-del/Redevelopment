@@ -7,7 +7,7 @@ import { buildSessionContext } from './_osnovaSession.js';
 import { checkBlocked, recordFailure, recordSuccess } from './_osnovaRateLimit.js';
 import { passwordLogin, getProviders } from './_osnovaProviders.js';
 import { logSecurity } from './_osnovaLog.js';
-import { dbGet, dbPatch, dbPost, rest, rpc } from './_osnovaDb.js';
+import { dbGet, dbPatch, dbPost, dbDelete, rest, rpc } from './_osnovaDb.js';
 import { validateRequestInput, validateSupplierAdd, validateNoteAdd, validatePriceAdd, writeRequestEvent, parseSupplierRef, getClientIdForHostOrQuery } from './_osnovaClient.js';
 import { getSignedUploadUrl, getSignedDownloadUrl, listRequestFiles } from './_osnovaFiles.js';
 import {
@@ -15,8 +15,8 @@ import {
   listUsers, createUserGoTrue, updateUser, resetUserPassword,
   listSecurityLog, listSupplierModeration, moderateSupplier
 } from './_osnovaPlatform.js';
+import { fetchLegacySuppliers, mergeSuppliers } from './_osnovaLegacyCatalog.js';
 import {
-  matchApprover,
   computeInitialApprovalStatus,
   canApproveRequest,
   approveRequest,
@@ -24,12 +24,9 @@ import {
   markBitrixApproved,
   listRequestEvents,
   listApprovalRules,
-  upsertApprovalRule,
-  deleteApprovalRule
+  upsertApprovalRule
 } from './_osnovaApprovals.js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iohcdylttyuhwovztrbk.supabase.co';
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+import { osnovaEnv, OsnovaConfigError } from './_osnovaEnv.js';
 
 function send(res, status, body) {
   res.status(status).json(body);
@@ -68,7 +65,14 @@ export default async function handler(req, res) {
   const token = getAuthToken(req);
   const clientInfo = getClientFromRequest(req);
 
+  function sendOsnovaConfigError(err) {
+    const names = err && err.missing ? err.missing : [];
+    console.error('osnova_config_missing', names);
+    res.status(500).json({ error: 'osnova_config_missing', missing: names });
+  }
+
   try {
+    osnovaEnv(); // early after options
     // auth.login — без токена
     if (route === 'auth.login' && req.method === 'POST') {
       const { email, password, provider = 'password' } = req.body || {};
@@ -214,10 +218,11 @@ export default async function handler(req, res) {
     // auth.logout_all — используем USER token (не service_role)
     if (route === 'auth.logout_all' && req.method === 'POST') {
       try {
-        await fetch(`${SUPABASE_URL}/auth/v1/logout?scope=global`, {
+        const { url, anonKey } = osnovaEnv();
+        await fetch(`${url}/auth/v1/logout?scope=global`, {
           method: 'POST',
           headers: {
-            apikey: ANON_KEY,
+            apikey: anonKey,
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
@@ -234,11 +239,12 @@ export default async function handler(req, res) {
       if (!current_password || !new_password || new_password.length < 10) {
         return send(res, 400, { error: 'bad_password' });
       }
+      const { url, anonKey } = osnovaEnv();
       // verify current via grant (anon)
-      const grantUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+      const grantUrl = `${url}/auth/v1/token?grant_type=password`;
       const grant = await fetch(grantUrl, {
         method: 'POST',
-        headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+        headers: { apikey: anonKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: profile.email || user.email, password: current_password }),
       });
       if (!grant.ok) {
@@ -246,10 +252,10 @@ export default async function handler(req, res) {
         return send(res, 401, { error: 'current_password_invalid' });
       }
       // меняем через user jwt
-      const upd = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      const upd = await fetch(`${url}/auth/v1/user`, {
         method: 'PUT',
         headers: {
-          apikey: ANON_KEY,
+          apikey: anonKey,
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
@@ -366,10 +372,31 @@ export default async function handler(req, res) {
         const search = u.searchParams.get('search') || null;
         const lim = Math.min(100, parseInt(u.searchParams.get('limit') || '50', 10) || 50);
         const off = parseInt(u.searchParams.get('offset') || '0', 10) || 0;
-        // call rpc with user token
-        const rpcBody = { p_client: clientId, p_search: search, p_limit: lim, p_offset: off };
+        // always fetch full client view (notes/prices) with search=null limit 1000; merge+filter/paginate server side
+        const rpcBody = { p_client: clientId, p_search: null, p_limit: 1000, p_offset: 0 };
         const r = await dbPost(rpc('osnova_client_suppliers').path, rpcBody, token, false);
-        return send(res, 200, { suppliers: r.ok ? (r.data || []) : [] });
+        const clientRows = r.ok ? (r.data || []) : [];
+        const legRes = await fetchLegacySuppliers({ search });
+        let legacyRows = legRes.rows || [];
+        if (!search) {
+          // collect catalog refs present in clientRows (from notes/prices) that may be missing details
+          const catRefs = clientRows
+            .filter((c) => c && c.source === 'catalog' && c.ref && c.ref.startsWith('catalog:'))
+            .map((c) => c.ref.slice(8))
+            .filter(Boolean);
+          if (catRefs.length) {
+            const have = new Set(legacyRows.map((l) => String(l.id)));
+            const missing = catRefs.filter((id) => !have.has(String(id)));
+            if (missing.length) {
+              const add = await fetchLegacySuppliers({ ids: missing });
+              if (add.available && add.rows) {
+                legacyRows = legacyRows.concat(add.rows);
+              }
+            }
+          }
+        }
+        const merged = mergeSuppliers(clientRows, legacyRows, { search, limit: lim, offset: off });
+        return send(res, 200, { suppliers: merged.suppliers, total: merged.total, legacy_available: !!legRes.available });
       }
 
       if (route === 'client.suppliers.add' && req.method === 'POST') {
@@ -461,7 +488,7 @@ export default async function handler(req, res) {
         try {
           const s = await getSignedDownloadUrl(clientId, path, token);
           return send(res, 200, s);
-        } catch (e) {
+        } catch {
           return send(res, 403, { error: 'forbidden' });
         }
       }
@@ -472,7 +499,7 @@ export default async function handler(req, res) {
         try {
           const l = await listRequestFiles(clientId, rid, token);
           return send(res, 200, l);
-        } catch (e) {
+        } catch {
           return send(res, 200, { files: [] });
         }
       }
@@ -497,7 +524,7 @@ export default async function handler(req, res) {
           const resA = await approveRequest(id, clientId, user.id, token);
           await logSecurity('client_request_approved', { request: id, method: 'platform', client_id: clientId }, { ip, userId: user.id, clientId });
           return send(res, 200, resA);
-        } catch (e) { return send(res, 403, { error: 'approve_failed' }); }
+        } catch { return send(res, 403, { error: 'approve_failed' }); }
       }
 
       if (route === 'client.requests.reject' && req.method === 'POST') {
@@ -512,7 +539,7 @@ export default async function handler(req, res) {
           const resR = await rejectRequest(id, clientId, user.id, token);
           await logSecurity('client_request_rejected', { request: id, client_id: clientId }, { ip, userId: user.id, clientId });
           return send(res, 200, resR);
-        } catch (e) { return send(res, 403, { error: 'reject_failed' }); }
+        } catch { return send(res, 403, { error: 'reject_failed' }); }
       }
 
       if (route === 'client.requests.mark_bitrix_approved' && req.method === 'POST') {
@@ -524,7 +551,7 @@ export default async function handler(req, res) {
           await logSecurity('client_request_bitrix_marked', { request: id, client_id: clientId }, { ip, userId: user.id, clientId });
           return send(res, 200, resM);
         } catch (e) {
-          const msg = e.message || 'mark_failed';
+          const msg = (e && e.message) || 'mark_failed';
           return send(res, msg === 'ref_or_note_required' ? 400 : 403, { error: msg });
         }
       }
@@ -546,7 +573,7 @@ export default async function handler(req, res) {
           const u = await upsertApprovalRule(clientId, rule, user.id, token);
           await logSecurity('approval_rule_upsert', { client_id: clientId, supply_kind: rule?.supply_kind }, { ip, userId: user.id, clientId });
           return send(res, 200, u);
-        } catch (e) { return send(res, 400, { error: e.message || 'upsert_failed' }); }
+        } catch (e) { return send(res, 400, { error: (e && e.message) || 'upsert_failed' }); }
       }
 
       if (route === 'client.approval_rules.delete' && req.method === 'POST') {
@@ -557,16 +584,13 @@ export default async function handler(req, res) {
           if (!acc.isSwitcherView && !contexts?.platform_owner) return send(res, 403, { error: 'client_admin_required' });
         }
         try {
-          // perform delete with user token
-          const delUrl = `${rest('client_approval_rules').path}?id=eq.${ruleId}&client_id=eq.${clientId}`;
-          const delRes = await fetch(delUrl, {
-            method: 'DELETE',
-            headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` },
-          });
+          // perform delete with user token; build path as string (rest returns string)
+          const delPath = rest(`client_approval_rules?id=eq.${ruleId}&client_id=eq.${clientId}`);
+          const delRes = await dbDelete(delPath, token);
           if (!delRes.ok) throw new Error('delete_failed');
           await logSecurity('approval_rule_delete', { client_id: clientId, rule: ruleId }, { ip, userId: user.id, clientId });
           return send(res, 200, { ok: true });
-        } catch (e) { return send(res, 400, { error: e.message || 'delete_failed' }); }
+        } catch (e) { return send(res, 400, { error: (e && e.message) || 'delete_failed' }); }
       }
 
       return send(res, 404, { error: 'unknown_client_route' });
@@ -649,7 +673,7 @@ export default async function handler(req, res) {
         try {
           const pr = await resetUserPassword(user_id, null, user.id, ip, client_id);
           return send(res, 200, pr); // temp once
-        } catch (e) { return send(res, 400, { error: 'reset_failed' }); }
+        } catch { return send(res, 400, { error: 'reset_failed' }); }
       }
 
       if (route === 'platform.security_log.list' && req.method === 'GET') {
@@ -673,7 +697,7 @@ export default async function handler(req, res) {
         try {
           const m = await moderateSupplier(id, action, user.id, ip);
           return send(res, 200, m);
-        } catch (e) { return send(res, 400, { error: 'moderation_failed' }); }
+        } catch { return send(res, 400, { error: 'moderation_failed' }); }
       }
 
       return send(res, 404, { error: 'unknown_platform_route' });
@@ -681,6 +705,10 @@ export default async function handler(req, res) {
 
     return send(res, 404, { error: 'unknown_route' });
   } catch (err) {
+    if (err instanceof OsnovaConfigError) {
+      sendOsnovaConfigError(err);
+      return;
+    }
     // Если упали на relation not exists — not_configured (миграция не применена)
     const msg = String(err && err.message || err);
     if (/relation .* does not exist|42P01|not_configured/i.test(msg)) {

@@ -4,17 +4,16 @@
 
 
 import { logSecurity } from './_osnovaLog.js';
-
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://iohcdylttyuhwovztrbk.supabase.co';
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+import { osnovaEnv } from './_osnovaEnv.js';
 
 export async function passwordLogin({ email, password, ip = '' }) {
   // GoTrue password grant → access/refresh
-  const tokenUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+  const { url, anonKey } = osnovaEnv();
+  const tokenUrl = `${url}/auth/v1/token?grant_type=password`;
   const res = await fetch(tokenUrl, {
     method: 'POST',
     headers: {
-      apikey: ANON_KEY,
+      apikey: anonKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ email, password }),

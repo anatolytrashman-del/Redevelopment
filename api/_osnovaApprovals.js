@@ -3,7 +3,7 @@
 // client.* calls use USER JWT. platform updates allowed via owner.
 // No legacy touches. Deletion of rules allowed (new data).
 
-import { dbGet, dbPatch, dbPost, rest } from './_osnovaDb.js';
+import { dbGet, dbPatch, dbPost, dbDelete, rest } from './_osnovaDb.js';
 import { writeRequestEvent } from './_osnovaClient.js';
 
 export function matchApprover(rules, supplyKind) {
@@ -150,10 +150,8 @@ export async function upsertApprovalRule(clientId, rule, userId, token) {
 }
 
 export async function deleteApprovalRule(clientId, ruleId, token) {
-  // use delete via postgrest? but db has no delete, use fetch or patch? use direct but since helper, use db? for now use rest delete
-  // simple: use fetch inside? but to reuse, we'll do in handler or add. here simulate via note
-  const url = rest(`client_approval_rules?id=eq.${ruleId}&client_id=eq.${clientId}`).path;
-  // since no dbDel exported, we'll handle delete in osnova using service? no, user token delete ok by policy.
-  // for helper return info; actual delete in router for now.
+  const delPath = rest(`client_approval_rules?id=eq.${ruleId}&client_id=eq.${clientId}`);
+  const res = await dbDelete(delPath, token);
+  if (!res.ok) throw new Error('delete_failed');
   return { ok: true, id: ruleId };
 }
