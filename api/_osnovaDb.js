@@ -38,8 +38,9 @@ export async function dbGet(path, token, useService = false) {
   return { ok: true, status: 200, data };
 }
 
-export async function dbPost(path, body, token, useService = false) {
-  const res = await dbRequest(path, { method: 'POST', token, useService, body });
+export async function dbPost(path, body, token, useService = false, extraHeaders = {}) {
+  const h = { 'Prefer': 'return=representation', ...extraHeaders };
+  const res = await dbRequest(path, { method: 'POST', token, useService, body, headers: h });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     return { ok: false, status: res.status, error: text || res.statusText };
@@ -58,8 +59,9 @@ export async function dbPut(path, body, token, useService = false) {
   return { ok: true, status: res.status, data };
 }
 
-export async function dbPatch(path, body, token, useService = false) {
-  const res = await dbRequest(path, { method: 'PATCH', token, useService, body });
+export async function dbPatch(path, body, token, useService = false, extraHeaders = {}) {
+  const h = { 'Prefer': 'return=representation', ...extraHeaders };
+  const res = await dbRequest(path, { method: 'PATCH', token, useService, body, headers: h });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     return { ok: false, status: res.status, error: text || res.statusText };

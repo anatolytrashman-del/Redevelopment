@@ -16,6 +16,7 @@ export async function logSecurity(eventType, details = {}, { ip = '', userId = n
       },
       null,
       true,
+      { 'Prefer': 'return=minimal' },
     );
   } catch {
     // не роняем запрос из-за лога

@@ -66,17 +66,21 @@ export async function getMyClientMemberships(userId, token) {
 
 export async function getClientRoleForHost(userId, hostClientSlug, token) {
   if (!userId || !hostClientSlug) return null;
-  const cQ = `?slug=eq.${encodeURIComponent(hostClientSlug)}&status=eq.active&select=id,name&limit=1`;
+  // load without status filter to support suspended check in login/client routes
+  const cQ = `?slug=eq.${encodeURIComponent(hostClientSlug)}&select=id,name,status&limit=1`;
   const res2 = await dbGet(rest('clients', cQ), token);
   if (!res2.ok || !res2.data?.[0]) return null;
-  const cid = res2.data[0].id;
+  const c = res2.data[0];
+  const cid = c.id;
   const memQ = `?client_id=eq.${cid}&user_id=eq.${userId}&select=role,position_id,positions(title)&limit=1`;
   const mem = await dbGet(rest('client_members', memQ), token);
   if (!mem.ok || !mem.data?.[0]) return null;
   const m = mem.data[0];
   return {
     client_id: cid,
-    client_name: res2.data[0].name,
+    client_slug: c.slug || hostClientSlug,
+    client_name: c.name,
+    client_status: c.status,
     role: m.role,
     position: m.positions?.title || null,
   };
@@ -102,6 +106,7 @@ export async function buildSessionContext(req, token) {
     if (!currentClient) {
       return { ok: false, status: 403, error: 'no_client_membership' };
     }
+    // do not early reject here; suspended check done in login + client.* handlers
   }
 
   return {

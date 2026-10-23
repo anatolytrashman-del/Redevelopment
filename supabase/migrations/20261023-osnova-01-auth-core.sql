@@ -120,7 +120,7 @@ as $$
 $$;
 
 revoke all on function public.osnova_is_platform_owner() from public, anon, authenticated;
-grant execute on function public.osnova_is_platform_owner() to authenticated, service_role;
+grant execute on function public.osnova_is_platform_owner() to anon, authenticated, service_role;
 
 create or replace function public.osnova_my_client_ids()
 returns setof uuid
@@ -133,7 +133,7 @@ as $$
 $$;
 
 revoke all on function public.osnova_my_client_ids() from public, anon, authenticated;
-grant execute on function public.osnova_my_client_ids() to authenticated, service_role;
+grant execute on function public.osnova_my_client_ids() to anon, authenticated, service_role;
 
 create or replace function public.osnova_is_client_member(p_client uuid)
 returns boolean
@@ -146,7 +146,7 @@ as $$
 $$;
 
 revoke all on function public.osnova_is_client_member(uuid) from public, anon, authenticated;
-grant execute on function public.osnova_is_client_member(uuid) to authenticated, service_role;
+grant execute on function public.osnova_is_client_member(uuid) to anon, authenticated, service_role;
 
 create or replace function public.osnova_client_role(p_client uuid)
 returns text
@@ -159,7 +159,7 @@ as $$
 $$;
 
 revoke all on function public.osnova_client_role(uuid) from public, anon, authenticated;
-grant execute on function public.osnova_client_role(uuid) to authenticated, service_role;
+grant execute on function public.osnova_client_role(uuid) to anon, authenticated, service_role;
 
 -- RLS policies (drop if exists перед create для идемпотентности новых таблиц)
 drop policy if exists "clients_select" on public.clients;
