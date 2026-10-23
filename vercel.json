@@ -1625,11 +1625,11 @@
   "rewrites": [
     {
       "source": "/platform",
-      "destination": "/matreshka.html"
+      "destination": "/platform-admin.html"
     },
     {
       "source": "/platform/(.*)",
-      "destination": "/matreshka.html"
+      "destination": "/platform-admin.html"
     },
     {
       "source": "/api/auth/bitrix/:path*",

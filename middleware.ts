@@ -76,7 +76,7 @@ const KNOWN_PREFIXES = [
   '/api', // serverless-функции
   '/_vercel', // Vercel Web Analytics: скрипт и отправка визитов (/_vercel/insights/*)
   '/.well-known', // верификация доменов и т.п. — сейчас не используется, но не должно 404-иться, если появится
-  '/platform', // админка платформы Redevelopment (SPA-шелл matreshka.html, общий с клиентской админкой)
+  '/platform', // админка платформы Redevelopment (SPA-шелл platform-admin.html)
 ];
 
 function normalizePathname(pathname: string): string {

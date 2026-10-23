@@ -24,7 +24,7 @@
 - Сервер: `api/_matreshkaTenant.js` — то же по заголовку `host`/`x-forwarded-host` (+ превью-override по cookie, только VERCEL_ENV=preview).
 - `middleware.ts`: в самом начале (до siteMode-логики) — если хост клиента (или превью-override):
   `/api/*` и статика → `next()`; `/robots.txt` → `Disallow: /`; остальное → `rewrite('/matreshka.html')` с заголовком `X-Robots-Tag: noindex`.
-  Для обычных хостов добавить `/platform` в KNOWN_PREFIXES (и rewrite `/platform`, `/platform/*` → `/matreshka.html` в vercel.json, в начале rewrites).
+  Для обычных хостов добавить `/platform` в KNOWN_PREFIXES (и rewrite `/platform`, `/platform/*` → `/platform-admin.html` в vercel.json, в начале rewrites; заголовок «Redevelopment — платформа»).
 - `scripts/generate-matreshka-shell.mjs` (в конце `build:app`): `dist/matreshka.html` из `dist/404.html`/`dist/index.html` с `<title>Матрешка — вход</title>`, `noindex`, без og-рекламы.
 
 ## 1а. Вход на «/» redevelopment.pro (2026-10-23)

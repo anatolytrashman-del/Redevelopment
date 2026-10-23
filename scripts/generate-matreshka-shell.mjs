@@ -1,6 +1,6 @@
 // Генерация шеллов SPA для админки (блок 1):
-// - dist/matreshka.html — клиентские хосты «Матрешка» и /platform/* (админка платформы
-//   Redevelopment), БЕЗ счётчиков;
+// - dist/matreshka.html — клиентские хосты «Матрешка», БЕЗ счётчиков;
+// - dist/platform-admin.html — /platform/* (админка платформы Redevelopment), БЕЗ счётчиков;
 // - dist/matreshka-login.html — «/» на redevelopment.pro (вход в админку «Матрешка»),
 //   счётчики Метрики/VK СОХРАНЕНЫ (как на остальных страницах redevelopment.pro). Берём готовый dist/404.html (или index.html как фолбэк)
 // после vite build и всех prepare-скриптов, в конце build:app.
@@ -56,7 +56,7 @@ html = html.replace(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi, (m, co
 });
 
 // Метрика (__startMetrika) и VK-пиксель (__startTmr, top-fwz1.mail.ru) + их noscript-пиксели —
-// на хостах «Матрешки» счётчиков нет (matreshka.html отдаётся только им и /platform/*).
+// на хостах «Матрешки» и в /platform/* счётчиков нет.
 html = stripThirdPartyAnalytics(html);
 html = html.replace(/\s*<noscript>(?:(?!<\/noscript>)[\s\S])*?(?:mc\.yandex\.ru|top-fwz1\.mail\.ru)[\s\S]*?<\/noscript>/gi, '');
 if (/mc\.yandex\.ru\/(?:metrika|watch)|top-fwz1\.mail\.ru|ym\(111858495/.test(html)) {
@@ -65,3 +65,16 @@ if (/mc\.yandex\.ru\/(?:metrika|watch)|top-fwz1\.mail\.ru|ym\(111858495/.test(ht
 
 writeFileSync(outPath, html, 'utf8');
 console.log('[generate-matreshka-shell] wrote dist/matreshka.html');
+
+// Админка платформы Redevelopment (/platform/*): тот же шелл без счётчиков, но с платформенным
+// заголовком — платформа не называется именем клиента.
+const PLATFORM_TITLE = 'Redevelopment — платформа';
+const PLATFORM_DESCRIPTION = 'Вход в админку платформы Redevelopment';
+const platformHtml = html
+  .replace(/<title>.*?<\/title>/, `<title>${escapeAttr(PLATFORM_TITLE)}</title>`)
+  .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escapeAttr(PLATFORM_TITLE)}$2`)
+  .replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${escapeAttr(PLATFORM_TITLE)}$2`)
+  .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${PLATFORM_DESCRIPTION}$2`)
+  .replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${PLATFORM_DESCRIPTION}$2`);
+writeFileSync(join(DIST_DIR, 'platform-admin.html'), platformHtml, 'utf8');
+console.log('[generate-matreshka-shell] wrote dist/platform-admin.html');
