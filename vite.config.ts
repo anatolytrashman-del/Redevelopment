@@ -13,5 +13,6 @@ export default defineConfig({
     // Режим отдельного Vercel-проекта: malls | offices | platform
     // (env VITE_PUBLIC_SITE). Не import.meta — middleware тоже импортирует sites.ts.
     __DEPLOYED_SITE_MODE__: JSON.stringify(process.env.VITE_PUBLIC_SITE || process.env.PUBLIC_SITE || 'platform'),
+    __VERCEL_ENV__: JSON.stringify(process.env.VERCEL_ENV ?? ''),
   },
 })

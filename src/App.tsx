@@ -45,6 +45,7 @@ import { trackPageView } from './lib/pageViewTracker';
 import { FavoritesProvider } from './lib/favoritesContext';
 import { CatalogKindProvider } from './lib/catalogKind';
 import { deployedSiteMode } from './lib/sites';
+import { isClientAdminHost } from './lib/tenant';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -140,6 +141,9 @@ const BusinessUploadPublicPage = lazy(() =>
 const EstimatePublicPage = lazy(() =>
   import('./pages/EstimatePublicPage').then((m) => ({ default: m.EstimatePublicPage })),
 );
+
+const ClientAdminApp = lazy(() => import('./osnova/ClientAdminApp').then((m) => ({ default: m.default })));
+const PlatformAdminApp = lazy(() => import('./osnova/PlatformAdminApp').then((m) => ({ default: m.default })));
 
 // Случайный щипок двумя пальцами (обычный жест при скролле телефоном,
 // держа его двумя руками) зумит всю страницу нативным зумом Safari — и этот
@@ -407,6 +411,10 @@ export default function App() {
     );
   }
 
+  if (isClientAdminHost()) {
+    return <Suspense fallback={<AdminChunkFallback />}><ClientAdminApp /></Suspense>;
+  }
+
   return (
     <FavoritesProvider>
     <Routes>
@@ -500,6 +508,14 @@ export default function App() {
       <Route path="/offer" element={<OfferPage />} />
       <Route path="/license/zuev" element={<LicenseZuevPage />} />
       <Route path="/requisites" element={<RequisitesPage />} />
+      <Route
+        path="/platform/*"
+        element={
+          <Suspense fallback={<AdminChunkFallback />}>
+            <PlatformAdminApp />
+          </Suspense>
+        }
+      />
       {/* Старые адреса без /minsk — см. LegacySlugRedirect выше. */}
       <Route path="/rayon-minsk-mir" element={<Navigate to="/minsk/minsk-mir" replace />} />
       <Route path="/:legacySlug" element={<LegacySlugRedirect />} />

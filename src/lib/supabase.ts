@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 // регулируется RLS-политиками в Supabase, а не секретностью этих значений —
 // именно поэтому их можно безопасно встраивать в клиентский бандл.
 // Секретный (service_role) ключ здесь и вообще на фронтенде использовать нельзя.
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY =
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? 'https://iohcdylttyuhwovztrbk.supabase.co';
+export const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
 
 // Запасной путь до Supabase через наш домен (2026-10-21): vercel.json
@@ -69,6 +69,8 @@ const resilientFetch: typeof fetch = async (input, init) => {
     if (timer) clearTimeout(timer);
   }
 };
+
+export { resilientFetch };
 
 const makeClient = () => createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { global: { fetch: resilientFetch } });
 type SupabaseClient = ReturnType<typeof makeClient>;

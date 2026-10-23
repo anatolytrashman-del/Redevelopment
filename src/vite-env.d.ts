@@ -15,6 +15,8 @@ interface ImportMeta {
 declare const __BUILD_TIME__: string;
 /** platform | offices | malls — vite.config.ts define из VITE_PUBLIC_SITE */
 declare const __DEPLOYED_SITE_MODE__: string;
+/** '' | 'production' | 'preview' | 'development' — vite.config.ts define из VERCEL_ENV (для превью-override клиента) */
+declare const __VERCEL_ENV__: string;
 
 declare module '*.html?raw' {
   const content: string;

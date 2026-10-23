@@ -1624,6 +1624,22 @@
   ],
   "rewrites": [
     {
+      "source": "/platform",
+      "destination": "/osnova.html"
+    },
+    {
+      "source": "/platform/(.*)",
+      "destination": "/osnova.html"
+    },
+    {
+      "source": "/api/auth/bitrix/:path*",
+      "destination": "/api/osnova?route=auth.bitrix.:path*"
+    },
+    {
+      "source": "/api/auth/:path*",
+      "destination": "/api/osnova?route=auth.:path*"
+    },
+    {
       "source": "/zakupki",
       "destination": "/zakupki.html"
     },

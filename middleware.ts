@@ -1,10 +1,11 @@
-import { next } from '@vercel/functions';
+import { next, rewrite } from '@vercel/functions';
 import {
   crossDomainRedirect,
   robotsSitemapLine,
   CATALOG_DOMAIN_SPLIT_ENABLED,
   normalizeSiteMode,
 } from './src/lib/sites';
+
 
 // Vercel Routing Middleware — реальный HTTP 404 для несуществующих страниц.
 // Плюс (2026-10-10) междоменные 301 каталогов БЦ/ТЦ на officelist.pro /
@@ -65,6 +66,7 @@ const KNOWN_PREFIXES = [
   '/api', // serverless-функции
   '/_vercel', // Vercel Web Analytics: скрипт и отправка визитов (/_vercel/insights/*)
   '/.well-known', // верификация доменов и т.п. — сейчас не используется, но не должно 404-иться, если появится
+  '/platform', // клиентская/платформенная админка «Основа» (osnova.html shell)
 ];
 
 function normalizePathname(pathname: string): string {
@@ -105,6 +107,23 @@ function isKnownPath(pathname: string): boolean {
     return true;
   }
   return hasKnownStaticExtension(normalized);
+}
+
+function isOsnovaClientHost(request: Request): boolean {
+  const host = (request.headers.get('host') || request.headers.get('x-forwarded-host') || '').toLowerCase().replace(/^www\./, '');
+  const CLIENT_HOSTS: Record<string, true> = {
+    'xn--80ad6adbq.redevelopment.pro': true,
+    'основа.redevelopment.pro': true,
+    'osnova.redevelopment.pro': true,
+  };
+  if (CLIENT_HOSTS[host]) return true;
+  const g = (globalThis as any).process?.env || {};
+  if (g.VERCEL_ENV !== 'preview') return false;
+  if (!host.endsWith('.vercel.app')) return false;
+  const cookie = request.headers.get('cookie') || '';
+  const url = new URL(request.url);
+  if (cookie.includes('osnova_preview=1') || url.searchParams.get('tenant') === 'osnova') return true;
+  return false;
 }
 
 // Обычный HTML/CSS, не JSX — edge middleware выполняется до сборки React,
@@ -255,6 +274,29 @@ export default function middleware(request: Request) {
   const host = request.headers.get('host') ?? url.host;
   const siteMode = edgeSiteMode();
   const normalized = normalizePathname(pathname);
+
+  // Ранняя ветка для клиентских хостов «Основа» (блок 1 auth, до siteMode-логики и KNOWN).
+  // /api/* + статика → next(); /robots.txt → Disallow; остальное → rewrite на osnova.html + noindex.
+  // Превью-override (cookie/ ?tenant) активен только при VERCEL_ENV=preview (см. _osnovaTenant).
+  if (isOsnovaClientHost(request)) {
+    if (pathname === '/robots.txt') {
+      return new Response('User-agent: *\nDisallow: /\n', {
+        status: 200,
+        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=600' },
+      });
+    }
+    const isApiOrStatic =
+      normalized.startsWith('/api/') ||
+      normalized.startsWith('/_vercel/') ||
+      normalized === '/favicon.ico' ||
+      hasKnownStaticExtension(normalized);
+    if (isApiOrStatic) {
+      return next();
+    }
+    return rewrite(new URL('/osnova.html', url), {
+      headers: { 'X-Robots-Tag': 'noindex, nofollow' },
+    });
+  }
 
   // Корень сайта — в middleware (не в vercel.json): иначе на malllist
   // старый redirect "/"→"/minsk" из vercel.json срабатывал до Edge.
