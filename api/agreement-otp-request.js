@@ -7,6 +7,7 @@
 
 import { randomInt } from 'node:crypto';
 import { hashOtpCode } from './_otp.js';
+import { getClientIp } from './_clientIp.js';
 
 const OTP_TTL_MINUTES = 10;
 const RESEND_FROM = process.env.RESEND_FROM || 'Redevelopment <signing@redevelopment.pro>';
@@ -184,8 +185,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  const forwardedFor = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(forwardedFor) ? forwardedFor[0] : (forwardedFor ?? '').split(',')[0].trim() || null;
+  // За RU-прокси (185.207.1.94, TRUSTED_PROXY_IPS) реальный IP — в X-RF-Client-IP;
+  // иначе прежняя логика: первый IP из x-forwarded-for. См. _clientIp.js.
+  const ip = getClientIp(req);
 
   try {
     const sinceIso = new Date(Date.now() - 60 * 60_000).toISOString();

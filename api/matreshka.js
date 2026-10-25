@@ -7,6 +7,7 @@ import { buildSessionContext } from './_matreshkaSession.js';
 import { checkBlocked, recordFailure, recordSuccess } from './_matreshkaRateLimit.js';
 import { passwordLogin, getProviders } from './_matreshkaProviders.js';
 import { logSecurity } from './_matreshkaLog.js';
+import { getClientIp } from './_clientIp.js';
 import { dbGet, dbPatch, dbPost, dbDelete, rest, rpc } from './_matreshkaDb.js';
 import { validateRequestInput, validateSupplierAdd, validateNoteAdd, validatePriceAdd, writeRequestEvent, parseSupplierRef, getClientIdForHostOrQuery } from './_matreshkaClient.js';
 import { getSignedUploadUrl, getSignedDownloadUrl, listRequestFiles } from './_matreshkaFiles.js';
@@ -41,12 +42,13 @@ function getRoute(req) {
 }
 
 function getIp(req) {
-  return (
+  const transportIp =
     req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
     req.headers['x-real-ip'] ||
     req.socket?.remoteAddress ||
-    ''
-  );
+    '';
+  // За RU-прокси (TRUSTED_PROXY_IPS) — реальный IP из X-RF-Client-IP, иначе как было.
+  return getClientIp(req, { transportIp });
 }
 
 function getAuthToken(req) {
