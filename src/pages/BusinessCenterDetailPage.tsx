@@ -556,12 +556,12 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   const yandexTenants = useMemo(
     () =>
       tenantSnapshot
-        ? buildTenantsFromSnapshot(tenantSnapshot.organizations, center?.name, center?.altNames ?? [])
+        ? buildTenantsFromSnapshot(tenantSnapshot.organizations, center?.name, center?.altNames ?? [], slug)
         : null,
-    [tenantSnapshot, center],
+    [tenantSnapshot, center, slug],
   );
   const legacyTenants = useMemo(
-    () => (center ? buildTenantsFromLegacyList(center.tenantOrganizations, center.name, center.altNames) : null),
+    () => (center ? buildTenantsFromLegacyList(center.tenantOrganizations, center.name, center.altNames, center.slug) : null),
     [center],
   );
   const tenantSource: 'yandex_maps' | '2gis' =
