@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isLobstersHost, lobstersPreviewState, lobstersRoute } from './lobsters';
+import {
+  REDEVELOPMENT_TO_LOBSTERS_REDIRECT_ENABLED,
+  isLobstersHost,
+  lobstersPreviewState,
+  lobstersRoute,
+  redevelopmentToLobstersRedirect,
+} from './lobsters';
 import { isLobstersBrand, siteBrandName } from './siteBrand';
 import { lobstersShell } from '../../scripts/generate-lobsters-shells.mjs';
 import middleware from '../../middleware';
@@ -177,5 +183,27 @@ describe('middleware: lobsters.pro', () => {
   it('хосты «Матрёшки» по-прежнему идут в matreshka.html', async () => {
     const r = await middleware(req('https://matreshka.redevelopment.pro/'));
     expect(rewriteOf(r)).toContain('/matreshka.html');
+  });
+});
+
+describe('redevelopmentToLobstersRedirect (рубильник)', () => {
+  it('по умолчанию выключен — redevelopment.pro/admin остаётся на месте', () => {
+    expect(REDEVELOPMENT_TO_LOBSTERS_REDIRECT_ENABLED).toBe(false);
+    expect(redevelopmentToLobstersRedirect('redevelopment.pro', '/admin', '')).toBeNull();
+  });
+  it('включённый: /admin*, /platform* → lobsters.pro тот же путь и query', () => {
+    expect(redevelopmentToLobstersRedirect('redevelopment.pro', '/admin/objects', '?x=1', true)).toBe(
+      'https://lobsters.pro/admin/objects?x=1',
+    );
+    expect(redevelopmentToLobstersRedirect('www.redevelopment.pro', '/platform', '', true)).toBe('https://lobsters.pro/platform');
+  });
+  it('включённый не трогает остальное: каталог, /nl, Матрёшку, превью', () => {
+    expect(redevelopmentToLobstersRedirect('redevelopment.pro', '/', '', true)).toBeNull();
+    expect(redevelopmentToLobstersRedirect('redevelopment.pro', '/minsk/bc', '', true)).toBeNull();
+    expect(redevelopmentToLobstersRedirect('redevelopment.pro', '/nl', '', true)).toBeNull();
+    expect(redevelopmentToLobstersRedirect('redevelopment.pro', '/administrator', '', true)).toBeNull();
+    expect(redevelopmentToLobstersRedirect('matreshka.redevelopment.pro', '/admin', '', true)).toBeNull();
+    expect(redevelopmentToLobstersRedirect('osnova.redevelopment.pro', '/platform', '', true)).toBeNull();
+    expect(redevelopmentToLobstersRedirect('redevelopment-abc.vercel.app', '/admin', '', true)).toBeNull();
   });
 });

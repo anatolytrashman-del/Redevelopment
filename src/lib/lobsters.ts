@@ -15,6 +15,7 @@
 //
 // Файл импортирует edge middleware — без React и без браузерных API.
 // Хосты «Матрёшки» (src/lib/matreshkaHosts.js) здесь НЕ участвуют.
+import lobstersConfig from '../data/lobsters.json';
 
 export const LOBSTERS_HOST = 'lobsters.pro';
 export const LOBSTERS_ORIGIN = 'https://lobsters.pro';
@@ -30,6 +31,13 @@ export const LOBSTERS_ADMIN_SHELL = '/lobsters-admin.html';
 export const LOBSTERS_PLATFORM_SHELL = '/lobsters-platform.html';
 
 export const LOBSTERS_ROBOTS = 'User-agent: *\nDisallow: /\n';
+
+/**
+ * Рубильник 301 redevelopment.pro/admin* и /platform* → lobsters.pro (тот же путь).
+ * В src/data/lobsters.json по умолчанию false — включать отдельным «да».
+ */
+export const REDEVELOPMENT_TO_LOBSTERS_REDIRECT_ENABLED =
+  (lobstersConfig as { redirectRedevelopmentAdminToLobsters?: boolean }).redirectRedevelopmentAdminToLobsters === true;
 
 function bareHost(host: string | null | undefined): string {
   return String(host || '')
@@ -97,6 +105,24 @@ export function lobstersRoute(pathname: string, search = '', host = LOBSTERS_HOS
   }
   if (STATIC_EXT.test(path)) return { type: 'pass' };
   return { type: 'notFound' };
+}
+
+/**
+ * 301 redevelopment.pro/admin*, /platform* → lobsters.pro (тот же путь и query).
+ * null — не редиректим (рубильник выключен, другой хост или другой путь).
+ */
+export function redevelopmentToLobstersRedirect(
+  host: string | null | undefined,
+  pathname: string,
+  search = '',
+  enabled = REDEVELOPMENT_TO_LOBSTERS_REDIRECT_ENABLED,
+): string | null {
+  if (!enabled) return null;
+  const bare = bareHost(host);
+  if (bare !== 'redevelopment.pro' && bare !== 'www.redevelopment.pro') return null;
+  const path = normalize(pathname || '/');
+  if (!under(path, '/admin') && !under(path, '/platform')) return null;
+  return `${LOBSTERS_ORIGIN}${pathname}${search}`;
 }
 
 /** Превью: включить/выключить симуляцию хоста lobsters.pro по query/cookie. */

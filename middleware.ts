@@ -17,6 +17,7 @@ import {
   isLobstersHost,
   lobstersPreviewState,
   lobstersRoute,
+  redevelopmentToLobstersRedirect,
 } from './src/lib/lobsters';
 
 
@@ -375,6 +376,10 @@ export default function middleware(request: Request) {
   // в бренде Lobsters, остальное — 301 на redevelopment.pro или 404. Только
   // режим platform (проект `redevelopment`); на остальных хостах — null.
   if (siteMode === 'platform') {
+    // Рубильник src/data/lobsters.json → redirectRedevelopmentAdminToLobsters
+    // (по умолчанию false): 301 redevelopment.pro/admin*, /platform* → lobsters.pro.
+    const toLobsters = redevelopmentToLobstersRedirect(host, pathname, url.search);
+    if (toLobsters) return Response.redirect(toLobsters, 301);
     const lobsters = lobstersResponse(request, url, host);
     if (lobsters) return lobsters;
   }
