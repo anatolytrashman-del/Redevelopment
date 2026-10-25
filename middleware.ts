@@ -73,6 +73,7 @@ const KNOWN_PREFIXES = [
   '/_vercel', // Vercel Web Analytics: скрипт и отправка визитов (/_vercel/insights/*)
   '/.well-known', // верификация доменов и т.п. — сейчас не используется, но не должно 404-иться, если появится
   '/platform', // админка платформы Redevelopment (SPA-шелл platform-admin.html)
+  '/nl', // статическая страница «участок НЛ» (public/nl/*, noindex; в т.ч. .zip выписок ЕГРН)
 ];
 
 function normalizePathname(pathname: string): string {
@@ -401,6 +402,12 @@ export default function middleware(request: Request) {
         'cache-control': 'public, max-age=600',
       },
     });
+  }
+
+  // /nl → /nl/: у статической страницы public/nl/index.html относительные пути
+  // к assets/img/docs, без хвостового «/» они резолвились бы от корня сайта.
+  if (pathname === '/nl') {
+    return Response.redirect(new URL('/nl/' + url.search, url), 308);
   }
 
   if (isKnownPath(pathname)) {

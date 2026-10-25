@@ -1,0 +1,8 @@
+shot-*.png
+.env*
+.gitignore
+tmp/
+*.bak*
+backups/
+.env*
+.vercel

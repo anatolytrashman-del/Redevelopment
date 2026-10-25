@@ -149,6 +149,8 @@ function collectHtmlFiles(dir, acc = []) {
     if (statSync(full).isDirectory()) {
       // Шеллы админки рисовать не надо — у них общая обложка с «R».
       if (relative(DIST_DIR, full) === 'admin') continue;
+      // public/nl — статическая страница «участок НЛ» со своей обложкой (assets/og-cover.jpg), не перерисовывать.
+      if (relative(DIST_DIR, full) === 'nl') continue;
       collectHtmlFiles(full, acc);
     } else if (entry.endsWith('.html')) {
       acc.push(full);

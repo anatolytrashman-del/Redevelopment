@@ -207,6 +207,24 @@
           "value": "public, max-age=86400"
         }
       ]
+    },
+    {
+      "source": "/nl",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/nl/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "redirects": [
@@ -1722,6 +1740,10 @@
     {
       "source": "/admin/(.*)",
       "destination": "/admin/index.html"
+    },
+    {
+      "source": "/nl/",
+      "destination": "/nl/index.html"
     },
     {
       "source": "/((?!\\.well-known/).*)",
