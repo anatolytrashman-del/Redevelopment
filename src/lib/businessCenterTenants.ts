@@ -8,6 +8,7 @@ import type { Gis2TenantOrganization } from '../data/businessCenter2gis';
 import type { TenantOrganization } from '../data/businessCenters';
 import type { TenantOrganizationView, TenantSourceOrganization } from '../data/businessCenterTenants';
 import { TENANT_INDUSTRY_OTHER } from '../data/tenantIndustries';
+import { findTenantOverride } from '../data/tenantOverrides';
 import {
   cleanTenantCategory,
   formatTenantPlacement,
@@ -39,6 +40,19 @@ export interface BuildingTenants {
   amenities: TenantAmenity[];
 }
 
+// Сайт и контакты, присланные арендатором (src/data/tenantOverrides.ts):
+// срез их не содержит и при пересборе перезаписывается, поэтому подмешиваем
+// при построении вида, а не храним в снимке.
+function tenantOverrideFields(org: TenantSourceOrganization, buildingSlug?: string | null) {
+  const override = findTenantOverride(org.sourceId, org.name, buildingSlug);
+  if (!override) return {};
+  return {
+    website: override.website ?? null,
+    websiteLabel: override.websiteLabel ?? null,
+    contactsUrl: override.contactsUrl ?? null,
+  };
+}
+
 /**
  * Организации здания из яндексовского среза.
  *
@@ -56,6 +70,7 @@ export function buildTenantsFromSnapshot(
   organizations: TenantSourceOrganization[],
   buildingName?: string | null,
   buildingAltNames: string[] = [],
+  buildingSlug?: string | null,
 ): BuildingTenants {
   // Имён у здания может быть несколько (BusinessCenter.altNames): БЦ «V» он
   // же «Столица». Карточку самого здания надо отсеять под ЛЮБЫМ из них.
@@ -92,6 +107,7 @@ export function buildTenantsFromSnapshot(
       rating: org.rating,
       reviewCount: org.reviewCount,
       url: org.sourceUrl,
+      ...tenantOverrideFields(org, buildingSlug),
     });
   }
 
@@ -120,6 +136,7 @@ export function buildTenantsFromLegacyList(
   organizations: TenantOrganization[],
   buildingName?: string | null,
   buildingAltNames: string[] = [],
+  buildingSlug?: string | null,
 ): BuildingTenants {
   return buildTenantsFromSnapshot(
     organizations.map((org) => ({
@@ -134,6 +151,7 @@ export function buildTenantsFromLegacyList(
     })),
     buildingName,
     buildingAltNames,
+    buildingSlug,
   );
 }
 

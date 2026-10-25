@@ -157,3 +157,32 @@ describe('вторые названия здания', () => {
   });
 });
 
+
+describe('ручные уточнения арендаторов (tenantOverrides)', () => {
+  it('NaturalFabrics в «Порте» получает сайт и контакты, ссылка на Яндекс остаётся', () => {
+    const { tenants } = buildTenantsFromSnapshot([
+      {
+        name: 'NaturalFabrics',
+        sourceId: '184449260132',
+        sourceUrl: 'https://yandex.by/maps/org/naturalfabrics/184449260132/gallery/',
+        category: 'Магазин ткани помещение 10,',
+        rating: 4.7,
+        reviewCount: 21,
+        rawText: 'Магазин ткани помещение 10, этаж 1',
+      },
+    ]);
+    expect(tenants[0]).toMatchObject({
+      url: 'https://yandex.by/maps/org/naturalfabrics/184449260132/gallery/',
+      website: 'https://naturalfabrics.by/',
+      websiteLabel: 'Сайт магазина',
+      contactsUrl: 'https://naturalfabrics.by/contacts',
+    });
+  });
+
+  it('у остальных арендаторов полей сайта нет', () => {
+    const { tenants } = buildTenantsFromSnapshot([
+      { name: 'Другая', sourceId: '1', sourceUrl: null, category: 'Кафе', rating: null, reviewCount: null, rawText: null },
+    ]);
+    expect(tenants[0].website).toBeUndefined();
+  });
+});
