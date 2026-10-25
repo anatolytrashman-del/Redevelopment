@@ -64,4 +64,8 @@ export interface TenantOrganizationView {
   rating: number | null;
   reviewCount: number | null;
   url: string | null;
+  // Сайт и страница контактов от самого арендатора (src/data/tenantOverrides.ts).
+  website?: string | null;
+  websiteLabel?: string | null;
+  contactsUrl?: string | null;
 }

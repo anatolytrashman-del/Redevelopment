@@ -230,6 +230,33 @@ export function TenantDirectory({ organizations }: { organizations: TenantOrgani
                   <p className="mt-1 line-clamp-1 text-xs leading-relaxed text-ink-muted" title={entry.rubric ?? undefined}>
                     {entry.rubric ?? entry.direction}
                   </p>
+                  {(entry.website || entry.contactsUrl) && (
+                    // Сайт и контакты прислал сам арендатор
+                    // (src/data/tenantOverrides.ts); ссылка на карточку
+                    // Яндекс Карт в названии выше остаётся.
+                    <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-semibold">
+                      {entry.website && (
+                        <a
+                          href={entry.website}
+                          target="_blank"
+                          rel="noopener"
+                          className="text-primary hover:text-primary-hover hover:underline"
+                        >
+                          {entry.websiteLabel || 'Сайт'}
+                        </a>
+                      )}
+                      {entry.contactsUrl && (
+                        <a
+                          href={entry.contactsUrl}
+                          target="_blank"
+                          rel="noopener"
+                          className="text-primary hover:text-primary-hover hover:underline"
+                        >
+                          Контакты
+                        </a>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-3 text-xs">
                   {/* Место в здании — единственное, чего нет ни у 2GIS, ни у
