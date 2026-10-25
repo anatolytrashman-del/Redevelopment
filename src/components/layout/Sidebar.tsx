@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BrandWordmark } from './BrandWordmark';
 import { NavLink } from 'react-router-dom';
 import { BarChart3, Lightbulb, Lock, LogOut, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
@@ -275,9 +276,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="flex flex-col gap-8">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-lg font-extrabold tracking-wide text-ink">
-                <span className="font-black text-primary">RED</span>EVELOPMENT
-              </span>
+              <BrandWordmark className="text-lg font-extrabold tracking-wide text-ink" lobstersHeight={32} />
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-xs font-medium text-ink-faint">{profile.displayName}</span>
                 {metricsAllowed && onlineVisitors !== null && (

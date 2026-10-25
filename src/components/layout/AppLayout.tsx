@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { BrandWordmark } from './BrandWordmark';
+import { siteBrandName } from '../../lib/siteBrand';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
@@ -24,7 +26,8 @@ import { useMenuCaptureReceiver } from '../../lib/menuCaptureReceiver';
 // вкладке. Совпадение обеспечивается общим источником адресов
 // (data/pages.ts), сам текст дублируется: шеллы собираются голым node,
 // импортировать оттуда .ts нельзя.
-const ADMIN_TITLE = 'Админка Redevelopment';
+// lobsters.pro — «Lobsters» (src/lib/siteBrand.ts); шелл lobsters-admin.html даёт тот же текст.
+const adminTitle = () => `Админка ${siteBrandName()}`;
 
 // Самое длинное совпадение, а не первое: /admin/objects/123 должен
 // попадать в «Объекты», а не мимо, и при этом /admin/design-projects не
@@ -33,7 +36,7 @@ function adminTitleFor(pathname: string): string {
   const page = ADMIN_PAGES.filter((p) => pathname === p.to || pathname.startsWith(`${p.to}/`)).sort(
     (a, b) => b.to.length - a.to.length,
   )[0];
-  return page ? `${page.label} — админка Redevelopment` : ADMIN_TITLE;
+  return page ? `${page.label} — админка ${siteBrandName()}` : adminTitle();
 }
 
 export function AppLayout() {
@@ -122,9 +125,7 @@ export function AppLayout() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-base font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
+          <BrandWordmark className="text-base font-extrabold tracking-wide text-ink" lobstersHeight={28} />
         </div>
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
           <div className="mx-auto flex h-full min-h-0 max-w-[1400px] min-w-0 flex-col gap-6">

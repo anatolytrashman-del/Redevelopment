@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { BrandWordmark } from './BrandWordmark';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -223,9 +224,7 @@ export function PasswordGate({ children }: { children: ReactNode }) {
     <div className="flex min-h-svh items-center justify-center bg-bg px-4">
       <div className={cn('flex w-full max-w-xs flex-col gap-4 p-6', glassCardClass)} style={glassCardShadow}>
         <div className="flex flex-col items-center gap-1 text-center">
-          <span className="text-lg font-extrabold tracking-wide text-ink">
-            <span className="font-black text-primary">RED</span>EVELOPMENT
-          </span>
+          <BrandWordmark className="text-lg font-extrabold tracking-wide text-ink" lobstersHeight={36} />
           <span className="text-xs text-ink-faint">Внутренняя панель — доступ только для сотрудников</span>
         </div>
 

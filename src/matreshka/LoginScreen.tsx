@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { matreshkaApi } from './api';
@@ -9,9 +9,11 @@ interface Props {
   clientName?: string;
   /** Заголовок экрана входа: по умолчанию клиентская админка «Матрешка». */
   title?: string;
+  /** Логотип над заголовком (lobsters.pro); у «Матрешки» не передаётся. */
+  logo?: ReactNode;
 }
 
-export function LoginScreen({ onAuthed, clientName, title = 'Матрешка' }: Props) {
+export function LoginScreen({ onAuthed, clientName, title = 'Матрешка', logo }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,6 +45,7 @@ export function LoginScreen({ onAuthed, clientName, title = 'Матрешка' }
     <div className="min-h-svh flex items-center justify-center bg-surface p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
+          {logo && <div className="mb-3 flex justify-center">{logo}</div>}
           <div className="text-2xl font-semibold tracking-tight">{title}</div>
           {clientName && <div className="text-sm text-ink-muted mt-1">{clientName}</div>}
           <div className="text-sm text-ink-muted mt-1">Вход</div>

@@ -8,6 +8,11 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
+import { LobstersLogo } from '../components/layout/BrandWordmark';
+import { isLobstersBrand } from '../lib/siteBrand';
+
+// lobsters.pro (src/lib/siteBrand.ts) — «Lobsters — платформа», иначе как было.
+const PLATFORM_TITLE = isLobstersBrand() ? 'Lobsters — платформа' : 'Redevelopment — платформа';
 
 export default function PlatformAdminApp() {
   const [authed, setAuthed] = useState(false);
@@ -37,7 +42,7 @@ export default function PlatformAdminApp() {
   const [filterClientId, setFilterClientId] = useState('');
 
   // Шелл общий с клиентской админкой — заголовок вкладки платформенный.
-  useEffect(() => { document.title = 'Redevelopment — платформа'; }, []);
+  useEffect(() => { document.title = PLATFORM_TITLE; }, []);
 
   useEffect(() => {
     matreshkaSupabase.auth.getSession().then(({ data }) => {
@@ -199,7 +204,13 @@ export default function PlatformAdminApp() {
         </div>
       );
     }
-    return <LoginScreen onAuthed={handleAuthed} title="Redevelopment — платформа" />;
+    return (
+      <LoginScreen
+        onAuthed={handleAuthed}
+        title={PLATFORM_TITLE}
+        logo={isLobstersBrand() ? <LobstersLogo size="md" height={40} /> : undefined}
+      />
+    );
   }
 
   // if switched to client view: show client UI in staff mode (pass clientSlug to apis)
@@ -207,6 +218,7 @@ export default function PlatformAdminApp() {
     return (
       <div className="min-h-svh bg-surface">
         <header className="border-b h-12 flex items-center px-3 text-sm">
+          {isLobstersBrand() && <LobstersLogo size="sm" height={24} className="mr-3" />}
           <div className="font-semibold mr-3">Платформа</div>
           <div className="flex items-center gap-1 text-xs">
             <button onClick={backToPlatform} className="underline">Платформа</button>
@@ -225,6 +237,7 @@ export default function PlatformAdminApp() {
   return (
     <div className="min-h-svh bg-surface text-sm">
       <header className="border-b h-12 flex items-center px-3">
+        {isLobstersBrand() && <LobstersLogo size="sm" height={24} className="mr-3" />}
         <div className="font-semibold">Платформа — админка</div>
         <div className="ml-4 flex items-center gap-1 text-xs">
           <span>Платформа</span>

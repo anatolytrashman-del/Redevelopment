@@ -11,6 +11,13 @@ import {
   isPreviewVercelHost,
   matreshkaSlugForHost,
 } from './src/lib/matreshkaHosts.js';
+import {
+  LOBSTERS_ROBOTS,
+  LOBSTERS_STUB_PATH,
+  isLobstersHost,
+  lobstersPreviewState,
+  lobstersRoute,
+} from './src/lib/lobsters';
 
 
 // Vercel Routing Middleware — реальный HTTP 404 для несуществующих страниц.
@@ -200,6 +207,62 @@ const OFFICELIST_NOT_FOUND_HTML = NOT_FOUND_HTML
   .replace('— REDEVELOPMENT', '— OfficeList')
   .replace('<b>RED</b>EVELOPMENT', 'Office<span style="color:#e4152b">List</span>');
 
+// lobsters.pro (src/lib/lobsters.ts): тот же макет 404, логотип — картинка.
+const LOBSTERS_NOT_FOUND_HTML = NOT_FOUND_HTML
+  .replace('— REDEVELOPMENT', '— Lobsters')
+  .replace(
+    '<meta name="robots" content="noindex, nofollow">',
+    '<meta name="robots" content="noindex, nofollow">\n<link rel="icon" href="/brand/lobsters/favicon.ico" sizes="any">\n<link rel="icon" type="image/png" sizes="32x32" href="/brand/lobsters/favicon-32.png">\n<link rel="apple-touch-icon" href="/brand/lobsters/apple-touch-icon.png">',
+  )
+  .replace(
+    '<div class="logo"><b>RED</b>EVELOPMENT</div>',
+    '<div class="logo"><picture><source type="image/webp" srcset="/brand/lobsters/logo-sm.webp 1x, /brand/lobsters/logo-sm@2x.webp 2x"><img src="/brand/lobsters/logo-sm.png" srcset="/brand/lobsters/logo-sm.png 1x, /brand/lobsters/logo-sm@2x.png 2x" width="192" height="28" alt="Lobsters"></picture></div>',
+  );
+
+const LOBSTERS_NOINDEX = { 'X-Robots-Tag': 'noindex, nofollow' };
+
+function lobstersResponse(request: Request, url: URL, host: string): Response | null {
+  let previewCookie: string | null = null;
+  if (!isLobstersHost(host)) {
+    // Превью-симуляция только на *.vercel.app при VERCEL_ENV=preview — на проде не включить.
+    if (!isPreviewVercelHost(host, edgeVercelEnv())) return null;
+    const state = lobstersPreviewState(url.searchParams, request.headers.get('cookie') || '');
+    if (!state.active) {
+      if (!state.setCookie) return null;
+      // ?brand=off — снять cookie и вернуться на тот же путь уже без бренда Lobsters.
+      const clean = new URL(url);
+      clean.searchParams.delete('brand');
+      return new Response(null, { status: 302, headers: { Location: clean.toString(), 'Set-Cookie': state.setCookie } });
+    }
+    previewCookie = state.setCookie;
+  }
+  const action = lobstersRoute(url.pathname, url.search, isLobstersHost(host) ? host : 'lobsters.pro');
+  const extra: Record<string, string> = previewCookie ? { 'Set-Cookie': previewCookie } : {};
+  switch (action.type) {
+    case 'www':
+      return new Response(null, { status: 308, headers: { Location: action.location, ...LOBSTERS_NOINDEX } });
+    case 'redirect':
+      return new Response(null, { status: 301, headers: { Location: action.location, ...LOBSTERS_NOINDEX, ...extra } });
+    case 'robots':
+      return new Response(LOBSTERS_ROBOTS, {
+        status: 200,
+        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=600', ...LOBSTERS_NOINDEX },
+      });
+    case 'stub':
+      return rewrite(new URL(LOBSTERS_STUB_PATH, url), { headers: { ...LOBSTERS_NOINDEX, ...extra } });
+    case 'shell':
+      return rewrite(new URL(action.path, url), { headers: { ...LOBSTERS_NOINDEX, ...extra } });
+    case 'pass':
+      return next({ headers: { ...LOBSTERS_NOINDEX, ...extra } });
+    case 'notFound':
+    default:
+      return new Response(LOBSTERS_NOT_FOUND_HTML, {
+        status: 404,
+        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...LOBSTERS_NOINDEX, ...extra },
+      });
+  }
+}
+
 export const config = {
   runtime: 'edge',
 };
@@ -306,6 +369,14 @@ export default function middleware(request: Request) {
     return rewrite(new URL('/matreshka.html', url), {
       headers: { 'X-Robots-Tag': 'noindex, nofollow' },
     });
+  }
+
+  // lobsters.pro (+www, + превью ?brand=lobsters): заглушка, /admin и /platform
+  // в бренде Lobsters, остальное — 301 на redevelopment.pro или 404. Только
+  // режим platform (проект `redevelopment`); на остальных хостах — null.
+  if (siteMode === 'platform') {
+    const lobsters = lobstersResponse(request, url, host);
+    if (lobsters) return lobsters;
   }
 
   // Корень сайта — в middleware (не в vercel.json): иначе на malllist

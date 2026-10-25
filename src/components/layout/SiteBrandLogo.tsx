@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { cn } from '../../lib/cn';
 import { deployedSiteMode } from '../../lib/sites';
+import { isLobstersBrand } from '../../lib/siteBrand';
+import { LobstersLogo } from './BrandWordmark';
 
 /**
  * Текстовый логотип сайта.
@@ -36,6 +38,16 @@ export function SiteBrandLogo({
     );
 
   const classes = cn('text-lg font-extrabold tracking-wide text-ink', className);
+  if (mode === 'platform' && isLobstersBrand()) {
+    // lobsters.pro: логотип-картинка Lobsters (src/lib/siteBrand.ts).
+    const logo = <LobstersLogo size="sm" height={28} />;
+    if (as === 'span') return <span className={cn('inline-flex', className)}>{logo}</span>;
+    return (
+      <Link to={href} className={cn('inline-flex shrink-0', className)}>
+        {logo}
+      </Link>
+    );
+  }
   if (as === 'span') {
     return <span className={classes}>{mark}</span>;
   }
