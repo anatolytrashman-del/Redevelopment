@@ -42,6 +42,7 @@ import type { SiteBacklink } from '../data/siteBacklinks';
 import { fetchPageViewsDaily, fetchSearchVisitsDaily, fetchSiteVisitorsDaily } from '../lib/pageViewsApi';
 import type { PageViewDaily, PageViewSiteId, SearchVisitDaily, SiteVisitorsDaily } from '../data/pageViews';
 import { SearchVisibilityChart } from '../components/siteMetrics/SearchVisibilityChart';
+import { GamblingListMetrics } from '../components/siteMetrics/GamblingListMetrics';
 import {
   combineSearchDaily, mergeSiteDailyStats, visitorsByCountry, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate,
   siteMetricsToday, yandexLagNote,
@@ -53,16 +54,22 @@ import {
 // Яндекс.Метрика остаётся только у платформы (redevelopment.pro) как
 // доп.метрики после cookies; на malllist/officelist Метрики нет.
 
-const METRICS_SITE_ORDER: PageViewSiteId[] = ['platform', 'malls', 'offices'];
-const METRICS_SITE_LABELS: Record<PageViewSiteId, string> = {
+// 2026-10-26 — + GamblingList (gamblinglist.pro). Сайт в другом репозитории
+// и Vercel-проекте: своего счётчика нет, поэтому это не PageViewSiteId, а
+// отдельная вкладка с Vercel Web Analytics (components/siteMetrics/
+// GamblingListMetrics.tsx, api/gamblinglist-analytics.js).
+type MetricsSiteId = PageViewSiteId | 'gambling';
+const METRICS_SITE_ORDER: MetricsSiteId[] = ['platform', 'malls', 'offices', 'gambling'];
+const METRICS_SITE_LABELS: Record<MetricsSiteId, string> = {
   platform: 'Redevelopment',
   malls: 'MallList',
   offices: 'OfficeList',
+  gambling: 'GamblingList',
 };
 const METRICS_SITE_OPTIONS = METRICS_SITE_ORDER.map((id) => METRICS_SITE_LABELS[id]);
 const LABEL_TO_METRICS_SITE = Object.fromEntries(
   METRICS_SITE_ORDER.map((id) => [METRICS_SITE_LABELS[id], id]),
-) as Record<string, PageViewSiteId>;
+) as Record<string, MetricsSiteId>;
 
 // Показатели посещаемости публичных сайтов. На платформе дополнительно
 // подмешивается Яндекс.Метрика (счётчик 111858495) из таблиц
@@ -762,7 +769,8 @@ export function SiteMetrics() {
   const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [searchVisitRows, setSearchVisitRows] = useState<SearchVisitDaily[]>([]);
   const [visitorRows, setVisitorRows] = useState<SiteVisitorsDaily[]>([]);
-  const [metricsSite, setMetricsSite] = useState<PageViewSiteId>('platform');
+  const [metricsSite, setMetricsSite] = useState<MetricsSiteId>('platform');
+  const isGamblingSite = metricsSite === 'gambling';
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const isPlatformSite = metricsSite === 'platform';
@@ -1091,14 +1099,16 @@ export function SiteMetrics() {
         />
       </div>
 
-      {loading && !error && (
+      {isGamblingSite && <GamblingListMetrics />}
+
+      {!isGamblingSite && loading && !error && (
         <div className="flex items-center gap-2 text-sm text-ink-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           Загрузка…
         </div>
       )}
 
-      {!loading && combinedDaily.length === 0 && (
+      {!isGamblingSite && !loading && combinedDaily.length === 0 && (
         <Card className="text-sm text-ink-muted">
           Данные ещё не собраны. Посещения появятся после первого захода на публичную часть
           {` ${METRICS_SITE_LABELS[metricsSite]}`}; считает свой счётчик без cookie
@@ -1106,7 +1116,7 @@ export function SiteMetrics() {
         </Card>
       )}
 
-      {!loading && combinedDaily.length > 0 && (
+      {!isGamblingSite && !loading && combinedDaily.length > 0 && (
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <ToggleGroup
