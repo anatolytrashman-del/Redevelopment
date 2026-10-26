@@ -80,10 +80,15 @@ data/linkbuilding/ — трекер кампании линкбилдинга (C
   пререндер на ~20 минут.
 - **Git:** добавлять файлы поимённо (никогда `git add -A`/`.`); работать в ветке, которую
   назначил харнесс; перед новой порцией работы `git fetch origin && git status`.
-- **Публикация — сразу, без вопроса:** PR из ветки сессии в
-  `claude/redevelopment-platform-prototype-oodobu` → мерж →
-  `node scripts/cancel-stale-deployments.mjs --confirm` → ждать деплой Vercel опросом с
-  выходом по ЛЮБОМУ терминальному состоянию (`READY`/`ERROR`/`CANCELED`), потолок ~15 мин.
+- **Деплой Vercel — один на законченный пакет (правило владельца 26.10.2026):** git-автодеплой
+  выключен (`git.deploymentEnabled: false`), поэтому мерж/пуш ничего не собирает. После того как
+  ВСЕ правки пакета внесены и смержены в `claude/redevelopment-platform-prototype-oodobu` —
+  ровно один `vercel deploy --prod` (на каждый затронутый проект: redevelopment / officelist /
+  malllist) → ждать опросом с выходом по ЛЮБОМУ терминальному состоянию
+  (`READY`/`ERROR`/`CANCELED`), потолок ~15 мин. Не деплоить после каждого коммита или PR.
+  **Превью** (`vercel deploy` без `--prod`, API-деплой с `gitSource`) — только когда Анатолий
+  явно просит показать версию; одно превью на просьбу. Хук `object-save-rebuild` (pg_cron) не
+  трогать. Подробно — `docs/claude/deploy.md`, раздел «Правило деплоя».
   Чужие ветки без команды владельца не мержить; в `preview` не форс-пушить.
   Полный порядок — `workflow.md`.
 - **Codex** (`scripts/codex.sh -f docs/codex-tasks/<задача>.md`): рутина от ~100 строк
