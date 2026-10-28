@@ -1,0 +1,12 @@
+{
+  "teamId": "team_kyP6ogW1N5p9HN17G6Sg7iHV",
+  "sites": [
+    {"id": "gamblinglist", "label": "GamblingList", "domain": "gamblinglist.pro", "project": "gamblinglist"},
+    {"id": "platform", "label": "Redevelopment", "domain": "redevelopment.pro", "project": "redevelopment"},
+    {"id": "malls", "label": "MallList", "domain": "malllist.pro", "project": "malllist"},
+    {"id": "offices", "label": "OfficeList", "domain": "officelist.pro", "project": "officelist"},
+    {"id": "wg-history", "label": "WG (история)", "domain": "whitegambling.pro", "historical": true}
+  ],
+  "searchHosts": ["google.com", "google.ru", "google.by", "google.co.uk", "google.de", "google.ca", "google.com.au", "bing.com", "yandex.ru", "yandex.com", "yandex.by", "ya.ru", "duckduckgo.com", "search.yahoo.com", "ecosia.org", "search.brave.com", "baidu.com", "search.aol.com", "qwant.com", "startpage.com", "search.naver.com", "search.seznam.cz"],
+  "aiHosts": ["chatgpt.com", "chat.openai.com", "perplexity.ai", "gemini.google.com", "copilot.microsoft.com", "claude.ai", "grok.com", "x.ai", "deepseek.com", "chat.deepseek.com", "you.com", "poe.com", "meta.ai", "mistral.ai", "chat.mistral.ai", "lechat.mistral.ai", "kimi.com", "kimi.ai", "qwen.ai", "chat.qwen.ai", "phind.com"]
+}
