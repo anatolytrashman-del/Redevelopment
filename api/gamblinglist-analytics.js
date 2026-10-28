@@ -115,7 +115,9 @@ export default async function handler(req, res) {
     const [daily, pages, referrers, countries] = await Promise.all([
       aggregate({ ...base, by: 'day', limit: 100 }),
       aggregate({ ...base, by: 'requestPath', limit: 10 }),
-      aggregate({ ...base, by: 'referrerHostname', limit: 10 }),
+      // 50, а не 10: в «Показателях» видны только поиск и ИИ, их не должен
+      // вытеснять из топа прямой трафик и прочие сайты.
+      aggregate({ ...base, by: 'referrerHostname', limit: 50 }),
       aggregate({ ...base, by: 'country', limit: 10 }),
     ]);
     res.status(200).json({

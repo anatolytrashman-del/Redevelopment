@@ -13,6 +13,7 @@ import {
   GAMBLINGLIST_REQUEST_HISTORY,
   GAMBLINGLIST_REQUEST_HISTORY_META,
 } from '../../data/gamblingListRequestHistory';
+import { classifyReferrerHost } from '../../lib/searchMetrics';
 
 // GamblingList (gamblinglist.pro) в «Показателях» — 2026-10-26, владелец:
 // «так же как офис лист и мол лист, так же выводи гэмблинг лист».
@@ -115,6 +116,46 @@ function BreakdownCard({ title, rows, emptyLabel }: { title: string; rows: Gambl
   );
 }
 
+// 2026-10-28 — владелец: из рефереров показываем только поисковики и
+// ИИ-сервисы, раздельно «Поиск» / «ИИ»; прямые заходы и прочие сайты скрыты.
+function SearchAiReferrersCard({ rows }: { rows: GamblingBreakdownRow[] }) {
+  const groups = [
+    { title: 'Поиск', rows: rows.filter((r) => classifyReferrerHost(r.key) === 'search') },
+    { title: 'ИИ', rows: rows.filter((r) => classifyReferrerHost(r.key) === 'ai') },
+  ];
+  const max = Math.max(1, ...groups.flatMap((g) => g.rows.map((r) => r.pageviews)));
+  return (
+    <Card className="flex flex-col gap-3">
+      <h3 className="text-sm font-semibold text-ink">Из поиска и ИИ</h3>
+      {groups.map((group) => (
+        <div key={group.title} className="flex flex-col gap-2">
+          <div className="flex justify-between text-xs font-medium text-ink-muted">
+            <span>{group.title}</span>
+            <span>{group.rows.reduce((n, r) => n + r.pageviews, 0).toLocaleString('ru-RU')}</span>
+          </div>
+          {group.rows.length === 0 ? (
+            <p className="text-sm text-ink-muted">Пока пусто.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {group.rows.map((row) => (
+                <li key={row.key} className="flex flex-col gap-1">
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className="truncate text-ink">{row.key.replace(/^www\./, '')}</span>
+                    <span className="shrink-0 text-ink-muted">{row.pageviews.toLocaleString('ru-RU')}</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-primary/10">
+                    <div className="h-1.5 rounded-full bg-primary/70" style={{ width: `${(row.pageviews / max) * 100}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+    </Card>
+  );
+}
+
 export function GamblingListMetrics() {
   const [days, setDays] = useState<Days>(30);
   const [data, setData] = useState<GamblingAnalytics | null>(null);
@@ -200,7 +241,7 @@ export function GamblingListMetrics() {
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <BreakdownCard title="Популярные страницы" rows={data.pages} emptyLabel="—" />
-            <BreakdownCard title="Откуда приходят" rows={data.referrers} emptyLabel="Прямые заходы" />
+            <SearchAiReferrersCard rows={data.referrers} />
             <BreakdownCard title="Страны" rows={data.countries} emptyLabel="Не определена" />
           </div>
           <p className="text-xs text-ink-muted">

@@ -20,6 +20,9 @@
     },
     "api/telegram-avatar.js": {
       "maxDuration": 120
+    },
+    "api/search-metrics.js": {
+      "includeFiles": "data/search-metrics.json"
     }
   },
   "headers": [

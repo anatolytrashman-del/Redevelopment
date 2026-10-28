@@ -43,6 +43,8 @@ import { fetchPageViewsDaily, fetchSearchVisitsDaily, fetchSiteVisitorsDaily } f
 import type { PageViewDaily, PageViewSiteId, SearchVisitDaily, SiteVisitorsDaily } from '../data/pageViews';
 import { SearchVisibilityChart } from '../components/siteMetrics/SearchVisibilityChart';
 import { GamblingListMetrics } from '../components/siteMetrics/GamblingListMetrics';
+import { SearchAiGrowthChart, SiteSearchAiPanel } from '../components/siteMetrics/SearchAiMetrics';
+import { cumulativeMetrics, fetchSearchMetrics, snapshotSiteForTab, type MetricsSnapshot } from '../lib/searchMetrics';
 import {
   combineSearchDaily, mergeSiteDailyStats, visitorsByCountry, metricsPeriodBounds, selectMetricsPeriod, shiftMetricsDate,
   siteMetricsToday, yandexLagNote,
@@ -59,7 +61,8 @@ import {
 // отдельная вкладка с Vercel Web Analytics (components/siteMetrics/
 // GamblingListMetrics.tsx, api/gamblinglist-analytics.js).
 type MetricsSiteId = PageViewSiteId | 'gambling';
-const METRICS_SITE_ORDER: MetricsSiteId[] = ['platform', 'malls', 'offices', 'gambling'];
+// 2026-10-28 — владелец: GamblingList первым и открывается по умолчанию.
+const METRICS_SITE_ORDER: MetricsSiteId[] = ['gambling', 'platform', 'malls', 'offices'];
 const METRICS_SITE_LABELS: Record<MetricsSiteId, string> = {
   platform: 'Redevelopment',
   malls: 'MallList',
@@ -176,31 +179,9 @@ function average(values: (number | null)[]): number | null {
   return sum(present) / present.length;
 }
 
-// Метрика отдаёт ym:s:lastTrafficSource английскими категориями (не
-// локализованным текстом, как ожидалось при первой реализации — см. журнал
-// docs/session-journal.md 2026-09-10) — переводим на отображении, не трогая сырое
-// значение в базе (сравнение/группировка синка остаются по нему). Ключи —
-// ровно те категории, что реально документирует Метрика; неизвестное
-// значение показывается как есть, не прячется.
-const TRAFFIC_SOURCE_LABELS: Record<string, string> = {
-  'Direct traffic': 'Прямые заходы',
-  'Internal traffic': 'Внутренние переходы',
-  'Search engine traffic': 'Переходы из поисковых систем',
-  'Link traffic': 'Переходы по ссылкам на сайтах',
-  'Referral traffic': 'Переходы по ссылкам на сайтах',
-  'Social network traffic': 'Переходы из социальных сетей',
-  'Recommendation system traffic': 'Переходы из рекомендательных систем',
-  'Ad traffic': 'Переходы по рекламе',
-  'Messenger traffic': 'Переходы из мессенджеров',
-  'Email traffic': 'Переходы с email-рассылок',
-  'QR-code traffic': 'Переходы по QR-коду',
-  'Not determined': 'Не определено',
-  'Other traffic': 'Прочие переходы',
-};
-
-function trafficSourceLabel(source: string): string {
-  return TRAFFIC_SOURCE_LABELS[source] ?? source;
-}
+// «Переходы из поиска и ИИ»: из ym:s:lastTrafficSource Метрики берём только
+// 'Search engine traffic'. Прямые заходы и прочие категории (2026-10-28,
+// владелец) на странице не показываем — сырые строки в базе не трогаем.
 
 // Понятная подпись строки в "Топ страниц" вместо сырого пути — по известным
 // маршрутам из App.tsx, регэкспы под динамические сегменты (:slug/:token и
@@ -769,8 +750,24 @@ export function SiteMetrics() {
   const [pageViewRows, setPageViewRows] = useState<PageViewDaily[] | null>(null);
   const [searchVisitRows, setSearchVisitRows] = useState<SearchVisitDaily[]>([]);
   const [visitorRows, setVisitorRows] = useState<SiteVisitorsDaily[]>([]);
-  const [metricsSite, setMetricsSite] = useState<MetricsSiteId>('platform');
+  const [metricsSite, setMetricsSite] = useState<MetricsSiteId>('gambling');
   const isGamblingSite = metricsSite === 'gambling';
+  // Снимок GSC + Bing + Vercel «Поиск»/«ИИ» (api/search-metrics). Ошибка —
+  // просто нет блока: без предупреждений и без красного текста.
+  const [searchSnapshot, setSearchSnapshot] = useState<MetricsSnapshot | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchSearchMetrics()
+      .then((snapshot) => {
+        if (!cancelled && Array.isArray(snapshot?.sites)) setSearchSnapshot(snapshot);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const growthRows = useMemo(() => (searchSnapshot ? cumulativeMetrics(searchSnapshot.sites) : []), [searchSnapshot]);
+  const snapshotSite = searchSnapshot ? snapshotSiteForTab(searchSnapshot.sites, metricsSite) : undefined;
   const [error, setError] = useState('');
   const [period, setPeriod] = useState<Period>(30);
   const isPlatformSite = metricsSite === 'platform';
@@ -1060,12 +1057,15 @@ export function SiteMetrics() {
     return dates.reduce((a, b) => (a > b ? a : b));
   }, [isPlatformSite, trafficSources]);
 
-  const maxTrafficVisits = Math.max(1, ...(trafficSources ?? []).map((s) => s.visits));
+  // 2026-10-28 — владелец: в трафике только переходы из поисковиков и
+  // ИИ-сервисов («Поиск» / «ИИ»); прямые заходы (в основном роботы) и прочие
+  // категории Метрики не показываем.
+  const metrikaSearchSources = (trafficSources ?? []).filter((s) => s.source === 'Search engine traffic');
+  const maxTrafficVisits = Math.max(1, ...metrikaSearchSources.map((s) => s.visits));
   const maxTopPageviews = Math.max(
     1,
     ...(isPlatformSite ? (topPages ?? []).map((p) => p.pageviews) : ownTopPages.map((p) => p.pageviews)),
   );
-  const totalTrafficVisits = sum((trafficSources ?? []).map((s) => s.visits));
   const trafficWindowDays = isPlatformSite ? (trafficSources?.[0]?.windowDays ?? 90) : 90;
   const searchWindowStart = shiftMetricsDate(siteMetricsToday(), -(trafficWindowDays - 1));
   const searchVisitsBySource = Object.entries(
@@ -1078,6 +1078,10 @@ export function SiteMetrics() {
   ).sort((a, b) => b[1] - a[1]);
   const totalSearchVisits = sum(searchVisitsBySource.map(([, visits]) => visits));
   const maxSearchVisits = Math.max(1, ...searchVisitsBySource.map(([, visits]) => visits));
+  const searchVisitGroups = [
+    { title: 'Поиск', rows: searchVisitsBySource.filter(([source]) => !isAiReferrerSource(source)) },
+    { title: 'ИИ', rows: searchVisitsBySource.filter(([source]) => isAiReferrerSource(source)) },
+  ];
   const searchLabels: Record<string, string> = {
     yandex: 'Яндекс', google: 'Google', bing: 'Bing', duckduckgo: 'DuckDuckGo',
     yahoo: 'Yahoo', baidu: 'Baidu', ecosia: 'Ecosia', brave: 'Brave Search',
@@ -1090,6 +1094,8 @@ export function SiteMetrics() {
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
+      {searchSnapshot && <SearchAiGrowthChart rows={growthRows} />}
+
       <div className="flex flex-wrap items-center gap-3">
         <ToggleGroup
           label="Сайт"
@@ -1098,6 +1104,10 @@ export function SiteMetrics() {
           onChange={(label) => setMetricsSite(LABEL_TO_METRICS_SITE[label])}
         />
       </div>
+
+      {snapshotSite && searchSnapshot && (
+        <SiteSearchAiPanel key={snapshotSite.id} site={snapshotSite} generatedAt={searchSnapshot.generatedAt} />
+      )}
 
       {isGamblingSite && <GamblingListMetrics />}
 
@@ -1558,7 +1568,7 @@ export function SiteMetrics() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card className="flex flex-col gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-ink">Источники трафика</h3>
+                <h3 className="text-sm font-semibold text-ink">Переходы из поиска и ИИ</h3>
                 <p className="text-xs text-ink-muted">
                   {isPlatformSite
                     ? `Метрика (после cookies) за ${trafficWindowDays} ${pluralDays(trafficWindowDays)}; ниже — свой счётчик поиска без cookie.`
@@ -1567,16 +1577,11 @@ export function SiteMetrics() {
               </div>
               <div className="flex flex-col gap-2">
                 {isPlatformSite &&
-                  (trafficSources ?? []).map((s) => (
+                  metrikaSearchSources.map((s) => (
                     <div key={s.source} className="flex flex-col gap-1">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-ink">{trafficSourceLabel(s.source)}</span>
-                        <span className="text-ink-muted">
-                          {s.visits.toLocaleString('ru-RU')}
-                          {totalTrafficVisits > 0 && (
-                            <span className="ml-1 text-xs">({((s.visits / totalTrafficVisits) * 100).toFixed(0)}%)</span>
-                          )}
-                        </span>
+                        <span className="text-ink">Поиск · Метрика</span>
+                        <span className="text-ink-muted">{s.visits.toLocaleString('ru-RU')}</span>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
                         <div
@@ -1586,31 +1591,40 @@ export function SiteMetrics() {
                       </div>
                     </div>
                   ))}
-                {isPlatformSite && (trafficSources ?? []).length === 0 && (
-                  <p className="text-sm text-ink-muted">Пока нет данных Метрики по источникам.</p>
+                {isPlatformSite && metrikaSearchSources.length === 0 && (
+                  <p className="text-sm text-ink-muted">Пока нет данных Метрики по переходам из поиска.</p>
                 )}
                 <div className={isPlatformSite ? 'mt-2 border-t border-border pt-3' : undefined}>
                   <div className="mb-2 flex items-center justify-between gap-2 text-sm">
-                    <span className="font-medium text-ink">Поиск — все посетители, без cookie</span>
+                    <span className="font-medium text-ink">Поиск и ИИ — все посетители, без cookie</span>
                     <span className="text-ink-muted">{totalSearchVisits.toLocaleString('ru-RU')}</span>
                   </div>
-                  {searchVisitsBySource.map(([source, visits]) => (
-                    <div key={source} className="mb-2 flex flex-col gap-1 last:mb-0">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-ink">{searchLabels[source] ?? source}</span>
-                        <span className="text-ink-muted">
-                          {visits.toLocaleString('ru-RU')}
-                          <span className="ml-1 text-xs">({((visits / totalSearchVisits) * 100).toFixed(0)}%)</span>
-                        </span>
+                  {searchVisitGroups.map((group) => {
+                    const groupTotal = sum(group.rows.map(([, visits]) => visits));
+                    return (
+                      <div key={group.title} className="mb-3 last:mb-0">
+                        <div className="mb-1 flex items-center justify-between text-xs font-medium text-ink-muted">
+                          <span>{group.title}</span>
+                          <span>{groupTotal.toLocaleString('ru-RU')}</span>
+                        </div>
+                        {group.rows.map(([source, visits]) => (
+                          <div key={source} className="mb-2 flex flex-col gap-1 last:mb-0">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-ink">{searchLabels[source] ?? source}</span>
+                              <span className="text-ink-muted">
+                                {visits.toLocaleString('ru-RU')}
+                                <span className="ml-1 text-xs">({((visits / totalSearchVisits) * 100).toFixed(0)}%)</span>
+                              </span>
+                            </div>
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                              <div className="h-full rounded-full bg-primary" style={{ width: `${(visits / maxSearchVisits) * 100}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                        {group.rows.length === 0 && <p className="text-xs text-ink-muted">Переходов пока нет.</p>}
                       </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${(visits / maxSearchVisits) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                  {searchVisitsBySource.length === 0 && (
-                    <p className="text-xs text-ink-muted">Поисковых переходов пока нет. Браузеры могут не передавать источник захода.</p>
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             </Card>
