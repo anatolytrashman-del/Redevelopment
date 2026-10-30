@@ -9,17 +9,17 @@ import {
   type GamblingAnalytics,
   type GamblingBreakdownRow,
 } from '../../lib/gamblingListAnalytics';
-import {
-  GAMBLINGLIST_REQUEST_HISTORY,
-  GAMBLINGLIST_REQUEST_HISTORY_META,
-} from '../../data/gamblingListRequestHistory';
 import { classifyReferrerHost } from '../../lib/searchMetrics';
+import { countryLabel } from '../../lib/countries';
 
 // GamblingList (gamblinglist.pro) в «Показателях» — 2026-10-26, владелец:
 // «так же как офис лист и мол лист, так же выводи гэмблинг лист».
 // Сайт в другом репозитории и Vercel-проекте, своего счётчика нет — живые
-// цифры из Vercel Web Analytics (api/gamblinglist-analytics.js), а до его
-// подключения — разовая выгрузка запросов к серверу из Vercel Observability.
+// цифры из Vercel Web Analytics (api/gamblinglist-analytics.js).
+// 30.10.2026 — владелец: блок «История до Web Analytics — запросы к серверу»
+// и графики после него убраны (данные остаются в
+// src/data/gamblingListRequestHistory.ts); страны — по-русски с флагами;
+// боты и ИИ-агенты отсекаются на сервере, их число — строкой под карточками.
 
 type Days = 7 | 30 | 90;
 const DAYS_LABELS: Record<Days, string> = { 7: '7 дней', 30: '30 дней', 90: '90 дней' };
@@ -90,7 +90,17 @@ function Tile({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BreakdownCard({ title, rows, emptyLabel }: { title: string; rows: GamblingBreakdownRow[]; emptyLabel: string }) {
+function BreakdownCard({
+  title,
+  rows,
+  emptyLabel,
+  format,
+}: {
+  title: string;
+  rows: GamblingBreakdownRow[];
+  emptyLabel: string;
+  format?: (key: string) => string;
+}) {
   const max = Math.max(1, ...rows.map((r) => r.pageviews));
   return (
     <Card className="flex flex-col gap-3">
@@ -102,7 +112,7 @@ function BreakdownCard({ title, rows, emptyLabel }: { title: string; rows: Gambl
           {rows.map((row) => (
             <li key={row.key || '—'} className="flex flex-col gap-1">
               <div className="flex justify-between gap-2 text-sm">
-                <span className="truncate text-ink">{row.key || emptyLabel}</span>
+                <span className="truncate text-ink">{format ? format(row.key) : row.key === 'Others' ? 'Прочие' : row.key || emptyLabel}</span>
                 <span className="shrink-0 text-ink-muted">{row.pageviews.toLocaleString('ru-RU')}</span>
               </div>
               <div className="h-1.5 rounded-full bg-primary/10">
@@ -184,11 +194,6 @@ export function GamblingListMetrics() {
   );
   const hasLiveData = data?.status === 'ok' && data.daily.some((d) => d.pageviews > 0 || d.visitors > 0);
 
-  const historyPages = GAMBLINGLIST_REQUEST_HISTORY.map((d) => ({ date: d.day, value: d.pageHits }));
-  const historyRequests = GAMBLINGLIST_REQUEST_HISTORY.map((d) => ({ date: d.day, value: d.requests }));
-  // null = в этот день хитов не было вовсе — на графике это ноль.
-  const historyIps = GAMBLINGLIST_REQUEST_HISTORY.map((d) => ({ date: d.day, value: d.uniqueIps ?? 0 }));
-
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -216,7 +221,7 @@ export function GamblingListMetrics() {
       {data?.status === 'not-configured' && (
         <Card className="text-sm text-ink-muted">
           Vercel Web Analytics для gamblinglist.pro ещё не подключён к админке: на сервере не задан
-          ключ <code>VERCEL_ANALYTICS_TOKEN</code>. Ниже — история запросов из разовой выгрузки.
+          ключ <code>VERCEL_ANALYTICS_TOKEN</code>.
         </Card>
       )}
 
@@ -242,37 +247,27 @@ export function GamblingListMetrics() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <BreakdownCard title="Популярные страницы" rows={data.pages} emptyLabel="—" />
             <SearchAiReferrersCard rows={data.referrers} />
-            <BreakdownCard title="Страны" rows={data.countries} emptyLabel="Не определена" />
+            <BreakdownCard title="Страны" rows={data.countries} emptyLabel="Не определена" format={countryLabel} />
           </div>
           <p className="text-xs text-ink-muted">
-            Источник — Vercel Web Analytics проекта gamblinglist (без cookie, ботов отсекает Vercel). Посетитель
-            считается за сутки, как в самом Vercel.
+            Источник — Vercel Web Analytics проекта gamblinglist, без ботов и
+            ИИ-агентов. Посетитель считается за сутки, как в самом Vercel.
+            {data.bots && data.bots.visitors > 0 && (
+              <>
+                {' '}
+                Исключено ботов: {data.bots.visitors.toLocaleString('ru-RU')}
+                {data.bots.rules.some((r) => r.visitors > 0) &&
+                  ` (${data.bots.rules
+                    .filter((r) => r.visitors > 0)
+                    .map((r) => `${r.label}: ${r.visitors.toLocaleString('ru-RU')}`)
+                    .join('; ')})`}
+                .
+              </>
+            )}
           </p>
         </>
       )}
 
-      <Card className="flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-ink">История до Web Analytics — запросы к серверу</h3>
-        <p className="text-xs text-ink-muted">
-          Разовая выгрузка из Vercel Observability за {formatDay(GAMBLINGLIST_REQUEST_HISTORY_META.from)} —{' '}
-          {formatDay(GAMBLINGLIST_REQUEST_HISTORY_META.to)} (Vercel хранит её {GAMBLINGLIST_REQUEST_HISTORY_META.retentionDays}{' '}
-          дней, выгружено {formatDay(GAMBLINGLIST_REQUEST_HISTORY_META.exportedAt)}). Это не посетители: туда попадают
-          и боты, которых Vercel не распознал. Цифры — верхняя граница.
-        </p>
-      </Card>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <BarsCard
-          title="Открытия страниц"
-          data={historyPages}
-          note="HTML-ответы gamblinglist.pro без распознанных ботов (≈90% — 200, остальное 404)"
-        />
-        <BarsCard
-          title="Уникальные IP за день"
-          data={historyIps}
-          note="Те же открытия, разных IP за сутки (сумма по дням, не уникальные за период). С 20 окт почти каждый хит — новый IP: похоже на сканеры, а не людей"
-        />
-        <BarsCard title="Все запросы" data={historyRequests} note="Включая ботов, картинки, шрифты и редиректы" />
-      </div>
     </div>
   );
 }

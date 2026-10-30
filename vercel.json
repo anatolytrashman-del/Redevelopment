@@ -21,8 +21,12 @@
     "api/telegram-avatar.js": {
       "maxDuration": 120
     },
+    "api/gamblinglist-analytics.js": {
+      "includeFiles": "data/metrics-sources.json"
+    },
     "api/search-metrics.js": {
-      "includeFiles": "data/search-metrics.json"
+      "includeFiles": "data/{search-metrics,metrics-sources}.json",
+      "maxDuration": 60
     }
   },
   "headers": [

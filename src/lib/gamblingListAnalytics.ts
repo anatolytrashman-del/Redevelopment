@@ -16,6 +16,12 @@ export interface GamblingBreakdownRow {
   visitors: number;
 }
 
+export interface GamblingBots {
+  visitors: number;
+  pageviews: number;
+  rules: { id: string; label: string; visitors: number; pageviews: number }[];
+}
+
 export type GamblingAnalytics =
   | { status: 'not-configured' }
   | { status: 'error'; message: string }
@@ -27,10 +33,26 @@ export type GamblingAnalytics =
       pages: GamblingBreakdownRow[];
       referrers: GamblingBreakdownRow[];
       countries: GamblingBreakdownRow[];
+      bots: GamblingBots | null;
     };
 
 function rows<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function parseBots(value: unknown): GamblingBots | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  return {
+    visitors: Number(v.visitors) || 0,
+    pageviews: Number(v.pageviews) || 0,
+    rules: rows<Record<string, unknown>>(v.rules).map((r) => ({
+      id: String(r.id ?? ''),
+      label: String(r.label ?? ''),
+      visitors: Number(r.visitors) || 0,
+      pageviews: Number(r.pageviews) || 0,
+    })),
+  };
 }
 
 export function parseGamblingAnalytics(httpOk: boolean, body: unknown): GamblingAnalytics {
@@ -47,6 +69,7 @@ export function parseGamblingAnalytics(httpOk: boolean, body: unknown): Gambling
     pages: rows<GamblingBreakdownRow>(data.pages),
     referrers: rows<GamblingBreakdownRow>(data.referrers),
     countries: rows<GamblingBreakdownRow>(data.countries),
+    bots: parseBots(data.bots),
   };
 }
 

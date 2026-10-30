@@ -18,8 +18,23 @@
 //   GAMBLINGLIST_VERCEL_PROJECT    — необязательно, по умолчанию gamblinglist.
 //
 // Авторизация — staff session (api/_auth.js), токен Vercel наружу не уходит.
+//
+// 30.10.2026 — владелец: «максимум фильтровать посещения ИИ-агентов и ботов».
+// Все разбивки считаются без визитов, подпадающих под botRules из
+// data/metrics-sources.json (см. api/_webAnalyticsBots.js); сколько отсечено —
+// отдельным полем bots (по правилам), чтобы цифра была видна.
 
+import { readFile } from 'node:fs/promises';
 import { requireStaffAuth } from './_auth.js';
+import { botExpression, botNames, withoutBots } from './_webAnalyticsBots.js';
+
+async function readBotConfig() {
+  try {
+    return JSON.parse(await readFile(new URL('../data/metrics-sources.json', import.meta.url), 'utf8'));
+  } catch {
+    return { botRules: [], botNamePattern: 'bot' };
+  }
+}
 
 const API = 'https://api.vercel.com/v1/query/web-analytics/visits/aggregate';
 const DEFAULT_TEAM_ID = 'team_kyP6ogW1N5p9HN17G6Sg7iHV'; // trashman, не секрет
@@ -36,9 +51,10 @@ function clampDays(raw) {
   return Math.min(n, MAX_DAYS);
 }
 
-async function aggregate({ token, teamId, projectId, since, until, by, limit }) {
+async function aggregate({ token, teamId, projectId, since, until, by, limit, filter }) {
   const params = new URLSearchParams({ projectId, teamId, since, until, by });
   if (limit) params.set('limit', String(limit));
+  if (filter) params.set('filter', filter);
   const resp = await fetch(`${API}?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -112,14 +128,30 @@ export default async function handler(req, res) {
   const base = { token, teamId, projectId, since, until };
 
   try {
-    const [daily, pages, referrers, countries] = await Promise.all([
-      aggregate({ ...base, by: 'day', limit: 100 }),
-      aggregate({ ...base, by: 'requestPath', limit: 10 }),
+    const config = await readBotConfig();
+    const [browsers, oses] = await Promise.all([
+      aggregate({ ...base, by: 'browserName', limit: 100 }),
+      aggregate({ ...base, by: 'osName', limit: 100 }),
+    ]);
+    const names = {
+      browserName: botNames(browsers, 'browserName', config.botNamePattern),
+      osName: botNames(oses, 'osName', config.botNamePattern),
+    };
+    const bots = botExpression(config.botRules, names);
+    const human = { ...base, filter: withoutBots(null, bots) };
+    const ruleFilter = (rule) => (rule.match === 'names' ? botExpression([rule], names) : rule.filter);
+    const rules = (config.botRules ?? []).map((rule) => ({ rule, filter: ruleFilter(rule) }));
+    const [daily, pages, referrers, countries, botDaily, ...ruleDaily] = await Promise.all([
+      aggregate({ ...human, by: 'day', limit: 100 }),
+      aggregate({ ...human, by: 'requestPath', limit: 10 }),
       // 50, а не 10: в «Показателях» видны только поиск и ИИ, их не должен
       // вытеснять из топа прямой трафик и прочие сайты.
-      aggregate({ ...base, by: 'referrerHostname', limit: 50 }),
-      aggregate({ ...base, by: 'country', limit: 10 }),
+      aggregate({ ...human, by: 'referrerHostname', limit: 50 }),
+      aggregate({ ...human, by: 'country', limit: 15 }),
+      bots ? aggregate({ ...base, filter: bots, by: 'day', limit: 100 }) : [],
+      ...rules.map(({ filter }) => (filter ? aggregate({ ...base, filter, by: 'day', limit: 100 }) : [])),
     ]);
+    const sum = (list) => normalizeDaily(list).reduce((acc, r) => ({ visitors: acc.visitors + r.visitors, pageviews: acc.pageviews + r.pageviews }), { visitors: 0, pageviews: 0 });
     res.status(200).json({
       configured: true,
       source: 'vercel-web-analytics',
@@ -129,6 +161,10 @@ export default async function handler(req, res) {
       pages: normalizeBreakdown(pages, 'requestPath'),
       referrers: normalizeBreakdown(referrers, 'referrerHostname'),
       countries: normalizeBreakdown(countries, 'country'),
+      bots: {
+        ...sum(botDaily),
+        rules: rules.map(({ rule }, i) => ({ id: rule.id, label: rule.label, ...sum(ruleDaily[i]) })),
+      },
     });
   } catch (err) {
     res.status(502).json({

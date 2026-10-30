@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./_auth.js', () => ({ requireStaffAuth: vi.fn(async () => ({ id: 'staff' })) }));
 
@@ -12,8 +12,14 @@ function mockRes() {
   return res;
 }
 
-afterEach(() => {
+const savedToken = process.env.VERCEL_ANALYTICS_TOKEN;
+beforeEach(() => {
   delete process.env.VERCEL_ANALYTICS_TOKEN;
+});
+
+afterEach(() => {
+  if (savedToken !== undefined) process.env.VERCEL_ANALYTICS_TOKEN = savedToken;
+  else delete process.env.VERCEL_ANALYTICS_TOKEN;
   vi.unstubAllGlobals();
 });
 
@@ -28,20 +34,26 @@ describe('api/gamblinglist-analytics', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('с токеном — 4 запроса к Web Analytics API проекта gamblinglist', async () => {
+  it('с токеном — разбивки без ботов + счётчик отсечённых', async () => {
     process.env.VERCEL_ANALYTICS_TOKEN = 'test-token';
     const fetchSpy = vi.fn(async (url) => {
       const by = new URL(url).searchParams.get('by');
       const data = by === 'day'
         ? [{ timestamp: '2026-10-25T00:00:00.000Z', pageviews: 4, visitors: 2 }]
-        : [{ [by]: by === 'requestPath' ? '/' : '', pageviews: 4, visitors: 2 }];
+        : by === 'browserName' ? [{ browserName: 'Chrome' }, { browserName: 'GPTBot' }]
+          : [{ [by]: by === 'requestPath' ? '/' : '', pageviews: 4, visitors: 2 }];
       return new Response(JSON.stringify({ version: 1, data }), { status: 200 });
     });
     vi.stubGlobal('fetch', fetchSpy);
     const res = mockRes();
     await handler({ method: 'GET', headers: {}, query: { days: '7' } }, res);
     expect(res.statusCode).toBe(200);
-    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    // browserName + osName, 4 разбивки, боты всего + по 3 правилам.
+    expect(fetchSpy).toHaveBeenCalledTimes(10);
+    const human = fetchSpy.mock.calls.slice(2, 6).map(([u]) => new URL(u).searchParams.get('filter'));
+    for (const f of human) expect(f).toMatch(/^not \(browserName in \('GPTBot'\) or /);
+    expect(res.body.bots).toMatchObject({ visitors: 2, pageviews: 4 });
+    expect(res.body.bots.rules.map((r) => r.id)).toEqual(['names', 'direct-ios-swarm', 'linux-desktop']);
     const first = new URL(fetchSpy.mock.calls[0][0]);
     expect(first.pathname).toBe('/v1/query/web-analytics/visits/aggregate');
     expect(first.searchParams.get('projectId')).toBe('gamblinglist');

@@ -6,15 +6,14 @@ import { searchTotals, type CumulativeDay, type MetricsSite, type MetricsSource,
 
 // 2026-10-28 (28c): общий кумулятив «поиск + ИИ» по всем сайтам и блок
 // GSC + Bing + заходы «Поиск»/«ИИ» по выбранному сайту. Источник —
-// снимок data/search-metrics.json (scripts/collect-search-metrics.py),
-// отдаётся api/search-metrics.js только сотрудникам. Нет снимка — блоки
+// api/search-metrics.js (живой сбор, запасной вариант — снимок
+// data/search-metrics.json), только сотрудникам. Нет снимка — блоки
 // просто не рисуются, страница не падает.
 
 const SERIES = [
   { key: 'clicks', label: 'Клики из поиска (GSC + Bing)', color: '#2563eb' },
   { key: 'search', label: 'Заходы: Поиск', color: '#059669' },
   { key: 'ai', label: 'Заходы: ИИ', color: '#9333ea' },
-  { key: 'wg', label: 'В т. ч. WG (история)', color: '#64748b' },
 ] as const;
 const number = (n: number) => n.toLocaleString('ru-RU');
 const date = (s: string) => new Date(`${s.slice(0, 10)}T00:00:00Z`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -32,8 +31,7 @@ export function SearchAiGrowthChart({ rows }: { rows: CumulativeDay[] }) {
       <div>
         <h2 className="text-base font-semibold text-ink">Рост поиска и ИИ по всем сайтам · нарастающий итог</h2>
         <p className="mt-1 text-xs text-ink-muted">
-          GamblingList, Redevelopment, MallList, OfficeList и история whitegambling.pro — вся накопленная история.
-          WG входит в общие клики; серая линия показывает его долю.
+          GamblingList, Redevelopment, MallList и OfficeList — вся накопленная история, без ботов и ИИ-агентов.
         </p>
       </div>
       <svg
@@ -62,7 +60,6 @@ export function SearchAiGrowthChart({ rows }: { rows: CumulativeDay[] }) {
             fill="none"
             stroke={s.color}
             strokeWidth="2.5"
-            strokeDasharray={s.key === 'wg' ? '6 4' : undefined}
             points={rows.map((r, i) => `${x(i)},${y(r[s.key])}`).join(' ')}
           />
         ))}
@@ -75,7 +72,7 @@ export function SearchAiGrowthChart({ rows }: { rows: CumulativeDay[] }) {
         </text>
       </svg>
       <p className="text-xs text-ink-muted">На {date(selected.day)}</p>
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {SERIES.map((s) => (
           <div key={s.key}>
             <dt className="flex items-center gap-2 text-xs text-ink-muted">
@@ -147,7 +144,7 @@ export function SiteSearchAiPanel({ site, generatedAt }: { site: MetricsSite; ge
       <div className="flex flex-wrap items-end justify-between gap-3">
         <ToggleGroup label="Поиск и ИИ · период" options={PERIODS} value={period} onChange={setPeriod} />
         <p className="text-xs text-ink-muted">
-          {site.domain} · {period === 'Вся история' ? 'вся история' : `${date(start)} — ${date(end)}`} · снимок{' '}
+          {site.domain} · {period === 'Вся история' ? 'вся история' : `${date(start)} — ${date(end)}`} · обновлено{' '}
           {new Date(generatedAt).toLocaleString('ru-RU', { day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
@@ -170,7 +167,9 @@ export function SiteSearchAiPanel({ site, generatedAt }: { site: MetricsSite; ge
         <p className="text-xs text-ink-muted">
           Vercel Web Analytics: только переходы из поисковиков (Google, Яндекс, Bing, DuckDuckGo…) и ИИ-сервисов
           (ChatGPT, Perplexity, Gemini, Copilot, Claude, Grok…). Прямые заходы и прочие сайты не показываются.
-          Посетители считаются за сутки.
+          Посетители считаются за сутки; боты и ИИ-агенты (браузеры-роботы, headless, рой без реферера, серверный
+          Linux) отсечены.
+          {traffic.some((r) => (r.bots ?? 0) > 0) && ` Исключено ботов: ${number(traffic.reduce((n, r) => n + (r.bots ?? 0), 0))}.`}
         </p>
       </Card>
       <Card className="flex flex-col gap-3">

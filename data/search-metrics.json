@@ -1,80 +1,179 @@
 {
-  "version": 1,
-  "generatedAt": "2026-10-28T07:36:32.359778+00:00",
-  "searchStart": "2025-07-05",
-  "searchEnd": "2026-10-28",
+  "version": 2,
+  "generatedAt": "2026-10-30T15:04:05.285Z",
   "sites": [
     {
       "id": "gamblinglist",
       "label": "GamblingList",
       "domain": "gamblinglist.pro",
       "project": "gamblinglist",
+      "domains": [
+        "gamblinglist.pro",
+        "whitegambling.pro"
+      ],
       "gsc": {
         "status": "ok",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
         "daily": [
           {
-            "day": "2026-10-19",
+            "day": "2026-10-17",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-18",
+            "clicks": 1,
+            "impressions": 78,
+            "ctr": 0.01282051282051282,
+            "position": 35.76923076923077
+          },
+          {
+            "day": "2026-10-19",
+            "clicks": 4,
+            "impressions": 1300,
+            "ctr": 0.003076923076923077,
+            "position": 38.36538461538461
           },
           {
             "day": "2026-10-20",
-            "clicks": 0,
-            "impressions": 10,
-            "ctr": 0,
-            "position": 6.5
+            "clicks": 6,
+            "impressions": 2577,
+            "ctr": 0.002328288707799767,
+            "position": 36.41482343810633
           },
           {
             "day": "2026-10-21",
-            "clicks": 1,
-            "impressions": 404,
-            "ctr": 0.0024752475247524753,
-            "position": 30.49009900990099
+            "clicks": 13,
+            "impressions": 3186,
+            "ctr": 0.004080351537978657,
+            "position": 38.123352165725045
           },
           {
             "day": "2026-10-22",
-            "clicks": 7,
-            "impressions": 1240,
-            "ctr": 0.00564516129032258,
-            "position": 36.73145161290323
+            "clicks": 14,
+            "impressions": 3230,
+            "ctr": 0.0043343653250774,
+            "position": 38.21052631578947
           },
           {
             "day": "2026-10-23",
-            "clicks": 7,
-            "impressions": 1450,
-            "ctr": 0.004827586206896552,
-            "position": 39.358620689655176
+            "clicks": 11,
+            "impressions": 3231,
+            "ctr": 0.0034045187248529867,
+            "position": 42.08325595790777
           },
           {
             "day": "2026-10-24",
             "clicks": 6,
-            "impressions": 1291,
-            "ctr": 0.004647560030983733,
-            "position": 33.243222308288146
+            "impressions": 2290,
+            "ctr": 0.0026200873362445414,
+            "position": 36.1882096069869
           },
           {
             "day": "2026-10-25",
             "clicks": 8,
-            "impressions": 1098,
-            "ctr": 0.007285974499089253,
-            "position": 38.368852459016395
+            "impressions": 1100,
+            "ctr": 0.007272727272727273,
+            "position": 38.410909090909094
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 0,
+            "impressions": 749,
+            "ctr": 0,
+            "position": 42.58611481975968
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 0,
+            "impressions": 1,
+            "ctr": 0,
+            "position": 1
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 0,
+            "impressions": 2,
+            "ctr": 0,
+            "position": 1.5
+          },
+          {
+            "day": "2026-10-29",
+            "clicks": 0,
+            "impressions": 5,
+            "ctr": 0,
+            "position": 14.2
+          },
+          {
+            "day": "2026-10-30",
+            "clicks": 0,
+            "impressions": 0
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       },
       "bing": {
         "status": "ok",
-        "daily": [],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        "updatedAt": "2026-10-30T15:04:05.285Z",
+        "daily": [
+          {
+            "day": "2026-10-19",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-20",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-21",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-22",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-23",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-24",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-25",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 0,
+            "impressions": 0
+          }
+        ]
       },
       "analytics": {
         "status": "ok",
-        "since": "2026-08-29",
-        "until": "2026-10-28",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
+        "since": "2026-08-31",
+        "until": "2026-10-30",
         "metric": "daily-visitors",
-        "utmStatus": "unavailable-plan",
+        "botsFiltered": true,
         "daily": [
           {
             "day": "2026-08-29",
@@ -89,300 +188,370 @@
           {
             "day": "2026-08-31",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-01",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-02",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-03",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-04",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-05",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-06",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-07",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-08",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-09",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-10",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-11",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-12",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-13",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-14",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-15",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-16",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-17",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-18",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-19",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-20",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-21",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-22",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-23",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-24",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-25",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-26",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-27",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-28",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-29",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-30",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-01",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-02",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-03",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-04",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-05",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-06",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-07",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-08",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-09",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-10",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-11",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-12",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-13",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-14",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-15",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-16",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-17",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-18",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-19",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-20",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-21",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-22",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-23",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-24",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-25",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-26",
-            "search": 5,
-            "ai": 0
+            "search": 0,
+            "ai": 0,
+            "bots": 20
           },
           {
             "day": "2026-10-27",
-            "search": 6,
-            "ai": 0
+            "search": 0,
+            "ai": 0,
+            "bots": 28
           },
           {
             "day": "2026-10-28",
-            "search": 1,
-            "ai": 0
+            "search": 0,
+            "ai": 0,
+            "bots": 31
+          },
+          {
+            "day": "2026-10-29",
+            "search": 0,
+            "ai": 0,
+            "bots": 24
+          },
+          {
+            "day": "2026-10-30",
+            "search": 0,
+            "ai": 0,
+            "bots": 7
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       }
     },
     {
@@ -392,97 +561,72 @@
       "project": "redevelopment",
       "gsc": {
         "status": "ok",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
         "daily": [
           {
             "day": "2026-08-13",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-14",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-15",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-16",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-17",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-18",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-19",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-20",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-21",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-22",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-23",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-24",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-25",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-26",
@@ -494,58 +638,42 @@
           {
             "day": "2026-08-27",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-28",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-29",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-30",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-08-31",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-01",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-02",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-03",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-04",
@@ -557,9 +685,7 @@
           {
             "day": "2026-09-05",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-06",
@@ -578,16 +704,12 @@
           {
             "day": "2026-09-08",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-09",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-10",
@@ -627,9 +749,7 @@
           {
             "day": "2026-09-15",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-09-16",
@@ -910,12 +1030,47 @@
             "impressions": 597,
             "ctr": 0.005025125628140704,
             "position": 8.678391959798995
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 6,
+            "impressions": 710,
+            "ctr": 0.008450704225352112,
+            "position": 8.859154929577464
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 0,
+            "impressions": 689,
+            "ctr": 0,
+            "position": 8.731494920174166
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 7,
+            "impressions": 658,
+            "ctr": 0.010638297872340425,
+            "position": 8.879939209726444
+          },
+          {
+            "day": "2026-10-29",
+            "clicks": 10,
+            "impressions": 664,
+            "ctr": 0.015060240963855422,
+            "position": 9.079819277108435
+          },
+          {
+            "day": "2026-10-30",
+            "clicks": 1,
+            "impressions": 108,
+            "ctr": 0.009259259259259259,
+            "position": 8.083333333333332
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       },
       "bing": {
         "status": "ok",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
         "daily": [
           {
             "day": "2026-09-17",
@@ -1111,16 +1266,31 @@
             "day": "2026-10-25",
             "clicks": 0,
             "impressions": 0
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 0,
+            "impressions": 0
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       },
       "analytics": {
         "status": "ok",
-        "since": "2026-08-29",
-        "until": "2026-10-28",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
+        "since": "2026-08-31",
+        "until": "2026-10-30",
         "metric": "daily-visitors",
-        "utmStatus": "unavailable-plan",
+        "botsFiltered": true,
         "daily": [
           {
             "day": "2026-08-29",
@@ -1135,300 +1305,370 @@
           {
             "day": "2026-08-31",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-01",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-02",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-03",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-04",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-05",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-06",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-07",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-08",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-09",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-10",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-11",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-12",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-13",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-14",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-15",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-16",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-17",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-18",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-19",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-20",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-21",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-22",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-23",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-24",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-25",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-26",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-27",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-28",
             "search": 6,
-            "ai": 0
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-09-29",
             "search": 3,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-30",
-            "search": 14,
-            "ai": 0
+            "search": 10,
+            "ai": 0,
+            "bots": 4
           },
           {
             "day": "2026-10-01",
-            "search": 22,
-            "ai": 0
+            "search": 20,
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-02",
-            "search": 12,
-            "ai": 0
+            "search": 11,
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-03",
-            "search": 9,
-            "ai": 0
+            "search": 6,
+            "ai": 0,
+            "bots": 4
           },
           {
             "day": "2026-10-04",
-            "search": 18,
-            "ai": 0
+            "search": 17,
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-05",
-            "search": 11,
-            "ai": 0
+            "search": 10,
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-06",
             "search": 12,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-07",
             "search": 9,
-            "ai": 0
+            "ai": 0,
+            "bots": 4
           },
           {
             "day": "2026-10-08",
             "search": 19,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-09",
             "search": 11,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-10",
             "search": 4,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-11",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-12",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-13",
             "search": 1,
-            "ai": 0
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-10-14",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-15",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-16",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-17",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-18",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-19",
             "search": 1,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-20",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-21",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-22",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-23",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 13
           },
           {
             "day": "2026-10-24",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-25",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-10-26",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-27",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-10-28",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 3
+          },
+          {
+            "day": "2026-10-29",
+            "search": 0,
+            "ai": 0,
+            "bots": 0
+          },
+          {
+            "day": "2026-10-30",
+            "search": 0,
+            "ai": 0,
+            "bots": 1
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       }
     },
     {
@@ -1438,13 +1678,12 @@
       "project": "malllist",
       "gsc": {
         "status": "ok",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
         "daily": [
           {
             "day": "2026-10-09",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-10-10",
@@ -1557,12 +1796,45 @@
             "impressions": 379,
             "ctr": 0.002638522427440633,
             "position": 9.688654353562006
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 0,
+            "impressions": 5,
+            "ctr": 0,
+            "position": 27.6
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 0,
+            "impressions": 3,
+            "ctr": 0,
+            "position": 9.666666666666666
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 0,
+            "impressions": 4,
+            "ctr": 0,
+            "position": 22.75
+          },
+          {
+            "day": "2026-10-29",
+            "clicks": 0,
+            "impressions": 1,
+            "ctr": 0,
+            "position": 8
+          },
+          {
+            "day": "2026-10-30",
+            "clicks": 0,
+            "impressions": 0
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       },
       "bing": {
         "status": "ok",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
         "daily": [
           {
             "day": "2026-10-16",
@@ -1613,16 +1885,31 @@
             "day": "2026-10-25",
             "clicks": 0,
             "impressions": 1
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 0,
+            "impressions": 3
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 0,
+            "impressions": 0
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       },
       "analytics": {
         "status": "ok",
-        "since": "2026-08-29",
-        "until": "2026-10-28",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
+        "since": "2026-08-31",
+        "until": "2026-10-30",
         "metric": "daily-visitors",
-        "utmStatus": "unavailable-plan",
+        "botsFiltered": true,
         "daily": [
           {
             "day": "2026-08-29",
@@ -1637,300 +1924,370 @@
           {
             "day": "2026-08-31",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-01",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-02",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-03",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-04",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-05",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-06",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-07",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-08",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-09",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-10",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-11",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-12",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-13",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-14",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-15",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-16",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-17",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-18",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-19",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-20",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-21",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-22",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-23",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-24",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-25",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-26",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-27",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-28",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-29",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-30",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-01",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-02",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-03",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-04",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-05",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-06",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-07",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-08",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-09",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-10",
             "search": 5,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-11",
             "search": 15,
-            "ai": 0
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-10-12",
             "search": 10,
-            "ai": 0
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-13",
             "search": 9,
-            "ai": 0
+            "ai": 0,
+            "bots": 5
           },
           {
             "day": "2026-10-14",
             "search": 5,
-            "ai": 0
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-15",
-            "search": 10,
-            "ai": 0
+            "search": 9,
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-10-16",
             "search": 7,
-            "ai": 0
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-17",
             "search": 3,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-18",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-19",
             "search": 8,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-20",
             "search": 8,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-21",
             "search": 6,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-22",
             "search": 8,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-23",
             "search": 6,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-24",
             "search": 7,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-25",
             "search": 4,
-            "ai": 0
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-26",
             "search": 4,
-            "ai": 0
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-27",
             "search": 2,
-            "ai": 0
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-28",
-            "search": 1,
-            "ai": 1
+            "search": 9,
+            "ai": 1,
+            "bots": 1
+          },
+          {
+            "day": "2026-10-29",
+            "search": 7,
+            "ai": 0,
+            "bots": 0
+          },
+          {
+            "day": "2026-10-30",
+            "search": 4,
+            "ai": 0,
+            "bots": 0
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       }
     },
     {
@@ -1940,20 +2297,17 @@
       "project": "officelist",
       "gsc": {
         "status": "ok",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
         "daily": [
           {
             "day": "2026-10-09",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-10-10",
             "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
+            "impressions": 0
           },
           {
             "day": "2026-10-11",
@@ -2059,12 +2413,47 @@
             "impressions": 201,
             "ctr": 0.004975124378109453,
             "position": 8.621890547263682
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 9,
+            "impressions": 418,
+            "ctr": 0.0215311004784689,
+            "position": 7.79665071770335
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 3,
+            "impressions": 406,
+            "ctr": 0.007389162561576354,
+            "position": 8.519704433497537
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 2,
+            "impressions": 373,
+            "ctr": 0.005361930294906166,
+            "position": 7.6675603217158175
+          },
+          {
+            "day": "2026-10-29",
+            "clicks": 8,
+            "impressions": 382,
+            "ctr": 0.020942408376963352,
+            "position": 7.780104712041885
+          },
+          {
+            "day": "2026-10-30",
+            "clicks": 3,
+            "impressions": 57,
+            "ctr": 0.05263157894736842,
+            "position": 8.210526315789473
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       },
       "bing": {
         "status": "ok",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
         "daily": [
           {
             "day": "2026-10-16",
@@ -2115,16 +2504,31 @@
             "day": "2026-10-25",
             "clicks": 0,
             "impressions": 0
+          },
+          {
+            "day": "2026-10-26",
+            "clicks": 0,
+            "impressions": 0
+          },
+          {
+            "day": "2026-10-27",
+            "clicks": 0,
+            "impressions": 1
+          },
+          {
+            "day": "2026-10-28",
+            "clicks": 0,
+            "impressions": 1
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
+        ]
       },
       "analytics": {
         "status": "ok",
-        "since": "2026-08-29",
-        "until": "2026-10-28",
+        "updatedAt": "2026-10-30T15:04:05.285Z",
+        "since": "2026-08-31",
+        "until": "2026-10-30",
         "metric": "daily-visitors",
-        "utmStatus": "unavailable-plan",
+        "botsFiltered": true,
         "daily": [
           {
             "day": "2026-08-29",
@@ -2139,420 +2543,370 @@
           {
             "day": "2026-08-31",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-01",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-02",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-03",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-04",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-05",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-06",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-07",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-08",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-09",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-10",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-11",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-12",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-13",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-14",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-15",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-16",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-17",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-18",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-19",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-20",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-21",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-22",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-23",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-24",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-25",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-26",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-27",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-28",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-29",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-09-30",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-01",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-02",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-03",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-04",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-05",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-06",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-07",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-08",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-09",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-10",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-11",
             "search": 0,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-12",
             "search": 6,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-13",
             "search": 9,
-            "ai": 0
+            "ai": 0,
+            "bots": 5
           },
           {
             "day": "2026-10-14",
             "search": 8,
-            "ai": 0
+            "ai": 0,
+            "bots": 4
           },
           {
             "day": "2026-10-15",
-            "search": 10,
-            "ai": 0
+            "search": 9,
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-10-16",
             "search": 11,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-17",
             "search": 3,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-18",
             "search": 3,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-19",
-            "search": 8,
-            "ai": 0
+            "search": 7,
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-20",
             "search": 10,
-            "ai": 0
+            "ai": 0,
+            "bots": 2
           },
           {
             "day": "2026-10-21",
             "search": 12,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-22",
             "search": 7,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-23",
             "search": 11,
-            "ai": 0
+            "ai": 0,
+            "bots": 3
           },
           {
             "day": "2026-10-24",
             "search": 9,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-25",
             "search": 2,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-26",
             "search": 12,
-            "ai": 0
+            "ai": 0,
+            "bots": 1
           },
           {
             "day": "2026-10-27",
             "search": 8,
-            "ai": 0
+            "ai": 0,
+            "bots": 0
           },
           {
             "day": "2026-10-28",
-            "search": 2,
-            "ai": 0
+            "search": 9,
+            "ai": 0,
+            "bots": 0
+          },
+          {
+            "day": "2026-10-29",
+            "search": 11,
+            "ai": 0,
+            "bots": 2
+          },
+          {
+            "day": "2026-10-30",
+            "search": 11,
+            "ai": 0,
+            "bots": 0
           }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
-      }
-    },
-    {
-      "id": "wg-history",
-      "label": "WG (история)",
-      "domain": "whitegambling.pro",
-      "historical": true,
-      "gsc": {
-        "status": "ok",
-        "daily": [
-          {
-            "day": "2026-10-17",
-            "clicks": 0,
-            "impressions": 0,
-            "ctr": 0,
-            "position": 0
-          },
-          {
-            "day": "2026-10-18",
-            "clicks": 1,
-            "impressions": 78,
-            "ctr": 0.01282051282051282,
-            "position": 35.76923076923077
-          },
-          {
-            "day": "2026-10-19",
-            "clicks": 4,
-            "impressions": 1300,
-            "ctr": 0.003076923076923077,
-            "position": 38.36538461538461
-          },
-          {
-            "day": "2026-10-20",
-            "clicks": 6,
-            "impressions": 2567,
-            "ctr": 0.002337358784573432,
-            "position": 36.53135956369303
-          },
-          {
-            "day": "2026-10-21",
-            "clicks": 12,
-            "impressions": 2782,
-            "ctr": 0.004313443565780014,
-            "position": 39.231847591660674
-          },
-          {
-            "day": "2026-10-22",
-            "clicks": 7,
-            "impressions": 1990,
-            "ctr": 0.0035175879396984926,
-            "position": 39.1321608040201
-          },
-          {
-            "day": "2026-10-23",
-            "clicks": 4,
-            "impressions": 1781,
-            "ctr": 0.0022459292532285235,
-            "position": 44.30151600224593
-          },
-          {
-            "day": "2026-10-24",
-            "clicks": 0,
-            "impressions": 999,
-            "ctr": 0,
-            "position": 39.993993993993996
-          },
-          {
-            "day": "2026-10-25",
-            "clicks": 0,
-            "impressions": 2,
-            "ctr": 0,
-            "position": 61.5
-          }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
-      },
-      "bing": {
-        "status": "ok",
-        "daily": [
-          {
-            "day": "2026-10-19",
-            "clicks": 0,
-            "impressions": 0
-          },
-          {
-            "day": "2026-10-20",
-            "clicks": 0,
-            "impressions": 0
-          },
-          {
-            "day": "2026-10-21",
-            "clicks": 0,
-            "impressions": 0
-          },
-          {
-            "day": "2026-10-22",
-            "clicks": 0,
-            "impressions": 0
-          },
-          {
-            "day": "2026-10-23",
-            "clicks": 0,
-            "impressions": 0
-          },
-          {
-            "day": "2026-10-24",
-            "clicks": 0,
-            "impressions": 0
-          },
-          {
-            "day": "2026-10-25",
-            "clicks": 0,
-            "impressions": 0
-          }
-        ],
-        "updatedAt": "2026-10-28T07:36:32.359778+00:00"
-      },
-      "analytics": {
-        "status": "no-separate-source",
-        "daily": []
+        ]
       }
     }
   ]

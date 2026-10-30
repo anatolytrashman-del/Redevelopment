@@ -2,14 +2,14 @@ import { authFetch } from './authFetch';
 import metricsSources from '../../data/metrics-sources.json';
 
 export interface SearchDay { day: string; clicks: number; impressions: number; ctr?: number; position?: number }
-export interface TrafficDay { day: string; search: number; ai: number }
+export interface TrafficDay { day: string; search: number; ai: number; bots?: number }
 export interface MetricsSource<T> { status: string; daily: T[]; updatedAt?: string; utmStatus?: string }
 export interface MetricsSite {
-  id: string; label: string; domain: string; historical?: boolean; project?: string;
+  id: string; label: string; domain: string; domains?: string[]; historical?: boolean; project?: string;
   gsc: MetricsSource<SearchDay>; bing: MetricsSource<SearchDay>; analytics: MetricsSource<TrafficDay>;
 }
 export interface MetricsSnapshot { version: number; generatedAt: string; sites: MetricsSite[] }
-export interface CumulativeDay { day: string; clicks: number; search: number; ai: number; wg: number }
+export interface CumulativeDay { day: string; clicks: number; search: number; ai: number }
 
 export async function fetchSearchMetrics(): Promise<MetricsSnapshot> {
   const response = await authFetch('/api/search-metrics');
@@ -18,20 +18,18 @@ export async function fetchSearchMetrics(): Promise<MetricsSnapshot> {
 }
 
 /** Cumulative across the entire available history, independent of the site's period selector.
- * WG is included in clicks once; its own series is a labelled subset, never added twice.
+ * С 30.10.2026 whitegambling.pro склеен с gamblinglist.pro в одном сайте (api/_searchMetricsLive.js),
+ * отдельной линии WG нет.
  */
 export function cumulativeMetrics(sites: MetricsSite[]): CumulativeDay[] {
   const days = new Map<string, CumulativeDay>();
   function row(day: string) {
-    if (!days.has(day)) days.set(day, { day, clicks: 0, search: 0, ai: 0, wg: 0 });
+    if (!days.has(day)) days.set(day, { day, clicks: 0, search: 0, ai: 0 });
     return days.get(day)!;
   }
   for (const site of sites) {
     for (const source of [site.gsc, site.bing]) {
-      for (const d of source.daily) {
-        row(d.day).clicks += d.clicks;
-        if (site.historical) row(d.day).wg += d.clicks;
-      }
+      for (const d of source.daily) row(d.day).clicks += d.clicks;
     }
     for (const d of site.analytics.daily) {
       row(d.day).search += d.search;
@@ -40,14 +38,14 @@ export function cumulativeMetrics(sites: MetricsSite[]): CumulativeDay[] {
   }
   const dates = [...days.keys()].sort();
   if (!dates.length) return [];
-  const totals = { clicks: 0, search: 0, ai: 0, wg: 0 };
+  const totals = { clicks: 0, search: 0, ai: 0 };
   const result: CumulativeDay[] = [];
   const cursor = new Date(`${dates[0]}T00:00:00Z`);
   const last = dates[dates.length - 1];
   while (cursor.toISOString().slice(0, 10) <= last) {
     const day = cursor.toISOString().slice(0, 10);
     const d = days.get(day);
-    for (const key of ['clicks', 'search', 'ai', 'wg'] as const) totals[key] += d?.[key] ?? 0;
+    for (const key of ['clicks', 'search', 'ai'] as const) totals[key] += d?.[key] ?? 0;
     result.push({ day, ...totals });
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
