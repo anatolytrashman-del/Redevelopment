@@ -37,8 +37,8 @@ console.log(`[sync-catalog-root-shell] dist/index.html ← dist/${hubRel}/index.
 // malllist (владелец, 2026-10-31): у / и /minsk/tc были одинаковые title и
 // description. Снапшот берём с /minsk/tc («Торговые центры Минска — каталог
 // всех N ТЦ»), а для корня ставим свой title/description — те же строки, что
-// считает в браузере BusinessCentersMinskPage (tcRootTitle). Месяц потом
-// актуализирует middleware.ts на каждом запросе.
+// считает в браузере BusinessCentersMinskPage (tcRootTitle). Месяц — месяц
+// сборки; middleware его не подменяет.
 function withMallsRootMeta(source) {
   const m = source.match(/каталог всех (\d+) ТЦ/);
   if (!m) {
@@ -47,9 +47,20 @@ function withMallsRootMeta(source) {
   }
   const total = Number(m[1]);
   const months = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Minsk', year: 'numeric', month: 'numeric' }).formatToParts(new Date());
-  const year = parts.find((p) => p.type === 'year').value;
-  const month = months[Number(parts.find((p) => p.type === 'month').value) - 1];
+  // Месяц — тот же, что пререндер поставил по __BUILD_TIME__ (title снапшота
+  // /minsk/tc), чтобы title корня, бейдж и dateModified совпадали; запасной
+  // вариант — текущий месяц по Минску (сборка идёт минуты).
+  const built = source.match(new RegExp(`независимый (?:справочник|обзор) \\| (${months.join('|')}) (\\d{4})`));
+  let year;
+  let month;
+  if (built) {
+    month = built[1];
+    year = built[2];
+  } else {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Minsk', year: 'numeric', month: 'numeric' }).formatToParts(new Date());
+    year = parts.find((p) => p.type === 'year').value;
+    month = months[Number(parts.find((p) => p.type === 'month').value) - 1];
+  }
   const title = `Все ${total} ТЦ Минска — независимый справочник | ${month} ${year}`;
   const n10 = total % 10;
   const n100 = total % 100;

@@ -9,7 +9,7 @@ import {
   tcTopicHubPhrase,
   TC_HUB_TITLE_MAX_CHARS,
 } from './tcHubTitle';
-import { replaceReviewMonth, tcReviewTitle, tcTitleName, tcReviewDescription } from './tcReviewTitle';
+import { tcReviewTitle, tcTitleName, tcReviewDescription } from './tcReviewTitle';
 
 const NOV = new Date('2026-11-15T12:00:00Z');
 const DEC = new Date('2026-12-01T00:30:00+03:00');
@@ -37,16 +37,14 @@ describe('tcReviewTitle', () => {
   });
 });
 
-describe('replaceReviewMonth', () => {
-  it('replaces every review/reference month occurrence', () => {
-    const html =
-      '<title>ТЦ Мост — независимый обзор | октябрь 2026</title><meta property="og:title" content="Все 139 ТЦ Минска — независимый справочник | октябрь 2026">';
-    const out = replaceReviewMonth(html, NOV);
-    expect(out).not.toContain('октябрь');
-    expect(out.match(/ноябрь 2026/g)).toHaveLength(2);
+describe('title overrides (SEO review 2026-10-31)', () => {
+  it('mayakovskogo-146 uses the readable name', () => {
+    expect(tcReviewTitle('Торговая часть здания на Маяковского, 146', NOV, 'mayakovskogo-146')).toBe(
+      'ТЦ на Маяковского, 146 — независимый обзор | ноябрь 2026',
+    );
   });
-  it('leaves unrelated months alone', () => {
-    expect(replaceReviewMonth('Обновлено: октябрь 2026', NOV)).toBe('Обновлено: октябрь 2026');
+  it('Bogushevicha metro hub title uses the short station name', () => {
+    expect(tcHubTitle(tcMetroHubPhrase('Площадь Франтишка Богушевича', 3), NOV)).toContain('у метро Площадь Богушевича');
   });
 });
 

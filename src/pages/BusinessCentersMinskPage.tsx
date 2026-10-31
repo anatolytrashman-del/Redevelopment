@@ -51,7 +51,7 @@ import {
   classDistrictHubUrl,
   classHubUrl,
   districtHubUrl,
-  districtPrepositional,
+  inDistrictPrepositional, ruInPreposition,
   microdistrictHubUrl,
   METRO_SLUG_TO_STATION,
   metroHubUrl,
@@ -234,10 +234,23 @@ const MONTH_NAMES = [
 ];
 
 // Честный месяц пересмотра данных каталога (не «сегодняшний» календарь).
-const UPDATED_BADGE_LABEL = (() => {
-  const [y, m] = DATE_MODIFIED.split('-').map(Number);
+function updatedBadgeLabel(iso: string): string {
+  const [y, m] = iso.split('-').map(Number);
   return `Обновлено: ${MONTH_NAMES[m - 1]} ${y}`;
-})();
+}
+const UPDATED_BADGE_LABEL = updatedBadgeLabel(DATE_MODIFIED);
+
+// ТЦ (malllist.pro): каталог берётся из базы при сборке, поэтому дата данных =
+// дата сборки по Минску. Её же показывают title хабов («| ноябрь 2026»),
+// бейдж «Обновлено» и JSON-LD dateModified — одна дата на всё (SEO-ревью
+// 2026-10-31, D/E). DATE_MODIFIED выше остаётся для БЦ.
+const TC_DATE_MODIFIED = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Minsk',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date(__BUILD_TIME__));
+const TC_UPDATED_BADGE_LABEL = updatedBadgeLabel(TC_DATE_MODIFIED);
 
 // Значение district вне обычных городских районов (сейчас — только "Аден" в
 // индустриальном парке "Великий камень", см. data/businessCenters.ts) —
@@ -931,7 +944,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         const url = big(n) ? classDistrictHubUrl(cls, districtFilter) : null;
         return url ? [{ label: `Класс ${cls} (${n})`, url }] : [];
       });
-      if (classLinks.length) groups.push({ title: `Классы в ${districtPrepositional(districtFilter)} районе`, links: classLinks });
+      if (classLinks.length) groups.push({ title: `Классы ${inDistrictPrepositional(districtFilter)} районе`, links: classLinks });
 
       const microLinks = Array.from(new Set(inDistrict.map((c) => c.microdistrict).filter((v): v is string => !!v)))
         .sort((a, b) => a.localeCompare(b, 'ru'))
@@ -1053,7 +1066,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         : streetFilter
           ? `${V.Many} Минска: ${streetFilter}`
           : classFilter && districtFilter
-        ? `${V.Many} класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
+        ? `${V.Many} класса ${classFilter} ${inDistrictPrepositional(districtFilter)} районе Минска`
         : classFilter
           ? `${V.Many} класса ${classFilter} в Минске`
           : districtFilter
@@ -1076,11 +1089,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
         : streetFilter
           ? `${bc} на «${streetFilter}» в Минске`
           : classFilter && districtFilter
-        ? `${bc} класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
+        ? `${bc} класса ${classFilter} ${inDistrictPrepositional(districtFilter)} районе Минска`
         : classFilter
           ? `${bc} класса ${classFilter} в Минске`
           : districtFilter
-            ? `${bc} в ${districtPrepositional(districtFilter)} районе Минска`
+            ? `${bc} ${inDistrictPrepositional(districtFilter)} районе Минска`
             : microdistrictFilter
               ? `${bc} в микрорайоне ${microdistrictFilter} (Минск)`
               : `${bc} Минска`;
@@ -1179,7 +1192,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       description: hubDescription,
       url: hubUrl,
       datePublished: '2026-09-04',
-      dateModified: DATE_MODIFIED,
+      dateModified: isTc ? TC_DATE_MODIFIED : DATE_MODIFIED,
       image: OG_IMAGE,
     });
     setBreadcrumbJsonLd(
@@ -1528,13 +1541,13 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       : streetFilter
         ? `на «${streetFilter}»`
         : classFilter && districtFilter
-      ? `класса ${classFilter} в ${districtPrepositional(districtFilter)} районе`
+      ? `класса ${classFilter} ${inDistrictPrepositional(districtFilter)} районе`
       : classFilter
         ? `класса ${classFilter}`
         : districtFilter
-          ? `в ${districtPrepositional(districtFilter)} районе`
+          ? `${inDistrictPrepositional(districtFilter)} районе`
           : microdistrictFilter
-            ? `в ${microdistrictFilter}`
+            ? `${ruInPreposition(microdistrictFilter)} ${microdistrictFilter}`
             : 'в Минске';
   const underConstructionNames = useMemo(
     () => visibleCenters.filter((c) => c.status === 'under_construction').map((c) => shortName(c)),
@@ -1745,7 +1758,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       : streetFilter
         ? `${V.Many} Минска: ${streetFilter}`
         : classFilter && districtFilter
-      ? `${V.Many} класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска`
+      ? `${V.Many} класса ${classFilter} ${inDistrictPrepositional(districtFilter)} районе Минска`
       : classFilter
         ? `${V.Many} класса ${classFilter} в Минске`
         : districtFilter
@@ -1767,11 +1780,11 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     : streetFilter
       ? `${bcCountLabel} на «${streetFilter}» — класс, площадь, этажность, метро и объявления об аренде и продаже.`
     : classFilter && districtFilter
-      ? `${bcCountLabel} делового класса ${classFilter} в ${districtPrepositional(districtFilter)} районе Минска — адреса, площадь, этажность, метро.`
+      ? `${bcCountLabel} делового класса ${classFilter} ${inDistrictPrepositional(districtFilter)} районе Минска — адреса, площадь, этажность, метро.`
       : classFilter
         ? `${bcCountLabel} делового класса ${classFilter} в Минске — адреса, площадь, этажность, метро.`
         : districtFilter
-          ? `${bcCountLabel} в ${districtPrepositional(districtFilter)} районе Минска — сравнивайте по ${isTc ? 'формату' : 'классу'}, площади и расположению.`
+          ? `${bcCountLabel} ${inDistrictPrepositional(districtFilter)} районе Минска — сравнивайте по ${isTc ? 'формату' : 'классу'}, площади и расположению.`
           : microdistrictFilter
             ? `${bcCountLabel} в микрорайоне ${microdistrictFilter} (Минск) — адреса, деловой класс, площадь, метро.`
           // Голова каталога раньше подменяла статичный INTRO_TEXT на подсчёт
@@ -1903,7 +1916,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       </span>
                       <span className="inline-flex items-center gap-1 text-[#0f6b3d] sm:before:mx-0.5 sm:before:text-ink/25 sm:before:content-['·']">
                         <BadgeCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        {UPDATED_BADGE_LABEL}
+                        {isTc ? TC_UPDATED_BADGE_LABEL : UPDATED_BADGE_LABEL}
                       </span>
                     </div>
                   </div>
@@ -2016,7 +2029,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               </p>
               <span className="order-4 flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d] sm:order-none">
                 <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-                {UPDATED_BADGE_LABEL}
+                {isTc ? TC_UPDATED_BADGE_LABEL : UPDATED_BADGE_LABEL}
               </span>
             </div>
             <div className={cn('order-2 w-full min-w-0 sm:order-none', tcCutout ? 'sm:flex-[3]' : 'sm:flex-[2]')}>
@@ -2126,7 +2139,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               <div className={cn('flex flex-col gap-4 p-6 sm:p-8', glassCardClass)} style={glassCardShadow}>
                 <h2 className="text-lg font-bold text-ink">Ставки аренды и продажи</h2>
                 <p className="text-xs text-ink-faint">
-                  Медиана по объявлениям Kufar, Realt и Domovita{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : ` в ${districtPrepositional(rateSliceKey ?? '')} районе`}
+                  Медиана по объявлениям Kufar, Realt и Domovita{rateSliceType === 'class' ? ` для класса ${rateSliceKey}` : ` ${inDistrictPrepositional(rateSliceKey ?? '')} районе`}
                   {rateRent?.period ? `, ${rateRent.period.slice(0, 7)}` : ''}.
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

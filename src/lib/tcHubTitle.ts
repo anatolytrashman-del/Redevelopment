@@ -6,7 +6,7 @@
 // всегда. Месяц тот же, что у карточек (src/lib/tcReviewTitle.ts), в
 // статическом HTML его каждый месяц подменяет middleware.ts.
 import { pluralRu } from './pluralRu';
-import { REVIEW_MARKER, reviewMonthLabel } from './tcReviewTitle';
+import { REVIEW_MARKER, contentDate, reviewMonthLabel } from './tcReviewTitle';
 
 export const TC_HUB_TITLE_MAX_CHARS = 65;
 
@@ -77,8 +77,21 @@ export function tcFormatHubPhrase(plural: (n: number) => string, n: number): str
   return `${countPrefix(n)}${plural(n)} Минска`;
 }
 
+/**
+ * Короткие названия станций только для title хабов (SEO-ревью 2026-10-31,
+ * решение 1): H1 и меню остаются с полным названием.
+ */
+const METRO_TITLE_NAMES: Record<string, string> = {
+  'Площадь Франтишка Богушевича': 'Площадь Богушевича',
+};
+
+/** Имя станции для title (обе площадки): «Площадь Богушевича». */
+export function metroTitleName(station: string): string {
+  return METRO_TITLE_NAMES[station] ?? station;
+}
+
 export function tcMetroHubPhrase(station: string, n: number): string {
-  return `${countPrefix(n)}ТЦ у метро ${station}`;
+  return `${countPrefix(n)}ТЦ у метро ${metroTitleName(station)}`;
 }
 
 export function tcDistrictHubPhrase(district: string, n: number): string {
@@ -96,14 +109,14 @@ function shortenings(phrase: string): string[] {
 }
 
 /** Итоговый title хаба: «{фраза} — независимый обзор | ноябрь 2026». */
-export function tcHubTitle(phrase: string, now: Date = new Date(), marker: string = REVIEW_MARKER): string {
+export function tcHubTitle(phrase: string, now: Date = contentDate(), marker: string = REVIEW_MARKER): string {
   const tail = ` — ${marker} ${reviewMonthLabel(now)}`;
   const variants = shortenings(capitalize(phrase)).map((v) => `${capitalize(v)}${tail}`);
   return variants.find((v) => v.length <= TC_HUB_TITLE_MAX_CHARS) ?? variants[variants.length - 1];
 }
 
 /** Корень malllist.pro: «Все 139 ТЦ Минска — независимый справочник | ноябрь 2026». */
-export function tcRootTitle(total: number, now: Date = new Date()): string {
+export function tcRootTitle(total: number, now: Date = contentDate()): string {
   return tcHubTitle(`Все ${total} ТЦ Минска`, now, 'независимый справочник |');
 }
 

@@ -57,6 +57,21 @@ export function districtPrepositional(district: string): string {
   return DISTRICT_PREPOSITIONAL[district] ?? district;
 }
 
+/**
+ * Предлог «в» / «во» перед словом: «во» — перед сочетанием «в/ф + согласная»
+ * («во Фрунзенском», «во Владимирском», «во Вторник»), иначе «в».
+ * SEO-ревью 2026-10-31: в описаниях было «в Фрунзенском районе».
+ */
+export function ruInPreposition(nextWord: string): 'в' | 'во' {
+  return /^[вф][бвгджзйклмнпрстфхцчшщ]/i.test(nextWord.trim()) ? 'во' : 'в';
+}
+
+/** «в Московском» / «во Фрунзенском» (без слова «районе»). */
+export function inDistrictPrepositional(district: string): string {
+  const word = districtPrepositional(district);
+  return `${ruInPreposition(word)} ${word}`;
+}
+
 // Дательный падеж района («по Московскому району») — нужен фразе
 // сравнения со срезом рынка в блоке предложений: «на 25% дороже, чем в
 // среднем по Московскому району». Явная карта на конечное известное

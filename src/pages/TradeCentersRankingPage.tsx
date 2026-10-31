@@ -6,6 +6,7 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { catalogSiteUrl } from '../lib/sites';
 import { tcHubTitle } from '../lib/tcHubTitle';
+import { contentDateIso } from '../lib/tcReviewTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenter } from '../data/businessCenters';
@@ -184,7 +185,7 @@ export function TradeCentersRankingPage() {
       description: DESCRIPTION,
       url: PAGE_URL,
       datePublished: DATE_PUBLISHED,
-      dateModified: new Date().toISOString().slice(0, 10),
+      dateModified: contentDateIso(),
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },

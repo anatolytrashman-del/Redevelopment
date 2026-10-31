@@ -113,7 +113,7 @@ import {
   metroHubDistance,
   metroHubUrl,
   streetHubUrl,
-  districtPrepositional,
+  inDistrictPrepositional,
   classDistrictHubUrl,
   classHubUrl,
   districtHubUrl,
@@ -330,7 +330,12 @@ const TC_NOINDEX = false;
 // (scripts/generate-catalog-data.mjs), отдельного updated_at у записи нет.
 // Значок «Обновлено» и dateModified берут её, а не сегодняшний месяц: иначе
 // 1-го числа страница «обновлялась» бы без единой правки данных.
-const TC_DATA_DATE_ISO = __BUILD_TIME__.slice(0, 10);
+const TC_DATA_DATE_ISO = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Minsk',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date(__BUILD_TIME__));
 const TC_DATA_MONTH_LABEL = monthLabelForIso(__BUILD_TIME__);
 
 // ownerMode — та же карточка для сайта самого БЦ, адрес /bc/<slug>
@@ -1126,7 +1131,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           list.length > 0
             ? {
                 id: 'classDistrictCenters',
-                title: `Бизнес-центры класса ${center.businessClass} в ${districtPrepositional(district)} районе`,
+                title: `Бизнес-центры класса ${center.businessClass} ${inDistrictPrepositional(district)} районе`,
                 centers: list,
                 catalogUrl: classDistrictCatalogUrl,
                 catalogLabel: `Все БЦ класса ${center.businessClass} в этом районе`,
@@ -1248,7 +1253,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   catalogUrl: districtUrl ?? V.basePath,
                   catalogLabel:
                     districtUrl && district
-                      ? `Все ${V.abbr} в ${districtPrepositional(district)} районе`
+                      ? `Все ${V.abbr} ${inDistrictPrepositional(district)} районе`
                       : `Все ${V.many} Минска`,
                 }
               : null,
@@ -1438,7 +1443,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
             sameClassOthers.length > 0
               ? ` В каталоге есть ещё ${sameClassOthers.length} ${pluralRu(sameClassOthers.length, 'здание', 'здания', 'зданий')} этого класса${
                   center.district && sameClassSameDistrict.length > 0
-                    ? `, ${sameClassSameDistrict.length} из них — в ${districtPrepositional(center.district)} районе`
+                    ? `, ${sameClassSameDistrict.length} из них — ${inDistrictPrepositional(center.district)} районе`
                     : ''
                 }.`
               : ''
@@ -2245,7 +2250,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       // Шаблон владельца (2026-10-31): «ТЦ {Название} — независимый обзор |
       // {месяц} {год}», месяц — по Минску на сегодня; см. src/lib/tcReviewTitle.ts. Описание — с
       // числами, только если они есть в данных.
-      const title = tcReviewTitle(shortName(center));
+      const title = tcReviewTitle(shortName(center), undefined, center.slug);
       const description = tcReviewDescription(center.tenantCount, center.retailInfo?.food?.places.length ?? 0);
       const url = `${V.siteUrl}/${center.slug}`;
       setGenericPageMeta({
