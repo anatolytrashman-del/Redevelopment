@@ -5,6 +5,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { catalogSiteUrl } from '../lib/sites';
+import { tcHubTitle } from '../lib/tcHubTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenter } from '../data/businessCenters';
@@ -21,7 +22,6 @@ import { tcTopicHubUrl, TC_TOPIC_HUBS } from '../lib/tradeCenterHubs';
 const DATE_PUBLISHED = '2026-10-04';
 const PAGE_URL = `${catalogSiteUrl('tc')}/rating/largest`;
 const PAGE_H1 = 'Самые большие торговые центры Минска';
-const TITLE = 'Самые большие торговые центры Минска: топ-10 по площади';
 const DESCRIPTION =
   'Топ-10 торговых центров Минска по общей площади здания: только сданные объекты в черте города. Площадь, формат, год и метро.';
 
@@ -90,6 +90,14 @@ export function TradeCentersBiggestPage() {
     return items;
   }, [centers, displayed, eligible]);
 
+  // Title — шаблон хабов malllist (владелец, 2026-10-31), N — реальная длина
+  // списка; пока данные не пришли — лимит топа. См. src/lib/tcHubTitle.ts.
+  const topN = displayed.length;
+  const TITLE = useMemo(() => {
+    const n = topN > 0 ? topN : TC_LARGEST_LIMIT;
+    return tcHubTitle(`Топ-${n} самых больших ТЦ Минска`);
+  }, [topN]);
+
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL, ogType: 'article' });
     setArticleJsonLd({
@@ -104,7 +112,7 @@ export function TradeCentersBiggestPage() {
       { name: 'Торговые центры Минска', url: catalogSiteUrl('tc') },
       { name: PAGE_H1 },
     ]);
-  }, []);
+  }, [TITLE]);
 
   useEffect(() => {
     setItemListJsonLd(displayed.map((center) => ({ name: shortName(center), url: `${catalogSiteUrl('tc')}/${center.slug}` })));

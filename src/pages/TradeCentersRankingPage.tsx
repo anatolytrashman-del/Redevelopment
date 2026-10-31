@@ -5,6 +5,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { catalogSiteUrl } from '../lib/sites';
+import { tcHubTitle } from '../lib/tcHubTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import type { BusinessCenter } from '../data/businessCenters';
@@ -34,7 +35,6 @@ import { loadYandexCardRatings, peekYandexCardRatings, type YandexCardRatingInde
 const DATE_PUBLISHED = '2026-10-04';
 const PAGE_URL = `${catalogSiteUrl('tc')}/rating`;
 const PAGE_H1 = 'Лучшие торговые центры Минска';
-const TITLE = `Лучшие торговые центры Минска: топ-${TC_RANKING_LIMIT} с оценкой от ${RATING_THRESHOLD_LABEL}`;
 const DESCRIPTION =
   `Топ-${TC_RANKING_LIMIT} торговых центров Минска: оценка на Яндекс.Картах от ${RATING_THRESHOLD_LABEL} из 5 ` +
   `при ${MIN_RATING_COUNT}+ отзывах. Открытая методика, площадь и метро по каждому ТЦ.`;
@@ -169,6 +169,14 @@ export function TradeCentersRankingPage() {
     return items;
   }, [ranking, excluded, eligibleTotal]);
 
+  // Title — шаблон хабов malllist (владелец, 2026-10-31), N — реальная длина
+  // списка; пока данные не пришли — лимит топа. См. src/lib/tcHubTitle.ts.
+  const topN = ranking.length;
+  const TITLE = useMemo(() => {
+    const n = topN > 0 ? topN : TC_RANKING_LIMIT;
+    return tcHubTitle(`Топ-${n} ТЦ Минска`);
+  }, [topN]);
+
   useEffect(() => {
     setGenericPageMeta({ title: TITLE, description: DESCRIPTION, url: PAGE_URL, ogType: 'article' });
     setArticleJsonLd({
@@ -183,7 +191,7 @@ export function TradeCentersRankingPage() {
       { name: 'Торговые центры Минска', url: catalogSiteUrl('tc') },
       { name: 'Рейтинг' },
     ]);
-  }, []);
+  }, [TITLE]);
 
   useEffect(() => {
     if (ranking.length === 0) return;

@@ -84,6 +84,7 @@ import {
   setBreadcrumbJsonLd,
   setFaqJsonLd,
   setGenericPageMeta,
+  setArticleJsonLd,
   setNoIndex,
   clearNoIndex,
   setBusinessCenterPageMeta,
@@ -118,7 +119,7 @@ import {
   districtHubUrl,
   microdistrictHubUrl,
 } from '../lib/businessCenterHubs';
-import { fitsSerpTitle } from '../lib/serpTitleWidth';
+import { tcReviewTitle, tcReviewDescription, TC_INDEPENDENCE_NOTE, monthLabelForIso } from '../lib/tcReviewTitle';
 import { tcFormatHubMinCenters, tcFormatHubOf, tcFormatHubUrl } from '../lib/tradeCenterCatalogFeatures';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenter, fetchBusinessCenters, snapshotBusinessCenter, snapshotBusinessCenters } from '../lib/businessCentersApi';
@@ -324,6 +325,13 @@ const EMPTY_REVIEWS: BusinessCenterReview[] = [];
 // данных; открыт 2026-09-30 с выкаткой в прод. Полноценная SEO-разметка ТЦ
 // (разметка здания, крошки) — следующим шагом, уже на проде.
 const TC_NOINDEX = false;
+
+// Дата данных карточки ТЦ: каталог выгружается из Supabase в этой же сборке
+// (scripts/generate-catalog-data.mjs), отдельного updated_at у записи нет.
+// Значок «Обновлено» и dateModified берут её, а не сегодняшний месяц: иначе
+// 1-го числа страница «обновлялась» бы без единой правки данных.
+const TC_DATA_DATE_ISO = __BUILD_TIME__.slice(0, 10);
+const TC_DATA_MONTH_LABEL = monthLabelForIso(__BUILD_TIME__);
 
 // ownerMode — та же карточка для сайта самого БЦ, адрес /bc/<slug>
 // (владелец, 2026-09-24: «отдельный линк на страницу его БЦ без
@@ -2234,38 +2242,26 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
   useEffect(() => {
     if (!center) return;
     if (isTc) {
-      // Страницы ТЦ (в индексе с 2026-09-30): заголовок называет то, за чем
-      // приходят на страницу ТЦ, — магазины, часы, парковку, — и только то,
-      // что на ней действительно есть. Длинный вариант уступает короткому,
-      // если не влезает в ширину заголовка выдачи.
-      const info = center.retailInfo;
-      const topics = [
-        center.tenantCount > 0 ? 'магазины' : null,
-        info?.hours.length ? 'часы работы' : null,
-        info?.parking ? 'парковка' : null,
-      ].filter((v): v is string => v !== null);
-      const titleBase = `${fullName(center)} в Минске`;
-      const title =
-        [topics.length ? `${titleBase} — ${topics.join(', ')}` : null, topics.length > 1 ? `${titleBase} — ${topics.slice(0, 2).join(' и ')}` : null]
-          .filter((v): v is string => v !== null)
-          .find(fitsSerpTitle) ?? titleBase;
-      const facts = [
-        center.tenantCount > 0 ? `${center.tenantCount} ${pluralRu(center.tenantCount, 'магазин или заведение', 'магазина и заведения', 'магазинов и заведений')} внутри` : null,
-        info?.hours.length ? 'часы работы' : null,
-        info?.parking ? 'парковка' : null,
-        info?.reviewThemes ? 'что хвалят посетители и на что жалуются' : null,
-      ].filter((v): v is string => v !== null);
-      const place = [center.district ? `${center.district} район` : null, center.address].filter(Boolean).join(', ');
-      const description = [
-        `${fullName(center)}${place ? ` — ${place}` : ''}.`,
-        facts.length ? `${facts[0][0].toUpperCase()}${facts.join(', ').slice(1)}.` : null,
-      ].filter(Boolean).join(' ');
+      // Шаблон владельца (2026-10-31): «ТЦ {Название} — независимый обзор |
+      // {месяц} {год}», месяц — по Минску на сегодня; см. src/lib/tcReviewTitle.ts. Описание — с
+      // числами, только если они есть в данных.
+      const title = tcReviewTitle(shortName(center));
+      const description = tcReviewDescription(center.tenantCount, center.retailInfo?.food?.places.length ?? 0);
       const url = `${V.siteUrl}/${center.slug}`;
       setGenericPageMeta({
         title,
         description,
         url,
         image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
+      });
+      // dateModified — дата снимка данных (сборки), а не «сегодня»: см.
+      // TC_DATA_DATE_ISO. Месяц в title — период обзора, он календарный.
+      setArticleJsonLd({
+        headline: title,
+        description,
+        url,
+        datePublished: (center.createdAt || TC_DATA_DATE_ISO).slice(0, 10),
+        dateModified: TC_DATA_DATE_ISO > (center.createdAt || '').slice(0, 10) ? TC_DATA_DATE_ISO : center.createdAt.slice(0, 10),
       });
       if (TC_NOINDEX) {
         setNoIndex();
@@ -2910,6 +2906,14 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 <p className="text-sm text-ink-muted">
                   Также известен как {heroAltNames.map((alt) => `«${alt}»`).join(', ')}
                 </p>
+              )}
+              {isTc && (
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="w-fit rounded-full border border-border bg-surface px-2.5 py-0.5 text-xs font-semibold text-ink-muted">
+                    Обновлено: {TC_DATA_MONTH_LABEL}
+                  </span>
+                  <p className="text-xs leading-snug text-ink-muted">{TC_INDEPENDENCE_NOTE}</p>
+                </div>
               )}
             </div>
 

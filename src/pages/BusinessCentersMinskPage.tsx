@@ -22,6 +22,7 @@ import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { useFavorites } from '../lib/favoritesContext';
+import { tcCatalogTitle, tcCountWord, tcDistrictHubPhrase, tcFormatHubPhrase, tcHubTitle, tcMetroHubPhrase, tcRootTitle, tcTopicHubPhrase } from '../lib/tcHubTitle';
 import {
   businessCenterHubDescription,
   setArticleJsonLd,
@@ -1093,7 +1094,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     // «здания», как было.
     const hubCountWord = (n: number) =>
       displayHub ? displayHub.plural(n) : isTc ? V.plural(n) : pluralRu(n, 'здание', 'здания', 'зданий');
-    const hubTitle =
+    const legacyHubTitle =
       hubCount === null
         ? hubBaseTitle
         : ([
@@ -1101,7 +1102,38 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
             `${hubBaseTitle} — ${hubCount} ${hubCountWord(hubCount)}`,
             hubBaseTitle,
           ].find(fitsSerpTitle) ?? hubBaseTitle);
-    const hubDescription = businessCenterHubDescription(hubSubject, hubCount, V.kind);
+    // ТЦ (malllist, владелец 2026-10-31): «{N} {тип} {где} — независимый
+    // обзор | {месяц} {год}», см. src/lib/tcHubTitle.ts. Корень malllist.pro
+    // и /minsk/tc получают разные title и description — раньше были дублем.
+    // БЦ / officelist — прежний шаблон.
+    const plainCatalog =
+      !displayHub && !underConstruction && !metroFilter && !streetFilter && !classFilter && !districtFilter && !microdistrictFilter;
+    const tcRoot = isTc && plainCatalog && isCatalogDomainRoot();
+    const tcPhrase =
+      !isTc || hubCount === null
+        ? null
+        : formatHub
+          ? tcFormatHubPhrase(formatHub.plural, hubCount)
+          : topicHub
+            ? tcTopicHubPhrase(topicHub.slug, hubCount)
+            : storeHub || underConstruction || streetFilter || classFilter || microdistrictFilter
+              ? null
+              : metroFilter && !districtFilter
+                ? tcMetroHubPhrase(metroFilter, hubCount)
+                : districtFilter && !metroFilter
+                  ? tcDistrictHubPhrase(districtFilter, hubCount)
+                  : null;
+    const hubTitle =
+      isTc && hubCount !== null && plainCatalog
+        ? tcRoot
+          ? tcRootTitle(hubCount)
+          : tcCatalogTitle(hubCount)
+        : tcPhrase
+          ? tcHubTitle(tcPhrase)
+          : legacyHubTitle;
+    const hubDescription = tcRoot
+      ? `Независимый справочник: ${hubCount ?? ''} ${tcCountWord(hubCount ?? 0)} Минска — часы работы, магазины по этажам, где поесть и припарковаться, отзывы посетителей. Не связаны с ТЦ, не берём денег за размещение.`.replace(': 0 ', ': ').replace(':  ', ': ')
+      : businessCenterHubDescription(hubSubject, hubCount, V.kind);
     const hubUrl = displayHubUrl
       ? `https://redevelopment.pro${displayHubUrl}`
       : underConstruction
@@ -1181,7 +1213,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               { name: V.catalogTitle },
             ],
     );
-  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, displayHub, displayHubUrl, notFound, pageIsIndexable, centers, hubCount, V, isTc]);
+  }, [classFilter, districtFilter, microdistrictFilter, underConstruction, metroFilter, streetFilter, displayHub, displayHubUrl, formatHub, topicHub, storeHub, notFound, pageIsIndexable, centers, hubCount, V, isTc]);
 
   // На хабе станции порядок по умолчанию — расстояние до неё (ближайшие
   // первыми): это и есть ответ на вопрос такой страницы. Явно выбранная в
