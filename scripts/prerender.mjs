@@ -1449,7 +1449,7 @@ async function main() {
         // есть — хуже прежнего поведения не станет. Опрос раз в 200мс, а не
         // каждый кадр: innerText большой страницы — это полный layout.
         await page
-          .waitForFunction(() => !document.body.innerText.includes('Загрузка…'), { timeout: 15_000, polling: 200 })
+          .waitForFunction(() => { const t = document.body.innerText; return !t.includes('Загрузка…') && !t.includes('Загружаем каталог…'); }, { timeout: 15_000, polling: 200 })
           .catch(() => console.warn(`[prerender] /${path}: «Загрузка…» не исчезла за 15с — снапшот с плейсхолдером`));
         // scripts/defer-entry-script.mjs подключает главный JS не из <head>,
         // а инлайн-лоадером после первого кадра — в живом DOM к этому
