@@ -33,6 +33,8 @@ import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenter } from '../data/businessCenters';
 import { absolutePublicUrl, platformOrigin } from '../lib/sites';
+import { withMonthIfFits } from '../lib/bcTitles';
+import { contentDateIso } from '../lib/tcReviewTitle';
 
 // Посадочные под подсказки Google по Минск Миру (аудит поиска 2026-09-07,
 // см. data/minskMirTopics.ts). Один компонент на все темы: у каждой свой
@@ -632,13 +634,17 @@ export function MinskMirTopicPage() {
       return () => clearNoIndex();
     }
     const url = absolutePublicUrl(minskMirTopicUrl(slug));
-    setGenericPageMeta({ title: content.title, description: content.description, url, ogType: 'article' });
+    // officelist titles (владелец, 2026-10-31): текст title не меняем,
+    // « | {месяц сборки} {год}» дописываем, только если итог ≤70 знаков.
+    // Где месяц дописан, dateModified — та же дата сборки.
+    const title = withMonthIfFits(content.title);
+    setGenericPageMeta({ title, description: content.description, url, ogType: 'article' });
     setArticleJsonLd({
       headline: content.h1,
       description: content.description,
       url,
       datePublished: DATE_PUBLISHED,
-      dateModified: DATE_PUBLISHED,
+      dateModified: title === content.title ? DATE_PUBLISHED : contentDateIso(),
     });
     setBreadcrumbJsonLd([...BREADCRUMB_ROOT, { name: MINSK_MIR_TOPIC_LABELS[slug] }]);
     setFaqJsonLd(content.faq);

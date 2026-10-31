@@ -120,6 +120,7 @@ import {
   microdistrictHubUrl,
 } from '../lib/businessCenterHubs';
 import { tcReviewTitle, tcReviewDescription, TC_INDEPENDENCE_NOTE, monthLabelForIso } from '../lib/tcReviewTitle';
+import { bcHasRentData } from '../lib/bcTitles';
 import { tcFormatHubMinCenters, tcFormatHubOf, tcFormatHubUrl } from '../lib/tradeCenterCatalogFeatures';
 import type { BusinessCenter, HighlightIconKey } from '../data/businessCenters';
 import { fetchBusinessCenter, fetchBusinessCenters, snapshotBusinessCenter, snapshotBusinessCenters } from '../lib/businessCentersApi';
@@ -2229,8 +2230,11 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       saleOfferCount: saleStats?.count ?? 0,
       hasReviews: hasReviewsBlock,
       hasNearbyInfrastructure: Boolean(center && !isTc && hasNearbyContent(center, nearbyPlaces)),
+      // officelist titles: объявления аренды (после схлопывания дублей) или
+      // поле rental_info.rates — правило в bcHasRentData (src/lib/bcTitles.ts).
+      hasRentData: bcHasRentData((offers ?? []).filter((o) => o.dealType === 'rent').length, center?.rentalInfo),
     }),
-    [tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc, reviewThemes, hasReviewThemes],
+    [offers, tenantOrganizations, center, rentStats, saleStats, reviewQuotes, reviews, nearbyPlaces, isTc, reviewThemes, hasReviewThemes],
   );
 
   // Тёзки в каталоге: «Порт» на Независимости, 177 и «Порт» на

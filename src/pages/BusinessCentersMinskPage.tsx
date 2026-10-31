@@ -22,6 +22,7 @@ import { FavoriteButton } from '../components/businessCenters/FavoriteButton';
 import { SourcesTrademarkNote } from '../components/businessCenters/SourcesTrademarkNote';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import { useFavorites } from '../lib/favoritesContext';
+import { bcAreaPhrase, bcCatalogPhrase, bcClassDistrictPhrase, bcClassPhrase, bcDistrictPhrase, bcHubTitle, bcMetroPhrase, bcStreetPhrase } from '../lib/bcTitles';
 import { tcCatalogTitle, tcCountWord, tcDistrictHubPhrase, tcFormatHubPhrase, tcHubTitle, tcMetroHubPhrase, tcRootTitle, tcTopicHubPhrase } from '../lib/tcHubTitle';
 import {
   businessCenterHubDescription,
@@ -213,10 +214,9 @@ function pickHeroCenter(list: BusinessCenter[]): BusinessCenter | null {
 // Карта каталога и переключатель вида сняты с первого экрана 2026-09-17:
 // владелец оставил единый карточный режим и компактные фильтры в сайдбаре.
 
-// Только дата последнего пересмотра фактов/добавления зданий — держать в
-// одном месте. Для ТЦ после финализации списка (2026-10-04) бейдж и
-// dateModified совпадают с этой константой, а не с календарным «сейчас».
-const DATE_MODIFIED = '2026-10-05';
+// Бейдж «Обновлено» и dateModified — месяц сборки (TC_DATE_MODIFIED ниже)
+// и у ТЦ, и с 2026-10-31 у БЦ (officelist titles: title, бейдж и
+// dateModified должны совпадать). Прежняя константа 2026-10-05 снята.
 
 const MONTH_NAMES = [
   'январь',
@@ -238,12 +238,11 @@ function updatedBadgeLabel(iso: string): string {
   const [y, m] = iso.split('-').map(Number);
   return `Обновлено: ${MONTH_NAMES[m - 1]} ${y}`;
 }
-const UPDATED_BADGE_LABEL = updatedBadgeLabel(DATE_MODIFIED);
 
 // ТЦ (malllist.pro): каталог берётся из базы при сборке, поэтому дата данных =
 // дата сборки по Минску. Её же показывают title хабов («| ноябрь 2026»),
 // бейдж «Обновлено» и JSON-LD dateModified — одна дата на всё (SEO-ревью
-// 2026-10-31, D/E). DATE_MODIFIED выше остаётся для БЦ.
+// 2026-10-31, D/E). С officelist titles (2026-10-31) — и для БЦ.
 const TC_DATE_MODIFIED = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Europe/Minsk',
   year: 'numeric',
@@ -1136,8 +1135,30 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                 : districtFilter && !metroFilter
                   ? tcDistrictHubPhrase(districtFilter, hubCount)
                   : null;
-    const hubTitle =
-      isTc && hubCount !== null && plainCatalog
+    // БЦ / officelist (владелец, 2026-10-31, «officelist titles»): «{N} БЦ
+    // {где} — независимый обзор | {месяц} {год}», см. src/lib/bcTitles.ts.
+    // Строящиеся (/minsk/bc/new) шаблоном не покрыты — прежний title.
+    const bcPhrase =
+      isTc || hubCount === null || underConstruction
+        ? null
+        : plainCatalog
+          ? bcCatalogPhrase(hubCount)
+          : classFilter && districtFilter && !metroFilter && !streetFilter && !microdistrictFilter
+            ? bcClassDistrictPhrase(classFilter, districtFilter, hubCount)
+            : classFilter && !districtFilter && !metroFilter && !streetFilter && !microdistrictFilter
+              ? bcClassPhrase(classFilter, hubCount)
+              : districtFilter && !classFilter && !metroFilter && !streetFilter && !microdistrictFilter
+                ? bcDistrictPhrase(districtFilter, hubCount)
+                : metroFilter && !classFilter && !districtFilter && !streetFilter && !microdistrictFilter
+                  ? bcMetroPhrase(metroFilter, hubCount)
+                  : streetFilter && !classFilter && !districtFilter && !metroFilter && !microdistrictFilter
+                    ? bcStreetPhrase(streetFilter, hubCount)
+                    : microdistrictFilter && !classFilter && !districtFilter && !metroFilter && !streetFilter
+                      ? bcAreaPhrase(microdistrictFilter, hubCount)
+                      : null;
+    const hubTitle = bcPhrase
+      ? bcHubTitle(bcPhrase)
+      : isTc && hubCount !== null && plainCatalog
         ? tcRoot
           ? tcRootTitle(hubCount)
           : tcCatalogTitle(hubCount)
@@ -1192,7 +1213,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       description: hubDescription,
       url: hubUrl,
       datePublished: '2026-09-04',
-      dateModified: isTc ? TC_DATE_MODIFIED : DATE_MODIFIED,
+      dateModified: TC_DATE_MODIFIED,
       image: OG_IMAGE,
     });
     setBreadcrumbJsonLd(
@@ -1916,7 +1937,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                       </span>
                       <span className="inline-flex items-center gap-1 text-[#0f6b3d] sm:before:mx-0.5 sm:before:text-ink/25 sm:before:content-['·']">
                         <BadgeCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        {isTc ? TC_UPDATED_BADGE_LABEL : UPDATED_BADGE_LABEL}
+                        {TC_UPDATED_BADGE_LABEL}
                       </span>
                     </div>
                   </div>
@@ -2029,7 +2050,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               </p>
               <span className="order-4 flex w-fit items-center gap-1.5 rounded-full border border-success/30 bg-success-bg px-3 py-1 text-xs font-semibold text-[#0f6b3d] sm:order-none">
                 <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
-                {isTc ? TC_UPDATED_BADGE_LABEL : UPDATED_BADGE_LABEL}
+                {TC_UPDATED_BADGE_LABEL}
               </span>
             </div>
             <div className={cn('order-2 w-full min-w-0 sm:order-none', tcCutout ? 'sm:flex-[3]' : 'sm:flex-[2]')}>

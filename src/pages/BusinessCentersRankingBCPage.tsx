@@ -5,6 +5,8 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { catalogSiteUrl } from '../lib/sites';
+import { bcRatingTitle } from '../lib/bcTitles';
+import { contentDateIso } from '../lib/tcReviewTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -32,7 +34,9 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 const DATE_PUBLISHED = '2026-09-22';
 const PAGE_URL = `${catalogSiteUrl('bc')}/rating/class-b-c`;
 const PAGE_H1 = 'Лучшие бизнес-центры классов B и C в Минске';
-const TITLE = 'Лучшие бизнес-центры классов B и C в Минске';
+// officelist titles (владелец, 2026-10-31): «{название без хвоста} — независимый
+// рейтинг | {месяц сборки} {год}», см. src/lib/bcTitles.ts. Было: 'Лучшие бизнес-центры классов B и C в Минске'. H1 не меняется.
+const TITLE = bcRatingTitle('Лучшие БЦ Минска классов B и C');
 const DESCRIPTION = `Рейтинг бизнес-центров классов B и C в Минске: Яндекс.Карты от ${RATING_THRESHOLD_LABEL}, не менее ${MIN_RATING_COUNT} оценок здания. Методика, аренда, площадь и метро.`;
 const CLASS_EXPLAINER_URL = '/minsk/bc/guide#klassy';
 const nf = new Intl.NumberFormat('ru-RU');
@@ -183,7 +187,7 @@ export function BusinessCentersRankingBCPage() {
       description: DESCRIPTION,
       url: PAGE_URL,
       datePublished: DATE_PUBLISHED,
-      dateModified: new Date().toISOString().slice(0, 10),
+      dateModified: contentDateIso(),
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },

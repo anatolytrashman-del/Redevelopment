@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { businessCenterHubDescription, fallbackBusinessCenterMeta } from './pageMeta';
-import { serpTitleWidth, SERP_TITLE_MAX_PX } from './serpTitleWidth';
+import { reviewMonthLabel } from './tcReviewTitle';
 
 // Формат сниппета карточки БЦ задал владелец 2026-09-22, увидев страницу в
 // выдаче Google: title — «Бизнес-центр <имя> — полный обзор <год>»,
@@ -9,7 +9,6 @@ import { serpTitleWidth, SERP_TITLE_MAX_PX } from './serpTitleWidth';
 // формулировки, а три вещи, из-за которых старый сниппет и переписывался
 // поисковиком: заголовок влезает в обрезку выдачи, описание влезает в свой
 // бюджет, и перечислены только те разделы, которые у здания реально есть.
-const YEAR = new Date().getFullYear();
 
 const PORT = {
   name: 'Бизнес-центр «Порт»',
@@ -29,9 +28,20 @@ const FULL = {
   hasNearbyInfrastructure: true,
 };
 
+// С 2026-10-31 (владелец, «officelist titles») заголовок карточки —
+// «БЦ {Название} — независимый обзор[ и арендные ставки] | {месяц} {год}»,
+// месяц — месяц сборки по Минску; бюджет — ~65–70 знаков (src/lib/bcTitles.ts).
+const MONTH = reviewMonthLabel();
+
 describe('fallbackBusinessCenterMeta — заголовок', () => {
-  it('собирает «Бизнес-центр <имя> — полный обзор <год>» без кавычек вокруг имени', () => {
-    expect(fallbackBusinessCenterMeta(PORT).title).toBe(`Бизнес-центр Порт — полный обзор ${YEAR}`);
+  it('без объявлений аренды/ставок: «БЦ <имя> — независимый обзор | <месяц>»', () => {
+    expect(fallbackBusinessCenterMeta(PORT).title).toBe(`БЦ Порт — независимый обзор | ${MONTH}`);
+  });
+
+  it('с объявлениями аренды или ставками добавляет «и арендные ставки»', () => {
+    expect(fallbackBusinessCenterMeta(PORT, { ...FULL, hasRentData: true }).title).toBe(
+      `БЦ Порт — независимый обзор и арендные ставки | ${MONTH}`,
+    );
   });
 
   it('у здания без собственного имени подставляет адрес', () => {
@@ -40,12 +50,9 @@ describe('fallbackBusinessCenterMeta — заголовок', () => {
       name: 'Бизнес-центр (ул. Жуковского, 11А)',
       address: 'г. Минск, ул. Жуковского, 11А',
     });
-    expect(meta.title).toBe(`Бизнес-центр на Жуковского, 11А — полный обзор ${YEAR}`);
+    expect(meta.title).toBe(`БЦ на Жуковского, 11А — независимый обзор | ${MONTH}`);
   });
 
-  // Адрес стоял в заголовке ДВАЖДЫ до 2026-09-22 («Бизнес-центр на
-  // Жуковского, 11А — г. Минск, ул. Жуковского, 11А»), и Google переписывал
-  // заголовок сам. Повтор не должен вернуться ни в каком виде.
   it('не повторяет адрес', () => {
     const meta = fallbackBusinessCenterMeta({
       ...PORT,
@@ -55,20 +62,13 @@ describe('fallbackBusinessCenterMeta — заголовок', () => {
     expect(meta.title.split('Жуковского').length - 1).toBe(1);
   });
 
-  it('ставит второе название здания', () => {
+  it('второе название остаётся в описании, а не в title', () => {
     const meta = fallbackBusinessCenterMeta({ ...PORT, name: 'Бизнес-центр «V»', altNames: ['Столица'] });
-    expect(meta.title).toBe(`Бизнес-центр V («Столица») — полный обзор ${YEAR}`);
+    expect(meta.title).toBe(`БЦ V — независимый обзор | ${MONTH}`);
   });
 
-  it('не дублирует кавычки, если второе название их уже несёт', () => {
-    const meta = fallbackBusinessCenterMeta({ ...PORT, altNames: ['«Столица»'] });
-    expect(meta.title).toContain('(«Столица»)');
-    expect(meta.title).not.toContain('««');
-  });
-
-  // Два РАЗНЫХ здания каталога называются «Порт» (пр-т Независимости, 177 и
-  // ул. Шафарнянская, 11). Одинаковый title у двух страниц — это две
-  // страницы, конкурирующие между собой в выдаче.
+  // Два РАЗНЫХ здания каталога называются «Порт» — одинаковый title у двух
+  // страниц конкурирует сам с собой в выдаче.
   it('у зданий-тёзок дописывает адрес', () => {
     const first = fallbackBusinessCenterMeta({ ...PORT, ambiguousName: true });
     const second = fallbackBusinessCenterMeta({
@@ -81,26 +81,23 @@ describe('fallbackBusinessCenterMeta — заголовок', () => {
     expect(first.title).not.toBe(second.title);
   });
 
-  it('снимает уточнение в скобках из адреса тёзки — оно стоит 160 пикселей', () => {
+  it('снимает уточнение в скобках из адреса тёзки', () => {
     const meta = fallbackBusinessCenterMeta({
       ...PORT,
       address: 'г. Минск, пр-т Независимости, 177 (мкр. Уручье)',
       ambiguousName: true,
     });
     expect(meta.title).not.toContain('Уручье');
-    expect(serpTitleWidth(meta.title)).toBeLessThanOrEqual(SERP_TITLE_MAX_PX);
   });
 
-  // Обрезка выдачи съедает ХВОСТ, то есть ровно «— полный обзор <год>».
-  // Поэтому длинный заголовок не оставляется как есть, а укорачивается сам.
-  it('укорачивается, пока не влезет в обрезку выдачи', () => {
-    const meta = fallbackBusinessCenterMeta({
-      ...PORT,
-      name: 'Бизнес-центр «Шамбала-Щучинщина»',
-      altNames: ['Жемчужный Шарм Шоппинг Молл'],
-    });
-    expect(serpTitleWidth(meta.title)).toBeLessThanOrEqual(SERP_TITLE_MAX_PX);
-    expect(meta.title).toContain(String(YEAR));
+  it('длинное имя: сначала снимается «БЦ », месяц и «независимый обзор» остаются', () => {
+    const meta = fallbackBusinessCenterMeta(
+      { ...PORT, name: 'Бизнес-центр «Шамбала-Щучинщина Гранд»' },
+      { ...FULL, hasRentData: true },
+    );
+    expect(meta.title.startsWith('БЦ ')).toBe(false);
+    expect(meta.title).toContain('независимый обзор');
+    expect(meta.title).toContain(MONTH);
   });
 });
 

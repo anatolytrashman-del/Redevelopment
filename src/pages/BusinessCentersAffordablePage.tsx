@@ -5,6 +5,8 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { catalogSiteUrl } from '../lib/sites';
+import { bcRatingTitle } from '../lib/bcTitles';
+import { contentDateIso } from '../lib/tcReviewTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -29,7 +31,9 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 const DATE_PUBLISHED = '2026-09-22';
 const PAGE_URL = `${catalogSiteUrl('bc')}/rating/affordable`;
 const PAGE_H1 = 'Самые доступные бизнес-центры Минска с рейтингом от 4,5';
-const TITLE = 'Самые доступные бизнес-центры Минска с рейтингом от 4,5';
+// officelist titles (владелец, 2026-10-31): «{название без хвоста} — независимый
+// рейтинг | {месяц сборки} {год}», см. src/lib/bcTitles.ts. Было: 'Самые доступные бизнес-центры Минска с рейтингом от 4,5'. H1 не меняется.
+const TITLE = bcRatingTitle('Самые доступные БЦ Минска');
 const DESCRIPTION = `Медианные ставки аренды в бизнес-центрах Минска всех классов с рейтингом Яндекс.Карт от ${RATING_THRESHOLD_LABEL} и не менее ${MIN_RATING_COUNT} оценок. Сортировка от доступных к дорогим.`;
 const CLASS_EXPLAINER_URL = '/minsk/bc/guide#klassy';
 const nf = new Intl.NumberFormat('ru-RU');
@@ -163,7 +167,7 @@ export function BusinessCentersAffordablePage() {
       description: DESCRIPTION,
       url: PAGE_URL,
       datePublished: DATE_PUBLISHED,
-      dateModified: new Date().toISOString().slice(0, 10),
+      dateModified: contentDateIso(),
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },

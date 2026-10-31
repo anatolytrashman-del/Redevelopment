@@ -5,6 +5,8 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { catalogSiteUrl } from '../lib/sites';
+import { bcRatingTitle } from '../lib/bcTitles';
+import { contentDateIso } from '../lib/tcReviewTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -22,7 +24,9 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 const DATE_PUBLISHED = '2026-09-22';
 const PAGE_URL = `${catalogSiteUrl('bc')}/rating/largest`;
 const PAGE_H1 = 'Самые большие бизнес-центры Минска';
-const TITLE = 'Самые большие бизнес-центры Минска: топ-20 по площади';
+// officelist titles (владелец, 2026-10-31): «{название без хвоста} — независимый
+// рейтинг | {месяц сборки} {год}», см. src/lib/bcTitles.ts. Было: 'Самые большие бизнес-центры Минска: топ-20 по площади'. H1 не меняется.
+const TITLE = bcRatingTitle('Самые большие БЦ Минска');
 const DESCRIPTION = `Топ-20 бизнес-центров Минска по общей площади здания: все классы, только сданные здания в черте города. Общая и офисная площадь, год постройки и метро.`;
 const CLASS_EXPLAINER_URL = '/minsk/bc/guide#klassy';
 const nf = new Intl.NumberFormat('ru-RU');
@@ -152,7 +156,7 @@ export function BusinessCentersBiggestPage() {
       description: DESCRIPTION,
       url: PAGE_URL,
       datePublished: DATE_PUBLISHED,
-      dateModified: new Date().toISOString().slice(0, 10),
+      dateModified: contentDateIso(),
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },

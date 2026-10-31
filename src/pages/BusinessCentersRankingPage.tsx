@@ -5,6 +5,8 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
 import { catalogSiteUrl } from '../lib/sites';
+import { bcRatingTitle } from '../lib/bcTitles';
+import { contentDateIso } from '../lib/tcReviewTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -39,7 +41,9 @@ import { FaqAccordion } from '../components/ui/FaqAccordion';
 // читатель может понять, чему верить (mapRatingFromHighlights.count).
 const DATE_PUBLISHED = '2026-09-07';
 const PAGE_URL = `${catalogSiteUrl('bc')}/rating`;
-const TITLE = `Лучшие бизнес-центры Минска: рейтинг класса A с оценкой от ${RATING_THRESHOLD_LABEL}`;
+// officelist titles (владелец, 2026-10-31): «{название без хвоста} — независимый
+// рейтинг | {месяц сборки} {год}», см. src/lib/bcTitles.ts. Было: `Лучшие бизнес-центры Минска: рейтинг класса A с оценкой от ${RATING_THRESHOLD_LABEL}`. H1 не меняется.
+const TITLE = bcRatingTitle('Лучшие БЦ Минска класса A');
 // 160 символов — бюджет сниппета, см. комментарий в BusinessCentersGuidePage.
 const DESCRIPTION =
   `Рейтинг бизнес-центров Минска: класс A, оценка на Яндекс.Картах от ${RATING_THRESHOLD_LABEL} из 5 ` +
@@ -236,7 +240,7 @@ export function BusinessCentersRankingPage() {
       description: DESCRIPTION,
       url: PAGE_URL,
       datePublished: DATE_PUBLISHED,
-      dateModified: new Date().toISOString().slice(0, 10),
+      dateModified: contentDateIso(),
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },

@@ -7,7 +7,7 @@
 // которые не выполняют JS (у Яндекса это менее надёжно, чем у Google).
 import { pluralRu } from './pluralRu';
 import { fullName, shortAddress, shortName } from './businessCenterDisplay';
-import { fitsSerpTitle } from './serpTitleWidth';
+import { bcCardTitle } from './bcTitles';
 import type { CatalogKind } from './catalogKind';
 import { catalogSiteUrl, deployedSiteMode, platformOrigin, SITES } from './sites';
 
@@ -411,6 +411,10 @@ export interface BusinessCenterComposition {
   saleOfferCount?: number;
   hasReviews?: boolean;
   hasNearbyInfrastructure?: boolean;
+  // officelist titles (2026-10-31): есть объявления аренды или ставки в
+  // данных — title «… — независимый обзор и арендные ставки | месяц год».
+  // Считается в bcHasRentData (src/lib/bcTitles.ts).
+  hasRentData?: boolean;
 }
 
 // Вторые названия здания в кавычках-ёлочках: «Столица» или «Столица», «Виктория».
@@ -457,30 +461,19 @@ export function fallbackBusinessCenterMeta(
   const alsoKnown = altNames.length > 0 ? ` (${quoteNames(altNames)})` : '';
   const heading = headingName(center);
   const named = !heading.startsWith('Бизнес-центр на ');
-  // Год берётся из даты сборки, а не зашит константой: страницу пререндерит
-  // Vercel, и 1 января заголовок должен смениться сам.
-  const year = new Date().getFullYear();
+  // Шаблон владельца (officelist titles, 2026-10-31): «БЦ {Название} —
+  // независимый обзор[ и арендные ставки] | {месяц} {год}», месяц — месяц
+  // сборки по Минску, см. src/lib/bcTitles.ts. Второе имя здания из title
+  // ушло (шаблон его не предусматривает) — оно остаётся в описании.
   // В каталоге есть два РАЗНЫХ здания с одним именем («Порт» на
-  // Независимости, 177 и «Порт» на Шафарнянской, 11). Заголовок без адреса
-  // сделал бы их страницы неразличимыми — две страницы с одинаковым title
-  // конкурируют между собой в выдаче и обе проигрывают. Признак приходит от
-  // страницы: она одна видит весь каталог, отдельная запись — нет.
-  // Уточнение в скобках («пр-т Независимости, 177 (мкр. Уручье)») из
-  // заголовка снимается: различить тёзок хватает улицы с домом, а скобка
-  // стоит 160 пикселей — ровно настолько заголовок и вылезал за обрезку.
+  // Независимости, 177 и «Порт» на Шафарнянской, 11): у тёзок к имени
+  // добавляется улица с домом, иначе две страницы получили бы один title.
+  // Уточнение в скобках («(мкр. Уручье)») из адреса снимается.
   const addressForTitle = shortAddress(center.address).replace(/\s*\([^)]*\)\s*$/u, '');
-  const disambiguated = named && center.ambiguousName ? `${heading}, ${addressForTitle}` : heading;
-  // Заголовок собирается от самого полного варианта к самому короткому, и
-  // берётся первый, который не выходит за обрезку выдачи: обрезка съедает
-  // именно хвост, то есть ровно то, ради чего формат и задумывался
-  // («…— полный обз…»). Порядок уступок — сначала второе имя здания, потом
-  // слово «полный». Второе имя у выпавших зданий остаётся в описании, а
-  // адрес у зданий-тёзок не снимается никогда: без него вернётся дубль.
-  const bases = [`${disambiguated}${alsoKnown}`, disambiguated];
-  const candidates = [` — полный обзор ${year}`, ` — обзор ${year}`].flatMap((tail) =>
-    bases.map((base) => `${base}${tail}`),
-  );
-  const title = candidates.find(fitsSerpTitle) ?? candidates[candidates.length - 1];
+  const titleName = named
+    ? `${shortName({ slug: center.slug ?? '', name: center.name })}${center.ambiguousName ? `, ${addressForTitle}` : ''}`
+    : heading.slice('Бизнес-центр '.length);
+  const title = bcCardTitle(titleName, Boolean(composition?.hasRentData));
 
   // «Бизнес-центр на Жуковского, 11А» в родительном падеже — это
   // «бизнес-центра на Жуковского, 11А»: адрес уже внутри имени, второй раз
