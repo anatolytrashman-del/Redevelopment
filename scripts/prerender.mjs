@@ -1449,8 +1449,16 @@ async function main() {
         // есть — хуже прежнего поведения не станет. Опрос раз в 200мс, а не
         // каждый кадр: innerText большой страницы — это полный layout.
         await page
-          .waitForFunction(() => { const t = document.body.innerText; return !t.includes('Загрузка…') && !t.includes('Загружаем каталог…'); }, { timeout: 15_000, polling: 200 })
-          .catch(() => console.warn(`[prerender] /${path}: «Загрузка…» не исчезла за 15с — снапшот с плейсхолдером`));
+          .waitForFunction(
+            // «Загрузка…» — по видимому тексту (innerText): в textContent она
+            // есть в комментариях инлайн-скриптов. «Загружаем каталог…» — по
+            // textContent: это плейсхолдер скрытой панели «Меню каталога»,
+            // innerText его не видит (так снапшот /minsk/tc на Vercel 31.10
+            // дважды снялся до прихода данных каталога).
+            () => !document.body.innerText.includes('Загрузка…') && !document.body.textContent.includes('Загружаем каталог…'),
+            { timeout: 30_000, polling: 200 },
+          )
+          .catch(() => console.warn(`[prerender] /${path}: плейсхолдер «Загрузка…»/«Загружаем каталог…» не исчез за 30с`));
         // scripts/defer-entry-script.mjs подключает главный JS не из <head>,
         // а инлайн-лоадером после первого кадра — в живом DOM к этому
         // моменту уже висят вставленные им <script type="module">/<link
@@ -1464,7 +1472,7 @@ async function main() {
         // корень malllist получил пустой каталог и meta по умолчанию. Такой
         // снапшот не сохраняем: бросаем ошибку → повтор (RENDER_ATTEMPTS),
         // а для критичных путей — падение сборки.
-        if (await page.evaluate(() => document.body.innerText.includes('Загружаем каталог…'))) {
+        if (await page.evaluate(() => document.body.textContent.includes('Загружаем каталог…'))) {
           throw new Error('в снапшоте плейсхолдер «Загружаем каталог…» — данные каталога не загрузились');
         }
         await page.evaluate(() => {
