@@ -58,8 +58,9 @@ describe('bcTitles — officelist titles', () => {
     const long = bcCardTitle('Очень длинное название здания', true, OCT);
     expect(long.startsWith('БЦ ')).toBe(false);
     expect(long).toContain('независимый обзор и арендные ставки | октябрь 2026');
-    // Здание без имени: «БЦ » не снимается, title не начинается со строчной.
-    expect(bcCardTitle('на Железнодорожная, 33А', true, OCT).startsWith('БЦ на ')).toBe(true);
+    // Здание без имени: title не начинается со строчной; ≤75 — «БЦ на …» как было.
+    expect(bcCardTitle('на Жуковского, 11А', true, OCT).startsWith('БЦ на ')).toBe(true);
+    expect(bcCardTitle('на Железнодорожная, 33А', true, OCT)).toMatch(/^БЦ [А-Я]/u);
   });
 
   it('rent rule: rent offers or rental_info.rates; sale-only is plain', () => {
@@ -77,5 +78,25 @@ describe('bcTitles — officelist titles', () => {
     const long = 'Коммерческая недвижимость Минск Мира: цены, помещения, аналитика';
     expect(withMonthIfFits(long, OCT)).toBe(long);
     expect(BC_TITLE_MAX_CHARS).toBe(70);
+  });
+});
+
+describe('officelist: SEO-бот 2026-10-31', () => {
+  const oct = new Date('2026-10-20T10:00:00Z');
+  it('метро Богушевича — короткое имя в title', () => {
+    expect(bcHubTitle(bcMetroPhrase('Площадь Франтишка Богушевича', 11), oct)).toBe(
+      '11 БЦ у метро Площадь Богушевича — независимый обзор | октябрь 2026',
+    );
+  });
+  it('карточки длиннее 75 — укорачиваем имя объекта, ≤75 — как было', () => {
+    expect(bcCardTitle('Деловой центр Мясникова 70', true, oct)).toBe('БЦ Мясникова 70 — независимый обзор и арендные ставки | октябрь 2026');
+    expect(bcCardTitle('на Независимости, 186', true, oct)).toBe('БЦ Независимости, 186 — независимый обзор и арендные ставки | октябрь 2026');
+    expect(bcCardTitle('на Железнодорожная, 33А', true, oct)).toBe('БЦ Железнодорожная 33А — независимый обзор и арендные ставки | октябрь 2026');
+    expect(bcCardTitle('на Богдановича, 155Б', true, oct)).toBe('БЦ Богдановича, 155Б — независимый обзор и арендные ставки | октябрь 2026');
+    expect(bcCardTitle('на Жуковского, 11А', true, oct)).toBe('БЦ на Жуковского, 11А — независимый обзор и арендные ставки | октябрь 2026');
+    expect(bcCardTitle('На торговой набережной', true, oct).length).toBe(75);
+    for (const n of ['Очень длинное название делового комплекса Северное сияние', 'Деловой центр Мясникова 70']) {
+      expect(bcCardTitle(n, true, oct).length).toBeLessThanOrEqual(75);
+    }
   });
 });

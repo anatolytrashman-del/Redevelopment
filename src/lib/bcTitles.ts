@@ -12,9 +12,11 @@
 // карточек) без «БЦ »; месяц и «независимый обзор» остаются всегда.
 import { pluralRu } from './pluralRu';
 import { contentDate, reviewMonthLabel } from './tcReviewTitle';
-import { districtGenitive } from './tcHubTitle';
+import { districtGenitive, metroTitleName } from './tcHubTitle';
 
 export const BC_TITLE_MAX_CHARS = 70;
+/** Жёсткий потолок карточки (SEO-бот, 2026-10-31): длиннее — режем имя объекта. */
+export const BC_CARD_TITLE_HARD_MAX = 75;
 const REVIEW = 'независимый обзор';
 
 function countPrefix(n: number): string {
@@ -53,7 +55,8 @@ export function bcDistrictPhrase(district: string, n: number): string {
 }
 
 export function bcMetroPhrase(station: string, n: number): string {
-  return `${countPrefix(n)}БЦ у метро ${station}`;
+  // Короткое имя станции, как у malllist: «Площадь Богушевича» (SEO-бот).
+  return `${countPrefix(n)}БЦ у метро ${metroTitleName(station)}`;
 }
 
 /**
@@ -91,7 +94,29 @@ export function bcCardTitle(name: string, withRates: boolean, now: Date = conten
   // зданий без имени title иначе начинался бы со строчного «на Жуковского…».
   // Если и так длиннее 70 — оставляем (такие перечислены в отчёте сборки).
   const startsUpper = /^[A-ZА-ЯЁ0-9«"]/u.test(name);
-  return full.length > BC_TITLE_MAX_CHARS && startsUpper ? `${name}${tail}` : full;
+  const base = full.length > BC_TITLE_MAX_CHARS && startsUpper ? `${name}${tail}` : full;
+  if (base.length <= BC_CARD_TITLE_HARD_MAX) return base;
+  // Длиннее 75 (SEO-бот, 2026-10-31) — укорачиваем только имя объекта, хвост
+  // «— независимый обзор[ и арендные ставки] | месяц год» не трогаем:
+  //   1) «Деловой центр / Бизнес-центр X» → «БЦ X»;
+  //   2) адрес без имени «на Независимости, 186» → «БЦ Независимости, 186»;
+  //   3) без запятой перед номером дома;
+  //   4) без «БЦ »;
+  //   5) крайний случай — имя по словам с «…».
+  const core = name
+    .replace(/^(?:деловой|бизнес)[\s-]*центр\s+/iu, '')
+    .replace(/^на\s+/u, '');
+  const noComma = core.replace(/,\s+(?=\d)/u, ' ');
+  const variants = [`БЦ ${core}${tail}`, `БЦ ${noComma}${tail}`, `${noComma}${tail}`];
+  const fit = variants.find((v) => v.length <= BC_CARD_TITLE_HARD_MAX);
+  if (fit) return fit;
+  const words = noComma.split(/\s+/u);
+  while (words.length > 1) {
+    words.pop();
+    const v = `${words.join(' ')}…${tail}`;
+    if (v.length <= BC_CARD_TITLE_HARD_MAX) return v;
+  }
+  return base;
 }
 
 /** Правило «реальные объявления или ставки» — одно на карточку и на списки A/B. */
