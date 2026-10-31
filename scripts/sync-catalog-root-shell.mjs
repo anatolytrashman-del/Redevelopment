@@ -14,6 +14,10 @@ const hubPath = join('dist', hubRel, 'index.html');
 const indexPath = join('dist', 'index.html');
 
 if (!existsSync(hubPath)) {
+  if (DEPLOYED_SITE_MODE === 'malls') {
+    // Лучше провалить деплой, чем выкатить шелл/пустую главную (2026-10-31).
+    throw new Error(`[sync-catalog-root-shell] нет dist/${hubRel}/index.html — главная malllist осталась бы шеллом`);
+  }
   console.warn(
     `[sync-catalog-root-shell] нет dist/${hubRel}/index.html — корень остаётся шеллом prepare-*`,
   );
@@ -26,6 +30,8 @@ if (!existsSync(indexPath)) {
 // Полный снапшот хаба (уже с брендом/canonical/yandex из prerender rewrite).
 // 404.html не трогаем — там запасной шелл без каталога.
 // Главная — self-canonical на корень домена (а не на /minsk/bc|tc).
+if (DEPLOYED_SITE_MODE === 'malls') assertMallsHubSnapshotComplete(readFileSync(hubPath, 'utf8'));
+
 const origin = DEPLOYED_SITE_MODE === 'offices' ? OFFICES_ORIGIN : MALLS_ORIGIN;
 const rootUrl = `${origin}/`;
 const html = readFileSync(hubPath, 'utf8')
@@ -85,4 +91,24 @@ function withMallsRootMeta(source) {
   out = out.split(`"headline":"${catalogTitle}"`).join(`"headline":${JSON.stringify(title)}`);
   console.log(`[sync-catalog-root-shell] title корня: ${title}`);
   return out;
+}
+
+// malllist (2026-10-31): на Vercel снапшот /minsk/tc однажды снялся до
+// прихода данных («Загружаем каталог…», без «каталог всех N ТЦ») и ушёл в
+// корень — главная получила пустой каталог и title по умолчанию. Такой
+// снапшот в корень не копируем: сборка падает, текущий прод остаётся.
+// Проверяем только видимый текст: «Загрузка…» легитимно встречается в
+// комментариях инлайн-скриптов снапшота.
+function assertMallsHubSnapshotComplete(source) {
+  const visible = source
+    .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+  const problems = [];
+  if (/Загружаем каталог…/.test(visible)) problems.push('плейсхолдер «Загружаем каталог…»');
+  if (/Загрузка…/.test(visible.replace(/<[^>]+>/g, ' '))) problems.push('плейсхолдер «Загрузка…»');
+  if (!/каталог всех \d+ ТЦ/.test(source)) problems.push('нет «каталог всех N ТЦ» в title/meta');
+  if (problems.length) {
+    throw new Error(`[sync-catalog-root-shell] снапшот dist/minsk/tc/index.html неполный: ${problems.join(', ')} — главную не копирую, сборка остановлена`);
+  }
 }
