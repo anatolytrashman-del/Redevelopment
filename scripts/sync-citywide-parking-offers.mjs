@@ -25,6 +25,7 @@
 // Тип парковки — готовое структурное поле Kufar garage_parking_type
 // ("Подземная"/"Наземная"/"Многоуровневая"/"На крыше"/"Открытая").
 
+import { supabasePublishableKey } from './lib/env.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
@@ -37,8 +38,7 @@ if (!SUPABASE_SERVICE_ROLE_KEY && !DRY_RUN) {
   process.exit(1);
 }
 
-const PUBLIC_ANON_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? PUBLIC_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? supabasePublishableKey());
 
 const SEGMENT = 'mashinomesta';
 const GOOGLEBOT_UA = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';

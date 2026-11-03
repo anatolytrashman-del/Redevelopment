@@ -23,4 +23,5 @@ jobs:
       - name: Отправить в IndexNow
         env:
           URL_FILE: ${{ inputs.file }}
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
         run: node scripts/indexnow-submit.mjs "$URL_FILE"

@@ -38,6 +38,7 @@
  * их сам. Это тот же логин, что и в админке; сервисный ключ на машине не
  * нужен и не используется.
  */
+import { supabasePublishableKey } from './lib/env.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
@@ -46,7 +47,7 @@ import { chromium } from 'playwright-core';
 import { AI_BUYER_NAME } from './supply-categories/lib.mjs';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+const SUPABASE_PUBLISHABLE_KEY = supabasePublishableKey();
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {

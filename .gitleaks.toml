@@ -1,0 +1,14 @@
+# Конфиг gitleaks для этого репозитория: правила по умолчанию + исключения.
+# Проверка: gitleaks dir --redact --config .gitleaks.toml .
+title = "secrets-hygiene"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Публичные по замыслу ключи: Supabase publishable (доступ ограничивает RLS)"
+regexes = ['''sb_publishable_[A-Za-z0-9_\-]+''']
+
+[[allowlists]]
+description = "Ложные срабатывания: хэши в манифесте сжатия картинок"
+paths = ['''(^|/)scripts/data/tinypng-static-manifest\.json$''']

@@ -14,6 +14,7 @@
 //
 // 2026-09-23 — пинг только при изменениях и не чаще раза в неделю.
 // 2026-10-10 — host берётся из DEPLOYED_SITE_MODE (platform | malls | offices).
+import { indexNowKey } from './lib/env.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -25,7 +26,7 @@ import {
   PLATFORM_ORIGIN,
 } from './domainSplit.mjs';
 
-const INDEXNOW_KEY = '8749bf38ccefd4070d1d1cbb901a168f';
+const INDEXNOW_KEY = indexNowKey({ required: false }); // INDEXNOW_KEY из окружения (Vercel → Environment Variables)
 const SITE =
   DEPLOYED_SITE_MODE === 'malls'
     ? MALLS_ORIGIN
@@ -78,6 +79,10 @@ const keepState = (state) => {
 async function main() {
   if (!process.env.VERCEL || process.env.VERCEL_ENV !== 'production') {
     console.log('[notify-indexnow] не прод-сборка Vercel — пропускаем (нет смысла пинговать при локальной/превью-сборке)');
+    return;
+  }
+  if (!INDEXNOW_KEY) {
+    console.warn('[notify-indexnow] не задана переменная INDEXNOW_KEY — пропускаем пинг IndexNow (сборку не роняем)');
     return;
   }
   let xml;

@@ -17,11 +17,12 @@
 // Читает публичным anon-ключом: business_centers и так открыт на чтение —
 // это те же данные, что отдаёт публичная страница каталога.
 
+import { supabasePublishableKey } from './lib/env.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
-const PUBLIC_ANON_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+const PUBLIC_ANON_KEY = supabasePublishableKey();
 const supabase = createClient(SUPABASE_URL, PUBLIC_ANON_KEY);
 
 const BRIEF_PATH = 'docs/bc-media-research-brief.md';

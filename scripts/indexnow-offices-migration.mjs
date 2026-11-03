@@ -5,11 +5,12 @@
 // Использование:
 //   node scripts/indexnow-offices-migration.mjs
 //   node scripts/indexnow-offices-migration.mjs --from-live
+import { indexNowKey } from './lib/env.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { OFFICES_ORIGIN } from './domainSplit.mjs';
 
-const INDEXNOW_KEY = '8749bf38ccefd4070d1d1cbb901a168f';
+const INDEXNOW_KEY = indexNowKey(); // INDEXNOW_KEY из окружения; тот же ключ, что в имени файла public/<ключ>.txt
 const HOST = 'officelist.pro';
 const SITE = OFFICES_ORIGIN;
 const fromLive = process.argv.includes('--from-live');

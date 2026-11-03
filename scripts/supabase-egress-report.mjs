@@ -14,12 +14,13 @@
 //   node scripts/supabase-egress-report.mjs            # последние 24 часа
 //   node scripts/supabase-egress-report.mjs --top=80   # сколько запросов мерить
 // Сам прогон тратит ~5–15 МБ трафика (по одному ответу на запрос).
+import { supabasePublishableKey } from './lib/env.mjs';
 import { gzipSync } from 'node:zlib';
 
 const REF = 'iohcdylttyuhwovztrbk';
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 const SUPABASE_URL = `https://${REF}.supabase.co`;
-const ANON_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
+const ANON_KEY = supabasePublishableKey();
 const PRO_EGRESS_GB = 250;
 // Цель владельца с 2026-09-24 — бесплатный тариф: 5 ГБ в месяц ≈ 165 МБ в сутки.
 const FREE_EGRESS_GB = 5;

@@ -26,6 +26,7 @@
 // городских сегментов, в scripts/lib/citywideExtraSources.mjs (там же
 // разбор адреса и схлопывание одного лота с разных площадок).
 
+import { supabasePublishableKey } from './lib/env.mjs';
 import { createClient } from '@supabase/supabase-js';
 import {
   EXTRA_SOURCE_SECTIONS,
@@ -48,8 +49,7 @@ if (!SUPABASE_SERVICE_ROLE_KEY && !DRY_RUN) {
   process.exit(1);
 }
 
-const PUBLIC_ANON_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? PUBLIC_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? supabasePublishableKey());
 
 const SEGMENT = 'sklady';
 const GOOGLEBOT_UA = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';

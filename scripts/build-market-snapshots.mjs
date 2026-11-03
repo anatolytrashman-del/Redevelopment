@@ -43,6 +43,7 @@
 // совсем маленьких выборках обрезка перцентилями съедает и так скудные
 // данные, смысла в ней нет.
 
+import { supabasePublishableKey } from './lib/env.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
@@ -55,8 +56,7 @@ if (!SUPABASE_SERVICE_ROLE_KEY && !DRY_RUN) {
   process.exit(1);
 }
 
-const PUBLIC_ANON_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? PUBLIC_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? supabasePublishableKey());
 
 const MIN_N_FOR_TRIM = 8;
 

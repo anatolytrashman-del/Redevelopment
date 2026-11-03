@@ -35,6 +35,7 @@
 // цикл: не нужно отслеживать "мёртвые" объявления отдельным HTTP-опросом,
 // пропавшее объявление просто не попадёт в свежую выборку и будет удалено).
 
+import { supabasePublishableKey } from './lib/env.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = 'https://iohcdylttyuhwovztrbk.supabase.co';
@@ -74,8 +75,7 @@ if (!SUPABASE_SERVICE_ROLE_KEY && !DRY_RUN) {
 // разработки) читаем business_centers анонимным ключом — таблица открыта
 // на select всем (см. RLS anon_select), запись в dry-run всё равно
 // пропускается ниже.
-const PUBLIC_ANON_KEY = 'sb_publishable_EQwXLOy5TmSPj5tzKjbSeg_xj6SM2Iz';
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? PUBLIC_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY ?? supabasePublishableKey());
 
 const GOOGLEBOT_UA = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
 const REALT_UA =

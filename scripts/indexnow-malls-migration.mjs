@@ -9,11 +9,12 @@
 //
 // --from-live: взять URL из https://malllist.pro/sitemap.xml
 // иначе: из dist/sitemap.xml (после PUBLIC_SITE=malls npm run build:app)
+import { indexNowKey } from './lib/env.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { MALLS_ORIGIN } from './domainSplit.mjs';
 
-const INDEXNOW_KEY = '8749bf38ccefd4070d1d1cbb901a168f';
+const INDEXNOW_KEY = indexNowKey(); // INDEXNOW_KEY из окружения; тот же ключ, что в имени файла public/<ключ>.txt
 const HOST = 'malllist.pro';
 const SITE = MALLS_ORIGIN;
 const fromLive = process.argv.includes('--from-live');

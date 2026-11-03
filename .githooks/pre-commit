@@ -1,0 +1,32 @@
+#!/bin/sh
+# Pre-commit хук гигиены секретов. НЕ ставится автоматически.
+# Включить в этом клоне:   git config core.hooksPath .githooks
+# Выключить:               git config --unset core.hooksPath
+# Разово пропустить:       git commit --no-verify   (только осознанно)
+#
+# 1. Блокирует коммит файлов .env / .env.* (кроме .env.example), *.pem, *.key.
+# 2. Если установлен gitleaks — сканирует staged-изменения (gitleaks git --staged),
+#    иначе только предупреждает. Конфиг — .gitleaks.toml в корне репо.
+set -u
+
+blocked=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)\.env($|\.)|\.(pem|key)$' | grep -Ev '(^|/)\.env\.example$' || true)
+if [ -n "$blocked" ]; then
+  echo "pre-commit: в коммит попали файлы, которые не должны быть в git:" >&2
+  printf '  %s\n' $blocked >&2
+  echo "Уберите их: git restore --staged <файл>" >&2
+  exit 1
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+  if gitleaks git --help >/dev/null 2>&1; then
+    gitleaks git --staged --redact --no-banner . || {
+      echo "pre-commit: gitleaks нашёл похожие на секреты строки (значения скрыты). Проверьте staged-изменения." >&2
+      exit 1
+    }
+  else
+    gitleaks protect --staged --redact --no-banner || exit 1
+  fi
+else
+  echo "pre-commit: gitleaks не установлен — проверка секретов пропущена (https://github.com/gitleaks/gitleaks)" >&2
+fi
+exit 0

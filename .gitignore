@@ -14,3 +14,18 @@ scripts/supply-categories/out/
 tmp/
 .vercel
 .env*
+
+# --- secrets hygiene ---
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+# сессии и токены инструментов
+*.session
+sessions/
+auth.json
+.netrc

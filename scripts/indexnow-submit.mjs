@@ -7,11 +7,12 @@
 //
 // Использование: node scripts/indexnow-submit.mjs <файл со списком URL>
 // Файл — по URL на строку; пустые строки и строки с «#» пропускаются.
+import { indexNowKey } from './lib/env.mjs';
 import { readFileSync } from 'node:fs';
 
 const HOST = 'redevelopment.pro';
 const SITE = `https://${HOST}`;
-const INDEXNOW_KEY = '8749bf38ccefd4070d1d1cbb901a168f'; // тот же ключ, что в notify-indexnow.mjs и public/<ключ>.txt
+const INDEXNOW_KEY = indexNowKey(); // INDEXNOW_KEY из окружения; тот же ключ, что в имени файла public/<ключ>.txt
 const BATCH = 10_000; // предел протокола на один запрос
 
 const file = process.argv[2];
