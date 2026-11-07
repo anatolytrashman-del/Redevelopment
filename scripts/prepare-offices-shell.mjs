@@ -2,9 +2,8 @@
 // title/description/og/canonical/JSON-LD/favicon вместо фолбэка Red One.
 // После vite build + defer-entry-script, до пререндера.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { DEPLOYED_SITE_MODE, OFFICES_ORIGIN } from './domainSplit.mjs';
+import { join } from 'node:path';
+import { applyYandexVerificationMetas, catalogYandexCodes, DEPLOYED_SITE_MODE, OFFICES_ORIGIN } from './domainSplit.mjs';
 import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 
 if (DEPLOYED_SITE_MODE !== 'offices') {
@@ -22,10 +21,6 @@ const DESCRIPTION =
   'Каталог бизнес-центров Минска: классы, районы, метро, улицы. Карточки объектов и подборки.';
 const URL = `${OFFICES_ORIGIN}/minsk/bc`;
 const ASSET_V = '20261010o2';
-const domainSplit = JSON.parse(
-  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/data/domain-split.json'), 'utf8'),
-);
-const YANDEX_VERIFICATION = domainSplit.verifications?.offices?.yandex || '';
 
 const escapeAttr = (text) =>
   String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -37,32 +32,12 @@ html = html
   .replace(/<title>.*?<\/title>/, `<title>${escapeAttr(TITLE)}</title>`)
   .replace(/(<meta name="description" content=")[^"]*(")/, `$1${escapeAttr(DESCRIPTION)}$2`);
 
-if (YANDEX_VERIFICATION) {
-  if (/<meta name="yandex-verification"/.test(html)) {
-    html = html.replace(
-      /(<meta name="yandex-verification" content=")[^"]*(")/,
-      `$1${YANDEX_VERIFICATION}$2`,
-    );
-  } else {
-    html = html.replace(
-      '</head>',
-      `<meta name="yandex-verification" content="${escapeAttr(YANDEX_VERIFICATION)}" />\n</head>`,
-    );
-  }
+const officeCodes = catalogYandexCodes('offices');
+if (officeCodes.length) {
+  html = applyYandexVerificationMetas(html, officeCodes);
 } else {
   // Не оставляем meta платформы (redevelopment) на чужом домене.
-  html = html.replace(/\s*<meta name="yandex-verification" content="[^"]*"\s*\/?>/i, '');
-}
-
-// Доп. meta yandex-verification (второй аккаунт Вебмастера) — только для offices.
-const YANDEX_EXTRA = (domainSplit.verifications?.offices?.yandexExtra || []).filter(Boolean);
-for (const code of YANDEX_EXTRA) {
-  if (!html.includes(`content="${code}"`)) {
-    html = html.replace(
-      '</head>',
-      `<meta name="yandex-verification" content="${escapeAttr(code)}" />\n</head>`,
-    );
-  }
+  html = html.replace(/\s*<meta name="yandex-verification" content="[^"]*"\s*\/?>/gi, '');
 }
 
 html = html

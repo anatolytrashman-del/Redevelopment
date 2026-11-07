@@ -90,7 +90,8 @@ import {
   PLATFORM_ORIGIN,
   REDIRECT_MALLS_ENABLED,
   REDIRECT_OFFICES_ENABLED,
-  catalogYandexVerification,
+  applyYandexVerificationMetas,
+  catalogYandexCodes,
 } from './domainSplit.mjs';
 
 const ROOT_DIR = new URL('..', import.meta.url).pathname;
@@ -261,18 +262,9 @@ function rewriteSnapshotForPublicOrigin(html) {
   // Подвал: «продукт REDEVELOPMENT» + ссылка всегда на платформу (не на
   // officelist/malllist после replaceAll выше). См. catalogFooterCredit.mjs.
   out = ensureCatalogProductCredit(out, PLATFORM_ORIGIN);
-  // Вебмастер проверяет meta на финальной странице (/ у officelist → /minsk/bc).
-  const yandex = catalogYandexVerification();
-  if (yandex) {
-    if (/<meta name="yandex-verification"/i.test(out)) {
-      out = out.replace(
-        /(<meta name="yandex-verification" content=")[^"]*(")/i,
-        `$1${yandex}$2`,
-      );
-    } else {
-      out = out.replace('</head>', `<meta name="yandex-verification" content="${yandex}" />\n</head>`);
-    }
-  }
+  // Вебмастер проверяет meta на финальной странице (корень и карточки).
+  // На платформе codes пустой — тег redevelopment не трогаем.
+  out = applyYandexVerificationMetas(out, catalogYandexCodes());
   return out;
 }
 

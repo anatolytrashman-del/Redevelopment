@@ -2,9 +2,8 @@
 // title/description/og/canonical/JSON-LD/yandex-verification/favicon вместо
 // фолбэка Red One. После vite build + defer-entry-script, до пререндера.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { DEPLOYED_SITE_MODE, MALLS_ORIGIN } from './domainSplit.mjs';
+import { join } from 'node:path';
+import { applyYandexVerificationMetas, catalogYandexCodes, DEPLOYED_SITE_MODE, MALLS_ORIGIN } from './domainSplit.mjs';
 import { stripThirdPartyAnalytics } from './stripThirdPartyAnalytics.mjs';
 
 if (DEPLOYED_SITE_MODE !== 'malls') {
@@ -22,10 +21,6 @@ const DESCRIPTION =
   'Каталог торговых центров по городам. Карточки объектов, подборки, карта — начиная с Минска.';
 const URL = `${MALLS_ORIGIN}/minsk/tc`;
 const ASSET_V = '20261010m2';
-const domainSplit = JSON.parse(
-  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../src/data/domain-split.json'), 'utf8'),
-);
-const YANDEX_VERIFICATION = domainSplit.verifications?.malls?.yandex || '5893ee662c25f112';
 
 const escapeAttr = (text) =>
   String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -36,10 +31,6 @@ let html = readFileSync(indexPath, 'utf8');
 html = html
   .replace(/<title>.*?<\/title>/, `<title>${escapeAttr(TITLE)}</title>`)
   .replace(/(<meta name="description" content=")[^"]*(")/, `$1${escapeAttr(DESCRIPTION)}$2`)
-  .replace(
-    /(<meta name="yandex-verification" content=")[^"]*(")/,
-    `$1${YANDEX_VERIFICATION}$2`,
-  )
   .replace(/(<meta property="og:site_name" content=")[^"]*(")/, '$1MallList$2')
   .replace(/(<meta property="og:title" content=")[^"]*(")/, `$1${escapeAttr(TITLE)}$2`)
   .replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${escapeAttr(DESCRIPTION)}$2`)
@@ -86,18 +77,7 @@ html = html
     `<div id="root"><div style="min-height:100svh;box-sizing:border-box;margin:0;padding:1.5rem 1.25rem;font-family:Montserrat,system-ui,sans-serif;background:#f3f3f3;color:#1a1a1a"><p style="margin:0 0 0.5rem;font-size:1.25rem;font-weight:800;letter-spacing:-0.02em">Mall<span style="color:#e4152b">List</span></p><h1 style="margin:0 0 0.5rem;font-size:1.05rem;font-weight:600;line-height:1.35">${escapeHtml(TITLE)}</h1><p style="margin:0;max-width:36rem;font-size:0.9rem;line-height:1.45;color:#5c5c5c">${escapeHtml(DESCRIPTION)}</p></div></div>`,
   );
 
-// Доп. meta yandex-verification (второй аккаунт Вебмастера) — только для malls.
-const YANDEX_EXTRA = (domainSplit.verifications?.malls?.yandexExtra || []).filter(Boolean);
-for (const code of YANDEX_EXTRA) {
-  if (!html.includes(`content="${code}"`)) {
-    html = html.replace(
-      '</head>',
-      `<meta name="yandex-verification" content="${escapeAttr(code)}" />\n</head>`,
-    );
-  }
-}
-
-
+html = applyYandexVerificationMetas(html, catalogYandexCodes('malls'));
 html = stripThirdPartyAnalytics(html);
 
 writeFileSync(indexPath, html);
