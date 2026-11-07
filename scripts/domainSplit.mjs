@@ -35,11 +35,43 @@ export function deployedSiteMode() {
 
 export const DEPLOYED_SITE_MODE = deployedSiteMode();
 
+function escapeAttr(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+/** Все meta yandex-verification каталога: основной и доп. коды. Платформа — пусто. */
+export function catalogYandexCodes(mode = DEPLOYED_SITE_MODE) {
+  const block =
+    mode === 'malls' ? CONFIG.verifications?.malls : mode === 'offices' ? CONFIG.verifications?.offices : null;
+  if (!block) return [];
+  const codes = [];
+  if (block.yandex) codes.push(String(block.yandex));
+  for (const extra of block.yandexExtra || []) {
+    if (extra && !codes.includes(extra)) codes.push(String(extra));
+  }
+  return codes;
+}
+
 /** Meta yandex-verification для каталожного деплоя (пусто — не трогаем). */
 export function catalogYandexVerification() {
-  if (DEPLOYED_SITE_MODE === 'malls') return CONFIG.verifications?.malls?.yandex || '';
-  if (DEPLOYED_SITE_MODE === 'offices') return CONFIG.verifications?.offices?.yandex || '';
-  return '';
+  return catalogYandexCodes()[0] || '';
+}
+
+/**
+ * В head остаются ровно переданные коды, в этом порядке.
+ * Пустой список html не меняет — тег платформы не трогаем.
+ */
+export function applyYandexVerificationMetas(html, codes) {
+  if (!codes?.length) return html;
+  const block = codes
+    .map((code) => `<meta name="yandex-verification" content="${escapeAttr(code)}" />`)
+    .join('\n');
+  const stripped = html.replace(
+    /[ \t]*<meta\s+name="yandex-verification"\s+content="[^"]*"\s*\/?>\s*\n?/gi,
+    '',
+  );
+  if (!stripped.includes('</head>')) return html;
+  return stripped.replace('</head>', `${block}\n</head>`);
 }
 
 export function catalogOrigin(kind) {
