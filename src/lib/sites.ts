@@ -259,10 +259,12 @@ export function robotsSitemapLine(host: string): string {
   if (CATALOG_DOMAIN_SPLIT_ENABLED && bare === MALLS.host) {
     return `Sitemap: ${MALLS.origin}/sitemap-index.xml`;
   }
-  // Platform: основной sitemap + временный sitemap старых URL (seo-deploy, ~до янв 2027).
+  // Platform: основной sitemap, прежний список старых URL и sitemap-old.xml
+  // (748 адресов на 2026-11-07 — чтобы краулер заново увидел 308 каталога).
   return [
     `Sitemap: ${PLATFORM.origin}/sitemap.xml`,
     `Sitemap: ${PLATFORM.origin}/sitemap-old-urls.xml`,
+    `Sitemap: ${PLATFORM.origin}/sitemap-old.xml`,
   ].join('\n');
 }
 

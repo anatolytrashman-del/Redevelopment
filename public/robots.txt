@@ -5,3 +5,4 @@ Disallow: /*/draft
 
 Sitemap: https://redevelopment.pro/sitemap.xml
 Sitemap: https://redevelopment.pro/sitemap-old-urls.xml
+Sitemap: https://redevelopment.pro/sitemap-old.xml
