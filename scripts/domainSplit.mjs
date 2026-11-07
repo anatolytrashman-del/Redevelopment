@@ -42,6 +42,26 @@ export function catalogYandexVerification() {
   return '';
 }
 
+/** Доп. коды Вебмастера текущего каталога. Платформа — пусто, чужой сайт не подмешивается. */
+export function catalogYandexExtraCodes(mode = DEPLOYED_SITE_MODE) {
+  const block =
+    mode === 'malls' ? CONFIG.verifications?.malls : mode === 'offices' ? CONFIG.verifications?.offices : null;
+  if (!block || !Array.isArray(block.yandexExtra)) return [];
+  return block.yandexExtra.filter(Boolean).map(String);
+}
+
+/** Дописывает отсутствующие доп. meta, не переписывая уже стоящие теги. */
+export function appendMissingYandexExtras(html, codes = catalogYandexExtraCodes()) {
+  let out = html;
+  for (const code of codes) {
+    if (!code || out.includes(`content="${code}"`)) continue;
+    const escaped = String(code).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    if (!out.includes('</head>')) break;
+    out = out.replace('</head>', `<meta name="yandex-verification" content="${escaped}" />\n</head>`);
+  }
+  return out;
+}
+
 export function catalogOrigin(kind) {
   if (DEPLOYED_SITE_MODE === 'malls') return MALLS_ORIGIN;
   if (DEPLOYED_SITE_MODE === 'offices') return OFFICES_ORIGIN;

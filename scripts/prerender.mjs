@@ -90,6 +90,7 @@ import {
   PLATFORM_ORIGIN,
   REDIRECT_MALLS_ENABLED,
   REDIRECT_OFFICES_ENABLED,
+  appendMissingYandexExtras,
   catalogYandexVerification,
 } from './domainSplit.mjs';
 
@@ -273,6 +274,9 @@ function rewriteSnapshotForPublicOrigin(html) {
       out = out.replace('</head>', `<meta name="yandex-verification" content="${yandex}" />\n</head>`);
     }
   }
+  // Скопированный с прода снапшот знает только уже выложенные meta.
+  // Недостающие доп. коды дописываем, уже стоящие теги не переписываем.
+  out = appendMissingYandexExtras(out);
   return out;
 }
 
