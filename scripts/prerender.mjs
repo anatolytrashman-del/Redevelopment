@@ -1237,7 +1237,11 @@ async function main() {
   // игнорируется, чтобы случайно не уехал частичный прод.
   if (!process.env.VERCEL && process.env.PRERENDER_ONLY) {
     const prefixes = process.env.PRERENDER_ONLY.split(',').map((p) => p.trim()).filter(Boolean);
-    const kept = paths.filter((p) => prefixes.some((prefix) => p.startsWith(prefix)));
+    // Суффикс `$` — точное совпадение (`minsk/tc$`), без всех вложенных.
+    // Без него префикс как раньше: `minsk/tc` захватывает и карточки.
+    const kept = paths.filter((p) =>
+      prefixes.some((prefix) => (prefix.endsWith('$') ? p === prefix.slice(0, -1) : p.startsWith(prefix))),
+    );
     paths.splice(0, paths.length, ...kept);
     console.log(`[prerender] PRERENDER_ONLY — ограничиваюсь ${paths.length} путями по префиксам: ${prefixes.join(', ')}`);
   }

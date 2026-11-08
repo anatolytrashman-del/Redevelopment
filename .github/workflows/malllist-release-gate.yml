@@ -1,0 +1,31 @@
+name: malllist release gate
+
+# Ручной прогон перед выпуском malllist. Не cron и не push.
+# Три маршрута передаются строкой в env, не склейкой в shell.
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: 'URL через запятую: главная, /minsk/tc, карточка'
+        required: true
+        type: string
+
+concurrency:
+  group: malllist-release-gate
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lighthouse gate
+        env:
+          GATE_URLS: ${{ inputs.urls }}
+        run: node scripts/malllist-release-gate.mjs --runs 3 --out artifacts/malllist-release-gate

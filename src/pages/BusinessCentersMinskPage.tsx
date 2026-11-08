@@ -123,6 +123,7 @@ import {
   TradeCenterEditorialShelves,
 } from '../components/businessCenters/TradeCenterEditorialShelves';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
+import { innerHtmlOfRoot } from '../lib/tcSnapshotHydration';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -426,6 +427,7 @@ type TcBrowsePreserve = {
   __tcBrowseFaqHtml?: string;
   __tcBrowseHeroCount?: string;
   __tcBrowseHeroHtml?: string;
+  __tcBrowseMenuGridHtml?: string;
 };
 
 function peekTcBrowsePreserve(): TcBrowsePreserve {
@@ -505,6 +507,7 @@ function TcBrowseBodyMount({
     return (
       <div
         id="tc-browse-body"
+        className="contents"
         ref={(el) => {
           containerRef.current = el;
           if (el) neutralizeReveals(el);
@@ -1597,17 +1600,12 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
   // hasPreservedBrowse — выше (lightTcBrowseHome). Hero count из снапшота.
   const preservedHeroCount = browsePreserve.__tcBrowseHeroCount ?? null;
   const preservedFaqHtml = browsePreserve.__tcBrowseFaqHtml ?? null;
-  const preservedHeroHtml = browsePreserve.__tcBrowseHeroHtml ?? null;
-
-  // Extract inner content so we can render a matching <header> tag (for exact
-  // hydration match on the element) with the snapshot's children via dangerouslySetInnerHTML.
-  // This restores the compact hero ("Каталог ТЦ Минска" + small cover on right) exactly
-  // as it was in the prerender, without React re-rendering the .ml-lookbook-cover.
-  const preservedHeroInner = (() => {
-    if (!preservedHeroHtml) return null;
-    const m = preservedHeroHtml.match(/^<header[^>]*>([\s\S]*?)<\/header>$/i);
-    return m ? m[1] : preservedHeroHtml;
-  })();
+  // Сетку меню не подменяем, когда список доедет по idle.
+  const preservedMenuGridHtml = lightTcBrowseHome ? (browsePreserve.__tcBrowseMenuGridHtml ?? null) : null;
+  // outerHTML #faq нельзя класть во второй div: в снапшоте корень и есть
+  // <div id="faq">. Лишняя обёртка — структурный mismatch, React #418,
+  // клиент пересобирает всё дерево и LCP уезжает на бандл (2026-11-08).
+  const preservedFaqInner = preservedFaqHtml ? innerHtmlOfRoot(preservedFaqHtml, 'div') : null;
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
@@ -1867,6 +1865,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           показывается (шторка), совпадать не с чем. */}
       <CatalogTopNav
         centers={centers}
+        preservedMenuGridHtml={preservedMenuGridHtml}
         width="max-w-6xl"
         navOffsetClassName={
           isTcBrowseHome ? undefined : 'lg:ml-[calc(64px+max(0px,(100%-1008px)/2))]'
@@ -1882,25 +1881,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           <div className="space-y-5 sm:space-y-6">
             {/* Компактный hero как у casinolist LV: заголовок + мета-строка +
                 маленькая обложка справа — без огромной пустой картинки. */}
-            {lightTcBrowseHome && preservedHeroInner ? (
-              // AUDIT-2026-10: render the compact hero as <header> (to match snapshot child type
-              // and attributes exactly) and inject only its *inner* content from the snapshot.
-              // This restores the title "Каталог ТЦ Минска", meta line and the small .ml-lookbook-cover
-              // pixel-for-pixel. Using the same class+style as prerendered + suppress + neutralize
-              // descendants prevents both hydration mismatch and re-trigger of reveals (no blink).
-              // The previous wrong capture of top sticky <header> was injecting nav markup here
-              // and removing the hero block.
-              <header
-                className="ml-reveal relative overflow-hidden px-4 py-5 sm:px-8 sm:py-9 rounded-3xl border border-white/80 bg-white/60 backdrop-blur-xl backdrop-saturate-150 sm:border-white/60 sm:bg-white/40"
-                style={{ boxShadow: 'rgba(0, 0, 0, 0.1) 0px 8px 32px, rgba(255, 255, 255, 0.7) 0px 1px 0px inset' }}
-                ref={(el) => { if (el) neutralizeReveals(el); }}
-                dangerouslySetInnerHTML={{ __html: preservedHeroInner }}
-                suppressHydrationWarning
-              />
-            ) : (
-              <header
+            <header
                 className={cn('ml-reveal relative overflow-hidden px-4 py-5 sm:px-8 sm:py-9', glassCardClass)}
                 style={glassCardShadow}
+                ref={(el) => { if (el) neutralizeReveals(el); }}
               >
                 <span
                   className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-90"
@@ -1928,7 +1912,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                        {/* AUDIT-2026-10 Malllist hero: stable meta for no CLS/overlap after snapshot. Tabular for numbers. */}
                       <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="tabular-nums text-ink">
-                          {tcBrowseFigures[0]?.value ?? preservedHeroCount ?? '—'} ТЦ
+                          {`${tcBrowseFigures[0]?.value ?? preservedHeroCount ?? '—'} ТЦ`}
                         </span>
                         <span className="text-ink/25" aria-hidden>
                           ·
@@ -1962,14 +1946,19 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
                   </div>
                 </div>
               </header>
-            )}
 
             <TcBrowseBodyMount figures={tcBrowseFigures} shelves={tcEditorialShelves} />
 
-            {lightTcBrowseHome && preservedFaqHtml ? (
-              // AUDIT-2026-10: preserved FAQ on snapshot home. We no longer force ml-motion-ready on this path
-              // (see TcBrowseBodyMount) to avoid re-triggering animations on static prerendered content.
-              <div dangerouslySetInnerHTML={{ __html: preservedFaqHtml }} />
+            {lightTcBrowseHome && preservedFaqInner ? (
+              // Тот же корневой div, что рисует FaqAccordion: id/class/style
+              // совпадают со снапшотом, внутрь — его дети, без второй обёртки.
+              <div
+                id="faq"
+                className={cn('flex flex-col gap-4 p-6 scroll-mt-6', glassCardClass)}
+                style={glassCardShadow}
+                dangerouslySetInnerHTML={{ __html: preservedFaqInner }}
+                suppressHydrationWarning
+              />
             ) : (
               faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />
             )}

@@ -12,3 +12,6 @@ scripts/supply-categories/out/
 
 # Снимки выдачи Яндекс.Карт, которые пишут scripts/capture-yandex-*.mjs
 tmp/
+
+# Сырые JSON прогона malllist:release-gate
+artifacts/malllist-release-gate/
