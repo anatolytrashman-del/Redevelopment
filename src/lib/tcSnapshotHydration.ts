@@ -4,6 +4,17 @@
  * LCP переезжает с готового HTML на момент выполнения бандла.
  */
 
+/**
+ * Гидрация browse-home только на `/` и `/minsk/tc` без `?view=list`.
+ * Список по query рисует другие блоки, чем полки в снапшоте.
+ */
+export function isMalllistBrowseHomeUrl(pathname: string, search: string): boolean {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (path !== '/' && path !== '/minsk/tc') return false;
+  const query = search.startsWith('?') ? search.slice(1) : search;
+  return new URLSearchParams(query).get('view') !== 'list';
+}
+
 /** Внутренность одного корневого элемента, снятого как outerHTML. */
 export function innerHtmlOfRoot(outer: string, tag: string): string | null {
   const trimmed = outer.trim();

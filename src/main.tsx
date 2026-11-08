@@ -5,6 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { ErrorBoundary, clearCrashReloadFlag } from './components/ErrorBoundary'
 import { primeBusinessCentersFromBuild } from './lib/businessCentersApi'
+import { isMalllistBrowseHomeUrl } from './lib/tcSnapshotHydration'
 const container = document.getElementById('root')!
 
 // PAGESPEED_PLAN.md, Э7-4 (вторая половина, первая — scripts/
@@ -69,6 +70,7 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
     __tcBrowseFaqHtml?: string
     __tcBrowseHeroCount?: string
     __tcBrowseHeroHtml?: string
+    __tcBrowseMenuGridHtml?: string
   }
   if (browseBody) {
     wBrowse.__tcBrowseBodyHtml = browseBody.innerHTML
@@ -104,6 +106,14 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   if (faqEl) wBrowse.__tcBrowseFaqHtml = faqEl.outerHTML
   const heroCount = container.querySelector('main header .tabular-nums')?.textContent?.trim()
   if (heroCount) wBrowse.__tcBrowseHeroCount = heroCount.replace(/\s*ТЦ\s*$/u, '').trim()
+  // Сетка меню собрана пререндером из списка. На browse-home клиент список
+  // до кадра не разбирает — без снимка сетки первый рендер ставит
+  // «Загружаем каталог…» и #418. Старый снапшот без атрибута — null.
+  const menuGrid = container.querySelector('#catalog-menu-panel [data-catalog-menu-grid]')
+  if (browseBody && menuGrid) wBrowse.__tcBrowseMenuGridHtml = menuGrid.innerHTML
+  const basePath = import.meta.env.BASE_URL.replace(/\/+$/, '')
+  const routePath = window.location.pathname.slice(basePath.length) || '/'
+  const isBrowseHomeUrl = isMalllistBrowseHomeUrl(routePath, window.location.search)
   const tree = (
     <StrictMode>
       <ErrorBoundary>
@@ -121,10 +131,18 @@ Promise.all([waitForPrerenderedPaint(), primeBusinessCentersFromBuild()]).then((
   // На остальных страницах и для non-snapshot — оставляем createRoot + startTransition
   // (чтобы контролировать TBT).
   let root: ReturnType<typeof createRoot> | ReturnType<typeof hydrateRoot>
-  if (wBrowse.__tcBrowseBodyHtml && container.hasChildNodes()) {
+  if (wBrowse.__tcBrowseBodyHtml && isBrowseHomeUrl && container.hasChildNodes()) {
     try {
-      // Hydrate existing snapshot HTML instead of replacing it
-      root = hydrateRoot(container, tree)
+      // #418 приходит асинхронно, try/catch его не ловит. Не глушим:
+      // console.error оставляем — его видят Lighthouse и release-gate,
+      // componentStack называет компонент.
+      root = hydrateRoot(container, tree, {
+        onRecoverableError(error, errorInfo) {
+          console.error(error)
+          const stack = (errorInfo as { componentStack?: string } | undefined)?.componentStack
+          if (stack) console.error('[hydration] componentStack:', stack)
+        },
+      })
     } catch (e) {
       // Fallback if hydration fails (mismatch or other) — use normal render
       root = createRoot(container)

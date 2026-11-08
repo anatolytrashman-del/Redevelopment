@@ -20,7 +20,7 @@ export const SITE_OPERATOR_REQUISITES = {
 function RedevelopmentProductCredit() {
   return (
     <p className="leading-relaxed">
-      Продукт компании{' '}
+      {`Продукт компании `}
       <a
         href={platformOrigin()}
         // data-platform-home: prerender rewrite (SITE→PUBLIC origin) не должен

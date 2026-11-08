@@ -86,6 +86,12 @@ export type CatalogTopNavProps = {
    * содержимого, отдельного запроса меню не делает).
    */
   centers: BusinessCenter[] | null;
+  /**
+   * innerHTML сетки из снапшота browse-home. Пока он есть, сетку не
+   * пересобираем из centers: иначе первый кадр или приход списка через
+   * ~1,2 с меняет DOM и рвёт гидрацию / раскрытие групп.
+   */
+  preservedMenuGridHtml?: string | null;
   /** Ширина внутреннего контейнера — та же, что у контента страницы. */
   width?: string;
   /** Второй ряд внутри той же sticky-шапки (на карточке БЦ — оглавление). */
@@ -269,8 +275,18 @@ function analyticsLinkActive(pathname: string, to: string): boolean {
   return pathname === to;
 }
 
-export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffsetClassName }: CatalogTopNavProps) {
+const MENU_GRID_CLASS =
+  'grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,2.3fr)_minmax(0,0.85fr)] lg:gap-8';
+
+export function CatalogTopNav({
+  centers,
+  width = 'max-w-6xl',
+  secondRow,
+  navOffsetClassName,
+  preservedMenuGridHtml = null,
+}: CatalogTopNavProps) {
   const [open, setOpen] = useState(false);
+  const preservedGridRef = useRef<HTMLDivElement>(null);
   // Ниже md панель — единственный способ навигации, и все четыре оси подряд
   // дают экран на ~50 пунктов. Поэтому там группы свёрнуты (раскрыта одна,
   // по тапу), а от md раскладка колоночная и сворачивать нечего.
@@ -285,6 +301,28 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     setOpen(false);
     setExpandedGroup(null);
   }, [pathname]);
+
+  // Раскрытие групп в сохранённой сетке. На md кнопки и так pointer-events-none,
+  // подмена сетки живым деревом после idle не нужна.
+  useEffect(() => {
+    const root = preservedGridRef.current;
+    if (!root || !preservedMenuGridHtml) return;
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest('button');
+      if (!button || !root.contains(button)) return;
+      const panel = button.nextElementSibling;
+      if (!(panel instanceof HTMLElement)) return;
+      event.preventDefault();
+      const collapsed = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !collapsed);
+      button.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+      button.querySelector('svg')?.classList.toggle('rotate-180', collapsed);
+    };
+    root.addEventListener('click', onClick);
+    return () => root.removeEventListener('click', onClick);
+  }, [preservedMenuGridHtml]);
 
   useEffect(() => {
     if (!open) return;
@@ -472,10 +510,18 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
           style={{ '--page-w': PAGE_CONTENT_WIDTH[width] ?? PAGE_CONTENT_WIDTH['max-w-6xl'] } as CSSProperties}
         >
           <div className="flex max-w-[72rem] flex-col gap-6">
-          {groups.length === 0 ? (
+          {preservedMenuGridHtml ? (
+            <div
+              ref={preservedGridRef}
+              data-catalog-menu-grid=""
+              className={MENU_GRID_CLASS}
+              dangerouslySetInnerHTML={{ __html: preservedMenuGridHtml }}
+              suppressHydrationWarning
+            />
+          ) : groups.length === 0 ? (
             <p className="text-sm text-ink-muted">Загружаем каталог…</p>
           ) : (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,2.3fr)_minmax(0,0.85fr)] lg:gap-8">
+            <div data-catalog-menu-grid="" className={MENU_GRID_CLASS}>
               {/* Районы и метро — по своей колонке; класс и тип короткие,
                   поэтому делят третью, иначе grid перенёс бы тип под
                   районы, в начало второго ряда. Вертикальная линия между

@@ -1,14 +1,12 @@
 name: malllist release gate
 
-# Ручной прогон перед выпуском malllist. Не cron и не push: квота
-# GitHub Free не рассчитана на почасовой или «на каждый пуш» Lighthouse.
-# Файл только описывает проверку. Он не деплоит прод и не включается,
-# пока ветка не влита туда, где её запускают руками.
+# Ручной прогон перед выпуском malllist. Не cron и не push.
+# Три маршрута передаются строкой в env, не склейкой в shell.
 on:
   workflow_dispatch:
     inputs:
-      url:
-        description: 'URL уже собранного кандидата (не запускает сборку Vercel)'
+      urls:
+        description: 'URL через запятую: главная, /minsk/tc, карточка'
         required: true
         type: string
 
@@ -19,7 +17,7 @@ concurrency:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,4 +26,6 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Lighthouse gate
-        run: node scripts/malllist-release-gate.mjs --url "${{ inputs.url }}" --runs 3 --out artifacts/malllist-release-gate
+        env:
+          GATE_URLS: ${{ inputs.urls }}
+        run: node scripts/malllist-release-gate.mjs --runs 3 --out artifacts/malllist-release-gate
