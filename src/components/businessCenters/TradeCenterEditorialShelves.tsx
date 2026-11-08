@@ -209,7 +209,6 @@ function LookbookCard({ card, delayClass }: { card: TcEditorialCard; delayClass?
       <Link
         to={card.href}
         title={`${card.title} — ${card.countLabel}`}
-        aria-label={`${card.title} — ${card.countLabel}`}
         className="group flex flex-col gap-2 rounded-xl p-1 -m-1 transition-colors hover:bg-white/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9a227]/50 sm:gap-2.5 sm:p-1.5 sm:-m-1.5"
         // AUDIT-2026-10: -m-1 / sm:-m-1.5 — negative margin, чтобы hover-эффект и ring выходили за границы карточки без изменения layout соседей.
         // Это не баг, а deliberate design (как в glass-карточках). Не удалять без причины.
@@ -288,18 +287,18 @@ function ShelfRow({ shelf }: { shelf: TcEditorialShelf }) {
     >
       <div className="flex items-end justify-between gap-3 px-0.5">
         <div className="min-w-0">
-          <h3
+          <h2
             id={`tc-shelf-${shelf.id}`}
             className="text-[1.35rem] font-bold tracking-tight text-ink sm:text-[1.75rem]"
             style={DISPLAY}
           >
             {shelf.title}
-          </h3>
+          </h2>
           <p className="mt-1 text-sm text-ink/60">{shelf.lead}</p>
         </div>
         {shelf.cards.length > 2 ? (
           <span
-            className="shrink-0 pb-0.5 text-[11px] font-bold tracking-wide text-ink/35 sm:text-[12px]"
+            className="shrink-0 pb-0.5 text-[11px] font-bold tracking-wide text-ink-muted sm:text-[12px]"
             aria-hidden
           >
             Листайте →

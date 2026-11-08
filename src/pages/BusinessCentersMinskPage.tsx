@@ -123,6 +123,7 @@ import {
   TradeCenterEditorialShelves,
 } from '../components/businessCenters/TradeCenterEditorialShelves';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
+import { innerHtmlOfRoot } from '../lib/tcSnapshotHydration';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -505,6 +506,7 @@ function TcBrowseBodyMount({
     return (
       <div
         id="tc-browse-body"
+        className="contents"
         ref={(el) => {
           containerRef.current = el;
           if (el) neutralizeReveals(el);
@@ -1608,6 +1610,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     const m = preservedHeroHtml.match(/^<header[^>]*>([\s\S]*?)<\/header>$/i);
     return m ? m[1] : preservedHeroHtml;
   })();
+  // outerHTML #faq нельзя класть во второй div: в снапшоте корень и есть
+  // <div id="faq">. Лишняя обёртка — структурный mismatch, React #418,
+  // клиент пересобирает всё дерево и LCP уезжает на бандл (2026-11-08).
+  const preservedFaqInner = preservedFaqHtml ? innerHtmlOfRoot(preservedFaqHtml, 'div') : null;
   // Авторские полки подборок на корне ТЦ — ритм casinolist shortlists
   // (шопинг / кино / парковка / бренды / топ районы и метро для минчан).
   const tcEditorialShelves = useMemo(
@@ -1866,7 +1872,10 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           Активен с lg — раньше боковое меню на этой странице не
           показывается (шторка), совпадать не с чем. */}
       <CatalogTopNav
-        centers={centers}
+        // Снапшот хаба уже содержит сетку меню. На лёгком browse-home список
+        // в стейте пустой (полки берутся из HTML), и меню рисовало
+        // «Загружаем каталог…» вместо сетки — React #418 и пересборка дерева.
+        centers={centers ?? (lightTcBrowseHome ? snapshotBusinessCenters(V.kind) : null)}
         width="max-w-6xl"
         navOffsetClassName={
           isTcBrowseHome ? undefined : 'lg:ml-[calc(64px+max(0px,(100%-1008px)/2))]'
@@ -1966,10 +1975,16 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
             <TcBrowseBodyMount figures={tcBrowseFigures} shelves={tcEditorialShelves} />
 
-            {lightTcBrowseHome && preservedFaqHtml ? (
-              // AUDIT-2026-10: preserved FAQ on snapshot home. We no longer force ml-motion-ready on this path
-              // (see TcBrowseBodyMount) to avoid re-triggering animations on static prerendered content.
-              <div dangerouslySetInnerHTML={{ __html: preservedFaqHtml }} />
+            {lightTcBrowseHome && preservedFaqInner ? (
+              // Тот же корневой div, что рисует FaqAccordion: id/class/style
+              // совпадают со снапшотом, внутрь — его дети, без второй обёртки.
+              <div
+                id="faq"
+                className={cn('flex flex-col gap-4 p-6 scroll-mt-6', glassCardClass)}
+                style={glassCardShadow}
+                dangerouslySetInnerHTML={{ __html: preservedFaqInner }}
+                suppressHydrationWarning
+              />
             ) : (
               faqItems.length > 0 && <FaqAccordion title="Частые вопросы" items={faqItems} id="faq" />
             )}

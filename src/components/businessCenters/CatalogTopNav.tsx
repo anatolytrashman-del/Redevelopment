@@ -11,6 +11,7 @@ import {
   type MetroLineGroup,
 } from '../../lib/catalogSlices';
 import type { BusinessCenter } from '../../data/businessCenters';
+import { isCatalogSectionPath } from '../../lib/catalogNavActive';
 import { useCatalogKind, type CatalogKind } from '../../lib/catalogKind';
 import { SiteBrandLogo } from '../layout/SiteBrandLogo';
 import {
@@ -346,7 +347,7 @@ export function CatalogTopNav({ centers, width = 'max-w-6xl', secondRow, navOffs
     !activeTop &&
     !ratingsActive &&
     !analyticsActive &&
-    (pathname === V.basePath || pathname.startsWith(`${V.basePath}/`) || pathname.startsWith('/favorites/'));
+    isCatalogSectionPath(pathname, V.basePath, deployedSiteMode());
 
   const linkClass = (active: boolean) =>
     cn(

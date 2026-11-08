@@ -23,7 +23,9 @@ export function SiteBrandLogo({
   const mark =
     mode === 'malls' ? (
       <>
-        Mall<span className="text-primary">List</span>
+        {/* «List» на #f0efed: #e4152b даёт 4.11:1 при 18px bold (LH 2026-11-08).
+            text-primary-hover (#c81124) — тот же приём, что Э8 для «RED», только malllist. */}
+        Mall<span className="text-primary-hover">List</span>
       </>
     ) : mode === 'offices' ? (
       <>

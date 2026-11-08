@@ -29,7 +29,9 @@ function RedevelopmentProductCredit() {
         className="inline-block font-extrabold tracking-wide text-ink hover:opacity-90"
         rel="noopener noreferrer"
       >
-        <span className="font-black text-primary">RED</span>EVELOPMENT
+        {/* На malllist #e4152b на #f9f9f8 — 4.48:1 при 12px (LH 2026-11-08).
+            Officelist остаётся на text-primary. */}
+        <span className={`font-black ${deployedSiteMode() === 'malls' ? 'text-primary-hover' : 'text-primary'}`}>RED</span>EVELOPMENT
       </a>
     </p>
   );
