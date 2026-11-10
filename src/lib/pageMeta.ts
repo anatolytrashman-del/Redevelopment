@@ -9,7 +9,7 @@ import { pluralRu } from './pluralRu';
 import { fullName, shortAddress, shortName } from './businessCenterDisplay';
 import { bcCardTitle } from './bcTitles';
 import type { CatalogKind } from './catalogKind';
-import { catalogSiteUrl, deployedSiteMode, platformOrigin, SITES } from './sites';
+import { catalogSiteUrl, deployedSiteMode, ownSiteBrand, ownSiteOrigin, SITES } from './sites';
 
 export interface PageMeta {
   title: string;
@@ -86,7 +86,8 @@ export function setFaqJsonLd(items: { question: string; answer: string }[]) {
 // Общая og/twitter-заглушка (см. index.html) — на неё сбрасываем og:image,
 // когда у страницы нет собственной картинки, чтобы при SPA-переходах не
 // оставалась картинка предыдущей страницы.
-const DEFAULT_OG_IMAGE = 'https://redevelopment.pro/og-image.png';
+// Свой домен сборки (аудит SEO 2026-11-10): на malllist/officelist — их og-image.png.
+const DEFAULT_OG_IMAGE = `${ownSiteOrigin()}/og-image.png`;
 
 // Для контентных страниц вне сущности "объект" (гиды, будущий кластер
 // поддержки — Э3-1/Э3-3 в SEO_PLAN.md) — та же подмена тегов, что у
@@ -166,7 +167,7 @@ export function setArticleJsonLd(article: {
 }) {
   const ld = document.getElementById('article-json-ld');
   if (!ld) return;
-  const org = { '@type': 'Organization', name: 'Redevelopment', url: 'https://redevelopment.pro' };
+  const org = { '@type': 'Organization', name: ownSiteBrand(), url: ownSiteOrigin() };
   ld.textContent = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -342,7 +343,7 @@ export function setDatasetJsonLd(dataset: {
     description: dataset.description,
     url: dataset.url,
     license: 'https://redevelopment.pro/minsk/analytics/metodika',
-    creator: { '@type': 'Organization', name: 'Redevelopment', url: 'https://redevelopment.pro' },
+    creator: { '@type': 'Organization', name: ownSiteBrand(), url: ownSiteOrigin() },
     datePublished: dataset.datePublished,
     dateModified: dataset.dateModified,
     temporalCoverage: dataset.dateModified,
@@ -609,7 +610,7 @@ export function setBusinessCenterPageMeta(
   // см. data/businessCenters.ts), не абсолютными URL, как у Supabase Storage
   // объектов — og:image/JSON-LD image по спецификации должны быть абсолютными
   // (соцсети/краулеры фетчат их напрямую, не относительно страницы).
-  const absoluteImage = image ? new URL(image, platformOrigin()).toString() : undefined;
+  const absoluteImage = image ? new URL(image, ownSiteOrigin()).toString() : undefined;
 
   document.title = meta.title;
   setMetaContent('meta[name="description"]', meta.description);

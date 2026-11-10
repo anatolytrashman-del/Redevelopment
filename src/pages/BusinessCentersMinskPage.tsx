@@ -124,7 +124,7 @@ import {
 } from '../components/businessCenters/TradeCenterEditorialShelves';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
 import { innerHtmlOfRoot } from '../lib/tcSnapshotHydration';
-import { catalogHubHref, catalogHubUrl } from '../lib/sites';
+import { catalogHubHref, catalogHubUrl, cityBreadcrumb, absoluteCatalogUrl, ownSiteOrigin } from '../lib/sites';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -153,7 +153,7 @@ function isCatalogDomainRoot(): boolean {
 // (/minsk/tc): название раздела и адреса берутся из словаря каталога
 // (useCatalogKind, src/lib/catalogKind.tsx) — V.catalogTitle вместо
 // прежнего TITLE, V.siteUrl вместо PAGE_URL. Для БЦ строки те же, что были.
-const OG_IMAGE = 'https://redevelopment.pro/og-image.png';
+const OG_IMAGE = `${ownSiteOrigin()}/og-image.png`;
 
 // Заголовок и подзаголовок hero — первая версия составлена Gemini (через
 // ProxyAPI), владелец переписал вручную (2026-09-04), затем ещё раз попросил
@@ -1173,21 +1173,21 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       ? `Независимый справочник: ${hubCount ?? ''} ${tcCountWord(hubCount ?? 0)} Минска — часы работы, магазины по этажам, где поесть и припарковаться, отзывы посетителей. Не связаны с ТЦ, не берём денег за размещение.`.replace(': 0 ', ': ').replace(':  ', ': ')
       : businessCenterHubDescription(hubSubject, hubCount, V.kind);
     const hubUrl = displayHubUrl
-      ? `https://redevelopment.pro${displayHubUrl}`
+      ? absoluteCatalogUrl(V.kind, displayHubUrl)
       : underConstruction
       ? `${V.siteUrl}/new`
       : metroFilter
-        ? `https://redevelopment.pro${metroHubUrl(metroFilter, V.basePath) ?? ''}`
+        ? absoluteCatalogUrl(V.kind, metroHubUrl(metroFilter, V.basePath) ?? '')
         : streetFilter
-          ? `https://redevelopment.pro${streetHubUrl(streetFilter, V.basePath) ?? ''}`
+          ? absoluteCatalogUrl(V.kind, streetHubUrl(streetFilter, V.basePath) ?? '')
           : classFilter && districtFilter
-        ? `https://redevelopment.pro${classDistrictHubUrl(classFilter, districtFilter) ?? ''}`
+        ? absoluteCatalogUrl(V.kind, classDistrictHubUrl(classFilter, districtFilter) ?? '')
         : classFilter
-          ? `https://redevelopment.pro${classHubUrl(classFilter)}`
+          ? absoluteCatalogUrl(V.kind, classHubUrl(classFilter))
           : districtFilter
-            ? `https://redevelopment.pro${districtHubUrl(districtFilter, V.basePath) ?? ''}`
+            ? absoluteCatalogUrl(V.kind, districtHubUrl(districtFilter, V.basePath) ?? '')
             : microdistrictFilter
-              ? `https://redevelopment.pro${microdistrictHubUrl(microdistrictFilter, V.basePath) ?? ''}`
+              ? absoluteCatalogUrl(V.kind, microdistrictHubUrl(microdistrictFilter, V.basePath) ?? '')
               : isCatalogDomainRoot()
                 ? `${V.siteUrl.replace(/^(https?:\/\/[^/]+).*$/, '$1')}/`
                 : catalogHubUrl(V.kind);
@@ -1223,14 +1223,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
     setBreadcrumbJsonLd(
       classFilter && districtFilter
         ? [
-            { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+            ...cityBreadcrumb(),
             { name: V.catalogTitle, url: catalogHubUrl(V.kind) },
-            { name: `Класс ${classFilter}`, url: `https://redevelopment.pro${classHubUrl(classFilter)}` },
+            { name: `Класс ${classFilter}`, url: absoluteCatalogUrl(V.kind, classHubUrl(classFilter)) },
             { name: `${districtFilter} район` },
           ]
         : classFilter || districtFilter || microdistrictFilter || underConstruction || metroFilter || streetFilter || displayHub
           ? [
-              { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+              ...cityBreadcrumb(),
               { name: V.catalogTitle, url: catalogHubUrl(V.kind) },
               {
                 name: displayHub
@@ -1247,7 +1247,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               },
             ]
           : [
-              { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+              ...cityBreadcrumb(),
               { name: V.catalogTitle },
             ],
     );

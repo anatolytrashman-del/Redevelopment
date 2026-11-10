@@ -171,6 +171,185 @@ const OFFICELIST_NOT_FOUND_HTML = NOT_FOUND_HTML
   .replace('— REDEVELOPMENT', '— OfficeList')
   .replace('<b>RED</b>EVELOPMENT', 'Office<span style="color:#e4152b">List</span>');
 
+// ── Удалённые карточки каталогов → 410 (аудит SEO 2026-11-10) ───────────
+// SPA на /minsk/tc/<slug> и /minsk/bc/<slug> без данных рисовала главную с
+// canonical «/» и кодом 200 (soft-404: officelist /minsk/bc/depart и т.п.).
+// Список живых slug'ов пишет сборка в /data/catalog-slugs.json
+// (scripts/generate-catalog-slugs.mjs). Нет файла / сбой сети / странный
+// ответ — не режем ничего (fail-open): лучше старый soft-404, чем 410 на
+// живой карточке.
+const TC_RESERVED = new Set(['rating', 'district', 'metro', 'format', 'with', 'store']);
+const BC_RESERVED = new Set([
+  'new', 'rating', 'guide', 'analytics', 'class', 'district', 'area', 'metro', 'street',
+]);
+
+// «Бренды» /minsk/tc/store/* — на деле инфраструктура ТЦ (туалеты,
+// банкоматы, парковки, терминалы Qiwi…). Не магазины: 410, остальные
+// бренды остаются как были (noindex). Ссылок на них с главной нет.
+export const TC_STORE_JUNK_SLUGS = new Set([
+  'tualet',
+  'tualet-dlya-invalidov',
+  'tualet-muzhskoy',
+  'bankomat',
+  'atm-belinvestbank',
+  'platezhnyy-terminal',
+  'infokiosk',
+  'qiwi',
+  'veloparkovka',
+  'parkovka',
+  'avtomobilnaya-parkovka',
+  'avtomobilnaya-parkovka-tts-nemiga-3',
+  'parkovka-arena-city',
+  'kamera-hraneniya',
+  'garderob',
+  'kurilka',
+  'skameyka',
+  'komnata-materi-i-rebenka',
+  'pochtomat',
+  'punkt-vaktsinatsii',
+  'punkt-vaktsinatsii-ot-covid-19',
+  'punkty-vaktsinatsii-rb',
+  'zaryadka',
+  'kofeavtomat',
+  'kofeynyy-avtomat',
+  'massazhnoe-kreslo',
+  'avtomat-igrushek-i-sladostey',
+]);
+
+type CatalogSlugs = { tc: Set<string>; bc: Set<string>; aliasTc: Set<string>; aliasBc: Set<string> };
+let slugCache: { at: number; data: CatalogSlugs | null } | null = null;
+const SLUG_TTL_MS = 10 * 60 * 1000;
+const SLUG_FAIL_TTL_MS = 60 * 1000;
+
+function toSet(v: unknown): Set<string> {
+  return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+}
+
+export function parseCatalogSlugs(raw: unknown): CatalogSlugs | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as { tc?: unknown; bc?: unknown; aliases?: { tc?: unknown; bc?: unknown } };
+  const tc = toSet(r.tc);
+  const bc = toSet(r.bc);
+  if (tc.size < 50 || bc.size < 50) return null;
+  return { tc, bc, aliasTc: toSet(r.aliases?.tc), aliasBc: toSet(r.aliases?.bc) };
+}
+
+async function loadCatalogSlugs(url: URL): Promise<CatalogSlugs | null> {
+  const now = Date.now();
+  if (slugCache && now - slugCache.at < (slugCache.data ? SLUG_TTL_MS : SLUG_FAIL_TTL_MS)) return slugCache.data;
+  let data: CatalogSlugs | null = null;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2000);
+    const res = await fetch(new URL('/data/catalog-slugs.json', url), {
+      signal: ctrl.signal,
+      headers: { accept: 'application/json' },
+    });
+    clearTimeout(timer);
+    if (res.ok && (res.headers.get('content-type') || '').includes('json')) {
+      data = parseCatalogSlugs(await res.json());
+    }
+  } catch {
+    data = null;
+  }
+  slugCache = { at: now, data };
+  return data;
+}
+
+/** Тест: сбросить кэш списка slug'ов. */
+export function __resetCatalogSlugCache() {
+  slugCache = null;
+}
+
+/**
+ * Синхронная часть: что точно 410 без данных, что требует проверки по
+ * списку (возвращает slug), что не трогаем (null).
+ */
+export function catalogGoneCandidate(
+  siteMode: string,
+  normalized: string,
+): { gone: true } | { slug: string; kind: 'tc' | 'bc' } | null {
+  const segs = normalized.split('/');
+  if (siteMode === 'malls') {
+    if (segs[1] !== 'minsk' || segs[2] !== 'tc') return null;
+    if (segs.length === 4 && segs[3] === 'store') return { gone: true };
+    if (segs.length === 5 && segs[3] === 'store' && TC_STORE_JUNK_SLUGS.has(segs[4])) return { gone: true };
+    if (segs.length === 4 && segs[3] && !TC_RESERVED.has(segs[3])) return { slug: segs[3], kind: 'tc' };
+    return null;
+  }
+  if (siteMode === 'offices') {
+    if (segs[1] !== 'minsk' || segs[2] !== 'bc') return null;
+    if (segs.length === 4 && segs[3] && !BC_RESERVED.has(segs[3])) return { slug: segs[3], kind: 'bc' };
+    return null;
+  }
+  return null;
+}
+
+export function isKnownCatalogSlug(data: CatalogSlugs, kind: 'tc' | 'bc', slug: string): boolean {
+  return kind === 'tc' ? data.tc.has(slug) || data.aliasTc.has(slug) : data.bc.has(slug) || data.aliasBc.has(slug);
+}
+
+function goneHtml(siteMode: string): string {
+  const malls = siteMode === 'malls';
+  const brand = malls ? 'Mall<span style="color:#e4152b">List</span>' : 'Office<span style="color:#e4152b">List</span>';
+  const title = malls ? 'MallList' : 'OfficeList';
+  const what = malls ? 'Этого торгового центра больше нет в каталоге' : 'Этого бизнес-центра больше нет в каталоге';
+  const links = malls
+    ? [
+        ['/', 'Все торговые центры Минска'],
+        ['/minsk/tc/rating', 'Рейтинг ТЦ'],
+        ['/minsk/tc/with/metro', 'ТЦ у метро'],
+      ]
+    : [
+        ['/', 'Все бизнес-центры Минска'],
+        ['/minsk/bc/rating', 'Рейтинг БЦ'],
+        ['/minsk/bc/new', 'Строящиеся БЦ'],
+      ];
+  return `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, follow">
+<title>Объект больше не в каталоге — ${title}</title>
+<style>
+  html,body{margin:0;min-height:100%;background:#f0efed;color:#14151a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  body{display:flex;align-items:center;justify-content:center;text-align:center;padding:3rem 1rem}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:1.25rem;max-width:28rem}
+  .logo{font-size:1.125rem;font-weight:800;letter-spacing:.02em}
+  h1{margin:.25rem 0 0;font-size:1.5rem;font-weight:800}
+  p{margin:0;font-size:.9rem;color:#6b6d76}
+  nav{display:flex;flex-direction:column;gap:.5rem;width:100%}
+  a{display:block;padding:.75rem 1.25rem;border-radius:9999px;background:#fff;color:#14151a;font-size:.9rem;font-weight:600;text-decoration:none;border:1px solid #e2e0dc}
+  a.main{background:#e4152b;color:#fff;border-color:#e4152b}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">${brand}</div>
+    <h1>${what}</h1>
+    <p>Карточку удалили из каталога. Посмотрите другие объекты:</p>
+    <nav>
+${links.map(([href, label], i) => `      <a${i === 0 ? ' class="main"' : ''} href="${href}">${label}</a>`).join('\n')}
+    </nav>
+  </div>
+</body>
+</html>
+`;
+}
+
+export function goneResponse(siteMode: string): Response {
+  return new Response(goneHtml(siteMode), {
+    status: 410,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'x-robots-tag': 'noindex',
+      'cache-control': 'public, max-age=0, must-revalidate',
+      'cdn-cache-control': 'max-age=300',
+    },
+  });
+}
+
 export const config = {
   runtime: 'edge',
 };
@@ -249,7 +428,7 @@ function edgeSiteMode(): ReturnType<typeof normalizeSiteMode> {
   return normalizeSiteMode(gProcess?.env?.PUBLIC_SITE || gProcess?.env?.VITE_PUBLIC_SITE);
 }
 
-export default function middleware(request: Request) {
+export default function middleware(request: Request): Response | Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
   const host = request.headers.get('host') ?? url.host;
@@ -293,6 +472,14 @@ export default function middleware(request: Request) {
     const hub = siteMode === 'malls' ? '/minsk/tc' : '/minsk/bc';
     if (normalized === hub || normalized === '/minsk') {
       return Response.redirect(new URL(`/${url.search}`, url), 308);
+    }
+    // Удалённые карточки и мусорные «бренды» — 410 (см. catalogGoneCandidate).
+    const candidate = catalogGoneCandidate(siteMode, normalized);
+    if (candidate && 'gone' in candidate) return goneResponse(siteMode);
+    if (candidate) {
+      return loadCatalogSlugs(url).then((data) =>
+        data && !isKnownCatalogSlug(data, candidate.kind, candidate.slug) ? goneResponse(siteMode) : next(),
+      );
     }
   }
 

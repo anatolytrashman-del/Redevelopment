@@ -121,6 +121,37 @@ export function absoluteCatalogUrl(kind: 'bc' | 'tc', path: string): string {
   return `${catalogSiteOrigin(kind)}${normalized}`;
 }
 
+/**
+ * Origin сайта, на котором работает текущая сборка: malllist.pro, officelist.pro
+ * или redevelopment.pro. Для og:image, Organization и абсолютных путей к фото
+ * (аудит SEO 2026-11-10: каталоги ссылались на redevelopment.pro).
+ */
+export function ownSiteOrigin(): string {
+  const mode = deployedSiteMode();
+  if (mode === 'malls') return MALLS.origin;
+  if (mode === 'offices') return OFFICES.origin;
+  return PLATFORM.origin;
+}
+
+/** Бренд сайта текущей сборки (MallList / OfficeList / Redevelopment). */
+export function ownSiteBrand(): string {
+  const mode = deployedSiteMode();
+  if (mode === 'malls') return MALLS.brand;
+  if (mode === 'offices') return OFFICES.brand;
+  return 'Redevelopment';
+}
+
+/**
+ * Первая «хлебная крошка» «Коммерческая недвижимость в Минске» ведёт на
+ * redevelopment.pro/minsk — на каталогах (malllist/officelist) её нет:
+ * крошки начинаются с корня своего каталога (аудит SEO 2026-11-10).
+ */
+export function cityBreadcrumb(): { name: string; url: string }[] {
+  const mode = deployedSiteMode();
+  if (mode === 'malls' || mode === 'offices') return [];
+  return [{ name: 'Коммерческая недвижимость в Минске', url: `${PLATFORM.origin}/minsk` }];
+}
+
 export function platformOrigin(): string {
   return PLATFORM.origin;
 }

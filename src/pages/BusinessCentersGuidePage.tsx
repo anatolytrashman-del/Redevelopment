@@ -4,7 +4,7 @@ import { ArrowRight, BookOpen } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setGenericPageMeta } from '../lib/pageMeta';
-import { catalogSiteUrl, catalogHubHref, catalogHubUrl } from '../lib/sites';
+import { catalogSiteUrl, catalogHubHref, catalogHubUrl, cityBreadcrumb } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
@@ -228,7 +228,7 @@ export function BusinessCentersGuidePage() {
       dateModified: DATE_PUBLISHED,
     });
     setBreadcrumbJsonLd([
-      { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+      ...cityBreadcrumb(),
       { name: 'Бизнес-центры Минска', url: catalogHubUrl('bc') },
       { name: 'Справочник' },
     ]);
