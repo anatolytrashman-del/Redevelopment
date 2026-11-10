@@ -211,6 +211,676 @@
   ],
   "redirects": [
     {
+      "source": "/minsk/tc/store{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/tualet{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/tualet{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/tualet-dlya-invalidov{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/tualet-dlya-invalidov{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/tualet-muzhskoy{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/tualet-muzhskoy{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/bankomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/bankomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/atm-belinvestbank{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/atm-belinvestbank{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/platezhnyy-terminal{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/platezhnyy-terminal{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/infokiosk{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/infokiosk{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/qiwi{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/qiwi{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/veloparkovka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/veloparkovka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/parkovka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/parkovka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/avtomobilnaya-parkovka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/avtomobilnaya-parkovka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/avtomobilnaya-parkovka-tts-nemiga-3{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/avtomobilnaya-parkovka-tts-nemiga-3{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/parkovka-arena-city{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/parkovka-arena-city{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kamera-hraneniya{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kamera-hraneniya{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/garderob{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/garderob{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kurilka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kurilka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/skameyka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/skameyka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/komnata-materi-i-rebenka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/komnata-materi-i-rebenka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/pochtomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/pochtomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/punkt-vaktsinatsii{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/punkt-vaktsinatsii{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/punkt-vaktsinatsii-ot-covid-19{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/punkt-vaktsinatsii-ot-covid-19{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/punkty-vaktsinatsii-rb{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/punkty-vaktsinatsii-rb{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/zaryadka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/zaryadka{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kofeavtomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kofeavtomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kofeynyy-avtomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/kofeynyy-avtomat{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/massazhnoe-kreslo{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/massazhnoe-kreslo{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/avtomat-igrushek-i-sladostey{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/tc/store/avtomat-igrushek-i-sladostey{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://malllist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/depart{/}?",
+      "destination": "https://officelist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bcminsk/metodika{/}?",
+      "destination": "https://officelist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/depart{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/depart{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/metodika{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/",
+      "permanent": true
+    },
+    {
+      "source": "/minsk/bc/metodika{/}?",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.redevelopment.pro"
+        }
+      ],
+      "destination": "https://officelist.pro/",
+      "permanent": true
+    },
+    {
       "source": "/minsk/tc",
       "has": [
         {
@@ -559,11 +1229,6 @@
     {
       "source": "/minsk/bcminsk/dana-center{/}?",
       "destination": "https://officelist.pro/minsk/bc/dana-center",
-      "permanent": true
-    },
-    {
-      "source": "/minsk/bcminsk/depart{/}?",
-      "destination": "https://officelist.pro/minsk/bc/depart",
       "permanent": true
     },
     {
