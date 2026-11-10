@@ -217,3 +217,43 @@ describe('308 каталогов не задевают sitemap-old и robots', (
     expect(middleware).toMatch(/STATIC_FILE_EXTENSIONS = new Set\(\[[\s\S]*?'xml'/);
   });
 });
+
+describe('старые URL карт уходят одним 308 сразу на каталог', () => {
+  function firstRedirect(host: string, pathname: string): VercelRedirect | undefined {
+    return redirects.find(
+      (rule) => appliesToHost(rule, host) && vercelSourceRegex(rule.source).test(pathname),
+    );
+  }
+
+  it('ни одно правило /minsk/bcminsk не уводит обратно на redevelopment (без двух прыжков)', () => {
+    for (const rule of redirects) {
+      if (!rule.source.startsWith('/minsk/bcminsk')) continue;
+      expect(rule.destination, rule.source).toMatch(/^https:\/\/officelist\.pro\//);
+      expect(rule.permanent, rule.source).toBe(true);
+    }
+  });
+
+  it('каждый URL sitemap-old.xml: первое правило — абсолютный 308 на malllist/officelist', () => {
+    const { locs } = parseSitemap(readFileSync(SITEMAP_PATH, 'utf8'));
+    for (const loc of locs) {
+      const pathname = new URL(loc).pathname;
+      const rule = firstRedirect('redevelopment.pro', pathname);
+      expect(rule, loc).toBeDefined();
+      expect(rule?.destination, loc).toMatch(/^https:\/\/(?:malllist|officelist)\.pro\//);
+    }
+  });
+
+  it('шесть бывших двухшаговых цепочек идут сразу на officelist', () => {
+    const cases: [string, string][] = [
+      ['/minsk/bcminsk/abk-park', 'https://officelist.pro/minsk/bc/:path*'],
+      ['/minsk/bcminsk/metro/vokzalnaya', 'https://officelist.pro/minsk/bc/:path*'],
+      ['/minsk/bcminsk/metro/vostok', 'https://officelist.pro/minsk/bc/:path*'],
+      ['/minsk/bcminsk/microrayon/chkalovsky', 'https://officelist.pro/minsk/bc/area/:slug'],
+      ['/minsk/bcminsk/microrayon/raduzhny', 'https://officelist.pro/minsk/bc/area/:slug'],
+      ['/minsk/bcminsk/ulitsa/logoyskiy-trakt', 'https://officelist.pro/minsk/bc/street/:slug'],
+    ];
+    for (const [pathname, destination] of cases) {
+      expect(firstRedirect('redevelopment.pro', pathname)?.destination, pathname).toBe(destination);
+    }
+  });
+});

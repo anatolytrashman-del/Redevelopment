@@ -256,7 +256,7 @@
           "value": "redevelopment.pro"
         }
       ],
-      "destination": "https://malllist.pro/minsk/tc",
+      "destination": "https://malllist.pro/",
       "permanent": true
     },
     {
@@ -278,7 +278,7 @@
           "value": "www.redevelopment.pro"
         }
       ],
-      "destination": "https://malllist.pro/minsk/tc",
+      "destination": "https://malllist.pro/",
       "permanent": true
     },
     {
@@ -300,7 +300,7 @@
           "value": "redevelopment.pro"
         }
       ],
-      "destination": "https://officelist.pro/minsk/bc",
+      "destination": "https://officelist.pro/",
       "permanent": true
     },
     {
@@ -355,7 +355,7 @@
           "value": "www.redevelopment.pro"
         }
       ],
-      "destination": "https://officelist.pro/minsk/bc",
+      "destination": "https://officelist.pro/",
       "permanent": true
     },
     {
@@ -410,7 +410,7 @@
           "value": "redevelopment.pro"
         }
       ],
-      "destination": "https://officelist.pro/minsk/bc",
+      "destination": "https://officelist.pro/",
       "permanent": true
     },
     {
@@ -432,7 +432,7 @@
           "value": "www.redevelopment.pro"
         }
       ],
-      "destination": "https://officelist.pro/minsk/bc",
+      "destination": "https://officelist.pro/",
       "permanent": true
     },
     {
@@ -506,7 +506,7 @@
     },
     {
       "source": "/minsk/bcminsk{/}?",
-      "destination": "https://officelist.pro/minsk/bc",
+      "destination": "https://officelist.pro/",
       "permanent": true
     },
     {
@@ -1266,202 +1266,202 @@
     },
     {
       "source": "/minsk/bcminsk/reyting{/}?",
-      "destination": "/minsk/bc/rating",
+      "destination": "https://officelist.pro/minsk/bc/rating",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/microrayon/grushevka{/}?",
-      "destination": "/minsk/bc/metro/grushevka",
+      "destination": "https://officelist.pro/minsk/bc/metro/grushevka",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/microrayon/uruchye{/}?",
-      "destination": "/minsk/bc/metro/uruchye",
+      "destination": "https://officelist.pro/minsk/bc/metro/uruchye",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/microrayon/kamennaya-gorka{/}?",
-      "destination": "/minsk/bc/metro/kamennaya-gorka",
+      "destination": "https://officelist.pro/minsk/bc/metro/kamennaya-gorka",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/microrayon/suharevo{/}?",
-      "destination": "/minsk/bc/street/lobanka",
+      "destination": "https://officelist.pro/minsk/bc/street/lobanka",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/stroyashchiesya{/}?",
-      "destination": "/minsk/bc/new",
+      "destination": "https://officelist.pro/minsk/bc/new",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/gid{/}?",
-      "destination": "/minsk/bc/guide",
+      "destination": "https://officelist.pro/minsk/bc/guide",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/rating/samye-dostupnye{/}?",
-      "destination": "/minsk/bc/rating/affordable",
+      "destination": "https://officelist.pro/minsk/bc/rating/affordable",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/rating/samye-bolshie{/}?",
-      "destination": "/minsk/bc/rating/largest",
+      "destination": "https://officelist.pro/minsk/bc/rating/largest",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/rating/b-plus{/}?",
-      "destination": "/minsk/bc/rating/class-b-plus",
+      "destination": "https://officelist.pro/minsk/bc/rating/class-b-plus",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/rating/b-c{/}?",
-      "destination": "/minsk/bc/rating/class-b-c",
+      "destination": "https://officelist.pro/minsk/bc/rating/class-b-c",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/pr-t-pobediteley{/}?",
-      "destination": "/minsk/bc/street/prospekt-pobediteley",
+      "destination": "https://officelist.pro/minsk/bc/street/prospekt-pobediteley",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/pr-t-nezavisimosti{/}?",
-      "destination": "/minsk/bc/street/prospekt-nezavisimosti",
+      "destination": "https://officelist.pro/minsk/bc/street/prospekt-nezavisimosti",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/pr-t-dzerzhinskogo{/}?",
-      "destination": "/minsk/bc/street/prospekt-dzerzhinskogo",
+      "destination": "https://officelist.pro/minsk/bc/street/prospekt-dzerzhinskogo",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-pritytskogo{/}?",
-      "destination": "/minsk/bc/street/pritytskogo",
+      "destination": "https://officelist.pro/minsk/bc/street/pritytskogo",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-surganova{/}?",
-      "destination": "/minsk/bc/street/surganova",
+      "destination": "https://officelist.pro/minsk/bc/street/surganova",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-platonova{/}?",
-      "destination": "/minsk/bc/street/platonova",
+      "destination": "https://officelist.pro/minsk/bc/street/platonova",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-klary-tsetkin{/}?",
-      "destination": "/minsk/bc/street/klary-tsetkin",
+      "destination": "https://officelist.pro/minsk/bc/street/klary-tsetkin",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/per-kozlova{/}?",
-      "destination": "/minsk/bc/street/pereulok-kozlova",
+      "destination": "https://officelist.pro/minsk/bc/street/pereulok-kozlova",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/pr-t-partizanskiy{/}?",
-      "destination": "/minsk/bc/street/prospekt-partizanskiy",
+      "destination": "https://officelist.pro/minsk/bc/street/prospekt-partizanskiy",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-horuzhey{/}?",
-      "destination": "/minsk/bc/street/horuzhey",
+      "destination": "https://officelist.pro/minsk/bc/street/horuzhey",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-filimonova{/}?",
-      "destination": "/minsk/bc/street/filimonova",
+      "destination": "https://officelist.pro/minsk/bc/street/filimonova",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-nemiga{/}?",
-      "destination": "/minsk/bc/street/nemiga",
+      "destination": "https://officelist.pro/minsk/bc/street/nemiga",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-melezha{/}?",
-      "destination": "/minsk/bc/street/melezha",
+      "destination": "https://officelist.pro/minsk/bc/street/melezha",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-tolbuhina{/}?",
-      "destination": "/minsk/bc/street/tolbuhina",
+      "destination": "https://officelist.pro/minsk/bc/street/tolbuhina",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-zheleznodorozhnaya{/}?",
-      "destination": "/minsk/bc/street/zheleznodorozhnaya",
+      "destination": "https://officelist.pro/minsk/bc/street/zheleznodorozhnaya",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-internatsionalnaya{/}?",
-      "destination": "/minsk/bc/street/internatsionalnaya",
+      "destination": "https://officelist.pro/minsk/bc/street/internatsionalnaya",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-lobanka{/}?",
-      "destination": "/minsk/bc/street/lobanka",
+      "destination": "https://officelist.pro/minsk/bc/street/lobanka",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-olshevskogo{/}?",
-      "destination": "/minsk/bc/street/olshevskogo",
+      "destination": "https://officelist.pro/minsk/bc/street/olshevskogo",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-sverdlova{/}?",
-      "destination": "/minsk/bc/street/sverdlova",
+      "destination": "https://officelist.pro/minsk/bc/street/sverdlova",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-skryganova{/}?",
-      "destination": "/minsk/bc/street/skryganova",
+      "destination": "https://officelist.pro/minsk/bc/street/skryganova",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-timiryazeva{/}?",
-      "destination": "/minsk/bc/street/timiryazeva",
+      "destination": "https://officelist.pro/minsk/bc/street/timiryazeva",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/ul-skoriny{/}?",
-      "destination": "/minsk/bc/street/skoriny",
+      "destination": "https://officelist.pro/minsk/bc/street/skoriny",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/ulitsa/:slug{/}?",
-      "destination": "/minsk/bc/street/:slug",
+      "destination": "https://officelist.pro/minsk/bc/street/:slug",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/raion/:slug{/}?",
-      "destination": "/minsk/bc/district/:slug",
+      "destination": "https://officelist.pro/minsk/bc/district/:slug",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/class/:cls/raion/:slug{/}?",
-      "destination": "/minsk/bc/class/:cls/district/:slug",
+      "destination": "https://officelist.pro/minsk/bc/class/:cls/district/:slug",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/microrayon/:slug{/}?",
-      "destination": "/minsk/bc/area/:slug",
+      "destination": "https://officelist.pro/minsk/bc/area/:slug",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/port-2{/}?",
-      "destination": "/minsk/bc/port",
+      "destination": "https://officelist.pro/minsk/bc/port",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk{/}?",
-      "destination": "/minsk/bc",
+      "destination": "https://officelist.pro/",
       "permanent": true
     },
     {
       "source": "/minsk/bcminsk/:path*{/}?",
-      "destination": "/minsk/bc/:path*",
+      "destination": "https://officelist.pro/minsk/bc/:path*",
       "permanent": true
     },
     {
