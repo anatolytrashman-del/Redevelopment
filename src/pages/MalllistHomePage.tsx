@@ -6,7 +6,7 @@ import { setFaqJsonLd, setGenericPageMeta, setOrganizationJsonLd } from '../lib/
 import { SiteBrandLogo } from '../components/layout/SiteBrandLogo';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
-import { SITES } from '../lib/sites';
+import { SITES, catalogHubHref } from '../lib/sites';
 
 // Главная malllist.pro — визуальный ритм casinolist.pro:
 // серый фон страницы → крупные белые rounded-карточки с тенью,
@@ -108,10 +108,10 @@ export function MalllistHomePage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <SiteBrandLogo as="span" />
           <nav className="flex items-center gap-5 text-sm font-semibold text-ink-muted">
-            <Link to="/minsk/tc" className="transition-colors hover:text-ink">
+            <Link to={catalogHubHref('tc')} className="transition-colors hover:text-ink">
               Каталог
             </Link>
-            <Link to="/minsk/tc" className="transition-colors hover:text-ink">
+            <Link to={catalogHubHref('tc')} className="transition-colors hover:text-ink">
               Минск
             </Link>
           </nav>
@@ -156,7 +156,7 @@ export function MalllistHomePage() {
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <Link
-                  to="/minsk/tc"
+                  to={catalogHubHref('tc')}
                   className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(228,21,43,0.28)] transition-transform hover:-translate-y-0.5"
                 >
                   Открыть каталог Минска
@@ -257,7 +257,7 @@ export function MalllistHomePage() {
           <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <li>
               <Link
-                to="/minsk/tc"
+                to={catalogHubHref('tc')}
                 className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-black/[0.06] bg-[#f7f6f2] transition-transform hover:-translate-y-0.5"
               >
                 <div className="relative flex min-h-[10.5rem] flex-col items-center justify-center px-5 py-8 text-center">

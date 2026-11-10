@@ -4,6 +4,7 @@ import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { MIN_RELIABLE_N } from '../data/marketSnapshots';
+import { catalogHubHref } from '../lib/sites';
 
 const TITLE = 'Методика расчёта — аналитика рынка коммерческой недвижимости';
 const DESCRIPTION = 'Как мы собираем и считаем ставки аренды и цены продажи коммерческой недвижимости в Минске.';
@@ -55,7 +56,7 @@ export function AnalyticsMethodologyPage() {
               каталога могут сдавать не только офисы (магазин на первом этаже, сфера услуг, кладовые) — в медиану
               узкого среза идут только объявления с типом помещения «Офисы», остальные исключены на этапе расчёта
               снимка (сама карточка здания на{' '}
-              <Link to="/minsk/bc" className="text-primary-hover hover:underline">
+              <Link to={catalogHubHref('bc')} className="text-primary-hover hover:underline">
                 странице каталога
               </Link>{' '}
               по-прежнему показывает все объявления по зданию, не только офисные).{' '}

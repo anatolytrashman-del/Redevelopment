@@ -123,6 +123,7 @@ import {
   TradeCenterEditorialShelves,
 } from '../components/businessCenters/TradeCenterEditorialShelves';
 import { loadBuildData, peekBuildData } from '../lib/buildData';
+import { catalogHubHref, catalogHubUrl } from '../lib/sites';
 
 // Справочная SEO-страница по бизнес-центрам Минска (владелец, 2026-09-04) —
 // см. комментарий в data/businessCenters.ts про источник списка и принцип
@@ -1186,7 +1187,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
               ? `https://redevelopment.pro${microdistrictHubUrl(microdistrictFilter, V.basePath) ?? ''}`
               : isCatalogDomainRoot()
                 ? `${V.siteUrl.replace(/^(https?:\/\/[^/]+).*$/, '$1')}/`
-                : V.siteUrl;
+                : catalogHubUrl(V.kind);
 
     setGenericPageMeta({ title: hubTitle, description: hubDescription, url: hubUrl, image: OG_IMAGE, ogType: 'article' });
 
@@ -1220,14 +1221,14 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       classFilter && districtFilter
         ? [
             { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-            { name: V.catalogTitle, url: V.siteUrl },
+            { name: V.catalogTitle, url: catalogHubUrl(V.kind) },
             { name: `Класс ${classFilter}`, url: `https://redevelopment.pro${classHubUrl(classFilter)}` },
             { name: `${districtFilter} район` },
           ]
         : classFilter || districtFilter || microdistrictFilter || underConstruction || metroFilter || streetFilter || displayHub
           ? [
               { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-              { name: V.catalogTitle, url: V.siteUrl },
+              { name: V.catalogTitle, url: catalogHubUrl(V.kind) },
               {
                 name: displayHub
                   ? displayHub.label
@@ -1497,7 +1498,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
       const url = districtHubUrl(next.districts[0], V.basePath);
       if (url) return url + withoutAxes;
     }
-    return V.basePath + catalogFilterToQuery(next);
+    return catalogHubHref(V.kind, catalogFilterToQuery(next));
   }
 
   // replace: true — фильтрование не должно забивать историю браузера так,
@@ -1760,7 +1761,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
 
       <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink-muted">Такой раздел каталога не найден.</p>
-        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+        <Link to={catalogHubHref(V.kind)} className="text-sm font-semibold text-primary-hover hover:underline">
           {`← Все ${V.many} Минска`}
         </Link>
       </div>
@@ -2029,7 +2030,7 @@ export function BusinessCentersMinskPage({ underConstruction = false }: { underC
           <div className="mx-auto w-full min-w-0 max-w-3xl space-y-6">
           {showTcListView && (
             <Link
-              to={V.basePath}
+              to={catalogHubHref(V.kind)}
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
             >
               ← К подборкам

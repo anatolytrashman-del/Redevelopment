@@ -24,6 +24,7 @@ import {
   type TcStoreHub,
 } from './tradeCenterStoreHubs';
 import type { TcFilterIndex } from './tradeCenterCatalogFeatures';
+import { catalogHubHref } from './sites';
 
 export type TcLookbookArt =
   | 'shopping'
@@ -153,7 +154,7 @@ export const TC_TOP_DISTRICTS = 5;
 export const TC_TOP_METRO = 6;
 
 /** Список всех ТЦ — отдельная «подборка», не сетка на корне. */
-export const TC_ALL_LIST_HREF = '/minsk/tc?view=list';
+export const TC_ALL_LIST_HREF = catalogHubHref('tc', '?view=list');
 
 const TONIGHT_ART: Record<string, { art: TcLookbookArt; from: string; to: string; shelfTitle: string }> = {
   shopping: { art: 'shopping', from: '#c45c2a', to: '#7a2e12', shelfTitle: 'Шопинг' },

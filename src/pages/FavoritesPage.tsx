@@ -12,6 +12,7 @@ import { favoritesShareUrl } from '../lib/favoritesContext';
 import { setNoIndex, clearNoIndex } from '../lib/pageMeta';
 import { errorMessage } from '../lib/errorMessage';
 import { BusinessCenterCard } from './BusinessCentersMinskPage';
+import { catalogHubHref } from '../lib/sites';
 
 // Избранное без регистрации (владелец, 2026-09-21) — публичная ссылка,
 // открывающая тот же список на любом устройстве по короткому id в URL, без
@@ -107,7 +108,7 @@ export function FavoritesPage() {
             Избранные бизнес-центры
           </h1>
           <Link
-            to="/minsk/bc"
+            to={catalogHubHref('bc')}
             className={cn(
               'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
               glassPillClass,

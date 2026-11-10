@@ -4,7 +4,7 @@ import { ArrowRight, Award } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
-import { catalogSiteUrl } from '../lib/sites';
+import { catalogSiteUrl, catalogHubHref, catalogHubUrl } from '../lib/sites';
 import { bcRatingTitle } from '../lib/bcTitles';
 import { contentDateIso } from '../lib/tcReviewTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
@@ -171,7 +171,7 @@ export function BusinessCentersAffordablePage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
+      { name: 'Бизнес-центры Минска', url: catalogHubUrl('bc') },
       { name: PAGE_H1 },
     ]);
   }, []);
@@ -193,7 +193,7 @@ export function BusinessCentersAffordablePage() {
             Минск
           </Link>
           <span aria-hidden="true">/</span>
-          <Link to="/minsk/bc" className="hover:text-ink">
+          <Link to={catalogHubHref('bc')} className="hover:text-ink">
             Бизнес-центры
           </Link>
           <span aria-hidden="true">/</span>
@@ -289,7 +289,7 @@ export function BusinessCentersAffordablePage() {
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <Link to="/minsk/bc" className="flex items-center gap-2 text-ink hover:text-primary-hover">
+              <Link to={catalogHubHref('bc')} className="flex items-center gap-2 text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Полный каталог бизнес-центров Минска
               </Link>

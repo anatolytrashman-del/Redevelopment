@@ -20,6 +20,7 @@ import { fetchAllBusinessCenterOffers } from '../lib/businessCenterOffersApi';
 import { MIN_RELIABLE_N, SOURCE_LABELS, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
 import type { BusinessCenter } from '../data/businessCenters';
 import type { BusinessCenterOffer } from '../data/businessCenterOffers';
+import { catalogHubHref } from '../lib/sites';
 
 const MONTH_NAMES = [
   'январь',
@@ -752,7 +753,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
           <h2 className="text-xl font-extrabold text-ink">Офисы в бизнес-центрах: подробный разбор</h2>
           <p className="text-sm leading-relaxed text-ink-muted">
             Отдельный, более глубокий срез — только по 143 зданиям из нашего{' '}
-            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
+            <Link to={catalogHubHref('bc')} className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
             </Link>
             . Это подмножество city-wide цифр выше — для него мы знаем класс здания, конкретный адрес и другие
@@ -968,7 +969,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               </p>
             )}
             <Link
-              to="/minsk/bc"
+              to={catalogHubHref('bc')}
               className="inline-flex w-fit items-center gap-1 text-sm text-primary-hover hover:underline"
             >
               Смотреть весь каталог бизнес-центров
@@ -1163,7 +1164,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
             {deal === 'sale' ? ' и продажи' : ''} офисных помещений по всему Минску (категория «Офисы» на Kufar,
             Realt.by и Domovita), без привязки к конкретному зданию. Нижняя часть — тот же принцип, но только для 143 зданий из
             нашего{' '}
-            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
+            <Link to={catalogHubHref('bc')} className="text-primary-hover hover:underline">
               каталога бизнес-центров Минска
             </Link>{' '}
             — там мы дополнительно знаем класс здания и конкретный адрес. Данные собираются с шести площадок и
@@ -1199,7 +1200,7 @@ export function OfficeAnalyticsPage({ deal }: OfficeAnalyticsPageProps) {
               жилой дом), этажа, площади помещения (мелкая нарезка обычно дороже за м², чем крупные блоки) и
               состояния отделки. Наличие своей парковки и репутация управляющей компании тоже сказываются, но эти
               данные структурно не публикуются площадками — их приходится узнавать напрямую у арендодателя или на{' '}
-              <Link to="/minsk/bc" className="text-primary-hover hover:underline">
+              <Link to={catalogHubHref('bc')} className="text-primary-hover hover:underline">
                 карточке конкретного здания
               </Link>
               .

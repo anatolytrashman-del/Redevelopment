@@ -60,7 +60,7 @@ import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenter } from '../data/businessCenters';
-import { absolutePublicUrl, catalogSiteUrl, platformOrigin } from '../lib/sites';
+import { absolutePublicUrl, platformOrigin, catalogHubUrl } from '../lib/sites';
 import { HeroImageSlider } from '../components/objects/HeroImageSlider';
 import { FaqAccordion } from '../components/ui/FaqAccordion';
 import type { FaqItem } from '../components/ui/FaqAccordion';
@@ -1444,7 +1444,7 @@ export function DistrictGuidePage() {
     // После setGenericPageMeta (тот сбрасывает крошки) — порядок важен.
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: `${PLATFORM}/minsk` },
-      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
+      { name: 'Бизнес-центры Минска', url: catalogHubUrl('bc') },
       { name: 'Район Минск Мир' },
     ]);
     setFaqJsonLd(districtFaq);
