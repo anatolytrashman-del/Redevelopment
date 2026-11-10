@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import middleware from '../../middleware';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import middleware, { __resetCatalogSlugCache } from '../../middleware';
 
 // Хаб каталога на своём домене — «/» (аудит SEO 2026-11-10): /minsk/tc на
 // malllist и /minsk/bc на officelist отдают один 308 на корень, старые
@@ -7,6 +7,8 @@ import middleware from '../../middleware';
 const saved = process.env.PUBLIC_SITE;
 afterEach(() => {
   process.env.PUBLIC_SITE = saved;
+  vi.unstubAllGlobals();
+  __resetCatalogSlugCache();
 });
 
 function call(mode: string, host: string, path: string) {
@@ -24,7 +26,11 @@ describe('хаб каталога → 308 на корень', () => {
       status: 308,
       location: 'https://malllist.pro/?view=list',
     });
-    expect(call('malls', 'malllist.pro', '/minsk/tc/gum').status).toBe(200);
+    // Карточка проверяется по списку slug (Promise); без списка — fail-open.
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    return Promise.resolve(middleware(new Request('https://malllist.pro/minsk/tc/gum', { headers: { host: 'malllist.pro' } }))).then((r) =>
+      expect(r.status).toBe(200),
+    );
   });
 
   it('officelist: /minsk/bc и /minsk — один 308 на /', () => {
@@ -34,7 +40,10 @@ describe('хаб каталога → 308 на корень', () => {
       location: 'https://officelist.pro/?status=built',
     });
     expect(call('offices', 'officelist.pro', '/minsk')).toEqual({ status: 308, location: 'https://officelist.pro/' });
-    expect(call('offices', 'officelist.pro', '/minsk/bc/abk-park').status).toBe(200);
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    return Promise.resolve(middleware(new Request('https://officelist.pro/minsk/bc/abk-park', { headers: { host: 'officelist.pro' } }))).then((r) =>
+      expect(r.status).toBe(200),
+    );
   });
 
   it('sitemap-old*.xml на каталогах — 404, на платформе не трогаем', () => {

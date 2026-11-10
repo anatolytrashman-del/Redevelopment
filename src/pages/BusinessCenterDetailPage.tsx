@@ -91,7 +91,7 @@ import {
   setPlaceJsonLd,
 } from '../lib/pageMeta';
 import { useCatalogKind } from '../lib/catalogKind';
-import { absoluteCatalogUrl, catalogSiteUrl, catalogHubHref, catalogHubUrl } from '../lib/sites';
+import { absoluteCatalogUrl, catalogSiteUrl, catalogHubHref, catalogHubUrl, cityBreadcrumb, ownSiteOrigin } from '../lib/sites';
 import {
   fullName,
   shortAddress,
@@ -2261,7 +2261,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         title,
         description,
         url,
-        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
+        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), ownSiteOrigin()).toString() : undefined,
       });
       // dateModified — дата снимка данных (сборки), а не «сегодня»: см.
       // TC_DATA_DATE_ISO. Месяц в title — период обзора, он календарный.
@@ -2284,7 +2284,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         ? centers.filter((c) => c.status !== 'under_construction' && c.retailFormat != null && formatHub.values.includes(c.retailFormat)).length
         : 0;
       setBreadcrumbJsonLd([
-        { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+        ...cityBreadcrumb(),
         { name: V.catalogTitle, url: catalogHubUrl(V.kind) },
         ...(formatHub && formatHubSize >= tcFormatHubMinCenters(formatHub.slug)
           ? [{ name: formatHub.label, url: absoluteCatalogUrl('tc', tcFormatHubUrl(formatHub, V.basePath)) }]
@@ -2297,7 +2297,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         altNames: center.altNames,
         url,
         address: center.address,
-        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), 'https://redevelopment.pro').toString() : undefined,
+        image: center.photos[0] ? new URL(withBcPhotoVersion(center.photos[0]), ownSiteOrigin()).toString() : undefined,
         lat: center.lat,
         lng: center.lng,
       });
@@ -2310,7 +2310,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
       pageComposition,
     );
     setBreadcrumbJsonLd([
-      { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+      ...cityBreadcrumb(),
       { name: 'Бизнес-центры Минска', url: catalogHubUrl('bc') },
       { name: shortName(center) },
     ]);

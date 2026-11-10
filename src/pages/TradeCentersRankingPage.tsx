@@ -4,7 +4,7 @@ import { ArrowRight, Award } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setItemListJsonLd } from '../lib/pageMeta';
-import { catalogSiteUrl, catalogHubHref, catalogHubUrl } from '../lib/sites';
+import { catalogSiteUrl, catalogHubHref, catalogHubUrl, cityBreadcrumb } from '../lib/sites';
 import { tcHubTitle } from '../lib/tcHubTitle';
 import { contentDateIso } from '../lib/tcReviewTitle';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
@@ -188,7 +188,7 @@ export function TradeCentersRankingPage() {
       dateModified: contentDateIso(),
     });
     setBreadcrumbJsonLd([
-      { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
+      ...cityBreadcrumb(),
       { name: 'Торговые центры Минска', url: catalogHubUrl('tc') },
       { name: 'Рейтинг' },
     ]);
