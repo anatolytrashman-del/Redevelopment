@@ -32,7 +32,7 @@ import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { CookieFooterLinks } from '../components/layout/CookieFooterLinks';
 import { fetchBusinessCenters } from '../lib/businessCentersApi';
 import type { BusinessCenter } from '../data/businessCenters';
-import { absolutePublicUrl, platformOrigin } from '../lib/sites';
+import { absolutePublicUrl, platformOrigin, catalogHubHref } from '../lib/sites';
 import { withMonthIfFits } from '../lib/bcTitles';
 import { contentDateIso } from '../lib/tcReviewTitle';
 
@@ -50,7 +50,7 @@ import { contentDateIso } from '../lib/tcReviewTitle';
 // Сам лендинг /minsk/one остаётся доступным по прямой ссылке. Вернуть,
 // когда здание будет куплено.
 const GUIDE_URL = '/minsk/minsk-mir';
-const CATALOG_URL = '/minsk/bc';
+const CATALOG_URL = catalogHubHref('bc');
 const PLATFORM = platformOrigin();
 const GUIDE_ABS = absolutePublicUrl(GUIDE_URL);
 const DATE_PUBLISHED = '2026-09-07';
@@ -299,7 +299,7 @@ const TOPICS: Record<MinskMirTopicSlug, TopicContent> = {
               каталоге бизнес-центров Минска
             </Link>
             , а МФЦ вместе с другими стройками города — на странице{' '}
-            <Link to={`${CATALOG_URL}/new`} className="font-semibold text-primary-hover hover:underline">
+            <Link to="/minsk/bc/new" className="font-semibold text-primary-hover hover:underline">
               строящихся бизнес-центров
             </Link>
             .

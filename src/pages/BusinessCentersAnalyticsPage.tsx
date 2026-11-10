@@ -4,7 +4,7 @@ import { ArrowRight, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setGenericPageMeta, setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd } from '../lib/pageMeta';
-import { catalogSiteUrl } from '../lib/sites';
+import { catalogSiteUrl, catalogHubHref, catalogHubUrl } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
 import { fetchExternalMetrics, fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
@@ -216,7 +216,7 @@ export function BusinessCentersAnalyticsPage() {
               rent: rent.median,
               href:
                 districtHubUrl(district) ??
-                `/minsk/bc${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, districts: [district] })}`,
+                catalogHubHref('bc', catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, districts: [district] })),
             };
       })
       .filter((p): p is DistrictPoint => p != null && p.area > 0);
@@ -352,8 +352,8 @@ export function BusinessCentersAnalyticsPage() {
   function goToLotSize(size: number) {
     navigate(
       size > 0
-        ? `/minsk/bc${catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, lotSize: size })}`
-        : '/minsk/bc',
+        ? catalogHubHref('bc', catalogFilterToQuery({ ...EMPTY_CATALOG_FILTER, lotSize: size }))
+        : catalogHubHref('bc'),
     );
   }
 
@@ -582,7 +582,7 @@ export function BusinessCentersAnalyticsPage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
+      { name: 'Бизнес-центры Минска', url: catalogHubUrl('bc') },
       { name: 'Аналитика' },
     ]);
   }, []);
@@ -604,7 +604,7 @@ export function BusinessCentersAnalyticsPage() {
             Минск
           </Link>
           <span aria-hidden="true">/</span>
-          <Link to="/minsk/bc" className="hover:text-ink">
+          <Link to={catalogHubHref('bc')} className="hover:text-ink">
             Бизнес-центры
           </Link>
           <span aria-hidden="true">/</span>
@@ -665,7 +665,7 @@ export function BusinessCentersAnalyticsPage() {
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <Link to="/minsk/bc" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
+              <Link to={catalogHubHref('bc')} className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Полный каталог бизнес-центров Минска
               </Link>

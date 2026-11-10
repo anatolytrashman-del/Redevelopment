@@ -44,7 +44,7 @@ import { useOnlinePresenceTracker } from './lib/onlinePresence';
 import { trackPageView } from './lib/pageViewTracker';
 import { FavoritesProvider } from './lib/favoritesContext';
 import { CatalogKindProvider } from './lib/catalogKind';
-import { deployedSiteMode } from './lib/sites';
+import { deployedSiteMode, catalogHubHref } from './lib/sites';
 
 // Вся админка (CRM с десятком разделов — финмодели, сметы, документы и т.д.)
 // нужна только за PasswordGate на /admin/*, но раньше грузилась тем же JS-
@@ -291,7 +291,7 @@ function MalllistRoutes() {
           </CatalogKindProvider>
         }
       />
-      <Route path="/minsk" element={<Navigate to="/minsk/tc" replace />} />
+      <Route path="/minsk" element={<Navigate to={catalogHubHref('tc')} replace />} />
       <Route path="/minsk/tc" element={<CatalogKindProvider kind="tc"><BusinessCentersMinskPage /></CatalogKindProvider>} />
       <Route path="/minsk/tc/rating" element={<CatalogKindProvider kind="tc"><TradeCentersRankingPage /></CatalogKindProvider>} />
       <Route
@@ -364,7 +364,7 @@ function OfficelistRoutes() {
       {/* / — сразу каталог (см. MalllistRoutes): без Navigate нет вспышки
           голого текста до монтирования. */}
       <Route path="/" element={<BusinessCentersMinskPage />} />
-      <Route path="/minsk" element={<Navigate to="/minsk/bc" replace />} />
+      <Route path="/minsk" element={<Navigate to={catalogHubHref('bc')} replace />} />
       {businessCenterCatalogRoutes}
       <Route path="/minsk/minsk-mir" element={<DistrictGuidePage />} />
       <Route path="/minsk/minsk-mir/:topic" element={<MinskMirTopicPage />} />

@@ -91,7 +91,7 @@ import {
   setPlaceJsonLd,
 } from '../lib/pageMeta';
 import { useCatalogKind } from '../lib/catalogKind';
-import { absoluteCatalogUrl, catalogSiteUrl } from '../lib/sites';
+import { absoluteCatalogUrl, catalogSiteUrl, catalogHubHref, catalogHubUrl } from '../lib/sites';
 import {
   fullName,
   shortAddress,
@@ -1251,7 +1251,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                   id: 'nearbyCenters',
                   title: `${V.Many} рядом`,
                   centers: list,
-                  catalogUrl: districtUrl ?? V.basePath,
+                  catalogUrl: districtUrl ?? catalogHubHref(V.kind),
                   catalogLabel:
                     districtUrl && district
                       ? `Все ${V.abbr} ${inDistrictPrepositional(district)} районе`
@@ -2285,7 +2285,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
         : 0;
       setBreadcrumbJsonLd([
         { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-        { name: V.catalogTitle, url: V.siteUrl },
+        { name: V.catalogTitle, url: catalogHubUrl(V.kind) },
         ...(formatHub && formatHubSize >= tcFormatHubMinCenters(formatHub.slug)
           ? [{ name: formatHub.label, url: absoluteCatalogUrl('tc', tcFormatHubUrl(formatHub, V.basePath)) }]
           : []),
@@ -2311,7 +2311,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     );
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
+      { name: 'Бизнес-центры Минска', url: catalogHubUrl('bc') },
       { name: shortName(center) },
     ]);
     // Б12: разметка самого здания. Удобства берём из уже собранных фактов
@@ -2416,7 +2416,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink">Не удалось загрузить данные о {V.onePrep}. Обновите страницу чуть позже.</p>
-        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+        <Link to={catalogHubHref(V.kind)} className="text-sm font-semibold text-primary-hover hover:underline">
           ← Все {V.many} Минска
         </Link>
       </main>
@@ -2427,7 +2427,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
     return (
       <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg px-4 text-center">
         <p className="text-base text-ink">Такой {V.one} не найден.</p>
-        <Link to={V.basePath} className="text-sm font-semibold text-primary-hover hover:underline">
+        <Link to={catalogHubHref(V.kind)} className="text-sm font-semibold text-primary-hover hover:underline">
           ← Все {V.many} Минска
         </Link>
       </main>
@@ -2594,7 +2594,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
                 приглушённая текстовая ссылка заменена на pill-кнопку (тот
                 же glassPillClass, что и у стрелок prev/next ниже). */}
             <Link
-              to={V.basePath}
+              to={catalogHubHref(V.kind)}
               className={cn(
                 'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,
@@ -2761,7 +2761,7 @@ export function BusinessCenterDetailPage({ ownerMode = false }: { ownerMode?: bo
           <aside className={cn('sticky hidden max-h-[calc(100svh-7rem)] flex-col gap-4 xl:flex', ownerMode ? 'top-6' : 'top-24')}>
             {!ownerMode && (
             <Link
-              to={V.basePath}
+              to={catalogHubHref(V.kind)}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:text-primary',
                 glassPillClass,

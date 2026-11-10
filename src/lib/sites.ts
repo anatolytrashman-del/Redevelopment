@@ -96,6 +96,25 @@ export function catalogSiteUrl(kind: 'bc' | 'tc'): string {
   return `${catalogSiteOrigin(kind)}${prefix}`;
 }
 
+/**
+ * Ссылка на корень каталога. На своём домене каталога (malllist.pro для ТЦ,
+ * officelist.pro для БЦ) хаб живёт на «/»: /minsk/tc и /minsk/bc там отдают
+ * 308 на главную (2026-11-10, дубль главной в GSC). На платформе — прежний
+ * /minsk/tc|bc. search — строка запроса с «?» или без.
+ */
+export function catalogHubHref(kind: 'bc' | 'tc', search = ''): string {
+  const mode = deployedSiteMode();
+  const own = (kind === 'tc' && mode === 'malls') || (kind === 'bc' && mode === 'offices');
+  const base = own ? '/' : kind === 'tc' ? '/minsk/tc' : '/minsk/bc';
+  if (!search || search === '?') return base;
+  return `${base}${search.startsWith('?') ? search : `?${search}`}`;
+}
+
+/** Абсолютный URL корня каталога (для JSON-LD/хлебных крошек). */
+export function catalogHubUrl(kind: 'bc' | 'tc'): string {
+  return `${catalogSiteOrigin(kind)}${catalogHubHref(kind)}`;
+}
+
 /** Абсолютный URL страницы каталога (path начинается с /). */
 export function absoluteCatalogUrl(kind: 'bc' | 'tc', path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;

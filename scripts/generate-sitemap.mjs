@@ -360,11 +360,10 @@ async function main() {
   if (DEPLOYED_SITE_MODE === 'malls') {
     const entries = [
       urlEntry(`${MALLS_ORIGIN}/`, today, '1.0'),
-      urlEntry(`${MALLS_ORIGIN}/minsk/tc`, today, '0.9'),
       ...tcUrls.map((u) => urlEntry(u, today, u.includes('/minsk/tc/') && !u.slice(`${MALLS_ORIGIN}/minsk/tc/`.length).includes('/') ? '0.8' : '0.6')),
     ];
-    // tcUrls уже включает хаб /minsk/tc — не дублируем
-    const seen = new Set();
+    // Хаб /minsk/tc на malllist.pro — 308 на «/» (2026-11-10): в карту не кладём.
+    const seen = new Set([`${MALLS_ORIGIN}/minsk/tc`, `${MALLS_ORIGIN}/minsk/tc/`]);
     const deduped = [];
     for (const block of entries) {
       const loc = block.match(/<loc>([^<]+)<\/loc>/)?.[1];
@@ -428,7 +427,7 @@ async function main() {
       ...slugs.map((slug) => `${OFFICES_ORIGIN}/minsk/bc/${slug}`),
     ];
     let officesXml = wrapUrlset([
-      urlEntry(`${OFFICES_ORIGIN}/minsk/bc`, today, '1.0'),
+      urlEntry(`${OFFICES_ORIGIN}/`, today, '1.0'),
       ...staticBcEntries,
       ...bcDynamicUrls.map((url) => urlEntry(url, today)),
     ]);
@@ -436,8 +435,8 @@ async function main() {
       const pruned = pruneThinHubs(officesXml, hubs.keep);
       officesXml = pruned.xml;
     }
-    // Дедуп по <loc>
-    const seen = new Set();
+    // Дедуп по <loc>. Хаб /minsk/bc на officelist.pro — 308 на «/» (2026-11-10).
+    const seen = new Set([`${OFFICES_ORIGIN}/minsk/bc`, `${OFFICES_ORIGIN}/minsk/bc/`]);
     const blocks = [...officesXml.matchAll(/ {2}<url>\n(?:.*\n)*? {2}<\/url>\n/g)].map((m) => m[0]);
     const deduped = [];
     for (const block of blocks) {

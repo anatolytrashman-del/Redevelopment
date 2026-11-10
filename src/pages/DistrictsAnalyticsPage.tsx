@@ -13,6 +13,7 @@ import {
 import { districtHubUrl } from '../lib/businessCenterHubs';
 import { fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type MarketSnapshot } from '../data/marketSnapshots';
+import { catalogHubHref } from '../lib/sites';
 
 const TITLE = 'Где дороже и дешевле: районы Минска по аренде недвижимости';
 const DESCRIPTION =
@@ -189,7 +190,7 @@ export function DistrictsAnalyticsPage() {
             цифра помечена «ориентировочно». Разбивки по неформальным микрорайонам (Уручье, Каменная Горка и т.п.)
             или по станциям метро здесь нет — у объявлений с площадок нет таких структурных полей для сегментов
             торговли и складов; для офисов в бизнес-центрах такая разбивка есть в{' '}
-            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
+            <Link to={catalogHubHref('bc')} className="text-primary-hover hover:underline">
               каталоге бизнес-центров
             </Link>{' '}
             — там расстояние до метро и микрорайон считаются по координатам конкретного здания.

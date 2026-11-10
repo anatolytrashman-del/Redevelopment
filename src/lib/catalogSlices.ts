@@ -9,6 +9,7 @@ import {
   streetHubUrl,
 } from './businessCenterHubs';
 import { METRO_LINE_DOT_CLASS, MINSK_METRO_LINES } from './businessCenterCatalogFilter';
+import { catalogHubHref } from './sites';
 
 // Оси каталога БЦ (класс / район / микрорайон / метро / улица / статус) и
 // подсчёт зданий по каждой. Раньше это жило прямо в CatalogSlicesBlock.tsx,
@@ -178,7 +179,7 @@ export function statusSlices(centers: BusinessCenter[]): CatalogSlice[] {
   const underConstruction = centers.filter((c) => c.status === 'under_construction').length;
   const slices: CatalogSlice[] = [];
   if (built > 0) {
-    slices.push({ key: 'built', label: 'Построенные', url: '/minsk/bc?status=built', count: built });
+    slices.push({ key: 'built', label: 'Построенные', url: catalogHubHref('bc', '?status=built'), count: built });
   }
   if (underConstruction > 0) {
     slices.push({
@@ -188,6 +189,6 @@ export function statusSlices(centers: BusinessCenter[]): CatalogSlice[] {
       count: underConstruction,
     });
   }
-  slices.push({ key: 'all', label: 'Весь каталог', url: '/minsk/bc', count: centers.length });
+  slices.push({ key: 'all', label: 'Весь каталог', url: catalogHubHref('bc'), count: centers.length });
   return slices;
 }

@@ -279,10 +279,24 @@ export default function middleware(request: Request) {
     });
   }
 
-  if (siteMode === 'malls') {
-    if (normalized === '/minsk') {
-      return Response.redirect(new URL('/minsk/tc', url), 307);
+  if (siteMode === 'malls' || siteMode === 'offices') {
+    // Старые карты redevelopment (sitemap-old*.xml) на каталогах не отдаём:
+    // там только чужие 308-URL платформы (аудит SEO 2026-11-10).
+    if (normalized === '/sitemap-old-urls.xml' || normalized === '/sitemap-old.xml') {
+      return new Response('Not found\n', {
+        status: 404,
+        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+      });
     }
+    // Хаб каталога живёт на «/»: /minsk/tc (malllist) и /minsk/bc (officelist)
+    // GSC считал дублем главной. Один 308 на корень, query сохраняем.
+    const hub = siteMode === 'malls' ? '/minsk/tc' : '/minsk/bc';
+    if (normalized === hub || normalized === '/minsk') {
+      return Response.redirect(new URL(`/${url.search}`, url), 308);
+    }
+  }
+
+  if (siteMode === 'malls') {
     if (pathname === '/robots.txt') {
       return new Response(`${CATALOG_ROBOTS}Sitemap: https://malllist.pro/sitemap-index.xml\n`, {
         status: 200,
@@ -305,11 +319,8 @@ export default function middleware(request: Request) {
   }
 
   if (siteMode === 'offices') {
-    // / — отдаём index.html (meta yandex-verification для Вебмастера +
-    // SPA Navigate на /minsk/bc). 307 с корня ломал HTML-meta проверку.
-    if (normalized === '/minsk') {
-      return Response.redirect(new URL('/minsk/bc', url), 307);
-    }
+    // / — отдаём index.html (meta yandex-verification для Вебмастера).
+    // /minsk и /minsk/bc → 308 на / (см. выше).
     if (pathname === '/robots.txt') {
       return new Response(`${CATALOG_ROBOTS}Sitemap: https://officelist.pro/sitemap-index.xml\n`, {
         status: 200,

@@ -62,17 +62,20 @@ const OLD_PATHS = [
 describe('переезд каталога БЦ на /minsk/bc', () => {
   it('301 из vercel.json ведёт туда же, куда перепись снапшотов, — одним прыжком', () => {
     for (const path of OLD_PATHS) {
-      const expected = newCatalogPath(path.slice('/minsk/bcminsk'.length).split('/'));
+      const mapped = newCatalogPath(path.slice('/minsk/bcminsk'.length).split('/'));
+      // Хаб /minsk/bc на officelist.pro сам 308 на «/» (2026-11-10) — старый
+      // /minsk/bcminsk ведёт сразу на корень, без второго прыжка.
+      const expected = mapped === '/minsk/bc' ? '' : mapped;
       expect(applyRedirect(path), path).toBe(expected);
       expect(applyRedirect(`${path}/`), `${path}/`).toBe(expected);
       // Цель редиректа — конечная: второго прыжка нет.
-      expect(applyRedirect(expected), expected).toBeNull();
+      if (expected) expect(applyRedirect(expected), expected).toBeNull();
     }
   });
 
   it('старые /minsk/bcminsk уходят прямо на officelist.pro', () => {
     const r = redirects.find((x) => x.source === '/minsk/bcminsk{/}?');
-    expect(r?.destination).toBe('https://officelist.pro/minsk/bc');
+    expect(r?.destination).toBe('https://officelist.pro/');
   });
 
   it('слитая карточка ведёт на итоговую одним прыжком', () => {

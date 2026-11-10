@@ -6,7 +6,7 @@ import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setBreadcrumbJsonLd, setDatasetJsonLd, setGenericPageMeta, setOrganizationJsonLd } from '../lib/pageMeta';
 import { fetchExternalMetricsBySource, fetchLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { MIN_RELIABLE_N, type ExternalMetric, type MarketSnapshot } from '../data/marketSnapshots';
-import { absolutePublicUrl } from '../lib/sites';
+import { absolutePublicUrl, catalogHubHref } from '../lib/sites';
 // absolutePublicUrl — гид /minsk/minsk-mir на officelist
 
 const TITLE = 'Цены на коммерческую недвижимость в Минске — Redevelopment';
@@ -514,7 +514,7 @@ export function MarketAnalyticsHub() {
               отдельной странице
             </Link>
             . Полный список зданий — в{' '}
-            <Link to="/minsk/bc" className="text-primary-hover hover:underline">
+            <Link to={catalogHubHref('bc')} className="text-primary-hover hover:underline">
               каталоге бизнес-центров
             </Link>
             . Про сам квартал Минск Мир, а не только его рынок недвижимости, — отдельный{' '}

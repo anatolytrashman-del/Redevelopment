@@ -4,7 +4,7 @@ import { ArrowRight, BookOpen } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { glassCardClass, glassCardShadow } from '../lib/glass';
 import { setArticleJsonLd, setBreadcrumbJsonLd, setFaqJsonLd, setGenericPageMeta } from '../lib/pageMeta';
-import { catalogSiteUrl } from '../lib/sites';
+import { catalogSiteUrl, catalogHubHref, catalogHubUrl } from '../lib/sites';
 import { fetchBusinessCenters, snapshotBusinessCenters } from '../lib/businessCentersApi';
 import { fetchLatestMarketSnapshots, peekLatestMarketSnapshots } from '../lib/marketSnapshotsApi';
 import { CatalogTopNav } from '../components/businessCenters/CatalogTopNav';
@@ -229,7 +229,7 @@ export function BusinessCentersGuidePage() {
     });
     setBreadcrumbJsonLd([
       { name: 'Коммерческая недвижимость в Минске', url: 'https://redevelopment.pro/minsk' },
-      { name: 'Бизнес-центры Минска', url: catalogSiteUrl('bc') },
+      { name: 'Бизнес-центры Минска', url: catalogHubUrl('bc') },
       { name: 'Справочник' },
     ]);
   }, []);
@@ -251,7 +251,7 @@ export function BusinessCentersGuidePage() {
             Минск
           </Link>
           <span aria-hidden="true">/</span>
-          <Link to="/minsk/bc" className="hover:text-ink">
+          <Link to={catalogHubHref('bc')} className="hover:text-ink">
             Бизнес-центры
           </Link>
           <span aria-hidden="true">/</span>
@@ -270,7 +270,7 @@ export function BusinessCentersGuidePage() {
             {total > 0 ? ` из ${total} ${pluralRu(total, 'здания', 'зданий', 'зданий')}` : ''} и по
             объявлениям с Kufar, Realt и Domovita
             {period ? `, ставки — на ${period}` : ''}. Сами здания с фильтрами, картой и ставками — в{' '}
-            <Link to="/minsk/bc" className="font-semibold text-primary-hover hover:underline">
+            <Link to={catalogHubHref('bc')} className="font-semibold text-primary-hover hover:underline">
               каталоге бизнес-центров
             </Link>
             .
@@ -646,7 +646,7 @@ export function BusinessCentersGuidePage() {
           <h2 className="text-lg font-bold text-ink">Ещё по бизнес-центрам Минска</h2>
           <ul className="flex flex-col gap-2 text-sm">
             <li>
-              <Link to="/minsk/bc" className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
+              <Link to={catalogHubHref('bc')} className="flex items-center gap-2 font-semibold text-ink hover:text-primary-hover">
                 <ArrowRight className="h-4 w-4 shrink-0 text-ink-faint" />
                 Каталог бизнес-центров Минска
               </Link>
