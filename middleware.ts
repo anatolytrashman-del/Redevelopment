@@ -206,6 +206,7 @@ export const config = {
 
 const PLATFORM_ROBOTS = `User-agent: *
 Disallow: /admin
+Disallow: /420
 Disallow: /pitch
 Disallow: /*/draft
 
@@ -381,6 +382,15 @@ export default function middleware(request: Request) {
       });
     }
     return next();
+  }
+
+  // lobsters.pro/420 — личный задачник: vercel.json проксирует его в проект vibe-relocation
+  // (там же вход по паролю, noindex и X-Robots-Tag). Здесь только пропускаем путь мимо 404.
+  {
+    const bareHost = host.replace(/^www\./, '').toLowerCase();
+    if (bareHost === 'lobsters.pro' && (normalized === '/420' || normalized.startsWith('/420/'))) {
+      return next();
+    }
   }
 
   // Междоменные 301 каталогов — раньше 404 и SPA-рерайта, чтобы Google/

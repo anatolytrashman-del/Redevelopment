@@ -2327,6 +2327,26 @@
   ],
   "rewrites": [
     {
+      "source": "/420",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?:www\\.)?lobsters\\.pro"
+        }
+      ],
+      "destination": "https://vibecoding-xi-ecru.vercel.app/420"
+    },
+    {
+      "source": "/420/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?:www\\.)?lobsters\\.pro"
+        }
+      ],
+      "destination": "https://vibecoding-xi-ecru.vercel.app/420/:path*"
+    },
+    {
       "source": "/platform",
       "destination": "/platform-admin.html"
     },
