@@ -95,15 +95,42 @@ async function fetchYandexOAuthToken(): Promise<string> {
   return data.access_token as string;
 }
 
+class WebmasterError extends Error {
+  constructor(message: string, readonly status: number, readonly code: string | null) {
+    super(message);
+  }
+}
+
 // deno-lint-ignore no-explicit-any
 async function webmasterFetch(token: string, path: string): Promise<any> {
   const res = await fetch(`${WEBMASTER_API}${path}`, {
     headers: { Authorization: `OAuth ${token}` },
   });
   if (!res.ok) {
-    throw new Error(`Яндекс.Вебмастер ${path} вернул ${res.status}: ${(await res.text()).slice(0, 500)}`);
+    const text = (await res.text()).slice(0, 500);
+    let code: string | null = null;
+    try {
+      code = JSON.parse(text)?.error_code ?? null;
+    } catch {
+      // тело не JSON — оставляем code пустым
+    }
+    throw new WebmasterError(`Яндекс.Вебмастер ${path} вернул ${res.status}: ${text}`, res.status, code);
   }
   return res.json();
+}
+
+// Хост добавлен и подтверждён, но Яндекс ещё не загрузил по нему данные
+// (так было с malllist.pro / officelist.pro после разноса каталогов) —
+// любой запрос по хосту отвечает 404 HOST_NOT_LOADED. Это не сбой синка.
+function isHostNotLoaded(err: unknown): boolean {
+  return err instanceof WebmasterError && (err.code === 'HOST_NOT_LOADED' || err.status === 404);
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  // ошибки supabase-js — простые объекты { message, code, details }
+  if (err && typeof err === 'object' && 'message' in err) return String((err as { message: unknown }).message);
+  return String(err);
 }
 
 async function resolveHost(
@@ -139,6 +166,22 @@ async function fetchCurrentPagesInSearch(token: string, userId: number, hostId: 
     `/user/${userId}/hosts/${encodeURIComponent(hostId)}/search-urls/in-search/samples?limit=1`,
   );
   return typeof data.count === 'number' ? data.count : null;
+}
+
+// Последний день, который Яндекс уже обработал: история отдаёт точки до
+// сегодняшнего дня включительно, но у ещё не посчитанных дней там 0, а не
+// пропуск. Поэтому граница — последний день с ненулевыми показами или
+// кликами; всё, что позже, считаем «данных пока нет». 2026-10-09…11-18 Яндекс
+// задержал обработку на полтора месяца, и эти дни легли в базу нулями, хотя
+// потом в API появилось 7,3 тыс. показов.
+function lastProcessedDate(byDate: Map<string, Record<string, number>>): string | null {
+  let last: string | null = null;
+  for (const [date, entry] of byDate) {
+    if ((entry.TOTAL_SHOWS ?? 0) > 0 || (entry.TOTAL_CLICKS ?? 0) > 0) {
+      if (last === null || date > last) last = date;
+    }
+  }
+  return last;
 }
 
 async function fetchQueryHistory(
@@ -364,9 +407,15 @@ async function syncOneSite(
   const today = isoDate(new Date());
   if (currentPagesInSearch !== null) indexingByDate.set(today, currentPagesInSearch);
 
+  // Каждый прогон переписывает всё окно QUERY_HISTORY_DAYS, так что дни,
+  // которые сейчас ушли в NULL, заполнятся сами, как только Яндекс их досчитает.
+  const lastQueryDate = lastProcessedDate(queryByDate);
+  log.push(`[${site}] Показы/клики посчитаны Яндексом по: ${lastQueryDate ?? '— (данных ещё нет)'}.`);
+
   const allDates = new Set([...indexingByDate.keys(), ...queryByDate.keys()]);
   const rows = [...allDates].map((date) => {
-    const q = queryByDate.get(date) ?? {};
+    const processed = lastQueryDate !== null && date <= lastQueryDate;
+    const q = processed ? queryByDate.get(date) ?? {} : {};
     return {
       date,
       site,
@@ -442,21 +491,31 @@ Deno.serve(async (req) => {
 
     const token = await fetchYandexOAuthToken();
     const drySamples: { site: SiteId; rows: unknown[]; queries: QuerySnapshotRow[]; backlinkCount: number }[] = [];
+    const errors: string[] = [];
 
+    // Сбой одного сайта не должен оставлять остальные без данных.
     for (const target of TARGET_SITES) {
-      // deno-lint-ignore no-await-in-loop
-      const result = await syncOneSite(token, target.site, target.domain, dryRun, log);
-      if (dryRun) drySamples.push({ site: target.site, ...result });
+      try {
+        // deno-lint-ignore no-await-in-loop
+        const result = await syncOneSite(token, target.site, target.domain, dryRun, log);
+        if (dryRun) drySamples.push({ site: target.site, ...result });
+      } catch (err) {
+        if (isHostNotLoaded(err)) {
+          log.push(`Пропуск ${target.domain} (${target.site}): Яндекс ещё не загрузил хост (HOST_NOT_LOADED).`);
+          continue;
+        }
+        errors.push(`[${target.site}] ${errorMessage(err)}`);
+      }
     }
 
     if (dryRun) {
-      return json({ ok: true, dryRun: true, log, sites: drySamples });
+      return json({ ok: errors.length === 0, dryRun: true, log, errors, sites: drySamples });
     }
 
+    if (errors.length > 0) return json({ ok: false, log, errors, error: errors.join('; ') }, 500);
     return json({ ok: true, log });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return json({ ok: false, log, error: message }, 500);
+    return json({ ok: false, log, error: errorMessage(err) }, 500);
   }
 });
 
